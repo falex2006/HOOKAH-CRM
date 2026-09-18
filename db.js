@@ -73,14 +73,28 @@ class AuditRepository {
   }
 }
 
+class SessionRepository {
+  constructor(pool) { this.pool = pool; }
+  async create(input) {
+    await this.pool.query('INSERT INTO auth_sessions (user_id,token_hash,expires_at) VALUES ($1,$2,$3)', [input.userId, input.tokenHash, input.expiresAt]);
+  }
+  async get(tokenHash) {
+    const { rows } = await this.pool.query(`SELECT s.id,u.id AS "userId",u.full_name AS name,u.role
+      FROM auth_sessions s JOIN users u ON u.id=s.user_id
+      WHERE s.token_hash=$1 AND s.expires_at>now() AND u.is_active=true`, [tokenHash]);
+    return rows[0] || null;
+  }
+  async remove(tokenHash) { await this.pool.query('DELETE FROM auth_sessions WHERE token_hash=$1', [tokenHash]); }
+}
+
 function createRepositories(databaseUrl = process.env.DATABASE_URL) {
   if (!databaseUrl) return null;
   let pg;
   try { pg = require('pg'); } catch { return null; }
   const pool = new pg.Pool({ connectionString: databaseUrl, max: Number(process.env.DB_POOL_MAX || 10), idleTimeoutMillis: 30000 });
-  return { pool, orders: new OrderRepository(pool), inventory: new InventoryRepository(pool), reservations: new ReservationRepository(pool), audit: new AuditRepository(pool) };
+  return { pool, orders: new OrderRepository(pool), inventory: new InventoryRepository(pool), reservations: new ReservationRepository(pool), audit: new AuditRepository(pool), sessions: new SessionRepository(pool) };
 }
 
 function createOrderRepository(databaseUrl = process.env.DATABASE_URL) { return createRepositories(databaseUrl)?.orders || null; }
 
-module.exports = { OrderRepository, InventoryRepository, ReservationRepository, AuditRepository, createRepositories, createOrderRepository };
+module.exports = { OrderRepository, InventoryRepository, ReservationRepository, AuditRepository, SessionRepository, createRepositories, createOrderRepository };

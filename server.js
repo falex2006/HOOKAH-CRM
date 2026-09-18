@@ -7,6 +7,7 @@ const { createRepositories } = require('./db');
 const root = __dirname;
 const repositories = createRepositories();
 const orderRepository = repositories?.orders || null;
+const sessionRepository = repositories?.sessions || null;
 const venueDbId = process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001';
 const venue = {
   id: 'venue-territory', name: 'Территория', format: 'кальян-бар', city: 'Тюмень',
@@ -93,11 +94,16 @@ const metrics = () => ({
   reservationsToday: reservations.filter((reservation) => reservation.date === today()).length,
   lowStock: inventory.filter((item) => item.onHand <= item.minLevel).length
 });
-const sessionFromRequest = (req) => {
+const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const sessionFromRequest = async (req) => {
   const header = req.headers.authorization || '';
   const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2));
   const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
-  return token ? sessions.get(token) : null;
+  if (!token) return null;
+  const memorySession = sessions.get(token);
+  if (memorySession) return memorySession;
+  if (sessionRepository) { try { const persisted = await sessionRepository.get(hashToken(token)); if (persisted) return { user: { id: persisted.userId, name: persisted.name, role: persisted.role } }; } catch (_) {} }
+  return null;
 };
 const recordAudit = (req, action, entityType, entityId, beforeData, afterData) => {
   const event = { id: `audit-${Date.now()}-${auditEvents.length}`, action, entityType, entityId: entityId || null, actor: req.user?.name || 'demo', beforeData: beforeData || null, afterData: afterData || null, createdAt: new Date().toISOString() };
@@ -117,13 +123,15 @@ async function api(req, res) {
     const account = demoAccounts.find((entry) => entry.username === input.username && entry.password === input.password);
     if (!account) return json(res, 401, { error: 'invalid_credentials' });
     const token = crypto.randomBytes(32).toString('hex');
-    sessions.set(token, { user: { id: account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002', name: account.name, role: account.role }, createdAt: Date.now() });
+    const userId = account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002';
+    sessions.set(token, { user: { id: userId, name: account.name, role: account.role }, createdAt: Date.now() });
+    if (sessionRepository) { try { await sessionRepository.create({ userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 28_800_000).toISOString() }); } catch (_) {} }
     res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
     return json(res, 200, { token, user: { name: account.name, role: account.role }, expiresIn: 28800 });
   }
-  if (pathname === '/api/logout' && req.method === 'POST') { res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
+  if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   if (process.env.AUTH_REQUIRED === 'true' && pathname !== '/api/health' && pathname !== '/api/login') {
-    const session = sessionFromRequest(req);
+    const session = await sessionFromRequest(req);
     if (!session) return json(res, 401, { error: 'authentication_required' });
     req.user = session.user;
   }
