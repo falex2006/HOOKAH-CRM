@@ -14,6 +14,14 @@ chmod +x deploy-vps.sh backup-postgres.sh
 ./deploy-vps.sh
 ```
 
+Для уже существующего PostgreSQL-тома применить миграции отдельно:
+
+```bash
+chmod +x migrate-vps.sh
+./migrate-vps.sh
+docker compose restart crm
+```
+
 Сервис CRM слушает только внутренний порт контейнера 3000. Nginx принимает внешний HTTP и проксирует запросы в CRM. После запуска проверить `docker compose ps` и `curl http://127.0.0.1/api/health`.
 
 ## HTTPS

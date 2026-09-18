@@ -19,3 +19,5 @@ docker compose up -d db
 ```bash
 docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < migrations/001_auth_sessions.sql
 ```
+
+Либо использовать подготовленный `./migrate-vps.sh`: он дождётся готовности PostgreSQL и применит все SQL-файлы из `migrations/`.
