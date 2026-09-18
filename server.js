@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createRepositories } = require('./db');
+const scryptAsync = require('util').promisify(crypto.scrypt);
 
 const root = __dirname;
 const repositories = createRepositories();
@@ -59,6 +60,13 @@ const demoAccounts = [
   { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner' },
   { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', name: 'Мария', role: 'bartender' }
 ];
+
+const hashPassword = async (password) => { const salt = crypto.randomBytes(16).toString('hex'); const derived = await scryptAsync(String(password), salt, 64); return `scrypt$${salt}$${derived.toString('hex')}`; };
+const verifyPassword = async (password, stored) => {
+  if (!stored) return false;
+  if (!String(stored).startsWith('scrypt$')) { const actual = Buffer.from(String(password)); const expectedPlain = Buffer.from(String(stored)); return actual.length === expectedPlain.length && crypto.timingSafeEqual(actual, expectedPlain); }
+  const [, salt, encoded] = String(stored).split('$'); const derived = await scryptAsync(String(password), salt, 64); const expected = Buffer.from(encoded || '', 'hex'); return expected.length === derived.length && crypto.timingSafeEqual(derived, expected);
+};
 
 const rolePermissions = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'settings'],
@@ -120,10 +128,13 @@ async function api(req, res) {
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
-    const account = demoAccounts.find((entry) => entry.username === input.username && entry.password === input.password);
+    let account = demoAccounts.find((entry) => entry.username === input.username && entry.password === input.password);
+    if (!account && repositories?.pool) {
+      try { const { rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]); const row = rows[0]; if (row && await verifyPassword(input.password, row.pin_hash)) account = { username: row.login, id: row.id, name: row.name, role: row.role }; } catch (_) {}
+    }
     if (!account) return json(res, 401, { error: 'invalid_credentials' });
     const token = crypto.randomBytes(32).toString('hex');
-    const userId = account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002';
+    const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
     sessions.set(token, { user: { id: userId, name: account.name, role: account.role }, createdAt: Date.now() });
     if (sessionRepository) { try { await sessionRepository.create({ userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 28_800_000).toISOString() }); } catch (_) {} }
     res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
@@ -179,14 +190,14 @@ async function api(req, res) {
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
     return json(res, 200, { items: staff });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff')) return;
     const input = await body(req);
     if (!input.name || !rolePermissions[input.role]) return json(res, 400, { error: 'name_and_valid_role_required' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,avatar_url) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [venueDbId, input.name, `user_${Date.now()}`, input.password || null, input.role, input.avatarUrl || null]); recordAudit(req, 'staff.created', 'staff', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_create_failed', detail: error.message }); } }
+    if (repositories?.pool) { try { const login = input.login || `user_${Date.now()}`; const passwordHash = input.password ? await hashPassword(input.password) : null; const { rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,avatar_url) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl"`, [venueDbId, input.name, login, passwordHash, input.role, input.avatarUrl || null]); recordAudit(req, 'staff.created', 'staff', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_create_failed', detail: error.message }); } }
     const person = { id: `u-${Date.now()}`, name: input.name, role: input.role, active: true, avatarUrl: input.avatarUrl || null };
     staff.push(person);
     recordAudit(req, 'staff.created', 'staff', person.id, null, person);
