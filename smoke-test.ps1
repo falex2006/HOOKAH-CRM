@@ -1,0 +1,37 @@
+param([string]$BaseUrl = 'http://localhost:3000')
+$ErrorActionPreference = 'Stop'
+$health = Invoke-RestMethod "$BaseUrl/api/health"
+if ($health.status -ne 'ok') { throw 'health failed' }
+$owner = Invoke-RestMethod "$BaseUrl/api/session?role=owner"
+if ($owner.permissions -notcontains 'staff' -or $owner.permissions -notcontains 'finance') { throw 'owner permissions failed' }
+$session = Invoke-RestMethod "$BaseUrl/api/session?role=bartender"
+if ($session.permissions -notcontains 'orders' -or $session.permissions -contains 'finance') { throw 'role permissions failed' }
+$products = Invoke-RestMethod "$BaseUrl/api/products"
+$redbull = $products.items | Where-Object id -eq 'redbull'
+if (-not $redbull.aliases -or $redbull.aliases.Count -lt 3) { throw 'aliases failed' }
+$integrations = Invoke-RestMethod "$BaseUrl/api/integrations"
+if (-not $integrations.egais -or $integrations.egais.enabled) { throw 'integration flags failed' }
+$order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"vip-room-1","orderType":"vip","minimumOrderTotal":1500}'
+$closed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($order.id)/close" -ContentType 'application/json' -Body '{}'
+if ($closed.finalTotal -ne 1500 -or $closed.minimumAdjustment -ne 1500) { throw 'vip minimum failed' }
+
+$regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"table-1"}'
+$item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
+$split = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/split" -ContentType 'application/json' -Body "{`"itemIds`":[`"$($item.id)`"]}"
+if (-not $split.splitFrom) { throw 'split failed' }
+$discount = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($split.id)/discount-requests" -ContentType 'application/json' -Body '{"type":"percent","value":10,"reason":"guest promo","requestedBy":"u-test"}'
+if ($discount.status -ne 'requested') { throw 'discount request failed' }
+$metrics = Invoke-RestMethod "$BaseUrl/api/metrics"
+if ($null -eq $metrics.staffActive) { throw 'metrics failed' }
+$inventory = Invoke-RestMethod "$BaseUrl/api/inventory"
+if (-not $inventory.items -or $null -eq $inventory.lowStock) { throw 'inventory endpoint failed' }
+$movement = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/inventory/movements" -ContentType 'application/json' -Body '{"itemId":"ing-redbull","delta":1,"reason":"smoke test"}'
+if ($movement.delta -ne 1) { throw 'inventory movement failed' }
+$reservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body '{"guestName":"Smoke test","date":"2026-09-16","time":"23:00","tableId":"table-12","guests":2}'
+if ($reservation.status -ne 'confirmed') { throw 'reservation create failed' }
+$finance = Invoke-RestMethod "$BaseUrl/api/finance/summary"
+if ($null -eq $finance.revenue -or $null -eq $finance.byPaymentMethod) { throw 'finance summary failed' }
+$audit = Invoke-RestMethod "$BaseUrl/api/audit"
+if (-not $audit.items -or $audit.items.Count -lt 1) { throw 'audit failed' }
+Write-Output 'CRM smoke test: PASS'
+
