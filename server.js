@@ -130,6 +130,7 @@ async function api(req, res) {
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
     let account = demoAccounts.find((entry) => entry.username === input.username && entry.password === input.password);
+    if (!account) { const person = staff.find((entry) => entry.active && entry.login === input.username); if (person && await verifyPassword(input.password, person.passwordHash)) account = { username: person.login, id: person.id, name: person.name, role: person.role }; }
     if (!account && repositories?.pool) {
       try { const { rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]); const row = rows[0]; if (row && await verifyPassword(input.password, row.pin_hash)) account = { username: row.login, id: row.id, name: row.name, role: row.role }; } catch (_) {}
     }
@@ -194,17 +195,18 @@ async function api(req, res) {
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
-    return json(res, 200, { items: staff });
+    return json(res, 200, { items: staff.map(({ passwordHash, ...person }) => person) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff')) return;
     const input = await body(req);
     if (!input.name || !rolePermissions[input.role]) return json(res, 400, { error: 'name_and_valid_role_required' });
     if (repositories?.pool) { try { const login = input.login || `user_${Date.now()}`; const passwordHash = input.password ? await hashPassword(input.password) : null; const { rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,avatar_url) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl"`, [venueDbId, input.name, login, passwordHash, input.role, input.avatarUrl || null]); recordAudit(req, 'staff.created', 'staff', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_create_failed', detail: error.message }); } }
-    const person = { id: `u-${Date.now()}`, name: input.name, role: input.role, active: true, avatarUrl: input.avatarUrl || null };
+    const person = { id: `u-${Date.now()}`, name: input.name, login: input.login || `user_${Date.now()}`, passwordHash: input.password ? await hashPassword(input.password) : null, role: input.role, active: true, avatarUrl: input.avatarUrl || null };
     staff.push(person);
-    recordAudit(req, 'staff.created', 'staff', person.id, null, person);
-    return json(res, 201, person);
+    const { passwordHash, ...publicPerson } = person;
+    recordAudit(req, 'staff.created', 'staff', person.id, null, publicPerson);
+    return json(res, 201, publicPerson);
   }
   const staffDelete = pathname.match(/^\/api\/staff\/([^/]+)$/);
   if (staffDelete && req.method === 'DELETE') {
