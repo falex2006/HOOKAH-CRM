@@ -343,8 +343,9 @@ async function api(req, res) {
 
 function staticFile(req, res) {
   let requestPath = new URL(req.url, 'http://localhost').pathname;
+  const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
   const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/reservations': '/reservations.html' };
-  requestPath = aliases[requestPath] || requestPath;
+  requestPath = aliases[routePath] || requestPath;
   const file = path.resolve(root, `.${requestPath}`);
   if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json' };
