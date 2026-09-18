@@ -121,6 +121,7 @@ const recordAudit = (req, action, entityType, entityId, beforeData, afterData) =
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 2_000_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && (rolePermissions[req.user.role] || []).includes(permission));
 const denyUnless = (req, res, permission) => { if (hasPermission(req, permission)) return false; json(res, 403, { error: 'forbidden', permission }); return true; };
+const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };
 
 async function api(req, res) {
   const url = new URL(req.url, 'http://localhost');
@@ -160,7 +161,7 @@ async function api(req, res) {
     if (repositories?.pool) { try { await repositories.pool.query('UPDATE venues SET name=$1,phone=$2,address=$3,logo_url=$4 WHERE id=$5', [venue.name, venue.phone, venue.address, venue.logoUrl, venueDbId]); } catch (_) {} }
     recordAudit(req, 'venue.updated', 'venue', venue.id, before, venue); return json(res, 200, venue);
   }
-  if (pathname === '/api/integrations') return json(res, 200, integrations);
+  if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings'])) return; return json(res, 200, integrations); }
   if (pathname === '/api/metrics') return json(res, 200, metrics());
   if (pathname === '/api/audit' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'diagnostics') && !hasPermission(req, 'settings')) return json(res, 403, { error: 'forbidden', permission: 'diagnostics' });
@@ -168,10 +169,12 @@ async function api(req, res) {
     return json(res, 200, { items: auditEvents.slice(-100).reverse() });
   }
   if (pathname === '/api/floor') {
+    if (denyUnless(req, res, 'floor')) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,t.status,t.capacity,t.min_order_total FROM zones z JOIN tables t ON t.zone_id=z.id WHERE z.venue_id=$1 ORDER BY z.sort_order,t.name`, [venueDbId]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minimumOrderTotal: Number(row.min_order_total) }); } return json(res, 200, { zones }); } catch (_) {} }
     return json(res, 200, { zones: floor });
   }
   if (pathname === '/api/products') {
+    if (denyUnless(req, res, 'floor')) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,name,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl" FROM products WHERE venue_id=$1 AND is_active=true ORDER BY name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, price: Number(row.price) })) }); } catch (_) {} }
     return json(res, 200, { items: products });
   }
@@ -255,11 +258,13 @@ async function api(req, res) {
     return json(res, 200, { date: url.searchParams.get('date') || today(), revenue, closedOrders: closed.length, byPaymentMethod: byType, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length });
   }
   if (pathname === '/api/reservations' && req.method === 'GET') {
+    if (denyUnless(req, res, 'reservations')) return;
     const date = url.searchParams.get('date');
     if (repositories?.reservations) { try { return json(res, 200, { items: await repositories.reservations.list(venueDbId, date) }); } catch (_) {} }
     return json(res, 200, { items: date ? reservations.filter((reservation) => reservation.date === date) : reservations });
   }
   if (pathname === '/api/reservations' && req.method === 'POST') {
+    if (denyUnless(req, res, 'reservations')) return;
     const input = await body(req);
     if (!input.guestName || !input.date || !input.time || !input.tableId) return json(res, 400, { error: 'guest_date_time_table_required' });
     if (repositories?.reservations) { try { const reservation = await repositories.reservations.create({ ...input, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
@@ -272,6 +277,7 @@ async function api(req, res) {
     return json(res, 201, reservation);
   }
   if (pathname.startsWith('/api/reservations/') && req.method === 'POST' && pathname.endsWith('/cancel')) {
+    if (denyUnless(req, res, 'reservations')) return;
     const reservation = reservations.find((entry) => entry.id === pathname.split('/')[3]);
     if (!reservation) return json(res, 404, { error: 'reservation_not_found' });
     reservation.status = 'cancelled';
@@ -279,12 +285,14 @@ async function api(req, res) {
     return json(res, 200, reservation);
   }
   if (pathname === '/api/orders' && req.method === 'GET') {
+    if (denyUnless(req, res, 'orders')) return;
     if (orderRepository) {
       try { return json(res, 200, { items: await orderRepository.listOpen(url.searchParams.get('venueId')) }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
     }
     return json(res, 200, { items: orders });
   }
   if (pathname === '/api/orders' && req.method === 'POST') {
+    if (denyUnless(req, res, 'orders')) return;
     const input = await body(req);
     if (repositories?.orders) {
       try {
@@ -301,6 +309,7 @@ async function api(req, res) {
   }
   const itemMatch = pathname.match(/^\/api\/orders\/([^/]+)\/items$/);
   if (itemMatch && req.method === 'POST') {
+    if (denyUnless(req, res, 'orders')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemMatch[1])) {
       const input = await body(req);
       try { const { rows: productRows } = await repositories.pool.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true', [input.productId, venueDbId]); const product = productRows[0]; if (!product) return json(res, 400, { error: 'product_not_found' }); const { rows } = await repositories.pool.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,$4,$5) RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station', [itemMatch[1], product.id, Number(input.quantity || 1), product.unitPrice, product.station]); return json(res, 201, { ...rows[0], name: product.name }); } catch (error) { return json(res, 409, { error: 'order_item_create_failed', detail: error.message }); }
@@ -316,10 +325,12 @@ async function api(req, res) {
   }
   const orderPath = pathname.match(/^\/api\/orders\/([^/]+)\/(summary|close|split|discount-requests)$/);
   if (orderPath && req.method === 'GET' && orderPath[2] === 'summary') {
+    if (denyUnless(req, res, 'orders')) return;
     const order = orders.find((entry) => entry.id === orderPath[1]);
     return order ? json(res, 200, vipSummary(order)) : json(res, 404, { error: 'order_not_found' });
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'close') {
+    if (denyUnless(req, res, 'orders')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
       const input = await body(req);
       try { const { rows: orderRows } = await repositories.pool.query('SELECT id,status,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [orderPath[1], venueDbId]); const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' }); const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderPath[1]]); const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const minimum = Number(persisted.minimumOrderTotal || 0); const finalTotal = Math.max(subtotal, minimum); const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=now() WHERE id=$2 RETURNING *', ['closed', orderPath[1]]); if (finalTotal > 0) await repositories.pool.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,$4)', [orderPath[1], input.paymentMethod || 'cash', finalTotal, 'paid']); const result = { ...rows[0], subtotal, finalTotal, minimumAdjustment: Math.max(0, minimum - subtotal), paymentMethod: input.paymentMethod || 'cash' }; recordAudit(req, 'order.closed', 'order', orderPath[1], { status: persisted.status }, result); return json(res, 200, result); } catch (error) { return json(res, 409, { error: 'order_close_failed', detail: error.message }); }
@@ -333,6 +344,7 @@ async function api(req, res) {
     return json(res, 200, order);
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'split') {
+    if (denyUnless(req, res, 'orders')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
       const input = await body(req); const ids = Array.isArray(input.itemIds) ? input.itemIds.filter((id) => /^[0-9a-f-]{36}$/i.test(id)) : [];
       if (!ids.length) return json(res, 400, { error: 'item_ids_required' });
@@ -357,6 +369,7 @@ async function api(req, res) {
     orders.push(target); recordAudit(req, 'order.split', 'order', source.id, { itemCount: source.items.length + moved.length }, { itemCount: source.items.length, newOrderId: target.id }); return json(res, 201, target);
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'discount-requests') {
+    if (denyUnless(req, res, 'orders')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
       const input = await body(req); if (!input.reason || !input.value) return json(res, 400, { error: 'reason_and_value_required' });
       try { const requestedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001'; const { rows } = await repositories.pool.query('INSERT INTO discounts (order_id,requested_by,type,value,reason) SELECT id,$2,$3,$4,$5 FROM orders WHERE id=$1 AND venue_id=$6 RETURNING id,order_id AS "orderId",type,value,reason,status,requested_by AS "requestedBy",created_at AS "createdAt"', [orderPath[1], requestedBy, input.type || 'percent', Number(input.value), input.reason, venueDbId]); if (!rows[0]) return json(res, 404, { error: 'order_not_found' }); recordAudit(req, 'discount.requested', 'discount', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'discount_create_failed', detail: error.message }); }
@@ -368,6 +381,7 @@ async function api(req, res) {
     discountRequests.push(request); recordAudit(req, 'discount.requested', 'discount', request.id, null, request); return json(res, 201, request);
   }
   if (pathname === '/api/discount-requests' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT d.id,d.order_id AS "orderId",d.type,d.value,d.reason,d.status,d.requested_by AS "requestedBy",d.approved_by AS "approvedBy",d.created_at AS "createdAt",d.decided_at AS "decidedAt" FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 ORDER BY d.created_at DESC', [venueDbId]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'database_unavailable' }); } }
     return json(res, 200, { items: discountRequests });
   }
