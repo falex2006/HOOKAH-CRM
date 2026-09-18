@@ -314,6 +314,21 @@ async function api(req, res) {
     return json(res, 200, order);
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'split') {
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
+      const input = await body(req); const ids = Array.isArray(input.itemIds) ? input.itemIds.filter((id) => /^[0-9a-f-]{36}$/i.test(id)) : [];
+      if (!ids.length) return json(res, 400, { error: 'item_ids_required' });
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const { rows: sourceRows } = await client.query('SELECT id,venue_id,table_id,reservation_id,opened_by,vip_minimum,status FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderPath[1], venueDbId]);
+        const source = sourceRows[0]; if (!source) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+        const { rows: moved } = await client.query('SELECT id,product_id AS "productId",quantity,unit_price AS "unitPrice",station,status,guest_number AS "guestNumber" FROM order_items WHERE order_id=$1 AND id=ANY($2::uuid[]) FOR UPDATE', [source.id, ids]);
+        if (!moved.length) { await client.query('ROLLBACK'); return json(res, 400, { error: 'item_ids_required' }); }
+        const { rows: targetRows } = await client.query('INSERT INTO orders (venue_id,table_id,reservation_id,opened_by,vip_minimum,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,venue_id AS "venueId",table_id AS "tableId",reservation_id AS "reservationId",status,vip_minimum AS "minimumOrderTotal",created_at AS "createdAt"', [source.venue_id, source.table_id, source.reservation_id, source.opened_by, source.vip_minimum, 'open']);
+        const target = targetRows[0]; await client.query('UPDATE order_items SET order_id=$1 WHERE id=ANY($2::uuid[]) AND order_id=$3', [target.id, ids, source.id]); await client.query('COMMIT');
+        const result = { ...target, items: moved, splitFrom: source.id }; recordAudit(req, 'order.split', 'order', source.id, { itemCount: moved.length }, { itemCount: moved.length, newOrderId: target.id }); return json(res, 201, result);
+      } catch (error) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_split_failed', detail: error.message }); } finally { client.release(); }
+    }
     const source = orders.find((entry) => entry.id === orderPath[1]);
     if (!source) return json(res, 404, { error: 'order_not_found' });
     const input = await body(req); const ids = new Set(input.itemIds || []); const moved = source.items.filter((item) => ids.has(item.id));
@@ -323,15 +338,27 @@ async function api(req, res) {
     orders.push(target); recordAudit(req, 'order.split', 'order', source.id, { itemCount: source.items.length + moved.length }, { itemCount: source.items.length, newOrderId: target.id }); return json(res, 201, target);
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'discount-requests') {
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
+      const input = await body(req); if (!input.reason || !input.value) return json(res, 400, { error: 'reason_and_value_required' });
+      try { const requestedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001'; const { rows } = await repositories.pool.query('INSERT INTO discounts (order_id,requested_by,type,value,reason) SELECT id,$2,$3,$4,$5 FROM orders WHERE id=$1 AND venue_id=$6 RETURNING id,order_id AS "orderId",type,value,reason,status,requested_by AS "requestedBy",created_at AS "createdAt"', [orderPath[1], requestedBy, input.type || 'percent', Number(input.value), input.reason, venueDbId]); if (!rows[0]) return json(res, 404, { error: 'order_not_found' }); recordAudit(req, 'discount.requested', 'discount', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'discount_create_failed', detail: error.message }); }
+    }
     const order = orders.find((entry) => entry.id === orderPath[1]); const input = await body(req);
     if (!order) return json(res, 404, { error: 'order_not_found' });
     if (!input.reason || !input.value) return json(res, 400, { error: 'reason_and_value_required' });
     const request = { id: `disc-${Date.now()}`, orderId: order.id, type: input.type || 'percent', value: Number(input.value), reason: input.reason, status: 'requested', requestedBy: input.requestedBy || 'unknown', createdAt: new Date().toISOString() };
     discountRequests.push(request); recordAudit(req, 'discount.requested', 'discount', request.id, null, request); return json(res, 201, request);
   }
-  if (pathname === '/api/discount-requests' && req.method === 'GET') return json(res, 200, { items: discountRequests });
+  if (pathname === '/api/discount-requests' && req.method === 'GET') {
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT d.id,d.order_id AS "orderId",d.type,d.value,d.reason,d.status,d.requested_by AS "requestedBy",d.approved_by AS "approvedBy",d.created_at AS "createdAt",d.decided_at AS "decidedAt" FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 ORDER BY d.created_at DESC', [venueDbId]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'database_unavailable' }); } }
+    return json(res, 200, { items: discountRequests });
+  }
   const decision = pathname.match(/^\/api\/discount-requests\/([^/]+)\/(approve|reject)$/);
   if (decision && req.method === 'POST') {
+    if (denyUnless(req, res, 'finance')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(decision[1])) {
+      const input = await body(req); const status = decision[2] === 'approve' ? 'approved' : 'rejected'; const decidedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001';
+      try { const { rows } = await repositories.pool.query('UPDATE discounts SET status=$1,approved_by=$2,decided_at=now() WHERE id=$3 AND status=$4 RETURNING id,order_id AS "orderId",type,value,reason,status,requested_by AS "requestedBy",approved_by AS "approvedBy",created_at AS "createdAt",decided_at AS "decidedAt"', [status, decidedBy, decision[1], 'requested']); if (!rows[0]) return json(res, 409, { error: 'discount_not_found_or_decided' }); recordAudit(req, `discount.${status}`, 'discount', rows[0].id, { status: 'requested' }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'discount_decision_failed', detail: error.message }); }
+    }
     const request = discountRequests.find((entry) => entry.id === decision[1]);
     if (!request) return json(res, 404, { error: 'discount_not_found' });
     if (request.status !== 'requested') return json(res, 409, { error: 'already_decided' });
