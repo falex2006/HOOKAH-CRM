@@ -56,6 +56,7 @@ const stockMovements = [];
 const reservations = [];
 const auditEvents = [];
 const sessions = new Map();
+const shifts = [];
 const demoAccounts = [
   { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || 'admin', name: 'Администратор', role: 'admin' },
   { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner' },
@@ -150,6 +151,23 @@ async function api(req, res) {
     req.user = session.user;
   }
   if (pathname === '/api/health') return json(res, 200, { status: 'ok', service: 'hookah-crm' });
+  if (pathname === '/api/shifts' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash" FROM shifts WHERE venue_id=$1 ORDER BY opened_at DESC LIMIT 20', [venueDbId]); return json(res, 200, { items: rows, current: rows.find((entry) => !entry.closedAt) || null }); } catch (_) {} }
+    return json(res, 200, { items: shifts.slice().reverse(), current: shifts.find((entry) => !entry.closedAt) || null });
+  }
+  if (pathname === '/api/shifts' && req.method === 'POST') {
+    if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
+    const input = await body(req); if (shifts.some((entry) => !entry.closedAt)) return json(res, 409, { error: 'shift_already_open' });
+    const shift = { id: `shift-${Date.now()}`, openedAt: new Date().toISOString(), closedAt: null, openingCash: Number(input.openingCash || 0), closingCash: null, openedBy: req.user?.name || 'сотрудник' }; shifts.push(shift); recordAudit(req, 'shift.opened', 'shift', shift.id, null, shift); return json(res, 201, shift);
+  }
+  const shiftClose = pathname.match(/^\/api\/shifts\/([^/]+)\/close$/);
+  if (shiftClose && req.method === 'POST') {
+    if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
+    const input = await body(req);
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(shiftClose[1])) { try { const { rows } = await repositories.pool.query('UPDATE shifts SET closed_at=now(),closing_cash=$1 WHERE id=$2 AND venue_id=$3 AND closed_at IS NULL RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash"', [Number(input.closingCash || 0), shiftClose[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'shift_not_found_or_closed' }); recordAudit(req, 'shift.closed', 'shift', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'shift_close_failed', detail: error.message }); } }
+    const shift = shifts.find((entry) => entry.id === shiftClose[1]); if (!shift || shift.closedAt) return json(res, 404, { error: 'shift_not_found_or_closed' }); shift.closedAt = new Date().toISOString(); shift.closingCash = Number(input.closingCash || 0); recordAudit(req, 'shift.closed', 'shift', shift.id, null, shift); return json(res, 200, shift);
+  }
   if (pathname === '/api/venue' && req.method === 'GET') {
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,phone,address,logo_url AS "logoUrl",timezone FROM venues WHERE id=$1', [venueDbId]); if (rows[0]) return json(res, 200, { ...venue, ...rows[0] }); } catch (_) {} }
     return json(res, 200, venue);

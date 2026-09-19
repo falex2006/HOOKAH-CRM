@@ -2,6 +2,10 @@ param([string]$BaseUrl = 'http://localhost:3000')
 $ErrorActionPreference = 'Stop'
 $health = Invoke-RestMethod "$BaseUrl/api/health"
 if ($health.status -ne 'ok') { throw 'health failed' }
+$shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
+if (-not $shift.id) { throw 'shift open failed' }
+$closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200}'
+if (-not $closedShift.closedAt -or $closedShift.closingCash -ne 1200) { throw 'shift close failed' }
 $owner = Invoke-RestMethod "$BaseUrl/api/session?role=owner"
 if ($owner.permissions -notcontains 'staff' -or $owner.permissions -notcontains 'finance') { throw 'owner permissions failed' }
 $session = Invoke-RestMethod "$BaseUrl/api/session?role=bartender"
