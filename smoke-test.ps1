@@ -14,6 +14,9 @@ if (-not $integrations.egais -or $integrations.egais.enabled) { throw 'integrati
 $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"vip-room-1","orderType":"vip","minimumOrderTotal":1500}'
 $closed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($order.id)/close" -ContentType 'application/json' -Body '{}'
 if ($closed.finalTotal -ne 1500 -or $closed.minimumAdjustment -ne 1500) { throw 'vip minimum failed' }
+$vip2 = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"vip-room-2","orderType":"vip","minimumOrderTotal":2500}'
+$vip2Closed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($vip2.id)/close" -ContentType 'application/json' -Body '{}'
+if ($vip2Closed.finalTotal -ne 2500 -or $vip2Closed.minimumAdjustment -ne 2500) { throw 'vip room 2 minimum failed' }
 
 $regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"table-1"}'
 $item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
@@ -21,6 +24,8 @@ $split = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)
 if (-not $split.splitFrom) { throw 'split failed' }
 $discount = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($split.id)/discount-requests" -ContentType 'application/json' -Body '{"type":"percent","value":10,"reason":"guest promo","requestedBy":"u-test"}'
 if ($discount.status -ne 'requested') { throw 'discount request failed' }
+$decision = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/discount-requests/$($discount.id)/approve" -ContentType 'application/json' -Body '{"decidedBy":"owner"}'
+if ($decision.status -ne 'approved') { throw 'discount approval failed' }
 $metrics = Invoke-RestMethod "$BaseUrl/api/metrics"
 if ($null -eq $metrics.staffActive) { throw 'metrics failed' }
 $inventory = Invoke-RestMethod "$BaseUrl/api/inventory"
