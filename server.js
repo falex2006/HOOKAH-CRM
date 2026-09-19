@@ -355,6 +355,25 @@ async function api(req, res) {
     order.items.push(item);
     return json(res, 201, item);
   }
+  const paymentPath = pathname.match(/^\/api\/orders\/([^/]+)\/payments$/);
+  if (paymentPath && (req.method === 'GET' || req.method === 'POST')) {
+    if (denyUnless(req, res, 'orders')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(paymentPath[1])) {
+      try {
+        const { rows: orderRows } = await repositories.pool.query('SELECT id,status,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [paymentPath[1], venueDbId]);
+        const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' });
+        const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [paymentPath[1]]);
+        const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const due = Math.max(subtotal, Number(persisted.minimumOrderTotal || 0));
+        if (req.method === 'GET') { const { rows } = await repositories.pool.query('SELECT id,method,amount,status,created_at AS "createdAt" FROM payments WHERE order_id=$1 ORDER BY created_at', [paymentPath[1]]); return json(res, 200, { items: rows, due, paid: rows.filter((item) => item.status === 'paid').reduce((sum, item) => sum + Number(item.amount), 0), remaining: Math.max(0, due - rows.filter((item) => item.status === 'paid').reduce((sum, item) => sum + Number(item.amount), 0)) }); }
+        const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' });
+        const { rows: paidRows } = await repositories.pool.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [paymentPath[1]]); const paid = Number(paidRows[0]?.paid || 0); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) });
+        const { rows } = await repositories.pool.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,\'paid\') RETURNING id,method,amount,status,created_at AS "createdAt"', [paymentPath[1], method, amount]); const nextPaid = paid + amount; if (nextPaid >= due) await repositories.pool.query('UPDATE orders SET status=\'closed\',closed_at=now() WHERE id=$1', [paymentPath[1]]); recordAudit(req, 'order.payment_added', 'payment', rows[0].id, null, rows[0]); return json(res, 201, { ...rows[0], due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed: nextPaid >= due });
+      } catch (error) { return json(res, 409, { error: 'payment_create_failed', detail: error.message }); }
+    }
+    const order = orders.find((entry) => entry.id === paymentPath[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); order.payments ||= []; const subtotal = orderTotal(order); const due = Math.max(subtotal, Number(order.minimumOrderTotal || 0)); const paid = order.payments.reduce((sum, item) => sum + Number(item.amount), 0);
+    if (req.method === 'GET') return json(res, 200, { items: order.payments, due, paid, remaining: Math.max(0, due - paid) });
+    const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' }); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', createdAt: new Date().toISOString() }; order.payments.push(payment); const nextPaid = paid + amount; if (nextPaid >= due) { order.status = 'closed'; order.closedAt = payment.createdAt; } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, payment); return json(res, 201, { ...payment, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed: nextPaid >= due });
+  }
   const orderPath = pathname.match(/^\/api\/orders\/([^/]+)\/(summary|close|split|discount-requests)$/);
   if (orderPath && req.method === 'GET' && orderPath[2] === 'summary') {
     if (denyUnless(req, res, 'orders')) return;

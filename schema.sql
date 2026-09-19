@@ -164,6 +164,7 @@ CREATE TABLE payments (
   external_id text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_payments_order_status ON payments (order_id, status);
 
 CREATE TABLE stock_movements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
