@@ -310,6 +310,35 @@ async function api(req, res) {
     recordAudit(req, 'order.created', 'order', order.id, null, order);
     return json(res, 201, order);
   }
+  const orderAction = pathname.match(/^\/api\/orders\/([^/]+)\/(status|transfer)$/);
+  if (orderAction && req.method === 'POST') {
+    if (denyUnless(req, res, 'orders')) return;
+    const input = await body(req);
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderAction[1])) {
+      try {
+        if (orderAction[2] === 'status') {
+          const allowed = ['open', 'in_progress', 'ready', 'closed', 'cancelled'];
+          if (!allowed.includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
+          const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=CASE WHEN $1=\'closed\' THEN now() ELSE closed_at END WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.status, orderAction[1], venueDbId]);
+          if (!rows[0]) return json(res, 404, { error: 'order_not_found' });
+          recordAudit(req, 'order.status_changed', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
+        }
+        if (!input.tableId) return json(res, 400, { error: 'table_id_required' });
+        const { rows } = await repositories.pool.query('UPDATE orders SET table_id=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.tableId, orderAction[1], venueDbId]);
+        if (!rows[0]) return json(res, 404, { error: 'order_not_found' });
+        recordAudit(req, 'order.transferred', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
+      } catch (error) { return json(res, 409, { error: 'order_action_failed', detail: error.message }); }
+    }
+    const order = orders.find((entry) => entry.id === orderAction[1]);
+    if (!order) return json(res, 404, { error: 'order_not_found' });
+    if (orderAction[2] === 'status') {
+      if (!['open', 'in_progress', 'ready', 'closed', 'cancelled'].includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
+      const before = { status: order.status }; order.status = input.status; if (input.status === 'closed') order.closedAt = new Date().toISOString();
+      recordAudit(req, 'order.status_changed', 'order', order.id, before, { status: order.status }); return json(res, 200, order);
+    }
+    if (!input.tableId) return json(res, 400, { error: 'table_id_required' });
+    const before = { tableId: order.tableId }; order.tableId = input.tableId; recordAudit(req, 'order.transferred', 'order', order.id, before, { tableId: order.tableId }); return json(res, 200, order);
+  }
   const itemMatch = pathname.match(/^\/api\/orders\/([^/]+)\/items$/);
   if (itemMatch && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;

@@ -32,3 +32,22 @@ grid.addEventListener('click',e=>{const item=e.target.closest('.product'); if(!i
 document.querySelector('.close')?.addEventListener('click',()=>{if(!currentOrder?.id){alert('Сначала добавьте позицию в заказ');return;} const method=window.prompt('Способ оплаты: cash, card или qr','cash')||'cash'; apiJson(`/api/orders/${currentOrder.id}/close`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({paymentMethod:method})}).then(result=>{alert(`Заказ закрыт на ${Number(result.finalTotal||0).toLocaleString('ru-RU')} ₽`); currentOrder=null; drawOrder({items:[]});}).catch(()=>alert('Не удалось закрыть заказ'));});
 document.querySelector('#discount-request')?.addEventListener('click',()=>{if(!currentOrder?.id){alert('Сначала откройте заказ');return;} const value=Number(window.prompt('Размер скидки, %','10')); if(!Number.isFinite(value)||value<=0||value>100)return; const reason=window.prompt('Причина скидки','Лояльность гостя'); if(!reason)return; apiJson(`/api/orders/${currentOrder.id}/discount-requests`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({type:'percent',value,reason})}).then(()=>alert('Заявка отправлена администратору')).catch(()=>alert('Не удалось отправить заявку'));});
 
+const notice=(text)=>{let el=document.querySelector('#staff-notice');if(!el){el=document.createElement('div');el.id='staff-notice';el.className='staff-notice';document.body.append(el);}el.textContent=text;el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),2400);};
+document.querySelectorAll('aside nav button').forEach((button)=>button.addEventListener('click',()=>{
+  document.querySelectorAll('aside nav button').forEach((item)=>item.classList.remove('active')); button.classList.add('active');
+  const label=button.textContent.trim(); if(label.includes('Бронирования')) window.location.href='/reservations'; else if(label.includes('Заказы')||label.includes('Задачи')) document.querySelector('.queue')?.scrollIntoView({behavior:'smooth'}); else document.querySelector('.tables')?.scrollIntoView({behavior:'smooth'});
+}));
+document.querySelectorAll('.tabs button').forEach((button)=>button.addEventListener('click',()=>{document.querySelectorAll('.tabs button').forEach((item)=>item.classList.remove('selected'));button.classList.add('selected');notice(`Зона «${button.textContent.trim()}» выбрана`);}));
+document.querySelectorAll('.actions button').forEach((button)=>button.addEventListener('click',()=>{
+  if(!currentOrder?.id){notice('Сначала добавьте позицию в заказ');return;}
+  const status=button.textContent.includes('бар')?'in_progress':'ready';
+  apiJson(`/api/orders/${currentOrder.id}/status`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({status})}).then(()=>{currentOrder.status=status;notice(status==='in_progress'?'Заказ отправлен на бар':'Задача отправлена кальянщику');}).catch(()=>notice('Не удалось передать заказ'));
+}));
+document.querySelector('.secondary:not(#discount-request)')?.addEventListener('click',()=>{
+  if(!currentOrder?.id){notice('Сначала откройте заказ');return;}
+  const table=window.prompt('Номер нового стола','1'); if(!table)return; const tableId=String(table).startsWith('table-')?String(table):`table-${table}`;
+  apiJson(`/api/orders/${currentOrder.id}/transfer`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({tableId})}).then(()=>{currentOrder.tableId=tableId;document.querySelector('.order h2').textContent=`Стол ${String(table).replace(/^table-/,'')}`;notice('Заказ передан на новый стол');}).catch(()=>notice('Не удалось передать заказ'));
+});
+document.querySelectorAll('.order-tabs span').forEach((tab)=>tab.addEventListener('click',()=>notice(`${tab.textContent.trim()}: раздел готов к заполнению`)));
+document.querySelectorAll('.chips span').forEach((chip)=>chip.addEventListener('click',()=>{document.querySelectorAll('.chips span').forEach((item)=>item.classList.remove('active'));chip.classList.add('active');notice(`Фильтр «${chip.textContent.trim()}» применён`);}));
+
