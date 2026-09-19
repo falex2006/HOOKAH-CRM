@@ -22,6 +22,7 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO users (id, venue_id, full_name, login, pin_hash, role, avatar_url) VALUES
 ('20000000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000001','Владелец','owner','demo','owner',NULL),
+('20000000-0000-0000-0000-000000000003','00000000-0000-0000-0000-000000000001','Администратор','admin','admin','admin',NULL),
 ('20000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001','Мария','staff','demo','bartender',NULL)
 ON CONFLICT (login) DO NOTHING;
 

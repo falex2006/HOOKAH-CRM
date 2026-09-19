@@ -17,6 +17,11 @@ if ($closed.finalTotal -ne 1500 -or $closed.minimumAdjustment -ne 1500) { throw 
 $vip2 = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"vip-room-2","orderType":"vip","minimumOrderTotal":2500}'
 $vip2Closed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($vip2.id)/close" -ContentType 'application/json' -Body '{}'
 if ($vip2Closed.finalTotal -ne 2500 -or $vip2Closed.minimumAdjustment -ne 2500) { throw 'vip room 2 minimum failed' }
+$paymentOrder = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"vip-room-1","minimumOrderTotal":1500}'
+$payment = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($paymentOrder.id)/payments" -ContentType 'application/json' -Body '{"method":"card","amount":1000}'
+if ($payment.remaining -ne 500 -or $payment.closed) { throw 'partial payment failed' }
+$paymentFinal = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($paymentOrder.id)/payments" -ContentType 'application/json' -Body '{"method":"qr","amount":500}'
+if ($paymentFinal.remaining -ne 0 -or -not $paymentFinal.closed) { throw 'split payment completion failed' }
 
 $regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"table-1"}'
 $item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
