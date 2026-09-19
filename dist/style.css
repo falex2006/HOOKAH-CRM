@@ -24,3 +24,11 @@
 .staff-notice { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 14px); opacity: 0; pointer-events: none; z-index: 20; padding: 12px 18px; border: 1px solid rgba(255,126,92,.4); border-radius: 14px; background: rgba(25,27,34,.95); color: #f6f7fb; box-shadow: 0 12px 40px rgba(0,0,0,.35); transition: .2s ease; }
 .staff-notice.show { opacity: 1; transform: translate(-50%, 0); }
 .chips span.active { border-color: #ff745d; color: #fff; background: rgba(255,116,93,.18); }
+.discount-list { display: grid; gap: 10px; }
+.discount-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 16px; padding: 16px 18px; border: 1px solid rgba(255,255,255,.08); border-radius: 16px; background: rgba(255,255,255,.025); }
+.discount-row small { display: block; margin-top: 5px; color: var(--muted); }
+.discount-actions { display: flex; gap: 8px; }
+.button.small { padding: 8px 12px; font-size: .82rem; }
+.danger-outline { border-color: rgba(255,100,110,.45); color: #ff9ca4; background: transparent; }
+.badge.warning { color: #ffd17a; background: rgba(255,190,80,.12); }
+@media (max-width: 760px) { .discount-row { grid-template-columns: 1fr; } }
