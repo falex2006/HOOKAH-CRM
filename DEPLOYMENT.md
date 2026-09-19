@@ -14,6 +14,8 @@ chmod +x deploy-vps.sh backup-postgres.sh
 ./deploy-vps.sh
 ```
 
+Скрипт запуска автоматически применяет файлы из `migrations/` и перезапускает CRM после обновления схемы.
+
 Для уже существующего PostgreSQL-тома применить миграции отдельно:
 
 ```bash

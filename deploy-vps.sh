@@ -10,6 +10,8 @@ docker compose config --quiet
 docker compose pull
 docker compose build --pull
 docker compose up -d
+./migrate-vps.sh
+docker compose restart crm
 
 for attempt in $(seq 1 30); do
   if docker compose exec -T crm wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"'; then
