@@ -1,3 +1,4 @@
+if (!localStorage.getItem('crm_session_token')) { window.location.replace('/login'); throw new Error('authentication_required'); }
 const page = document.body.dataset.page || 'dashboard';
 const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} ₽`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));

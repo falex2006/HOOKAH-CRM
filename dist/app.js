@@ -1,3 +1,4 @@
+if(!localStorage.getItem('crm_session_token')){window.location.replace('/login');throw new Error('authentication_required');}
 const data=[['1','Свободен','free'],['2','Занят','busy'],['3','Свободен','free'],['4','Бронь 21:30','reserve'],['5','Свободен','free'],['6','Занят','busy'],['7','Свободен','free'],['8','Занят','sel busy'],['9','Бронь 22:00','reserve'],['10','Свободен','free'],['11','Занят','busy'],['12','Ожидает оплату','']];
 const roleFromUrl=new URLSearchParams(location.search).get('role')||'bartender';
 const sessionHeaders=()=>{const token=localStorage.getItem('crm_session_token');return token?{Authorization:'Bearer '+token}:{};};

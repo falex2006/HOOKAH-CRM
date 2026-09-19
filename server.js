@@ -57,6 +57,7 @@ const reservations = [];
 const auditEvents = [];
 const sessions = new Map();
 const demoAccounts = [
+  { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || 'admin', name: 'Администратор', role: 'admin' },
   { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner' },
   { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', name: 'Мария', role: 'bartender' }
 ];
