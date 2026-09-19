@@ -1,4 +1,5 @@
 if (!localStorage.getItem('crm_session_token')) { window.location.replace('/login'); throw new Error('authentication_required'); }
+try { const portalUser = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); if (!['owner', 'admin'].includes(portalUser.role)) { window.location.replace('/'); throw new Error('portal_permission_required'); } } catch (error) { if (error.message === 'portal_permission_required') throw error; }
 const page = document.body.dataset.page || 'dashboard';
 const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} ₽`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
