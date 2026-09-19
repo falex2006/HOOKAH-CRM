@@ -2,7 +2,7 @@ const page = document.body.dataset.page || 'dashboard';
 const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} ₽`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 const authHeaders = () => { const token = localStorage.getItem('crm_session_token'); return token ? { Authorization: `Bearer ${token}` } : {}; };
-const api = (url, options = {}) => fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then((response) => { if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); });
+const api = (url, options = {}) => fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then((response) => { if (response.status === 401) { window.location.href = '/login'; return null; } if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); });
 
 document.querySelectorAll('[data-route]').forEach((link) => {
   if (link.dataset.route === page) link.classList.add('active');
