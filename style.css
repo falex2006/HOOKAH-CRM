@@ -32,3 +32,7 @@
 .danger-outline { border-color: rgba(255,100,110,.45); color: #ff9ca4; background: transparent; }
 .badge.warning { color: #ffd17a; background: rgba(255,190,80,.12); }
 @media (max-width: 760px) { .discount-row { grid-template-columns: 1fr; } }
+.order-item-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; }
+.quantity-control { display: inline-flex; align-items: center; gap: 7px; color: var(--text); }
+.quantity-control button { width: 25px; height: 25px; padding: 0; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(255,255,255,.07); color: #fff; cursor: pointer; }
+.quantity-control button:hover { border-color: #ff745d; color: #ff9a79; }

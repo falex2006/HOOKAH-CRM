@@ -355,6 +355,19 @@ async function api(req, res) {
     order.items.push(item);
     return json(res, 201, item);
   }
+  const itemAction = pathname.match(/^\/api\/orders\/([^/]+)\/items\/([^/]+)$/);
+  if (itemAction && (req.method === 'PATCH' || req.method === 'DELETE')) {
+    if (denyUnless(req, res, 'orders')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemAction[1]) && /^[0-9a-f-]{36}$/i.test(itemAction[2])) {
+      try {
+        if (req.method === 'DELETE') { const { rows } = await repositories.pool.query('DELETE FROM order_items WHERE id=$1 AND order_id=$2 RETURNING id', [itemAction[2], itemAction[1]]); if (!rows[0]) return json(res, 404, { error: 'order_item_not_found' }); return json(res, 200, rows[0]); }
+        const input = await body(req); const quantity = Number(input.quantity); if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' }); const { rows } = await repositories.pool.query('UPDATE order_items SET quantity=$1 WHERE id=$2 AND order_id=$3 RETURNING id,quantity,unit_price AS "unitPrice"', [quantity, itemAction[2], itemAction[1]]); if (!rows[0]) return json(res, 404, { error: 'order_item_not_found' }); return json(res, 200, rows[0]);
+      } catch (error) { return json(res, 409, { error: 'order_item_update_failed', detail: error.message }); }
+    }
+    const order = orders.find((entry) => entry.id === itemAction[1]); const item = order?.items?.find((entry) => entry.id === itemAction[2]); if (!item) return json(res, 404, { error: 'order_item_not_found' });
+    if (req.method === 'DELETE') { order.items = order.items.filter((entry) => entry.id !== item.id); return json(res, 200, { id: item.id }); }
+    const input = await body(req); const quantity = Number(input.quantity); if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' }); item.quantity = quantity; return json(res, 200, item);
+  }
   const paymentPath = pathname.match(/^\/api\/orders\/([^/]+)\/payments$/);
   if (paymentPath && (req.method === 'GET' || req.method === 'POST')) {
     if (denyUnless(req, res, 'orders')) return;
