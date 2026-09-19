@@ -7,7 +7,11 @@ const tables=document.querySelector('#tables'); tables.innerHTML=data.map(([n,s,
 let openOrders=[];
 let currentOrder=null;
 const orderHeaders=()=>({...sessionHeaders(),'Content-Type':'application/json'});
-const apiJson=(url,options={})=>fetch(url,{...options,headers:{...sessionHeaders(),...(options.headers||{})}}).then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`)));
+const staticStaffDemo=()=>String(localStorage.getItem('crm_session_token')||'').startsWith('demo-static-');
+const localOrders=()=>{try{return JSON.parse(localStorage.getItem('territory_crm_staff_orders')||'[]');}catch(_){return[];}};
+const saveLocalOrders=(items)=>localStorage.setItem('territory_crm_staff_orders',JSON.stringify(items));
+const staticOrderApi=async(url,options={})=>{const path=new URL(url,location.origin).pathname;const method=options.method||'GET';const input=options.body?JSON.parse(options.body):{};let list=localOrders();if(path==='/api/orders'&&method==='GET')return{items:list};if(path==='/api/orders'&&method==='POST'){const order={id:`local-order-${Date.now()}`,tableId:input.tableId||'table-8',status:'open',items:[]};list.push(order);saveLocalOrders(list);return order;}const item=path.match(/^\/api\/orders\/([^/]+)\/items$/);if(item&&method==='POST'){const order=list.find(x=>x.id===item[1]);const product=products.find(x=>x[4]===input.productId||x[0]===input.productId);const added={id:`local-item-${Date.now()}`,productId:input.productId,name:product?.[0]||input.productId,quantity:Number(input.quantity||1),unitPrice:Number(product?.[1]||0)};if(order)order.items.push(added);saveLocalOrders(list);return added;}const action=path.match(/^\/api\/orders\/([^/]+)\/(status|transfer|close|discount-requests)$/);if(action){const order=list.find(x=>x.id===action[1]);if(!order)throw new Error('HTTP 404');if(action[2]==='status')order.status=input.status;if(action[2]==='transfer')order.tableId=input.tableId;if(action[2]==='close'){order.status='closed';order.finalTotal=(order.items||[]).reduce((s,x)=>s+x.unitPrice*x.quantity,0);order.paymentMethod=input.paymentMethod||'cash';}saveLocalOrders(list);return order;}return{};};
+const apiJson=(url,options={})=>staticStaffDemo()?staticOrderApi(url,options):fetch(url,{...options,headers:{...sessionHeaders(),...(options.headers||{})}}).then(r=>r.ok?r.json():Promise.reject(new Error(`HTTP ${r.status}`)));
 const orderRows=document.querySelector('.items');
 function drawOrder(order){
   currentOrder=order||null;

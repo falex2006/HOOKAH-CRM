@@ -3,7 +3,36 @@ const page = document.body.dataset.page || 'dashboard';
 const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} ₽`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 const authHeaders = () => { const token = localStorage.getItem('crm_session_token'); return token ? { Authorization: `Bearer ${token}` } : {}; };
-const api = (url, options = {}) => fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then((response) => { if (response.status === 401) { window.location.href = '/login'; return null; } if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); });
+const staticDemo = () => String(localStorage.getItem('crm_session_token') || '').startsWith('demo-static-');
+const demoKey = 'territory_crm_demo_state';
+const demoState = (() => { try { return JSON.parse(localStorage.getItem(demoKey)) || {}; } catch (_) { return {}; } })();
+const demoSave = () => localStorage.setItem(demoKey, JSON.stringify(demoState));
+demoState.staff ||= [{ id: 'demo-owner', name: 'Владелец', login: 'owner', role: 'owner', active: true }, { id: 'demo-bartender', name: 'Мария', login: 'staff', role: 'bartender', active: true }];
+demoState.inventory ||= [{ id: 'demo-redbull', name: 'Red Bull', category: 'Холодильник', unit: 'шт', onHand: 24, minLevel: 10 }, { id: 'demo-coco', name: 'Уголь Coco Nara', category: 'Кальянная зона', unit: 'уп', onHand: 8, minLevel: 5 }, { id: 'demo-mint', name: 'Мята', category: 'Бар', unit: 'кг', onHand: 1.8, minLevel: 2 }];
+demoState.products ||= [{ id: 'redbull', name: 'Red Bull', price: 250, aliases: ['red bull', 'ред булл', 'энергетик'], imageUrl: null }, { id: 'lemonade-maracuya', name: 'Лимонад Маракуйя', price: 300, aliases: ['лимонад', 'маракуйя'], imageUrl: null }, { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, aliases: ['кальян', 'darkside'], imageUrl: null }];
+demoState.reservations ||= []; demoState.movements ||= []; demoState.audit ||= [];
+const demoJson = async (url, options = {}) => {
+  const path = new URL(url, window.location.origin).pathname; const method = options.method || 'GET'; const input = options.body ? JSON.parse(options.body) : {};
+  if (path === '/api/venue' && method === 'GET') return { name: 'Территория', city: 'Тюмень', address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', logoUrl: null };
+  if (path === '/api/venue' && (method === 'PATCH' || method === 'PUT')) { demoState.venue = { ...(demoState.venue || {}), ...input }; demoSave(); return { name: 'Территория', city: 'Тюмень', address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', ...demoState.venue }; }
+  if (path === '/api/metrics') return { openOrders: 2, closedOrders: 8, discountRequests: 1, staffActive: demoState.staff.filter((x) => x.active).length, reservationsToday: demoState.reservations.length, lowStock: demoState.inventory.filter((x) => x.onHand <= x.minLevel).length };
+  if (path === '/api/staff' && method === 'GET') return { items: demoState.staff };
+  if (path === '/api/staff' && method === 'POST') { const person = { id: `demo-${Date.now()}`, name: input.name, login: input.login || `user_${Date.now()}`, role: input.role, active: true, avatarUrl: null }; demoState.staff.push(person); demoSave(); return person; }
+  const staffPath = path.match(/^\/api\/staff\/([^/]+)\/avatar$/); if (staffPath && method === 'POST') { const person = demoState.staff.find((x) => x.id === staffPath[1]); if (person) person.avatarUrl = input.imageData; demoSave(); return person; }
+  const staffDelete = path.match(/^\/api\/staff\/([^/]+)$/); if (staffDelete && method === 'DELETE') { const person = demoState.staff.find((x) => x.id === staffDelete[1]); if (!person) throw new Error('HTTP 404'); person.active = false; demoSave(); return person; }
+  if (path === '/api/audit') return { items: demoState.audit.slice().reverse() };
+  if (path === '/api/finance/summary') return { revenue: 0, closedOrders: 0, byPaymentMethod: {}, pendingDiscounts: 0 };
+  if (path === '/api/products' && method === 'GET') return { items: demoState.products };
+  const productPath = path.match(/^\/api\/products\/([^/]+)\/image$/); if (productPath && method === 'POST') { const product = demoState.products.find((x) => x.id === productPath[1]); if (product) product.imageUrl = input.imageData; demoSave(); return product; }
+  if (path === '/api/inventory' && method === 'GET') return { items: demoState.inventory, lowStock: demoState.inventory.filter((x) => x.onHand <= x.minLevel), movements: demoState.movements.slice().reverse() };
+  if (path === '/api/inventory/movements' && method === 'POST') { const item = demoState.inventory.find((x) => x.id === input.itemId); const delta = Number(input.delta); if (!item || !delta || item.onHand + delta < 0) throw new Error('HTTP 409'); item.onHand = Math.round((item.onHand + delta) * 100) / 100; const movement = { id: `demo-mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta, reason: input.reason || 'Корректировка', createdAt: new Date().toISOString() }; demoState.movements.push(movement); demoSave(); return movement; }
+  if (path === '/api/floor') return { zones: [{ id: 'hall', name: 'Зал', tables: Array.from({ length: 12 }, (_, i) => ({ id: `table-${i + 1}`, name: `Стол ${i + 1}`, status: [2, 6, 11].includes(i + 1) ? 'occupied' : 'free', minimumOrderTotal: 0 })) }, { id: 'vip', name: 'VIP-комнаты', tables: [{ id: 'vip-room-1', name: 'VIP-комната 1', status: 'free', minimumOrderTotal: 1500 }, { id: 'vip-room-2', name: 'VIP-комната 2', status: 'free', minimumOrderTotal: 2500 }] }] };
+  if (path === '/api/reservations' && method === 'GET') return { items: demoState.reservations };
+  if (path === '/api/reservations' && method === 'POST') { const reservation = { id: `demo-res-${Date.now()}`, ...input, status: 'confirmed', tableName: input.tableId, deposit: Number(input.deposit || 0) }; demoState.reservations.push(reservation); demoSave(); return reservation; }
+  if (path === '/api/discount-requests') return { items: [] };
+  return {};
+};
+const api = (url, options = {}) => { if (staticDemo()) return demoJson(url, options); return fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then((response) => { if (response.status === 401) { window.location.href = '/login'; return null; } if (!response.ok) throw new Error(`HTTP ${response.status}`); return response.json(); }); };
 
 document.querySelectorAll('[data-route]').forEach((link) => {
   if (link.dataset.route === page) link.classList.add('active');
