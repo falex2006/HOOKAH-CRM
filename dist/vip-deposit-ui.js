@@ -1,8 +1,8 @@
 (function mountVipDepositNotice(){
   const money=(value)=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Math.round(value))+' ₽';
   const tableId=()=>{
-    const selected=document.querySelector('[data-table-id].active,[data-table-id][aria-selected="true"],.table.active,.table-card.active');
-    const raw=selected?.dataset?.tableId||selected?.id||selected?.textContent||document.body.innerText;
+    const selected=document.querySelector('.table.sel,[data-table-id].active,[data-table-id][aria-selected="true"],.table.active,.table-card.active');
+    if(!selected)return null; const raw=selected?.dataset?.tableId||selected?.id||selected?.textContent;
     const text=String(raw).toLowerCase();
     if(!text.includes('vip'))return null;
     return /2|вип\s*2|vip\s*2/.test(text)?'vip-room-2':'vip-room-1';
