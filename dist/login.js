@@ -4,6 +4,7 @@ const demoUsers = {
   'admin:admin': { name: 'Администратор', role: 'admin' },
   'owner:demo': { name: 'Владелец', role: 'owner' },
   'staff:demo': { name: 'Мария', role: 'bartender' },
+  'developer:developer': { name: 'Главный разработчик', role: 'developer' },
 };
 
 const finishLogin = (data) => {

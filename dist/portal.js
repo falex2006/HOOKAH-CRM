@@ -6,7 +6,7 @@ const portalRole = portalRoleLabels[portalUser.role] || ['Пользовател
 const portalPermissions = {
   owner: new Set(['dashboard', 'floor', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_view', 'settings']),
   admin: new Set(['dashboard', 'floor', 'reservations', 'inventory_read', 'finance_read', 'staff_view']),
-  developer: new Set(['dashboard', 'floor', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_view', 'settings'])
+  developer: new Set(['dashboard', 'floor', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_view', 'settings', 'diagnostics'])
 }[portalUser.role] || new Set();
 document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
   if (!portalPermissions.has(link.dataset.permission)) link.hidden = true;
