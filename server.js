@@ -351,7 +351,15 @@ async function api(req, res) {
     }
     const deposit = Number(input.deposit || 0);
     if (!Number.isFinite(deposit) || deposit < tableMinimum) return json(res, 409, { error: 'vip_deposit_below_minimum', requiredDeposit: tableMinimum, providedDeposit: deposit });
-    if (repositories?.reservations) { try { const reservation = await repositories.reservations.create({ ...input, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
+    if (repositories?.pool) {
+      try {
+        const conflict = await repositories.pool.query(`SELECT id FROM reservations WHERE venue_id=$1 AND table_id=$2 AND starts_at=$3::timestamptz AND status='confirmed' LIMIT 1`, [venueDbId, input.tableId, `${input.date}T${input.time}:00`]);
+        if (conflict.rows[0]) return json(res, 409, { error: 'table_already_reserved', reservationId: conflict.rows[0].id });
+      } catch (error) { return json(res, 409, { error: 'reservation_conflict_check_failed', detail: error.message }); }
+    } else if (reservations.some((entry) => entry.status === 'confirmed' && entry.tableId === input.tableId && entry.date === input.date && entry.time === input.time)) {
+      return json(res, 409, { error: 'table_already_reserved' });
+    }
+    if (repositories?.pool) { try { const reservation = await repositories.reservations.create({ ...input, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
     const reservation = { id: `res-${Date.now()}`, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName, guests: Number(input.guests || 1), status: 'confirmed', deposit, notes: input.notes || '' };
     reservations.push(reservation);
     table.status = 'reserved';
