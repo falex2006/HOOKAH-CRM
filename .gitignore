@@ -1,6 +1,7 @@
-node_modules/
 .env
-.sites-runtime/
-*.log
+.env.*
+!.env.example
 site-v*.tar.gz
-territory-crm*.tar.gz
+._batch_patch.py
+node_modules/
+*.log
