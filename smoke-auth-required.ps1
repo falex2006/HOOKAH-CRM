@@ -57,6 +57,9 @@ if ($developerProductWriteStatus -ne 403) { throw 'developer product write shoul
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/staff" -Headers $developerHeaders }) -ne 200) { throw 'developer staff access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/reservations" -Headers $developerHeaders }) -ne 200) { throw 'developer reservations access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/floor" -Headers $developerHeaders }) -ne 200) { throw 'developer floor access should be allowed' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/network/venues" -Headers $developerHeaders }) -ne 200) { throw 'developer network read should be allowed' }
+$adminNetworkStatus = StatusFor { Invoke-RestMethod "$BaseUrl/api/network/venues" -Headers $adminHeaders }
+if ($adminNetworkStatus -ne 403) { throw 'manager network access should be restricted' }
 Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/logout" -Headers $staffHeaders | Out-Null
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/session" -Headers $staffHeaders }) -ne 401) { throw 'logout should revoke the staff session' }
 $blocked = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($staff.id)/status" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ active = $false } | ConvertTo-Json)
