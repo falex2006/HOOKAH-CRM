@@ -12,7 +12,18 @@ const tables=document.querySelector('#tables'); tables.innerHTML=data.map(([n,s,
 let openOrders=[];
 let currentOrder=null;
 let serverZones=[];
-const tableMinimums={ 'vip-room-1':1500, 'vip-room-2':2500 };
+const readDemoVipMinimums=()=>{
+  try{
+    const raw=localStorage.getItem('territory_crm_demo_state');
+    const venue=raw?JSON.parse(raw)?.venue:null;
+    const configured=venue?.vipRoomMinimums||{};
+    return {
+      'vip-room-1':Number(configured['vip-room-1']??configured.vipRoom1??1500),
+      'vip-room-2':Number(configured['vip-room-2']??configured.vipRoom2??2500)
+    };
+  }catch(_){return {'vip-room-1':1500,'vip-room-2':2500};}
+};
+const tableMinimums=readDemoVipMinimums();
 const orderHeaders=()=>({...sessionHeaders(),'Content-Type':'application/json'});
 const staticStaffDemo=()=>String(localStorage.getItem('crm_session_token')||'').startsWith('demo-static-');
 const localOrders=()=>{try{return JSON.parse(localStorage.getItem('territory_crm_staff_orders')||'[]');}catch(_){return[];}};
