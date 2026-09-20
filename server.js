@@ -227,7 +227,8 @@ async function api(req, res) {
   }
   if (pathname === '/api/session') {
     const role = url.searchParams.get('role') || 'bartender';
-    const user = req.user || { name: 'Демо сотрудник', role };
+    const persistedSession = await sessionFromRequest(req);
+    const user = req.user || persistedSession?.user || { name: 'Демо сотрудник', role };
     return json(res, 200, { user, permissions: rolePermissions[user.role] || [] });
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
