@@ -124,3 +124,10 @@
 @media (max-width:430px){
   .velora-theme .kpi-grid,.velora-theme .kpi-grid.compact{grid-template-columns:1fr}
 }
+/* Shared interaction states: visible keyboard focus and consistent loading treatment. */
+:where(button,a,input,select,textarea):focus-visible{outline:2px solid #ff7180;outline-offset:3px}
+.velora-theme :where(button,a,input,select,textarea):focus-visible{outline-color:#ff8a9b;box-shadow:0 0 0 3px #ff718022}
+.loading,[aria-busy="true"]{position:relative;pointer-events:none;cursor:wait}
+.loading{color:transparent!important}
+.loading::after,[aria-busy="true"]::after{content:"";position:absolute;left:50%;top:50%;width:15px;height:15px;margin:-8px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:territory-spin .7s linear infinite}
+@keyframes territory-spin{to{transform:rotate(360deg)}}
