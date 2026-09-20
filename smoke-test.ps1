@@ -58,6 +58,9 @@ if (-not $networkSelected.isCurrent) { throw 'network venue select failed' }
 $networkCurrentDeleteStatus = $null
 try { Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/network/venues/$($networkVenue.id)" | Out-Null } catch { $networkCurrentDeleteStatus = [int]$_.Exception.Response.StatusCode.value__ }
 if ($networkCurrentDeleteStatus -ne 409) { throw 'current network venue archive guard failed' }
+$originalCurrent = $networkBefore.items | Where-Object { $_.isCurrent } | Select-Object -First 1
+if ($originalCurrent) { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/network/venues/$($originalCurrent.id)/select" | Out-Null }
+Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/network/venues/$($networkVenue.id)" | Out-Null
 $financeCategories = Invoke-RestMethod "$BaseUrl/api/finance/categories"
 if ($financeCategories.items.Count -lt 1) { throw 'finance categories list failed' }
 $financeCategory = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/finance/categories" -ContentType 'application/json' -Body (@{ name = "Smoke category $smokeSuffix"; kind = 'expense' } | ConvertTo-Json)
