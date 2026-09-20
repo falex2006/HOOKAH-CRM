@@ -46,6 +46,8 @@ $regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentTyp
 $guest = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($regular.id)" -ContentType 'application/json' -Body '{"guestName":"Smoke guest","phone":"+79990000000"}'
 if ($guest.guestName -ne 'Smoke guest') { throw 'guest binding failed' }
 $item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
+$itemMerged = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
+if ($itemMerged.id -ne $item.id -or $itemMerged.quantity -ne 2) { throw 'duplicate product quantity merge failed' }
 $split = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/split" -ContentType 'application/json' -Body "{`"itemIds`":[`"$($item.id)`"]}"
 if (-not $split.splitFrom) { throw 'split failed' }
 $discount = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($split.id)/discount-requests" -ContentType 'application/json' -Body '{"type":"percent","value":10,"reason":"guest promo","requestedBy":"u-test"}'
@@ -82,4 +84,3 @@ if ($null -eq $finance.revenue -or $null -eq $finance.byPaymentMethod) { throw '
 $audit = Invoke-RestMethod "$BaseUrl/api/audit"
 if (-not $audit.items -or $audit.items.Count -lt 1) { throw 'audit failed' }
 Write-Output 'CRM smoke test: PASS'
-
