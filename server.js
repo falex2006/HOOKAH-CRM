@@ -56,6 +56,7 @@ const stockMovements = [];
 const reservations = [];
 const auditEvents = [];
 const sessions = new Map();
+const loginAttempts = new Map();
 const shifts = [];
 const demoAccounts = [
   { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Администратор', role: 'admin' },
@@ -99,7 +100,7 @@ const staffPassportCipher = {
 };
 
 const json = (res, status, data) => {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'same-origin', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' });
   res.end(JSON.stringify(data));
 };
 const body = (req) => new Promise((resolve, reject) => {
@@ -107,6 +108,7 @@ const body = (req) => new Promise((resolve, reject) => {
   req.on('data', (chunk) => { raw += chunk; });
   req.on('end', () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (error) { reject(error); } });
 });
+const normalizePhoneNumbers = (value) => { const seen = new Set(); const contacts = (Array.isArray(value) ? value : []).map((entry) => ({ label: String(entry?.label || 'Дополнительный').trim().slice(0, 32), number: String(entry?.number || '').trim(), primary: Boolean(entry?.primary) })).filter((entry) => entry.number && !seen.has(entry.number) && seen.add(entry.number)); if (contacts.length) { const primaryIndex = contacts.findIndex((entry) => entry.primary); contacts.forEach((entry, index) => { entry.primary = primaryIndex < 0 ? index === 0 : index === primaryIndex; }); } return contacts; };
 const orderTotal = (order) => order.items.reduce((sum, item) => sum + (Number(item.unitPrice) || 0) * (Number(item.quantity) || 0), 0);
 const approvedDiscountTotal = (orderId, subtotal) => discountRequests.filter((request) => request.orderId === orderId && request.status === 'approved').reduce((sum, request) => sum + (request.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(request.value || 0))) / 100 : Math.max(0, Number(request.value || 0))), 0);
 const orderNetTotal = (order) => Math.max(0, orderTotal(order) - approvedDiscountTotal(order.id, orderTotal(order)));
@@ -150,9 +152,12 @@ const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permiss
 async function api(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
-  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'same-origin', 'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' }); return res.end(); }
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
+    const loginKey = String(input.username || '').trim().toLowerCase() || 'anonymous';
+    const attempt = loginAttempts.get(loginKey);
+    if (attempt && attempt.blockedUntil > Date.now()) return json(res, 429, { error: 'too_many_login_attempts', retryAfter: Math.ceil((attempt.blockedUntil - Date.now()) / 1000) });
     let account = demoAccounts.find((entry) => entry.username === input.username && entry.password === input.password);
     if (!account) { const person = staff.find((entry) => entry.active && entry.login === input.username); if (person && await verifyPassword(input.password, person.passwordHash)) account = { username: person.login, id: person.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl, telegram: person.telegram, phoneNumbers: person.phoneNumbers }; }
     if (!account && repositories?.pool) {
@@ -167,7 +172,8 @@ async function api(req, res) {
         const row = rows[0]; if (row && await verifyPassword(input.password, row.pin_hash)) account = { username: row.login, id: row.id, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [] };
       } catch (_) {}
     }
-    if (!account) return json(res, 401, { error: 'invalid_credentials' });
+    if (!account) { const current = loginAttempts.get(loginKey) || { count: 0, firstAt: Date.now() }; const withinWindow = Date.now() - current.firstAt < 60_000; const next = withinWindow ? { count: current.count + 1, firstAt: current.firstAt } : { count: 1, firstAt: Date.now() }; if (next.count >= 5) next.blockedUntil = Date.now() + 60_000; loginAttempts.set(loginKey, next); return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_login_attempts' : 'invalid_credentials', ...(next.blockedUntil ? { retryAfter: 60 } : {}) }); }
+    loginAttempts.delete(loginKey);
     const token = crypto.randomBytes(32).toString('hex');
     const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
     sessions.set(token, { user: { id: userId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [] }, createdAt: Date.now() });
@@ -283,7 +289,7 @@ async function api(req, res) {
     if (!input.name || !rolePermissions[input.role]) return json(res, 400, { error: 'name_and_valid_role_required' });
     if (input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
     if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.some((entry) => !entry || !/^\+?[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
-    const contactNumbers = Array.isArray(input.phoneNumbers) ? input.phoneNumbers.map((entry) => ({ label: String(entry.label || 'Дополнительный'), number: String(entry.number || '').trim(), primary: Boolean(entry.primary) })).filter((entry) => entry.number) : [];
+    const contactNumbers = normalizePhoneNumbers(input.phoneNumbers);
     if (contactNumbers.length && contactNumbers.filter((entry) => entry.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' });
     const createdPassport = input.passportData !== undefined ? staffPassportCipher.encrypt(input.passportData) : null;
     if (input.passportData !== undefined && !hasPermission(req, 'staff_sensitive')) return json(res, 403, { error: 'sensitive_staff_permission_required' });
@@ -365,7 +371,7 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.telegram !== undefined) before.telegram = String(input.telegram || '').trim();
   let contactJson = null;
   if (input.phoneNumbers !== undefined) {
-    const contacts = input.phoneNumbers.map((entry) => ({ label: String(entry.label || 'Дополнительный'), number: String(entry.number || '').trim(), primary: Boolean(entry.primary) })).filter((entry) => entry.number);
+    const contacts = normalizePhoneNumbers(input.phoneNumbers);
     if (contacts.length && contacts.filter((entry) => entry.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' });
     before.phoneNumbers = contacts;
     contactJson = JSON.stringify(contacts);
@@ -375,7 +381,7 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.passportData !== undefined && repositories?.pool && canManageSensitive && !encryptedPassport) return json(res, 503, { error: 'staff_passport_key_required' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,telegram_url=CASE WHEN $3 THEN $4 ELSE telegram_url END,phone_numbers=CASE WHEN $5 THEN $6::jsonb ELSE phone_numbers END,passport_data_encrypted=COALESCE($7,passport_data_encrypted),passport_data_iv=COALESCE($8,passport_data_iv),passport_data_tag=COALESCE($9,passport_data_tag) WHERE id=$10 AND venue_id=$11', [input.avatarUrl !== undefined, input.avatarUrl || null, input.telegram !== undefined, input.telegram !== undefined ? before.telegram || null : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, personId, venueDbId]);
+      await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,telegram_url=CASE WHEN $3 THEN $4 ELSE telegram_url END,phone_numbers=CASE WHEN $5 THEN $6::jsonb ELSE phone_numbers END,passport_data_encrypted=COALESCE($7,passport_data_encrypted),passport_data_iv=COALESCE($8,passport_data_iv),passport_data_tag=COALESCE($9,passport_data_tag) WHERE id=$10 AND venue_id=$11', [input.avatarUrl !== undefined, input.avatarUrl || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, personId, venueDbId]);
     } catch (error) { return json(res, 409, { error: 'staff_profile_save_failed', detail: error.message }); }
   }
   const publicPerson = { ...before };
@@ -724,7 +730,7 @@ function staticFile(req, res) {
   const file = path.resolve(root, `.${requestPath}`);
   if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json' };
-  res.writeHead(200, { 'Content-Type': `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8` });
+  res.writeHead(200, { 'Content-Type': `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' });
   return res.end(fs.readFileSync(file));
 }
 
