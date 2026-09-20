@@ -5,6 +5,7 @@
     if(!allowed())return;
     document.querySelectorAll('form').forEach((form)=>{
       if(form.dataset.sensitiveStaffReady==='1')return;
+      if(form.matches('.staff-admin-box,.staff-editor-form'))return;
       const signature=(form.textContent+' '+form.innerHTML).toLowerCase();
       if(!/(сотруд|staff|employee|роль|role)/.test(signature))return;
       const block=document.createElement('details'); block.className='staff-sensitive-fields'; block.innerHTML='<summary>Кадровые данные — ограниченный доступ</summary><div class="staff-sensitive-fields__grid"><label>Серия и номер<input name="passport_number" autocomplete="off" inputmode="numeric"></label><label>Дата выдачи<input type="date" name="passport_issued_at"></label><label class="staff-sensitive-fields__wide">Кем выдан<input name="passport_issuer" autocomplete="off"></label><label>Дата начала работы<input type="date" name="employment_started_at"></label><label class="staff-sensitive-fields__wide">Рабочие заметки<textarea name="work_notes" maxlength="4000" rows="3" placeholder="Внутренние заметки"></textarea></label></div><small>Паспорт виден владельцу и управляющему. Кадровые изменения записываются в аудит.</small>';

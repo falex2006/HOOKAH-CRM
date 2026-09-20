@@ -4,6 +4,7 @@
     inputs.forEach((input)=>{
       const form=input.closest('form')||input.parentElement;
       if(!form||form.dataset.staffPhonesReady==='1') return;
+      if(form.matches('.staff-admin-box,.staff-editor-form')) return;
       const signature=(form.textContent+' '+form.innerHTML).toLowerCase();
       if(!/(сотруд|staff|employee|роль|role)/.test(signature)) return;
       form.dataset.staffPhonesReady='1';
