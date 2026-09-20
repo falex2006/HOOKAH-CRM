@@ -38,6 +38,23 @@ $productImage = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products/$($pr
 if (-not $productImage.imageUrl) { throw 'product image update failed' }
 $productDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/products/$($product.id)"
 if ($productDeleted.active -ne $false) { throw 'product deactivation failed' }
+$productCategories = Invoke-RestMethod "$BaseUrl/api/product-categories"
+if ($productCategories.items.Count -lt 1) { throw 'product categories list failed' }
+$productCategory = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/product-categories" -ContentType 'application/json' -Body (@{ name = "Smoke product category $smokeSuffix" } | ConvertTo-Json)
+$productCategoryUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/product-categories/$($productCategory.id)" -ContentType 'application/json' -Body (@{ name = "Smoke product category updated $smokeSuffix" } | ConvertTo-Json)
+if ($productCategoryUpdated.name -notlike '*updated*') { throw 'product category update failed' }
+$productCategoryDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/product-categories/$($productCategory.id)"
+if ($productCategoryDeleted.active -ne $false) { throw 'product category deactivation failed' }
+$networkBefore = Invoke-RestMethod "$BaseUrl/api/network/venues"
+if ($networkBefore.items.Count -lt 1) { throw 'network venues list failed' }
+$networkVenue = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/network/venues" -ContentType 'application/json' -Body (@{ name = "Smoke point $smokeSuffix"; city = 'Тюмень'; address = "ул. Smoke $smokeSuffix" } | ConvertTo-Json)
+$networkUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/network/venues/$($networkVenue.id)" -ContentType 'application/json' -Body (@{ name = "Smoke point updated $smokeSuffix" } | ConvertTo-Json)
+if ($networkUpdated.name -notlike '*updated*') { throw 'network venue update failed' }
+$networkSelected = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/network/venues/$($networkVenue.id)/select"
+if (-not $networkSelected.isCurrent) { throw 'network venue select failed' }
+$networkCurrentDeleteStatus = $null
+try { Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/network/venues/$($networkVenue.id)" | Out-Null } catch { $networkCurrentDeleteStatus = [int]$_.Exception.Response.StatusCode.value__ }
+if ($networkCurrentDeleteStatus -ne 409) { throw 'current network venue archive guard failed' }
 $financeCategories = Invoke-RestMethod "$BaseUrl/api/finance/categories"
 if ($financeCategories.items.Count -lt 1) { throw 'finance categories list failed' }
 $financeCategory = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/finance/categories" -ContentType 'application/json' -Body (@{ name = "Smoke category $smokeSuffix"; kind = 'expense' } | ConvertTo-Json)
