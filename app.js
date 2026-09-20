@@ -1,5 +1,5 @@
 if(!localStorage.getItem('crm_session_token')){window.location.replace('/login');throw new Error('authentication_required');}
-document.querySelector('#logout')?.addEventListener('click', async () => { try { await fetch('/api/logout', { method: 'POST', headers: sessionHeaders ? sessionHeaders() : {} }); } catch (_) {} localStorage.removeItem('crm_session_token'); localStorage.removeItem('crm_session_user'); window.location.replace('/login'); });
+document.addEventListener('click', async (event) => { const button = event.target.closest('#logout'); if (!button) return; try { await fetch('/api/logout', { method: 'POST', headers: typeof sessionHeaders === 'function' ? sessionHeaders() : {} }); } catch (_) {} localStorage.removeItem('crm_session_token'); localStorage.removeItem('crm_session_user'); window.location.replace('/login'); });
 const data=[['1','Свободен','free'],['2','Занят','busy'],['3','Свободен','free'],['4','Бронь 21:30','reserve'],['5','Свободен','free'],['6','Занят','busy'],['7','Свободен','free'],['8','Занят','sel busy'],['9','Бронь 22:00','reserve'],['10','Свободен','free'],['11','Занят','busy'],['12','Ожидает оплату','']];
 const roleFromUrl=new URLSearchParams(location.search).get('role')||'bartender';
 const operatorMode=new URLSearchParams(location.search).get('operator');
