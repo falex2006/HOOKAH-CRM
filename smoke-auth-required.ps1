@@ -19,7 +19,8 @@ $owner = Login $OwnerUser $OwnerPassword
 $ownerHeaders = HeadersFor $owner
 $admin = Login 'admin' $AdminPassword
 $adminHeaders = HeadersFor $admin
-if ((StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ name = 'Forbidden manager'; role = 'bartender' } | ConvertTo-Json) }) -ne 403) { throw 'manager staff creation should be denied' }
+$manager = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ name = 'Managed manager'; login = "acceptance_manager_$(Get-Date -Format 'HHmmss')"; password = 'acceptance-pass'; role = 'bartender'; telegram = '@manager_demo'; phoneNumbers = @(@{ label = 'Рабочий'; number = '+7 900 000-00-01'; primary = $true }) } | ConvertTo-Json -Depth 5)
+if (-not $manager.id) { throw 'manager staff creation should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/staff" -Headers $adminHeaders }) -ne 200) { throw 'manager staff listing should be allowed' }
 $staff = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance bartender'; login = $StaffLogin; password = 'acceptance-pass'; role = 'bartender' } | ConvertTo-Json)
 $developer = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance developer'; login = $DeveloperLogin; password = 'acceptance-pass'; role = 'developer' } | ConvertTo-Json)

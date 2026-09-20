@@ -91,7 +91,7 @@ const staffPassportCipher = {
   }
 };const rolePermissions = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_sensitive', 'settings'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff_view'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive'],
   senior_bartender: ['floor', 'orders', 'bar_tasks'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
