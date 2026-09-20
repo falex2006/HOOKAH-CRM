@@ -206,3 +206,67 @@
   .staff-theme .chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));min-width:0}
   .staff-theme .chips span{min-width:0;white-space:normal;overflow:hidden;text-overflow:ellipsis}
 }
+
+/* v128 visual polish: Velora-inspired product surface */
+.velora-theme,.staff-theme{--ink:#0b0d10;--surface:#15181d;--surface-2:#1b1f25;--line:#2b3038;--muted:#7f8793;--accent:#ff516e;--accent-2:#ff9a3d;--cyan:#8edfff;--green:#63e2ad}
+.velora-theme .portal-main,.staff-theme .app{background:
+ radial-gradient(620px 360px at 86% -8%,#263442 0%,#151a20 44%,transparent 70%),
+ radial-gradient(420px 260px at 30% 100%,#271922 0%,transparent 72%),#0d0f12}
+.velora-theme .portal-content{position:relative}
+.velora-theme .portal-content:before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.3;background-image:radial-gradient(#fff .45px,transparent .45px);background-size:19px 19px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.28),transparent 34%)}
+.velora-theme .portal-content>*{position:relative}
+.velora-theme .portal-header{box-shadow:0 1px 0 #ffffff05,0 12px 30px #00000018}
+.velora-theme .brand-icon{position:relative;overflow:hidden}
+.velora-theme .brand-icon:after{content:"";position:absolute;inset:-30%;background:linear-gradient(120deg,transparent 25%,#fff6 48%,transparent 65%);transform:translateX(-80%) rotate(8deg);transition:transform .5s ease}
+.velora-theme .brand-icon:hover:after{transform:translateX(80%) rotate(8deg)}
+.velora-theme .portal-nav a{position:relative;border:1px solid transparent;transition:background .18s ease,border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.velora-theme .portal-nav a:hover{border-color:#3b424c;transform:translateX(2px)}
+.velora-theme .portal-nav a.active{border-color:#ff718044}
+.velora-theme .page-title{margin-bottom:24px}
+.velora-theme .page-title h1{font-weight:760;text-shadow:0 1px 24px #0008}
+.velora-theme .eyebrow{font-weight:700;font-size:10px}
+.velora-theme .kpi-grid{gap:12px}
+.velora-theme .kpi{border-color:#30353e;box-shadow:0 18px 40px #00000032,inset 0 1px #ffffff07;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.velora-theme .kpi:hover{transform:translateY(-2px);border-color:#59616d;box-shadow:0 22px 46px #00000046,inset 0 1px #ffffff0b}
+.velora-theme .kpi strong{font-variant-numeric:tabular-nums}
+.velora-theme .kpi:nth-child(2):after{background:radial-gradient(circle,#31c9ff2b,transparent 67%)}
+.velora-theme .kpi:nth-child(3):after{background:radial-gradient(circle,#63e2ad2b,transparent 67%)}
+.velora-theme .kpi:nth-child(4):after{background:radial-gradient(circle,#a177ff2b,transparent 67%)}
+.velora-theme .panel{border-color:#30353e;box-shadow:0 18px 40px #00000032,inset 0 1px #ffffff07}
+.velora-theme .panel-head{padding-bottom:12px;border-bottom:1px solid #ffffff08}
+.velora-theme .panel h2{font-weight:720;letter-spacing:-.02em}
+.velora-theme .quick-actions a{position:relative;overflow:hidden;border-color:#343a44;box-shadow:inset 0 1px #ffffff07;transition:transform .18s ease,border-color .18s ease,background .18s ease}
+.velora-theme .quick-actions a:hover{transform:translateY(-2px);border-color:#ff667955}
+.velora-theme .quick-actions a:after{content:"↗";position:absolute;right:13px;top:11px;color:#68717e;font-size:14px}
+.velora-theme .button{letter-spacing:.01em;transition:transform .18s ease,filter .18s ease,box-shadow .18s ease}
+.velora-theme .button:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.velora-theme .button.primary{border:1px solid #ff899044}
+.velora-theme .table-search:focus,.velora-theme .date-input:focus,.velora-theme .stack-form input:focus,.velora-theme .stack-form select:focus,.velora-theme .stack-form textarea:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:0}
+.velora-theme .staff-row{transition:background .18s ease,padding .18s ease;border-radius:10px}
+.velora-theme .staff-row:hover{background:#ffffff04}
+.velora-theme .staff-avatar{box-shadow:0 0 0 1px #ffffff08,inset 0 1px #ffffff12}
+
+/* Staff workstation: make the floor and active order read as one operational canvas. */
+.staff-theme header{box-shadow:0 1px 0 #ffffff05,0 12px 30px #00000018}
+.staff-theme .tabs{border-bottom:1px solid #ffffff06}
+.staff-theme .tabs button{box-shadow:inset 0 1px #ffffff07}
+.staff-theme .tabs .selected{box-shadow:0 0 0 1px #ff637225,inset 0 1px #ffffff0b,0 8px 22px #00000028}
+.staff-theme .table{box-shadow:0 14px 30px #00000030,inset 0 1px #ffffff08}
+.staff-theme .table:after{content:"";display:block;height:2px;margin-top:13px;border-radius:99px;background:linear-gradient(90deg,currentColor,transparent);opacity:.24}
+.staff-theme .table.free:after{color:#63e2ad}.staff-theme .table.busy:after{color:#ff7584}.staff-theme .table.reserve:after{color:#ffc65d}
+.staff-theme .order{border-color:#343943;box-shadow:0 20px 44px #00000040,inset 0 1px #ffffff08}
+.staff-theme .order h2{letter-spacing:-.025em}
+.staff-theme .order-total{border-top:1px solid #ffffff0d;padding-top:14px}
+.staff-theme .actions button{transition:transform .18s ease,border-color .18s ease,background .18s ease,box-shadow .18s ease}
+.staff-theme .actions button:hover{transform:translateY(-1px);border-color:#ff6679;background:#292e36;box-shadow:0 8px 18px #0000002b}
+.staff-theme .actions .primary:hover{background:linear-gradient(100deg,#ff5a75,#ffa14b)}
+.staff-theme .queue-card{box-shadow:inset 0 1px #ffffff06}
+
+@media(max-width:760px){
+ .velora-theme .portal-content:before{opacity:.18}
+ .velora-theme .portal-header,.staff-theme header{height:68px}
+ .velora-theme .page-title h1{font-size:27px}
+ .velora-theme .panel,.velora-theme .kpi{border-radius:14px}
+ .staff-theme .table{height:124px;padding:15px}
+ .staff-theme .order{border-radius:16px}
+}
