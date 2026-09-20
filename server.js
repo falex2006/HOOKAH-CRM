@@ -60,6 +60,7 @@ const inventory = [
 ];
 const stockMovements = [];
 const reservations = [];
+const deliveries = [];
 const auditEvents = [];
 const clients = [
   { id: 'client-anna', name: 'Анна Смирнова', phoneNumbers: [{ label: 'Основной', number: '+79991112233', primary: true }], telegram: '@anna_sm', tobaccoPreferences: ['Darkside', 'Мята'], bowlPreferences: ['Кальянная чаша'], barPreferences: ['Лимонад маракуйя', 'Red Bull'], allergies: '', notes: 'Предпочитает среднюю крепость', loyaltyPoints: 420, visits: 6, totalSpent: 18400, lastVisitAt: '2026-09-18T21:30:00.000Z' },
@@ -100,13 +101,13 @@ const staffPassportCipher = {
     } catch (_) { return null; }
   }
 };const rolePermissions = {
-  owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'integrations'],
+  owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'integrations', 'delivery'],
   senior_bartender: ['floor', 'orders', 'bar_tasks'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
-  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations']
+  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations', 'delivery']
 };
 
 const json = (res, status, data) => {
@@ -583,6 +584,24 @@ if (staffProfile && req.method === 'PATCH') {
     closed.forEach((order) => { const payments = (order.payments || []).filter((payment) => payment.status === 'paid'); if (payments.length) payments.forEach((payment) => { const amount = Number(payment.amount || 0); paymentCount += 1; revenue += amount; const key = payment.method || 'не указан'; byType[key] = (byType[key] || 0) + amount; }); else { const amount = Number(order.finalTotal || orderTotal(order)); revenue += amount; const key = order.paymentMethod || 'не указан'; byType[key] = (byType[key] || 0) + amount; } });
     return json(res, 200, { date, revenue, closedOrders: closed.length, paymentCount, byPaymentMethod: byType, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length });
   }
+  if (pathname === '/api/deliveries' && req.method === 'GET') {
+    if (denyUnless(req, res, 'delivery')) return;
+    return json(res, 200, { items: deliveries.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) });
+  }
+  if (pathname === '/api/deliveries' && req.method === 'POST') {
+    if (denyUnless(req, res, 'delivery')) return;
+    const input = await body(req); const customerName = String(input.customerName || '').trim(); const phone = String(input.phone || '').trim(); const address = String(input.address || '').trim(); const total = Number(input.total || 0);
+    if (!customerName || customerName.length > 120 || !address || address.length > 500) return json(res, 400, { error: 'delivery_contact_required' });
+    if (phone && !/^\+?[0-9 ()-]{7,24}$/.test(phone)) return json(res, 400, { error: 'invalid_guest_phone' });
+    if (!Number.isFinite(total) || total < 0) return json(res, 400, { error: 'invalid_delivery_total' });
+    const delivery = { id: `delivery-${Date.now()}`, customerName, phone, address, comment: String(input.comment || '').trim().slice(0, 500), total, paymentMethod: ['cash', 'card', 'qr'].includes(input.paymentMethod) ? input.paymentMethod : 'cash', status: 'new', courier: '', createdAt: new Date().toISOString() };
+    deliveries.push(delivery); recordAudit(req, 'delivery.created', 'delivery', delivery.id, null, delivery); return json(res, 201, delivery);
+  }
+  const deliveryPath = pathname.match(/^\/api\/deliveries\/([^/]+)$/);
+  if (deliveryPath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'delivery')) return;
+    const delivery = deliveries.find((entry) => entry.id === deliveryPath[1]); if (!delivery) return json(res, 404, { error: 'delivery_not_found' }); const input = await body(req); const allowed = ['new', 'confirmed', 'in_delivery', 'delivered', 'cancelled']; if (input.status !== undefined && !allowed.includes(input.status)) return json(res, 400, { error: 'invalid_delivery_status' }); const before = { ...delivery }; if (input.status !== undefined) delivery.status = input.status; if (input.courier !== undefined) delivery.courier = String(input.courier || '').trim().slice(0, 120); recordAudit(req, 'delivery.updated', 'delivery', delivery.id, before, delivery); return json(res, 200, delivery);
+  }
   if (pathname === '/api/reservations' && req.method === 'GET') {
     if (denyUnless(req, res, 'reservations')) return;
     const date = url.searchParams.get('date');
@@ -905,7 +924,7 @@ if (staffProfile && req.method === 'PATCH') {
 function staticFile(req, res) {
   let requestPath = new URL(req.url, 'http://localhost').pathname;
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
-  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html' };
+  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/delivery': '/delivery.html' };
   requestPath = aliases[routePath] || requestPath;
   const file = path.resolve(root, `.${requestPath}`);
   if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
