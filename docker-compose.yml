@@ -9,6 +9,7 @@ services:
       AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       VENUE_ID: ${VENUE_ID:-00000000-0000-0000-0000-000000000001}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-change_me_admin}
       DEMO_OWNER_PASSWORD: ${DEMO_OWNER_PASSWORD:-change_me_owner}
       DEMO_STAFF_PASSWORD: ${DEMO_STAFF_PASSWORD:-change_me_staff}
       DATABASE_URL: postgresql://crm:${POSTGRES_PASSWORD:-change_me}@db:5432/crm

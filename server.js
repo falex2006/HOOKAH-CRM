@@ -58,7 +58,7 @@ const auditEvents = [];
 const sessions = new Map();
 const shifts = [];
 const demoAccounts = [
-  { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || 'admin', name: 'Администратор', role: 'admin' },
+  { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Администратор', role: 'admin' },
   { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner' },
   { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', name: 'Мария', role: 'bartender' }
 ];
