@@ -131,6 +131,9 @@ const metrics = () => ({
   reservationsToday: reservations.filter((reservation) => reservation.date === today()).length,
   lowStock: inventory.filter((item) => item.onHand <= item.minLevel).length
 });
+const setMemoryTableStatus = (tableId, status) => { const table = floor.flatMap((zone) => zone.tables).find((entry) => entry.id === tableId); if (table && table.status !== 'blocked') table.status = status; };
+const releaseMemoryTableIfIdle = (tableId) => { const hasActiveOrder = orders.some((order) => order.tableId === tableId && ['open', 'in_progress', 'ready'].includes(order.status)); const hasReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === today()); if (!hasActiveOrder) setMemoryTableStatus(tableId, hasReservation ? 'reserved' : 'free'); };
+
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 const sessionFromRequest = async (req) => {
   const header = req.headers.authorization || '';
@@ -268,8 +271,9 @@ async function api(req, res) {
   }
   if (pathname === '/api/floor') {
     if (denyUnless(req, res, 'floor')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,t.status,t.capacity,t.min_order_total FROM zones z JOIN tables t ON t.zone_id=z.id WHERE z.venue_id=$1 ORDER BY z.sort_order,t.name`, [venueDbId]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minimumOrderTotal: Number(row.min_order_total) }); } return json(res, 200, { zones }); } catch (_) {} }
-    return json(res, 200, { zones: floor });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,CASE WHEN t.status='blocked' THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' ELSE t.status END AS status,t.capacity,t.min_order_total FROM zones z JOIN tables t ON t.zone_id=z.id WHERE z.venue_id=$1 ORDER BY z.sort_order,t.name`, [venueDbId]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minimumOrderTotal: Number(row.min_order_total) }); } return json(res, 200, { zones }); } catch (_) {} }
+    const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.map((table) => ({ ...table, status: table.status === 'blocked' ? 'blocked' : (orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)) ? 'occupied' : table.status) })) }));
+    return json(res, 200, { zones: derivedFloor });
   }
   if (pathname === '/api/products') {
     if (denyUnless(req, res, 'floor')) return;
@@ -588,8 +592,10 @@ if (staffProfile && req.method === 'PATCH') {
         return json(res, 201, { ...persisted, items: [] });
       } catch (error) { return json(res, 409, { error: 'order_create_failed', detail: error.message }); }
     }
+    if (input.tableId && orders.some((entry) => entry.tableId === input.tableId && ['open', 'in_progress', 'ready'].includes(entry.status))) return json(res, 409, { error: 'table_has_active_order' });
     const order = { id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal, notes: input.notes || '', items: [], createdAt: new Date().toISOString() };
     orders.push(order);
+    setMemoryTableStatus(order.tableId, 'occupied');
     recordAudit(req, 'order.created', 'order', order.id, null, order);
     return json(res, 201, order);
   }
@@ -630,16 +636,21 @@ if (staffProfile && req.method === 'PATCH') {
         if (orderAction[2] === 'status') {
           const allowed = ['open', 'in_progress', 'ready', 'closed', 'cancelled'];
           if (!allowed.includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
-           const { rows: currentRows } = await repositories.pool.query('SELECT id,status FROM orders WHERE id=$1 AND venue_id=$2', [orderAction[1], venueDbId]);
+           const { rows: currentRows } = await repositories.pool.query('SELECT id,status,table_id AS "tableId" FROM orders WHERE id=$1 AND venue_id=$2', [orderAction[1], venueDbId]);
            if (!currentRows[0]) return json(res, 404, { error: 'order_not_found' });
            if (!validOrderTransition(currentRows[0].status, input.status)) return json(res, 409, { error: 'invalid_order_transition', from: currentRows[0].status, to: input.status });
            const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=CASE WHEN $1=\'closed\' THEN now() ELSE closed_at END WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.status, orderAction[1], venueDbId]);
-          recordAudit(req, 'order.status_changed', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
+           if (['closed', 'cancelled'].includes(input.status) && rows[0].tableId) await repositories.pool.query(`UPDATE tables SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved' ELSE 'free' END WHERE id=$1 AND venue_id=$2 AND status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN ('open','in_progress','ready'))`, [rows[0].tableId, venueDbId]);
+          recordAudit(req, 'order.status_changed', 'order', rows[0].id, { status: currentRows[0].status, tableId: rows[0].tableId }, rows[0]); return json(res, 200, rows[0]);
         }
         if (typeof input.tableId !== 'string' || !input.tableId.trim() || input.tableId.length > 80) return json(res, 400, { error: 'table_id_required' });
+        const { rows: beforeRows } = await repositories.pool.query('SELECT table_id AS "tableId",status FROM orders WHERE id=$1 AND venue_id=$2', [orderAction[1], venueDbId]);
+        const occupied = await repositories.pool.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND id<>$3 AND status IN ('open','in_progress','ready') LIMIT 1`, [venueDbId, input.tableId, orderAction[1]]);
+        if (occupied.rows[0]) return json(res, 409, { error: 'target_table_has_active_order' });
         const { rows } = await repositories.pool.query('UPDATE orders SET table_id=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.tableId, orderAction[1], venueDbId]);
         if (!rows[0]) return json(res, 404, { error: 'order_not_found' });
-        recordAudit(req, 'order.transferred', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
+        if (beforeRows[0]?.tableId && beforeRows[0].tableId !== rows[0].tableId) { await repositories.pool.query(`UPDATE tables SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved' ELSE 'free' END WHERE id=$1 AND venue_id=$2 AND status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders WHERE table_id=$1 AND venue_id=$2 AND status IN ('open','in_progress','ready'))`, [beforeRows[0].tableId, venueDbId]); await repositories.pool.query(`UPDATE tables SET status='occupied' WHERE id=$1 AND venue_id=$2 AND status <> 'blocked'`, [rows[0].tableId, venueDbId]); }
+        recordAudit(req, 'order.transferred', 'order', rows[0].id, beforeRows[0] || null, rows[0]); return json(res, 200, rows[0]);
       } catch (error) { return json(res, 409, { error: 'order_action_failed', detail: error.message }); }
     }
     const order = orders.find((entry) => entry.id === orderAction[1]);
@@ -647,11 +658,13 @@ if (staffProfile && req.method === 'PATCH') {
     if (orderAction[2] === 'status') {
        if (!['open', 'in_progress', 'ready', 'closed', 'cancelled'].includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
        if (!validOrderTransition(order.status, input.status)) return json(res, 409, { error: 'invalid_order_transition', from: order.status, to: input.status });
-      const before = { status: order.status }; order.status = input.status; if (input.status === 'closed') order.closedAt = new Date().toISOString();
-      recordAudit(req, 'order.status_changed', 'order', order.id, before, { status: order.status }); return json(res, 200, order);
+      const before = { status: order.status, tableId: order.tableId }; order.status = input.status; if (input.status === 'closed') order.closedAt = new Date().toISOString();
+      if (['closed', 'cancelled'].includes(input.status)) releaseMemoryTableIfIdle(order.tableId);
+      recordAudit(req, 'order.status_changed', 'order', order.id, before, { status: order.status, tableId: order.tableId }); return json(res, 200, order);
     }
     if (typeof input.tableId !== 'string' || !input.tableId.trim() || input.tableId.length > 80) return json(res, 400, { error: 'table_id_required' });
-    const before = { tableId: order.tableId }; order.tableId = input.tableId.trim(); recordAudit(req, 'order.transferred', 'order', order.id, before, { tableId: order.tableId }); return json(res, 200, order);
+    if (orders.some((entry) => entry.id !== order.id && entry.tableId === input.tableId.trim() && ['open', 'in_progress', 'ready'].includes(entry.status))) return json(res, 409, { error: 'target_table_has_active_order' });
+    const before = { tableId: order.tableId }; const previousTable = order.tableId; order.tableId = input.tableId.trim(); setMemoryTableStatus(order.tableId, 'occupied'); releaseMemoryTableIfIdle(previousTable); recordAudit(req, 'order.transferred', 'order', order.id, before, { tableId: order.tableId }); return json(res, 200, order);
   }
   const itemMatch = pathname.match(/^\/api\/orders\/([^/]+)\/items$/);
   if (itemMatch && req.method === 'POST') {

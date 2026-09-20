@@ -11,8 +11,15 @@ class OrderRepository {
     return rows;
   }
   async create(input) {
-    const { rows } = await this.pool.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, table_id AS "tableId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt"', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0, input.notes || null]);
-    return rows[0];
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (input.tableId) { const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) throw new Error('table_has_active_order'); }
+      const { rows } = await client.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, table_id AS "tableId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt"', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0, input.notes || null]);
+      if (input.tableId) await client.query(`UPDATE tables SET status='occupied' WHERE id=$1 AND venue_id=$2 AND status <> 'blocked'`, [input.tableId, input.venueId]);
+      await client.query('COMMIT');
+      return rows[0];
+    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
   }
 }
 
