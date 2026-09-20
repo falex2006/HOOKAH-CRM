@@ -42,3 +42,29 @@
 
 .portal-notice{position:fixed;right:24px;bottom:24px;z-index:50;max-width:360px;padding:14px 18px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:#1d2027;color:#f5f7fb;box-shadow:0 16px 40px rgba(0,0,0,.35);font-size:14px}.portal-notice[data-kind=success]{border-color:#35d39a}.portal-notice[data-kind=error]{border-color:#ff687d;color:#ffdce1}
 .vip-settings{display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:8px;align-items:end;padding:10px 12px;border:1px solid #d5e0e5;border-radius:8px}.vip-settings>b{grid-column:1/-1;font-size:12px;color:#56707c}.vip-settings label{font-size:12px}.vip-settings input{border:1px solid #d5e0e5;border-radius:8px;padding:9px;background:#fff;color:#233e4b;font:inherit;min-width:90px}.velora-theme .vip-settings{border-color:#363b44;background:#111317}.velora-theme .vip-settings>b{color:#a5adb7}.velora-theme .vip-settings input{background:#111317;border-color:#363b44;color:#eef1f3}@media(max-width:650px){.vip-settings{grid-template-columns:1fr 1fr}.vip-settings>b{grid-column:1/-1}}
+
+@media(max-width:650px){
+  .velora-theme .staff-layout{grid-template-columns:1fr;gap:18px}
+  .velora-theme .staff-form{border-left:0;border-top:1px solid #2c3037;padding:20px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .velora-theme .staff-form b,.velora-theme .staff-form button,.velora-theme .staff-form small{grid-column:1/-1}
+  .velora-theme .staff-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"avatar identity status" "avatar workspace delete";gap:5px 10px;align-items:center;padding:14px 0}
+  .velora-theme .staff-row .staff-avatar{grid-area:avatar}
+  .velora-theme .staff-row>div{grid-area:identity;min-width:0}
+  .velora-theme .staff-row>.badge{grid-area:status;justify-self:end}
+  .velora-theme .staff-row .staff-workspace{grid-area:workspace;justify-self:end;padding:6px 10px;font-size:11px;min-width:0;max-width:100%}
+  .velora-theme .staff-row .staff-delete{grid-area:delete;justify-self:end;margin-right:0;transform:none}
+  .velora-theme .staff-row .staff-workspace+.staff-delete{margin-right:0}
+  .velora-theme .sidebar-footer span,.velora-theme .sidebar-footer b,.velora-theme .sidebar-footer small{display:none}
+  .velora-theme .logout-button{font-size:0;padding:8px 0}
+  .velora-theme .logout-button:after{content:'↪';font-size:16px}
+}
+
+@media(max-width:650px){
+  .velora-theme .portal-main{min-width:0;overflow:hidden}
+  .velora-theme .portal-content,.velora-theme .panel,.velora-theme .company-form,.velora-theme .staff-form{min-width:0;max-width:100%;box-sizing:border-box}
+  .velora-theme .company-form{display:grid;grid-template-columns:1fr;gap:12px}
+  .velora-theme .company-form>*{min-width:0;width:100%;box-sizing:border-box}
+  .velora-theme .company-form input[type=tel],.velora-theme .staff-form input,.velora-theme .staff-form select{min-width:0;width:100%;box-sizing:border-box}
+  .velora-theme .vip-settings{grid-template-columns:1fr 1fr;min-width:0;width:100%;box-sizing:border-box}
+  .velora-theme .vip-settings input{min-width:0;width:100%;box-sizing:border-box}
+}
