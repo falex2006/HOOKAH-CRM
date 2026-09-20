@@ -25,6 +25,7 @@ const integrations = {
   telegram: { enabled: false, status: 'planned' }
 };
 const networkVenues = [{ id: venue.id, name: venue.name, format: venue.format, city: venue.city, address: venue.address, phone: venue.phone, timezone: venue.timezone, status: 'active', isCurrent: true }];
+let currentVenueId = venue.id;
 const products = [
   { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, station: 'hookah', aliases: ['кальян', 'darkside', 'blueberry'], imageUrl: null },
   { id: 'lemonade-maracuya', name: 'Лимонад Маракуйя', price: 300, station: 'bar', aliases: ['лимонад', 'маракуйя', 'maracuya'], imageUrl: null },
@@ -268,7 +269,7 @@ async function api(req, res) {
   if (pathname === '/api/network/venues' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,city,address,phone,timezone FROM venues ORDER BY name'); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: row.id === venueDbId })) }); } catch (_) {} }
-    return json(res, 200, { items: networkVenues });
+    return json(res, 200, { items: networkVenues.filter((item) => item.status !== 'archived').map((item) => ({ ...item, isCurrent: item.id === currentVenueId })) });
   }
   if (pathname === '/api/network/venues' && req.method === 'POST') {
     if (denyUnless(req, res, 'settings')) return;
@@ -276,6 +277,29 @@ async function api(req, res) {
     if (!name || name.length > 120 || !city || city.length > 80 || !address || address.length > 240) return json(res, 400, { error: 'venue_name_city_address_required' });
     const item = { id: `venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, format: String(input.format || 'кальян-бар').trim().slice(0, 80), city, address, phone: String(input.phone || '').trim().slice(0, 32), timezone: String(input.timezone || venue.timezone).trim().slice(0, 64), status: 'active', isCurrent: false };
     networkVenues.push(item); recordAudit(req, 'venue.created', 'venue', item.id, null, item); return json(res, 201, item);
+  }
+  const networkVenuePath = pathname.match(/^\/api\/network\/venues\/([^/]+)$/);
+  if (networkVenuePath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'settings')) return;
+    const item = networkVenues.find((entry) => entry.id === networkVenuePath[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
+    const input = await body(req); const before = { ...item };
+    for (const [key, max] of [['name', 120], ['city', 80], ['address', 240], ['format', 80], ['phone', 32], ['timezone', 64]]) if (input[key] !== undefined) item[key] = String(input[key] || '').trim().slice(0, max);
+    if (!item.name || !item.city || !item.address) return json(res, 400, { error: 'venue_name_city_address_required' });
+    if (item.id === currentVenueId) Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, timezone: item.timezone, format: item.format });
+    recordAudit(req, 'venue.updated', 'venue', item.id, before, item); return json(res, 200, { ...item, isCurrent: item.id === currentVenueId });
+  }
+  if (networkVenuePath && req.method === 'DELETE') {
+    if (denyUnless(req, res, 'settings')) return;
+    const item = networkVenues.find((entry) => entry.id === networkVenuePath[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
+    if (item.id === currentVenueId) return json(res, 409, { error: 'current_venue_cannot_be_archived' });
+    item.status = 'archived'; recordAudit(req, 'venue.archived', 'venue', item.id, { status: 'active' }, { status: 'archived' }); return json(res, 200, item);
+  }
+  const networkVenueSelect = pathname.match(/^\/api\/network\/venues\/([^/]+)\/select$/);
+  if (networkVenueSelect && req.method === 'POST') {
+    if (denyUnless(req, res, 'settings')) return;
+    const item = networkVenues.find((entry) => entry.id === networkVenueSelect[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
+    const before = networkVenues.find((entry) => entry.id === currentVenueId); currentVenueId = item.id; Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, timezone: item.timezone, format: item.format });
+    recordAudit(req, 'venue.selected', 'venue', item.id, { currentVenueId: before?.id || null }, { currentVenueId: item.id }); return json(res, 200, { ...item, isCurrent: true });
   }
   if (pathname === '/api/finance/categories' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
