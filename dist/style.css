@@ -177,3 +177,10 @@
 .velora-theme .panel-head>*{min-width:0;max-width:100%}
 .velora-theme .reservation-row>div:last-child{flex-wrap:wrap}
 @media(max-width:950px){.velora-theme .panel-head{flex-wrap:wrap;align-items:flex-start;gap:10px}.velora-theme .panel-head .table-search{flex:1 1 170px}.velora-theme .panel-head .date-input{flex:0 1 150px}}
+
+/* Extra narrow split-screen: stack dashboard metrics for readability. */
+@media (max-width:430px){
+  .velora-theme .kpi-grid,.velora-theme .kpi-grid.compact{grid-template-columns:1fr}
+  .velora-theme .kpi{padding:15px 16px}
+  .velora-theme .kpi strong{font-size:26px}
+}
