@@ -38,6 +38,13 @@ $productImage = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products/$($pr
 if (-not $productImage.imageUrl) { throw 'product image update failed' }
 $productDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/products/$($product.id)"
 if ($productDeleted.active -ne $false) { throw 'product deactivation failed' }
+$financeCategories = Invoke-RestMethod "$BaseUrl/api/finance/categories"
+if ($financeCategories.items.Count -lt 1) { throw 'finance categories list failed' }
+$financeCategory = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/finance/categories" -ContentType 'application/json' -Body (@{ name = "Smoke category $smokeSuffix"; kind = 'expense' } | ConvertTo-Json)
+$financeCategoryUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/finance/categories/$($financeCategory.id)" -ContentType 'application/json' -Body (@{ name = "Smoke category updated $smokeSuffix" } | ConvertTo-Json)
+if ($financeCategoryUpdated.name -notlike '*updated*') { throw 'finance category update failed' }
+$financeCategoryDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/finance/categories/$($financeCategory.id)"
+if ($financeCategoryDeleted.active -ne $false) { throw 'finance category deactivation failed' }
 $integrations = Invoke-RestMethod "$BaseUrl/api/integrations"
 if (-not $integrations.egais -or $integrations.egais.enabled) { throw 'integration flags failed' }
 $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"vip-room-1","orderType":"vip","minimumOrderTotal":1500}'
