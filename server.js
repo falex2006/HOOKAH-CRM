@@ -552,7 +552,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/discount-requests' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT d.id,d.order_id AS "orderId",d.type,d.value,d.reason,d.status,d.requested_by AS "requestedBy",d.approved_by AS "approvedBy",d.created_at AS "createdAt",d.decided_at AS "decidedAt" FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 ORDER BY d.created_at DESC', [venueDbId]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'database_unavailable' }); } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT d.id,d.order_id AS "orderId",d.type,d.value,d.reason,d.status,d.requested_by AS "requestedBy",d.approved_by AS "approvedBy",d.created_at AS "createdAt",d.decided_at AS "decidedAt",g.full_name AS "guestName",g.phone AS "guestPhone" FROM discounts d JOIN orders o ON o.id=d.order_id LEFT JOIN guests g ON g.id=o.guest_id WHERE o.venue_id=$1 ORDER BY d.created_at DESC', [venueDbId]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'database_unavailable' }); } }
     return json(res, 200, { items: discountRequests });
   }
   const decision = pathname.match(/^\/api\/discount-requests\/([^/]+)\/(approve|reject)$/);
