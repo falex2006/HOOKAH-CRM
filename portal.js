@@ -109,6 +109,7 @@ Promise.allSettled([api('/api/venue'), api('/api/metrics')]).then(([venueResult,
     document.querySelectorAll('[data-metric]').forEach((el) => { const key = el.dataset.metric; if (metrics[key] !== undefined) el.textContent = metrics[key]; });
   }
 });
+api('/api/shifts').then((data) => { document.querySelectorAll('.live-dot').forEach((node) => { node.textContent = data.current ? '● Смена открыта' : '● Смена закрыта'; node.classList.toggle('offline', !data.current); }); }).catch(() => {});
 
 function renderDashboard() {
   const target = document.querySelector('#page-content');
