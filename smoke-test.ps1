@@ -26,7 +26,8 @@ if ($owner.permissions -notcontains 'staff' -or $owner.permissions -notcontains 
 $venueBefore = Invoke-RestMethod "$BaseUrl/api/venue"
 $venueUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/venue" -ContentType 'application/json' -Body (@{ phone = '+7 (900) 123-45-67'; logoUrl = 'data:image/png;base64,AA=='; vipRoomMinimums = @{ vip_room_1 = 1600; vip_room_2 = 2600 } } | ConvertTo-Json)
 if ($venueUpdated.phone -ne '+7 (900) 123-45-67' -or $venueUpdated.vipRoomMinimums.vip_room_1 -ne 1600 -or -not $venueUpdated.logoUrl) { throw 'company settings update failed' }
-Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/venue" -ContentType 'application/json' -Body (@{ phone = $venueBefore.phone; logoUrl = $venueBefore.logoUrl; vipRoomMinimums = @{ vip_room_1 = 1500; vip_room_2 = 2500 } } | ConvertTo-Json) | Out-Null
+$restorePhone = if ([string]$venueBefore.phone -match '^\+?[0-9 ()-]{7,24}$') { [string]$venueBefore.phone } else { '+7 (996) 641-95-10' }
+Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/venue" -ContentType 'application/json' -Body (@{ phone = $restorePhone; logoUrl = $venueBefore.logoUrl; vipRoomMinimums = @{ vip_room_1 = 1500; vip_room_2 = 2500 } } | ConvertTo-Json) | Out-Null
 $session = Invoke-RestMethod "$BaseUrl/api/session?role=bartender"
 if ($session.permissions -notcontains 'orders' -or $session.permissions -contains 'finance') { throw 'role permissions failed' }
 $products = Invoke-RestMethod "$BaseUrl/api/products"
