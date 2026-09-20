@@ -53,7 +53,8 @@ if (-not $inventory.items -or $null -eq $inventory.lowStock) { throw 'inventory 
 $movement = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/inventory/movements" -ContentType 'application/json' -Body '{"itemId":"ing-redbull","delta":1,"reason":"smoke test"}'
 if ($movement.delta -ne 1) { throw 'inventory movement failed' }
 $smokeDate = (Get-Date).ToString('yyyy-MM-dd')
-$regularReservationBody = @{ guestName = 'Smoke test'; date = $smokeDate; time = '23:00'; tableId = 'table-12'; guests = 2 } | ConvertTo-Json
+$regularTime = "22:$((Get-Random -Minimum 10 -Maximum 59).ToString('00'))"
+$regularReservationBody = @{ guestName = 'Smoke test'; date = $smokeDate; time = $regularTime; tableId = 'table-12'; guests = 2 } | ConvertTo-Json
 $reservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body $regularReservationBody
 if ($reservation.status -ne 'confirmed') { throw 'reservation create failed' }
 $vipTime = "23:$((Get-Random -Minimum 10 -Maximum 59).ToString('00'))"
