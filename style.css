@@ -315,3 +315,9 @@
  .staff-theme .order{padding:18px}
  .staff-theme .queue{padding-top:18px}
 }
+
+/* Clickable KPI affordance */
+.velora-theme .kpi[data-kpi-route],.velora-theme .kpi[data-kpi-target]{cursor:pointer}
+.velora-theme .kpi[data-kpi-route]:hover,.velora-theme .kpi[data-kpi-target]:hover{border-color:#ff7180;transform:translateY(-3px)}
+.velora-theme .kpi[data-kpi-route]:focus-visible,.velora-theme .kpi[data-kpi-target]:focus-visible{outline:0;box-shadow:0 0 0 3px #ff63724d,0 22px 46px #00000046}
+.velora-theme .kpi[data-kpi-route] small:after,.velora-theme .kpi[data-kpi-target] small:after{content:'  ↗';color:#ff7a86;font-size:12px}
