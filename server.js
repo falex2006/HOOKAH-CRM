@@ -517,15 +517,17 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/orders' && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
     const input = await body(req);
+    const minimumOrderTotal = Number(input.minimumOrderTotal || 0);
+    if (!Number.isFinite(minimumOrderTotal) || minimumOrderTotal < 0) return json(res, 400, { error: 'invalid_vip_minimum' });
     if (repositories?.orders) {
       try {
         const openedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001';
-        const persisted = await repositories.orders.create({ venueId: venueDbId, tableId: input.tableId, openedBy, reservationId: input.reservationId, vipMinimum: Number(input.minimumOrderTotal || 0), notes: input.notes });
+        const persisted = await repositories.orders.create({ venueId: venueDbId, tableId: input.tableId, openedBy, reservationId: input.reservationId, vipMinimum: minimumOrderTotal, notes: input.notes });
         recordAudit(req, 'order.created', 'order', persisted.id, null, persisted);
         return json(res, 201, { ...persisted, items: [] });
       } catch (error) { return json(res, 409, { error: 'order_create_failed', detail: error.message }); }
     }
-    const order = { id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal: Number(input.minimumOrderTotal || 0), notes: input.notes || '', items: [], createdAt: new Date().toISOString() };
+    const order = { id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal, notes: input.notes || '', items: [], createdAt: new Date().toISOString() };
     orders.push(order);
     recordAudit(req, 'order.created', 'order', order.id, null, order);
     return json(res, 201, order);
@@ -534,6 +536,8 @@ if (staffProfile && req.method === 'PATCH') {
   if (orderEdit && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     const input = await body(req); if (input.notes === undefined && input.guestName === undefined && input.phone === undefined) return json(res, 400, { error: 'supported_fields_required' });
+    if (input.phone !== undefined && input.phone && !/^\+?[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
+    if (input.guestName !== undefined && String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderEdit[1])) {
       try {
         let guest = null;
