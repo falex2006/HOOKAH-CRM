@@ -184,3 +184,15 @@
   .velora-theme .kpi{padding:15px 16px}
   .velora-theme .kpi strong{font-size:26px}
 }
+
+/* Final narrow staff workspace override: stack the order panel below the floor. */
+@media (max-width:760px){
+  .staff-theme .workspace{grid-template-columns:minmax(0,1fr);padding:0 16px;gap:16px}
+  .staff-theme .workspace>*{min-width:0;max-width:100%;box-sizing:border-box}
+  .staff-theme .order{width:100%;min-width:0;box-sizing:border-box}
+  .staff-theme .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:430px){
+  .staff-theme .tables{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .staff-theme .order{padding:18px}
+}
