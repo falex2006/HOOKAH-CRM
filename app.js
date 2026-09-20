@@ -49,7 +49,7 @@ function drawOrder(order){
   const items=order?.items||[];
   orderRows.innerHTML=items.length?items.map(item=>`<div class="order-item-row" data-item-id="${item.id}"><span>${item.name||item.productName||'Позиция'}</span><span class="quantity-control"><button class="qty-minus" data-item="${item.id}" aria-label="Уменьшить">−</button><b>${item.quantity||1}</b><button class="qty-plus" data-item="${item.id}" aria-label="Увеличить">＋</button></span><b data-line-total="${Number(item.unitPrice||item.price||0)*(item.quantity||1)}">${Number(item.unitPrice||item.price||0)*(item.quantity||1)} ₽</b></div>`).join(''):'<div class="empty-order">Позиции пока не добавлены</div>';
   const meta=document.querySelector('.meta'); if(meta) meta.textContent=`👥 ${order?.guests||2} гостя${order?.guestName?` · ${order.guestName}`:''}  ·  ⏱ обслуживание`;
-  const editable=Boolean(order?.id)&&!['closed','cancelled'].includes(order?.status);document.querySelectorAll('.actions button,#discount-request,#split-order,#split-payment,#transfer-order,.close').forEach((button)=>{button.disabled=!editable;button.title=editable?'':'Сначала откройте активный заказ';});
+  const editable=Boolean(order?.id)&&Boolean((order?.items||[]).length)&&!['closed','cancelled'].includes(order?.status);document.querySelectorAll('.actions button,#discount-request,#split-order,#split-payment,#transfer-order,#print-receipt,.close').forEach((button)=>{button.disabled=!editable;button.title=editable?'':'Сначала откройте активный заказ с позициями';});
   const status=document.querySelector('.status');if(status)status.textContent=order?.status==='ready'?'● Готово':order?.status==='in_progress'?'● Готовится':order?.status==='closed'?'● Закрыт':order?.status==='cancelled'?'● Отменён':'● Открыт';
   recalc();
 }
