@@ -77,7 +77,7 @@ const rolePermissions = {
   senior_hookah_master: ['floor', 'orders', 'reservations', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
-  developer: ['floor', 'diagnostics', 'finance_read', 'inventory_read']
+  developer: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'settings', 'diagnostics']
 };
 
 const json = (res, status, data) => {
