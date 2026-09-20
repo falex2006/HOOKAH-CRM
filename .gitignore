@@ -2,5 +2,5 @@ node_modules/
 .env
 .sites-runtime/
 *.log
-site-v55.tar.gz
+site-v*.tar.gz
 territory-crm*.tar.gz
