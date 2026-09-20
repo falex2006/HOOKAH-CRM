@@ -4,12 +4,14 @@
 class OrderRepository {
   constructor(pool) { this.pool = pool; }
   async listOpen(venueId) {
-    const { rows } = await this.pool.query(`SELECT o.*, COALESCE(json_agg(json_build_object('id', oi.id, 'productId', oi.product_id, 'quantity', oi.quantity, 'unitPrice', oi.unit_price, 'station', oi.station)) FILTER (WHERE oi.id IS NOT NULL), '[]') AS items
-      FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id WHERE o.venue_id=$1 AND o.status IN ('open','in_progress','ready') GROUP BY o.id ORDER BY o.created_at DESC`, [venueId]);
+    const { rows } = await this.pool.query(`SELECT o.id, o.table_id AS "tableId", o.status, o.vip_minimum AS "minimumOrderTotal", o.notes, o.created_at AS "createdAt",
+      COALESCE(json_agg(json_build_object('id', oi.id, 'productId', oi.product_id, 'name', p.name, 'quantity', oi.quantity, 'unitPrice', oi.unit_price, 'station', oi.station, 'status', oi.status)) FILTER (WHERE oi.id IS NOT NULL), '[]') AS items
+      FROM orders o LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN products p ON p.id=oi.product_id
+      WHERE o.venue_id=$1 AND o.status IN ('open','in_progress','ready') GROUP BY o.id ORDER BY o.created_at DESC`, [venueId]);
     return rows;
   }
   async create(input) {
-    const { rows } = await this.pool.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0, input.notes || null]);
+    const { rows } = await this.pool.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, table_id AS "tableId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt"', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0, input.notes || null]);
     return rows[0];
   }
 }
