@@ -26,6 +26,14 @@ if ($session.permissions -notcontains 'orders' -or $session.permissions -contain
 $products = Invoke-RestMethod "$BaseUrl/api/products"
 $redbull = $products.items | Where-Object id -eq 'redbull'
 if (-not $redbull.aliases -or $redbull.aliases.Count -lt 3) { throw 'aliases failed' }
+$product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Smoke product $smokeSuffix"; category = 'Бар'; price = 399; aliases = @('smoke', 'тест') } | ConvertTo-Json)
+if (-not $product.id -or $product.category -ne 'Бар') { throw 'product create failed' }
+$productUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/products/$($product.id)" -ContentType 'application/json' -Body (@{ price = 420; aliases = @('smoke', 'обновлённый') } | ConvertTo-Json)
+if ($productUpdated.price -ne 420) { throw 'product update failed' }
+$productImage = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products/$($product.id)/image" -ContentType 'application/json' -Body (@{ imageData = 'data:image/png;base64,AA==' } | ConvertTo-Json)
+if (-not $productImage.imageUrl) { throw 'product image update failed' }
+$productDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/products/$($product.id)"
+if ($productDeleted.active -ne $false) { throw 'product deactivation failed' }
 $integrations = Invoke-RestMethod "$BaseUrl/api/integrations"
 if (-not $integrations.egais -or $integrations.egais.enabled) { throw 'integration flags failed' }
 $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"vip-room-1","orderType":"vip","minimumOrderTotal":1500}'
