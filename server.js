@@ -343,6 +343,16 @@ async function api(req, res) {
   }
   if (pathname.startsWith('/api/reservations/') && req.method === 'POST' && pathname.endsWith('/cancel')) {
     if (denyUnless(req, res, 'reservations')) return;
+    const reservationId = pathname.split('/')[3];
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(reservationId)) {
+      try {
+        const { rows } = await repositories.pool.query(`UPDATE reservations SET status='cancelled' WHERE id=$1 AND venue_id=$2 AND status='confirmed' RETURNING id,table_id AS "tableId",status`, [reservationId, venueDbId]);
+        if (!rows[0]) return json(res, 404, { error: 'reservation_not_found_or_cancelled' });
+        await repositories.pool.query(`UPDATE tables SET status='free' WHERE id=$1 AND venue_id=$2 AND NOT EXISTS (SELECT 1 FROM reservations WHERE table_id=$1 AND venue_id=$2 AND status='confirmed' AND starts_at::date=CURRENT_DATE)`, [rows[0].tableId, venueDbId]);
+        recordAudit(req, 'reservation.cancelled', 'reservation', rows[0].id, { status: 'confirmed' }, rows[0]);
+        return json(res, 200, rows[0]);
+      } catch (error) { return json(res, 409, { error: 'reservation_cancel_failed', detail: error.message }); }
+    }
     const reservation = reservations.find((entry) => entry.id === pathname.split('/')[3]);
     if (!reservation) return json(res, 404, { error: 'reservation_not_found' });
     reservation.status = 'cancelled';
@@ -459,6 +469,16 @@ async function api(req, res) {
   const orderPath = pathname.match(/^\/api\/orders\/([^/]+)\/(summary|close|split|discount-requests)$/);
   if (orderPath && req.method === 'GET' && orderPath[2] === 'summary') {
     if (denyUnless(req, res, 'orders')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
+      try {
+        const { rows: orderRows } = await repositories.pool.query('SELECT id,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [orderPath[1], venueDbId]);
+        if (!orderRows[0]) return json(res, 404, { error: 'order_not_found' });
+        const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderPath[1]]);
+        const total = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+        const minimum = Number(orderRows[0].minimumOrderTotal || 0);
+        return json(res, 200, { orderId: orderRows[0].id, total, minimum, shortfall: Math.max(0, minimum - total), minimumApplied: minimum > 0 });
+      } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
+    }
     const order = orders.find((entry) => entry.id === orderPath[1]);
     return order ? json(res, 200, vipSummary(order)) : json(res, 404, { error: 'order_not_found' });
   }
