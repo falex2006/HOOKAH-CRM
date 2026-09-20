@@ -48,6 +48,13 @@ $productCategoryUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/pro
 if ($productCategoryUpdated.name -notlike '*updated*') { throw 'product category update failed' }
 $productCategoryDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/product-categories/$($productCategory.id)"
 if ($productCategoryDeleted.active -ne $false) { throw 'product category deactivation failed' }
+$clientPhone = "+7 900 1$smokeSuffix"
+$client = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/clients" -ContentType 'application/json' -Body (@{ name = "Smoke guest $smokeSuffix"; phoneNumbers = @(@{ label = 'Основной'; number = $clientPhone; primary = $true }, @{ label = 'Дополнительный'; number = "+7 900 2$smokeSuffix"; primary = $false }); telegram = '@smoke_guest'; tobaccoPreferences = @('Мята'); bowlPreferences = @('Калауд'); barPreferences = @('Red Bull'); allergies = 'нет'; notes = 'local acceptance' } | ConvertTo-Json -Depth 5)
+if (-not $client.id -or $client.phoneNumbers.Count -ne 2) { throw 'client profile create failed' }
+$loyalty = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/clients/$($client.id)/loyalty" -ContentType 'application/json' -Body (@{ delta = 50; reason = 'local smoke' } | ConvertTo-Json)
+if ($loyalty.loyaltyPoints -ne 50) { throw 'client loyalty update failed' }
+$clientHistory = Invoke-RestMethod "$BaseUrl/api/clients/$($client.id)/history"
+if ($null -eq $clientHistory.orders -or $null -eq $clientHistory.reservations) { throw 'client history failed' }
 $networkBefore = Invoke-RestMethod "$BaseUrl/api/network/venues"
 if ($networkBefore.items.Count -lt 1) { throw 'network venues list failed' }
 $networkVenue = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/network/venues" -ContentType 'application/json' -Body (@{ name = "Smoke point $smokeSuffix"; city = 'Тюмень'; address = "ул. Smoke $smokeSuffix" } | ConvertTo-Json)
