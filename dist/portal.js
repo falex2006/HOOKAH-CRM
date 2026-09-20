@@ -44,7 +44,7 @@ demoState.products ||= [{ id: 'redbull', name: 'Red Bull', price: 250, aliases: 
 demoState.reservations ||= []; demoState.movements ||= []; demoState.audit ||= []; demoState.discounts ||= [{ id: 'demo-discount-1', orderId: 'demo-order-1522', type: 'percent', value: 10, reason: 'Компенсация ожидания', status: 'requested', requestedBy: 'Мария', createdAt: new Date().toISOString() }];
 const demoJson = async (url, options = {}) => {
   const path = new URL(url, window.location.origin).pathname; const method = options.method || 'GET'; const input = options.body ? JSON.parse(options.body) : {};
-  if (path === '/api/venue' && method === 'GET') return { name: 'Территория', city: 'Тюмень', address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', logoUrl: null };
+  if (path === '/api/venue' && method === 'GET') return { name: 'Территория', city: 'Тюмень', address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', logoUrl: null, ...(demoState.venue || {}) };
   if (path === '/api/venue' && (method === 'PATCH' || method === 'PUT')) { demoState.venue = { ...(demoState.venue || {}), ...input }; demoSave(); return { name: 'Территория', city: 'Тюмень', address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', ...demoState.venue }; }
   if (path === '/api/metrics') return { openOrders: 2, closedOrders: 8, discountRequests: 1, staffActive: demoState.staff.filter((x) => x.active).length, reservationsToday: demoState.reservations.length, lowStock: demoState.inventory.filter((x) => x.onHand <= x.minLevel).length };
   if (path === '/api/staff' && method === 'GET') return { items: demoState.staff };
