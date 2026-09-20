@@ -270,3 +270,48 @@
  .staff-theme .table{height:124px;padding:15px}
  .staff-theme .order{border-radius:16px}
 }
+
+/* v129 spacing audit: consistent 8px rhythm and readable density */
+.velora-theme .portal-content{padding:36px 40px 48px}
+.velora-theme .page-title{gap:24px;margin-bottom:22px}
+.velora-theme .page-title h1{line-height:1.08}
+.velora-theme .page-title .muted{line-height:1.45}
+.velora-theme .kpi-grid{margin-bottom:18px}
+.velora-theme .kpi{min-height:112px;box-sizing:border-box;padding:18px 19px}
+.velora-theme .kpi span{line-height:1.35}
+.velora-theme .kpi strong{margin:10px 0 6px;line-height:1}
+.velora-theme .content-grid{gap:18px}
+.velora-theme .panel{padding:20px}
+.velora-theme .panel-head{margin-bottom:14px;padding-bottom:11px}
+.velora-theme .check-list{gap:15px}
+.velora-theme .quick-actions{gap:9px}
+.velora-theme .quick-actions a{padding:14px}
+.velora-theme table th{padding:10px 11px}
+.velora-theme table td{padding:12px 11px}
+.velora-theme .staff-list{gap:0}
+.staff-theme .tabs{padding-top:20px;padding-bottom:16px}
+.staff-theme .workspace{gap:18px}
+.staff-theme .tables{gap:12px}
+.staff-theme .order{padding:22px}
+.staff-theme .order-head{margin-bottom:9px}
+.staff-theme .meta{margin-bottom:14px}
+.staff-theme .order-tabs{margin-bottom:4px}
+.staff-theme .items{min-height:148px}
+.staff-theme .items div{padding:9px 0;line-height:1.35}
+.staff-theme .order-total{margin-top:4px;padding-top:13px}
+.staff-theme .order>.primary{margin-top:14px}
+.staff-theme .actions{gap:8px;margin-top:8px}
+.staff-theme .actions button,.staff-theme .secondary,.staff-theme .close{min-height:42px}
+.staff-theme .queue{padding-top:20px}
+.staff-theme .queue-list{margin-top:12px}
+@media(max-width:950px){.velora-theme .portal-content{padding:28px 28px 38px}}
+@media(max-width:760px){
+ .velora-theme .portal-content{padding:24px 14px 36px}
+ .velora-theme .page-title{gap:16px;margin-bottom:18px}
+ .velora-theme .kpi{min-height:0}
+ .velora-theme .panel{padding:18px}
+ .staff-theme .tabs{padding-top:18px;padding-bottom:14px}
+ .staff-theme .workspace{gap:16px}
+ .staff-theme .order{padding:18px}
+ .staff-theme .queue{padding-top:18px}
+}
