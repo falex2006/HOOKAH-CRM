@@ -1,0 +1,9 @@
+# Проверка ролей на VPS
+
+Для стенда с `AUTH_REQUIRED=true` запустите:
+
+```bash
+pwsh ./smoke-auth-required.ps1 -BaseUrl https://crm.example.com -OwnerPassword "$DEMO_OWNER_PASSWORD"
+```
+
+Сценарий создаёт временные учётные записи, проверяет запрет финансов и склада для бармена и read-only доступ разработчика. После проверки созданные записи можно деактивировать из панели владельца.
