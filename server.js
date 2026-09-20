@@ -110,7 +110,7 @@ const body = (req) => new Promise((resolve, reject) => {
   req.on('data', (chunk) => { raw += chunk; });
   req.on('end', () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (error) { reject(error); } });
 });
-const normalizePhoneNumbers = (value) => { const seen = new Set(); const contacts = (Array.isArray(value) ? value : []).map((entry) => ({ label: String(entry?.label || 'Дополнительный').trim().slice(0, 32), number: String(entry?.number || '').trim(), primary: Boolean(entry?.primary) })).filter((entry) => entry.number && !seen.has(entry.number) && seen.add(entry.number)); if (contacts.length) { const primaryIndex = contacts.findIndex((entry) => entry.primary); contacts.forEach((entry, index) => { entry.primary = primaryIndex < 0 ? index === 0 : index === primaryIndex; }); } return contacts; };
+const normalizePhoneNumbers = (value) => { const seen = new Set(); const contacts = (Array.isArray(value) ? value : []).map((entry) => ({ label: String(entry?.label || 'Дополнительный').trim().slice(0, 32), number: String(entry?.number || '').trim(), primary: Boolean(entry?.primary) })).filter((entry) => { const key = entry.number.replace(/\D/g, ''); if (!key || seen.has(key)) return false; seen.add(key); return true; }); if (contacts.length) { const primaryIndex = contacts.findIndex((entry) => entry.primary); contacts.forEach((entry, index) => { entry.primary = primaryIndex < 0 ? index === 0 : index === primaryIndex; }); } return contacts; };
 const validEmploymentDate = (value) => !value || (/^\d{4}-\d{2}-\d{2}$/.test(String(value)) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)));
 const orderTotal = (order) => order.items.reduce((sum, item) => sum + (Number(item.unitPrice) || 0) * (Number(item.quantity) || 0), 0);
 const approvedDiscountTotal = (orderId, subtotal) => discountRequests.filter((request) => request.orderId === orderId && request.status === 'approved').reduce((sum, request) => sum + (request.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(request.value || 0))) / 100 : Math.max(0, Number(request.value || 0))), 0);
@@ -302,7 +302,7 @@ async function api(req, res) {
   if (pathname === '/api/staff' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff')) return;
     const input = await body(req);
-    if (!input.name || !rolePermissions[input.role]) return json(res, 400, { error: 'name_and_valid_role_required' });
+    if (!input.name || !rolePermissions[input.role] || input.role === 'owner') return json(res, 400, { error: 'name_and_valid_role_required' });
     if (!validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
     if (input.workNotes !== undefined && String(input.workNotes).length > 4000) return json(res, 400, { error: 'work_notes_too_long' });
     if (input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
@@ -331,20 +331,21 @@ async function api(req, res) {
   if (staffDelete && req.method === 'DELETE') {
     if (denyUnless(req, res, 'staff')) return;
     if (String(req.user?.id || '') === staffDelete[1]) return json(res, 409, { error: 'self_deactivation_forbidden' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffDelete[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET is_active=false WHERE id=$1 AND venue_id=$2 AND role <> 'owner' RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [staffDelete[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found_or_owner' }); recordAudit(req, 'staff.deactivated', 'staff', rows[0].id, { active: true }, { active: false }); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_delete_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffDelete[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET is_active=false WHERE id=$1 AND venue_id=$2 AND role <> 'owner' AND is_active=true RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [staffDelete[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found_or_owner' }); recordAudit(req, 'staff.deactivated', 'staff', rows[0].id, { active: true }, { active: false }); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_delete_failed', detail: error.message }); } }
     const person = staff.find((entry) => entry.id === staffDelete[1]);
     if (!person) return json(res, 404, { error: 'staff_not_found' });
     if (person.role === 'owner') return json(res, 409, { error: 'owner_cannot_be_deleted' });
+    if (!person.active) return json(res, 409, { error: 'staff_already_inactive' });
     person.active = false; recordAudit(req, 'staff.deactivated', 'staff', person.id, { active: true }, { active: false });
     return json(res, 200, person);
   }
   const staffAvatar = pathname.match(/^\/api\/staff\/([^/]+)\/avatar$/);
   if (staffAvatar && req.method === 'POST') {
-    if (denyUnless(req, res, 'staff')) return;
+    if (!hasPermission(req, 'staff') && String(req.user?.id || '') !== staffAvatar[1]) return json(res, 403, { error: 'forbidden', permission: 'staff' });
     const input = await body(req); if (!validImageData(input.imageData)) return json(res, 400, { error: 'invalid_avatar' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffAvatar[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET avatar_url=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [input.imageData, staffAvatar[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found' }); recordAudit(req, 'staff.avatar_updated', 'staff', rows[0].id, null, { avatarUrl: '[image]' }); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_avatar_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffAvatar[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET avatar_url=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [input.imageData, staffAvatar[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found' }); recordAudit(req, 'staff.avatar_updated', 'staff', rows[0].id, { avatarUrl: '[image]' }, { avatarUrl: '[image]' }); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_avatar_failed', detail: error.message }); } }
     const person = staff.find((entry) => entry.id === staffAvatar[1]); if (!person) return json(res, 404, { error: 'staff_not_found' });
-    person.avatarUrl = input.imageData; recordAudit(req, 'staff.avatar_updated', 'staff', person.id, null, { avatarUrl: '[image]' }); return json(res, 200, person);
+    const hadAvatar = Boolean(person.avatarUrl); person.avatarUrl = input.imageData; recordAudit(req, 'staff.avatar_updated', 'staff', person.id, { avatarUrl: hadAvatar ? '[image]' : null }, { avatarUrl: '[image]' }); return json(res, 200, person);
   }
 const staffProfile = pathname.match(/^\/api\/staff\/([^/]+)\/profile$/);
 if (staffProfile && req.method === 'GET') {
