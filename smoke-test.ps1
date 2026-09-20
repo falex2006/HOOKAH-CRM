@@ -95,6 +95,8 @@ if ($paymentFinal.remaining -ne 0 -or -not $paymentFinal.closed) { throw 'split 
 $regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{ tableId = "smoke-table-$smokeSuffix" } | ConvertTo-Json)
 $guest = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($regular.id)" -ContentType 'application/json' -Body '{"guestName":"Smoke guest","phone":"+79990000000"}'
 if ($guest.guestName -ne 'Smoke guest') { throw 'guest binding failed' }
+$attachedGuest = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($regular.id)" -ContentType 'application/json' -Body (@{ clientId = $client.id } | ConvertTo-Json)
+if ($attachedGuest.guestName -ne $client.name) { throw 'client profile attachment failed' }
 $item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
 $itemMerged = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
 if ($itemMerged.id -ne $item.id -or $itemMerged.quantity -ne 2) { throw 'duplicate product quantity merge failed' }
