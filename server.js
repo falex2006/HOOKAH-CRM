@@ -443,7 +443,7 @@ if (staffProfile && req.method === 'PATCH') {
       const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const delta = Number(input.delta);
       if (!item || !Number.isFinite(delta) || delta === 0) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
       if (item.onHand + delta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
-      const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: delta > 0 ? 'in' : 'out', quantity: Math.abs(delta), reason: input.reason, createdBy: null });
+      const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: delta > 0 ? 'in' : 'out', quantity: Math.abs(delta), reason: input.reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
       recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand }, { onHand: item.onHand + delta, movement });
       return json(res, 201, { ...movement, itemName: item.name, delta });
     }
@@ -484,10 +484,11 @@ if (staffProfile && req.method === 'PATCH') {
         return json(res, 503, { error: 'database_unavailable', detail: error.message });
       }
     }
-    const closed = orders.filter((order) => order.status === 'closed');
-    const revenue = closed.reduce((sum, order) => sum + Number(order.finalTotal || orderTotal(order)), 0);
-    const byType = closed.reduce((result, order) => { const key = order.paymentMethod || 'не указан'; result[key] = (result[key] || 0) + Number(order.finalTotal || orderTotal(order)); return result; }, {});
-    return json(res, 200, { date: url.searchParams.get('date') || today(), revenue, closedOrders: closed.length, byPaymentMethod: byType, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length });
+    const date = url.searchParams.get('date') || today();
+    const closed = orders.filter((order) => order.status === 'closed' && String(order.closedAt || order.createdAt || '').slice(0, 10) === date);
+    const byType = {}; let revenue = 0;
+    closed.forEach((order) => { const payments = (order.payments || []).filter((payment) => payment.status === 'paid'); if (payments.length) payments.forEach((payment) => { const amount = Number(payment.amount || 0); revenue += amount; const key = payment.method || 'не указан'; byType[key] = (byType[key] || 0) + amount; }); else { const amount = Number(order.finalTotal || orderTotal(order)); revenue += amount; const key = order.paymentMethod || 'не указан'; byType[key] = (byType[key] || 0) + amount; } });
+    return json(res, 200, { date, revenue, closedOrders: closed.length, byPaymentMethod: byType, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length });
   }
   if (pathname === '/api/reservations' && req.method === 'GET') {
     if (denyUnless(req, res, 'reservations')) return;
@@ -542,9 +543,9 @@ if (staffProfile && req.method === 'PATCH') {
     const reservationId = pathname.split('/')[3];
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(reservationId)) {
       try {
-        const { rows } = await repositories.pool.query(`UPDATE reservations SET status='cancelled' WHERE id=$1 AND venue_id=$2 AND status='confirmed' RETURNING id,table_id AS "tableId",status`, [reservationId, venueDbId]);
+        const { rows } = await repositories.pool.query(`UPDATE reservations SET status='cancelled' WHERE id=$1 AND venue_id=$2 AND status='confirmed' RETURNING id,table_id AS "tableId",starts_at AS "startsAt",status`, [reservationId, venueDbId]);
         if (!rows[0]) return json(res, 404, { error: 'reservation_not_found_or_cancelled' });
-        await repositories.pool.query(`UPDATE tables SET status='free' WHERE id=$1 AND venue_id=$2 AND NOT EXISTS (SELECT 1 FROM reservations WHERE table_id=$1 AND venue_id=$2 AND status='confirmed' AND starts_at::date=CURRENT_DATE)`, [rows[0].tableId, venueDbId]);
+        await repositories.pool.query(`UPDATE tables SET status='free' WHERE id=$1 AND venue_id=$2 AND NOT EXISTS (SELECT 1 FROM reservations WHERE table_id=$1 AND venue_id=$2 AND status='confirmed' AND starts_at::date=$3::date)`, [rows[0].tableId, venueDbId, rows[0].startsAt]);
         recordAudit(req, 'reservation.cancelled', 'reservation', rows[0].id, { status: 'confirmed' }, rows[0]);
         return json(res, 200, rows[0]);
       } catch (error) { return json(res, 409, { error: 'reservation_cancel_failed', detail: error.message }); }
@@ -552,6 +553,8 @@ if (staffProfile && req.method === 'PATCH') {
     const reservation = reservations.find((entry) => entry.id === pathname.split('/')[3]);
     if (!reservation) return json(res, 404, { error: 'reservation_not_found' });
     reservation.status = 'cancelled';
+    const stillReserved = reservations.some((entry) => entry.id !== reservation.id && entry.status === 'confirmed' && entry.tableId === reservation.tableId && entry.date === reservation.date);
+    if (!stillReserved) { const table = tables.find((entry) => entry.id === reservation.tableId); if (table) table.status = 'free'; }
     recordAudit(req, 'reservation.cancelled', 'reservation', reservation.id, { status: 'confirmed' }, reservation);
     return json(res, 200, reservation);
   }
@@ -589,6 +592,9 @@ if (staffProfile && req.method === 'PATCH') {
     if (input.guestName !== undefined && String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderEdit[1])) {
       try {
+        const { rows: currentRows } = await repositories.pool.query('SELECT status FROM orders WHERE id=$1 AND venue_id=$2', [orderEdit[1], venueDbId]);
+        if (!currentRows[0]) return json(res, 404, { error: 'order_not_found' });
+        if (!['open', 'in_progress', 'ready'].includes(currentRows[0].status)) return json(res, 409, { error: 'order_not_editable' });
         let guest = null;
         if (input.guestName !== undefined || input.phone !== undefined) {
           const { rows } = await repositories.pool.query(`INSERT INTO guests (phone,full_name) VALUES ($1,$2) ON CONFLICT (phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id,phone,full_name AS "name"`, [String(input.phone || '').trim() || null, String(input.guestName || '').trim() || null]);
@@ -601,7 +607,7 @@ if (staffProfile && req.method === 'PATCH') {
         recordAudit(req, guest ? 'order.guest_updated' : 'order.notes_updated', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
       } catch (error) { return json(res, 409, { error: 'order_update_failed', detail: error.message }); }
     }
-    const order = orders.find((entry) => entry.id === orderEdit[1]); if (!order) return json(res, 404, { error: 'order_not_found' });
+    const order = orders.find((entry) => entry.id === orderEdit[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); if (!['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' });
     if (input.notes !== undefined) order.notes = String(input.notes).slice(0, 2000);
     if (input.guestName !== undefined || input.phone !== undefined) { order.guestName = String(input.guestName || '').trim(); order.guestPhone = String(input.phone || '').trim(); }
     recordAudit(req, input.guestName !== undefined || input.phone !== undefined ? 'order.guest_updated' : 'order.notes_updated', 'order', order.id, null, { notes: order.notes, guestName: order.guestName, guestPhone: order.guestPhone }); return json(res, 200, order);
@@ -621,7 +627,7 @@ if (staffProfile && req.method === 'PATCH') {
            const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=CASE WHEN $1=\'closed\' THEN now() ELSE closed_at END WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.status, orderAction[1], venueDbId]);
           recordAudit(req, 'order.status_changed', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
         }
-        if (!input.tableId) return json(res, 400, { error: 'table_id_required' });
+        if (typeof input.tableId !== 'string' || !input.tableId.trim() || input.tableId.length > 80) return json(res, 400, { error: 'table_id_required' });
         const { rows } = await repositories.pool.query('UPDATE orders SET table_id=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.tableId, orderAction[1], venueDbId]);
         if (!rows[0]) return json(res, 404, { error: 'order_not_found' });
         recordAudit(req, 'order.transferred', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
@@ -635,17 +641,21 @@ if (staffProfile && req.method === 'PATCH') {
       const before = { status: order.status }; order.status = input.status; if (input.status === 'closed') order.closedAt = new Date().toISOString();
       recordAudit(req, 'order.status_changed', 'order', order.id, before, { status: order.status }); return json(res, 200, order);
     }
-    if (!input.tableId) return json(res, 400, { error: 'table_id_required' });
-    const before = { tableId: order.tableId }; order.tableId = input.tableId; recordAudit(req, 'order.transferred', 'order', order.id, before, { tableId: order.tableId }); return json(res, 200, order);
+    if (typeof input.tableId !== 'string' || !input.tableId.trim() || input.tableId.length > 80) return json(res, 400, { error: 'table_id_required' });
+    const before = { tableId: order.tableId }; order.tableId = input.tableId.trim(); recordAudit(req, 'order.transferred', 'order', order.id, before, { tableId: order.tableId }); return json(res, 200, order);
   }
   const itemMatch = pathname.match(/^\/api\/orders\/([^/]+)\/items$/);
   if (itemMatch && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemMatch[1])) {
+      const { rows: orderStateRows } = await repositories.pool.query('SELECT status FROM orders WHERE id=$1 AND venue_id=$2', [itemMatch[1], venueDbId]);
+      if (!orderStateRows[0]) return json(res, 404, { error: 'order_not_found' });
+      if (!['open', 'in_progress', 'ready'].includes(orderStateRows[0].status)) return json(res, 409, { error: 'order_not_editable' });
       const input = await body(req); const quantity = Number(input.quantity || 1); if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' });
       try { const { rows: productRows } = await repositories.pool.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true', [input.productId, venueDbId]); const product = productRows[0]; if (!product) return json(res, 400, { error: 'product_not_found' }); const { rows } = await repositories.pool.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,$4,$5) RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station', [itemMatch[1], product.id, quantity, product.unitPrice, product.station]); const result = { ...rows[0], name: product.name }; recordAudit(req, 'order.item_added', 'order_item', rows[0].id, null, result); return json(res, 201, result); } catch (error) { return json(res, 409, { error: 'order_item_create_failed', detail: error.message }); }
     }
     const order = orders.find((entry) => entry.id === itemMatch[1]);
+    if (order && !['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' });
     const input = await body(req); const quantity = Number(input.quantity || 1);
     const product = products.find((entry) => entry.id === input.productId);
     if (!order) return json(res, 404, { error: 'order_not_found' });
@@ -661,11 +671,14 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemAction[1]) && /^[0-9a-f-]{36}$/i.test(itemAction[2])) {
       try {
+        const { rows: orderStateRows } = await repositories.pool.query('SELECT status FROM orders WHERE id=$1 AND venue_id=$2', [itemAction[1], venueDbId]);
+        if (!orderStateRows[0]) return json(res, 404, { error: 'order_not_found' });
+        if (!['open', 'in_progress', 'ready'].includes(orderStateRows[0].status)) return json(res, 409, { error: 'order_not_editable' });
         if (req.method === 'DELETE') { const { rows } = await repositories.pool.query('DELETE FROM order_items WHERE id=$1 AND order_id=$2 RETURNING id,quantity,unit_price AS "unitPrice"', [itemAction[2], itemAction[1]]); if (!rows[0]) return json(res, 404, { error: 'order_item_not_found' }); recordAudit(req, 'order.item_removed', 'order_item', rows[0].id, rows[0], null); return json(res, 200, rows[0]); }
         const input = await body(req); const quantity = Number(input.quantity); if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' }); const { rows } = await repositories.pool.query('UPDATE order_items SET quantity=$1 WHERE id=$2 AND order_id=$3 RETURNING id,quantity,unit_price AS "unitPrice"', [quantity, itemAction[2], itemAction[1]]); if (!rows[0]) return json(res, 404, { error: 'order_item_not_found' }); recordAudit(req, 'order.item_quantity_changed', 'order_item', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
       } catch (error) { return json(res, 409, { error: 'order_item_update_failed', detail: error.message }); }
     }
-    const order = orders.find((entry) => entry.id === itemAction[1]); const item = order?.items?.find((entry) => entry.id === itemAction[2]); if (!item) return json(res, 404, { error: 'order_item_not_found' });
+    const order = orders.find((entry) => entry.id === itemAction[1]); if (order && !['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' }); const item = order?.items?.find((entry) => entry.id === itemAction[2]); if (!item) return json(res, 404, { error: 'order_item_not_found' });
     if (req.method === 'DELETE') { order.items = order.items.filter((entry) => entry.id !== item.id); recordAudit(req, 'order.item_removed', 'order_item', item.id, item, null); return json(res, 200, { id: item.id }); }
     const input = await body(req); const quantity = Number(input.quantity); if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' }); const beforeQuantity = item.quantity; item.quantity = quantity; recordAudit(req, 'order.item_quantity_changed', 'order_item', item.id, { quantity: beforeQuantity }, item); return json(res, 200, item);
   }
