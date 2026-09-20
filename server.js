@@ -778,7 +778,7 @@ if (staffProfile && req.method === 'PATCH') {
       } catch (error) { return json(res, 409, { error: 'order_create_failed', detail: error.message }); }
     }
     if (input.tableId && orders.some((entry) => entry.tableId === input.tableId && ['open', 'in_progress', 'ready'].includes(entry.status))) return json(res, 409, { error: 'table_has_active_order' });
-    const order = { id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal, notes: input.notes || '', items: [], createdAt: new Date().toISOString() };
+    const order = { id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal, notes: input.notes || '', items: [], createdByName: req.user?.name || 'сотрудник', createdAt: new Date().toISOString() };
     orders.push(order);
     setMemoryTableStatus(order.tableId, 'occupied');
     recordAudit(req, 'order.created', 'order', order.id, null, order);
