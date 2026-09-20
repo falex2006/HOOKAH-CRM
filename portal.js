@@ -4,9 +4,9 @@ try { portalUser = JSON.parse(localStorage.getItem('crm_session_user') || '{}');
 const portalRoleLabels = { owner: ['Владелец', 'Супер-администратор'], admin: ['Управляющий', 'Подадминистратор'], developer: ['Разработчик', 'Полный доступ к CRM'] };
 const portalRole = portalRoleLabels[portalUser.role] || ['Пользователь', 'Ограниченный доступ'];
 const portalPermissions = {
-  owner: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings']),
-  admin: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive']),
-  developer: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics'])
+  owner: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations']),
+  admin: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'integrations']),
+  developer: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations'])
 }[portalUser.role] || new Set();
 document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
   if (!portalPermissions.has(link.dataset.permission)) link.hidden = true;
@@ -25,7 +25,7 @@ document.querySelector('#logout')?.addEventListener('click', async (event) => {
   window.location.replace('/login');
 });
 const page = document.body.dataset.page || 'dashboard';
-const pagePermissions = { dashboard: 'dashboard', orders: 'orders', clients: 'staff_view', reservations: 'reservations', inventory: 'inventory_read', finance: 'finance_read' };
+const pagePermissions = { dashboard: 'dashboard', orders: 'orders', clients: 'staff_view', reservations: 'reservations', inventory: 'inventory_read', finance: 'finance_read', integrations: 'integrations' };
 if (pagePermissions[page] && !portalPermissions.has(pagePermissions[page])) {
   window.location.replace('/finance');
   throw new Error('portal_route_forbidden');
@@ -168,6 +168,13 @@ function renderFinance() {
   document.querySelector('#finance-date').addEventListener('change', load); load();
 }
 
+function renderIntegrations() {
+  const target = document.querySelector('#page-content'); if (!target) return;
+  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">ПОДКЛЮЧЕНИЯ</p><h1>Интеграции</h1><p class="muted">Подготовленные точки подключения к государственным, платёжным и коммуникационным сервисам.</p></div><span class="live-dot">● Архитектура готова</span></div><section class="panel wide"><div class="panel-head"><div><h2>Состояние интеграций</h2><span class="muted">Включение выполняется после настройки реквизитов и тестового контура.</span></div></div><div class="integration-grid" id="integration-grid"><div class="empty">Загрузка интеграций…</div></div></section><section class="content-grid"><section class="panel"><div class="panel-head"><h2>Безопасный запуск</h2></div><div class="check-list"><div><span class="check ok">✓</span><div><b>Изолированный адаптер</b><small>Каждый внешний сервис подключается отдельным модулем.</small></div></div><div><span class="check ok">✓</span><div><b>Журнал обмена</b><small>Ошибки и ответы внешних API сохраняются в audit.</small></div></div><div><span class="check warn">!</span><div><b>Тестовый режим</b><small>Продакшен-реквизиты пока не вводятся.</small></div></div></div></section><section class="panel"><div class="panel-head"><h2>Следующий этап</h2></div><p class="muted">Подключение ЕГАИС, Честного знака, ККТ и ОФД выполняется после переноса CRM на российский сервер и получения реквизитов организации.</p></section></div>`;
+  const labels = { egais: ['ЕГАИС', 'Алкогольный учёт'], honestMark: ['Честный знак', 'Маркировка товаров'], kkt: ['ККТ', 'Фискальные чеки'], ofd: ['ОФД', 'Передача чеков'], payments: ['Платежи', 'Карта и QR'], telegram: ['Telegram', 'Уведомления и связь'] };
+  api('/api/integrations').then((data) => { document.querySelector('#integration-grid').innerHTML = Object.entries(labels).map(([key, value]) => { const item = data[key] || {}; const enabled = Boolean(item.enabled); return `<article class="integration-card"><div class="integration-icon">${enabled ? '✓' : '·'}</div><div><h3>${value[0]}</h3><p>${value[1]}</p><span class="badge ${enabled ? 'success' : 'warning'}">${enabled ? 'Подключено' : 'Запланировано'}</span></div><button class="button small" type="button" disabled>${enabled ? 'Настроено' : 'Подключить позже'}</button></article>`; }).join(''); }).catch(() => { document.querySelector('#integration-grid').innerHTML = '<div class="empty">Не удалось загрузить состояние интеграций</div>'; });
+}
+
 function renderOrders() {
   const target = document.querySelector('#page-content'); if (!target) return;
   target.innerHTML = `<div class="page-title"><div><p class="eyebrow">ОПЕРАЦИИ СМЕНЫ</p><h1>Заказы</h1><p class="muted">Контроль открытых и закрытых заказов, оплаты и VIP-минимумов.</p></div><a class="button primary" href="/">Открыть рабочее место</a></div><div class="kpi-grid compact"><article class="kpi"><span>Всего заказов</span><strong id="orders-count">—</strong><small>За текущий период</small></article><article class="kpi"><span>Открытые</span><strong id="orders-open">—</strong><small>Требуют обслуживания</small></article><article class="kpi"><span>Выручка</span><strong id="orders-revenue">—</strong><small>По закрытым заказам</small></article></div><section class="panel wide"><div class="panel-head"><div><h2>Журнал заказов</h2><span class="muted">Можно найти стол, гостя или номер заказа</span></div><div class="toolbar-row"><input class="table-search" id="orders-search" aria-label="Поиск заказов" placeholder="Поиск"><select id="orders-status" aria-label="Статус"><option value="">Все статусы</option><option value="open">Открыт</option><option value="in_progress">Готовится</option><option value="ready">Готов</option><option value="closed">Закрыт</option><option value="cancelled">Отменён</option></select></div></div><div class="table-wrap"><table><thead><tr><th>Заказ</th><th>Стол</th><th>Гость</th><th>Статус</th><th>Сумма</th><th>Создан</th><th></th></tr></thead><tbody id="orders-rows"><tr><td colspan="7" class="empty">Загрузка заказов…</td></tr></tbody></table></div></section>`;
@@ -207,6 +214,7 @@ function renderReservations() {
 
 if (page === 'dashboard') renderDashboard();
 if (page === 'orders') renderOrders();
+if (page === 'integrations') renderIntegrations();
 if (page === 'clients') renderClients();
 if (page === 'inventory') renderInventory();
 if (page === 'finance') renderFinance();

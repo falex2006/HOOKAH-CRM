@@ -17,9 +17,12 @@ const venue = {
 };
 const integrations = {
   egais: { enabled: false, status: 'planned' },
+  honestMark: { enabled: false, status: 'planned' },
   chestnyZnak: { enabled: false, status: 'planned' },
   kkt: { enabled: false, status: 'planned' },
-  ofd: { enabled: false, status: 'planned' }
+  ofd: { enabled: false, status: 'planned' },
+  payments: { enabled: false, status: 'planned' },
+  telegram: { enabled: false, status: 'planned' }
 };
 const products = [
   { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, station: 'hookah', aliases: ['кальян', 'darkside', 'blueberry'], imageUrl: null },
@@ -97,13 +100,13 @@ const staffPassportCipher = {
     } catch (_) { return null; }
   }
 };const rolePermissions = {
-  owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_sensitive', 'settings'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive'],
+  owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'integrations'],
   senior_bartender: ['floor', 'orders', 'bar_tasks'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
-  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics']
+  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations']
 };
 
 const json = (res, status, data) => {
@@ -902,7 +905,7 @@ if (staffProfile && req.method === 'PATCH') {
 function staticFile(req, res) {
   let requestPath = new URL(req.url, 'http://localhost').pathname;
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
-  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html' };
+  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html' };
   requestPath = aliases[routePath] || requestPath;
   const file = path.resolve(root, `.${requestPath}`);
   if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
