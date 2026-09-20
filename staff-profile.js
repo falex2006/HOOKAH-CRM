@@ -24,8 +24,19 @@
     const current=sourceOf(user); if(current){preview.textContent='';preview.style.backgroundImage='url("'+current.replace(/"/g,'')+'")';}
     file.addEventListener('change',()=>{const selected=file.files?.[0];if(!selected)return;if(selected.size>2*1024*1024){error.textContent='Изображение должно быть не больше 2 МБ.';file.value='';return;}const reader=new FileReader();reader.onload=()=>{preview.textContent='';preview.style.backgroundImage='url("'+String(reader.result).replace(/"/g,'')+'")';preview.dataset.source=String(reader.result);};reader.readAsDataURL(selected);});
     const close=()=>modal.remove(); modal.querySelector('.staff-profile-close').addEventListener('click',close); modal.querySelector('.staff-profile-cancel').addEventListener('click',close); modal.addEventListener('click',(event)=>{if(event.target===modal)close();});
-    modal.querySelector('.staff-profile-save').addEventListener('click',()=>{const value=telegram.value.trim();if(value&&!/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(value)){error.textContent='Укажите @username или ссылку https://t.me/username.';return;}const next={...user,telegram:value};if(preview.dataset.source){next.avatarUrl=preview.dataset.source;next.avatar=preview.dataset.source;}writeUser(next);renderAvatar(document.querySelector('.user'),next);close();});
+    modal.querySelector('.staff-profile-save').addEventListener('click',()=>{const value=telegram.value.trim();if(value&&!/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(value)){error.textContent='Укажите @username или ссылку https://t.me/username.';return;}const next={...user,telegram:value};if(preview.dataset.source){next.avatarUrl=preview.dataset.source;next.avatar=preview.dataset.source;}writeUser(next);if(typeof window.__syncStaffProfile==='function')window.__syncStaffProfile(user,value,next.avatarUrl||'');renderAvatar(document.querySelector('.user'),next);close();});
   };
   const mount=()=>{const host=document.querySelector('.user');if(!host||host.dataset.staffProfileReady==='1')return;host.dataset.staffProfileReady='1';host.setAttribute('role','button');host.tabIndex=0;host.title='Открыть профиль';const user=readUser();renderAvatar(host,user);host.addEventListener('click',open);host.addEventListener('keydown',(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();open();}});};
   mount(); new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});
+})();
+;(function syncStaffProfileWithServer(){
+  const original=window.fetch;
+  if(typeof original!=='function'||window.__staffProfileSyncWrapped)return;
+  window.__staffProfileSyncWrapped=true;
+  window.__syncStaffProfile=(user,value,avatar)=>{
+    if(!user?.id)return;
+    const headers=typeof window.sessionHeaders==='function'?window.sessionHeaders():{};
+    headers['Content-Type']='application/json';
+    original('/api/staff/'+encodeURIComponent(user.id)+'/profile',{method:'PATCH',headers,body:JSON.stringify({telegram:value,avatarUrl:avatar||undefined})}).catch(()=>{});
+  };
 })();

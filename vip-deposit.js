@@ -1,0 +1,17 @@
+(function(root,factory){
+  const api=factory();
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  if(root)root.crmVipDeposit=api;
+})(typeof window!=='undefined'?window:globalThis,()=>{
+  const defaults={'vip-room-1':1500,'vip-room-2':2500};
+  const readMinimums=()=>{
+    try{
+      const state=JSON.parse(localStorage.getItem('territory_crm_demo_state')||'{}');
+      const configured=state?.venue?.vipRoomMinimums||{};
+      return {'vip-room-1':Number(configured['vip-room-1']??configured.vipRoom1??defaults['vip-room-1']),'vip-room-2':Number(configured['vip-room-2']??configured.vipRoom2??defaults['vip-room-2'])};
+    }catch(_){return {...defaults};}
+  };
+  const minimumFor=(tableId,minimums=readMinimums())=>Number(minimums[tableId]||0);
+  const calculate=(tableId,total,minimums=readMinimums())=>{const minimum=minimumFor(tableId,minimums);const current=Math.max(0,Number(total)||0);return {tableId,current,minimum,shortfall:Math.max(0,minimum-current),requiresMinimum:minimum>0&&current<minimum};};
+  return {defaults,readMinimums,minimumFor,calculate};
+});

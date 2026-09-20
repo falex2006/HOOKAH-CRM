@@ -117,3 +117,7 @@ document.querySelectorAll('.chips span').forEach((chip)=>chip.addEventListener('
 document.querySelector('#queue-list')?.addEventListener('click',(event)=>{const card=event.target.closest('[data-queue-table]');if(!card)return;const table=document.querySelector(`.table[data-table="${card.dataset.queueTable}"]`);if(table)table.click();document.querySelector('.workspace')?.scrollIntoView({behavior:'smooth',block:'start'});});
 
 if(!window.__staffProfileLoaded){window.__staffProfileLoaded=true;const script=document.createElement('script');script.src='/staff-profile.js?rev=1';document.head.append(script);}
+if(!window.__staffAuditLoaded){window.__staffAuditLoaded=true;const script=document.createElement('script');script.src='/staff-audit.js?rev=1';document.head.append(script);}
+if(!window.__vipDepositLoaded){window.__vipDepositLoaded=true;const script=document.createElement('script');script.src='/vip-deposit.js?rev=1';document.head.append(script);}
+if(!window.__vipDepositUiLoaded){window.__vipDepositUiLoaded=true;const script=document.createElement('script');script.src='/vip-deposit-ui.js?rev=1';document.head.append(script);}
+if(!window.__staffTelegramLinkLoaded){window.__staffTelegramLinkLoaded=true;const script=document.createElement('script');script.src='/staff-telegram-link.js?rev=1';document.head.append(script);}

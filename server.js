@@ -42,8 +42,8 @@ const floor = [
 const orders = [];
 const discountRequests = [];
 const staff = [
-  { id: 'u-owner', name: 'Владелец', role: 'owner', active: true, avatarUrl: null },
-  { id: 'u-maria', name: 'Мария', role: 'bartender', active: true, avatarUrl: null }
+  { id: 'u-owner', name: 'Владелец', role: 'owner', active: true, avatarUrl: null, telegram: '', phoneNumbers: [], passportData: null },
+  { id: 'u-maria', name: 'Мария', role: 'bartender', active: true, avatarUrl: null, telegram: '', phoneNumbers: [], passportData: null }
 ];
 const inventory = [
   { id: 'ing-redbull', name: 'Red Bull', category: 'Холодильник', unit: 'шт', onHand: 24, minLevel: 10 },
@@ -71,8 +71,8 @@ const verifyPassword = async (password, stored) => {
 };
 
 const rolePermissions = {
-  owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'settings'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff_view'],
+  owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_sensitive', 'settings'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff_view', 'staff_sensitive'],
   senior_bartender: ['floor', 'orders', 'bar_tasks'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
@@ -244,7 +244,7 @@ async function api(req, res) {
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
-    return json(res, 200, { items: staff.map(({ passwordHash, ...person }) => person) });
+    return json(res, 200, { items: staff.map(({ passwordHash, ...person }) => { if (!hasPermission(req, 'staff_sensitive')) delete person.passportData; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff')) return;
@@ -275,7 +275,48 @@ async function api(req, res) {
     const person = staff.find((entry) => entry.id === staffAvatar[1]); if (!person) return json(res, 404, { error: 'staff_not_found' });
     person.avatarUrl = input.imageData; recordAudit(req, 'staff.avatar_updated', 'staff', person.id, null, { avatarUrl: '[image]' }); return json(res, 200, person);
   }
-  if (pathname === '/api/inventory' && req.method === 'GET') {
+  const staffProfile = pathname.match(/^\/api\/staff\/([^/]+)\/profile$/);
+if (staffProfile && req.method === 'PATCH') {
+  const personId = staffProfile[1];
+  const canManage = hasPermission(req, 'staff') || hasPermission(req, 'staff_view');
+  const canManageSensitive = hasPermission(req, 'staff_sensitive');
+  const isSelf = String(req.user?.id || '') === personId;
+  if (!canManage && !isSelf) return json(res, 403, { error: 'forbidden', permission: 'staff' });
+  const input = await body(req);
+  let before = staff.find((entry) => entry.id === personId) || null;
+  if (!before && repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
+    try {
+      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
+      before = rows[0] || null;
+    } catch (_) {}
+  }
+  if (!before) return json(res, 404, { error: 'staff_not_found' });
+  if (input.telegram !== undefined && input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
+  if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.some((entry) => !entry || !/^\+?[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
+  if (input.passportData !== undefined && !canManageSensitive) return json(res, 403, { error: 'sensitive_staff_permission_required' });
+  if (input.avatarUrl !== undefined) {
+    if (input.avatarUrl && !validImageData(input.avatarUrl)) return json(res, 400, { error: 'invalid_avatar' });
+    before.avatarUrl = input.avatarUrl || null;
+  }
+  if (input.telegram !== undefined) before.telegram = String(input.telegram || '').trim();
+  let contactJson = null;
+  if (input.phoneNumbers !== undefined) {
+    const contacts = input.phoneNumbers.map((entry) => ({ label: String(entry.label || 'Дополнительный'), number: String(entry.number || '').trim(), primary: Boolean(entry.primary) })).filter((entry) => entry.number);
+    if (contacts.length && contacts.filter((entry) => entry.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' });
+    before.phoneNumbers = contacts;
+    contactJson = JSON.stringify(contacts);
+  }
+  if (input.passportData !== undefined) before.passportData = input.passportData || null;
+  if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
+    try {
+      await repositories.pool.query('UPDATE users SET avatar_url=COALESCE($1,avatar_url),telegram_url=COALESCE($2,telegram_url),phone_numbers=COALESCE($3::jsonb,phone_numbers) WHERE id=$4 AND venue_id=$5', [input.avatarUrl || null, input.telegram !== undefined ? before.telegram : null, contactJson, personId, venueDbId]);
+    } catch (error) { return json(res, 409, { error: 'staff_profile_save_failed', detail: error.message }); }
+  }
+  const publicPerson = { ...before };
+  if (!canManageSensitive) delete publicPerson.passportData;
+  recordAudit(req, 'staff.profile_updated', 'staff', before.id, { fields: Object.keys(input).filter((key) => key !== 'passportData' || canManageSensitive) }, publicPerson);
+  return json(res, 200, publicPerson);
+}if (pathname === '/api/inventory' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'inventory') && !hasPermission(req, 'inventory_read')) return json(res, 403, { error: 'forbidden', permission: 'inventory' });
     if (repositories?.inventory) { try { const data = await repositories.inventory.list(venueDbId); return json(res, 200, { ...data, lowStock: data.items.filter((item) => item.onHand <= item.minLevel) }); } catch (_) {} }
     return json(res, 200, { items: inventory, lowStock: inventory.filter((item) => item.onHand <= item.minLevel), movements: stockMovements.slice(-20).reverse() });
