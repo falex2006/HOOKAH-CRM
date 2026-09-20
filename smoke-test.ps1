@@ -2,6 +2,10 @@ param([string]$BaseUrl = 'http://localhost:3000')
 $ErrorActionPreference = 'Stop'
 $health = Invoke-RestMethod "$BaseUrl/api/health"
 if ($health.status -ne 'ok') { throw 'health failed' }
+$login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType 'application/json' -Body '{"username":"admin","password":"admin"}'
+$authHeaders = @{ Authorization = "Bearer $($login.token)" }
+$authenticatedSession = Invoke-RestMethod "$BaseUrl/api/session" -Headers $authHeaders
+if ($authenticatedSession.user.role -ne 'admin' -or $authenticatedSession.permissions -notcontains 'finance') { throw 'authenticated role session failed' }
 $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
 if (-not $shift.id) { throw 'shift open failed' }
 $closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200}'
