@@ -108,6 +108,10 @@ const body = (req) => new Promise((resolve, reject) => {
   req.on('end', () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (error) { reject(error); } });
 });
 const orderTotal = (order) => order.items.reduce((sum, item) => sum + (Number(item.unitPrice) || 0) * (Number(item.quantity) || 0), 0);
+const approvedDiscountTotal = (orderId, subtotal) => discountRequests.filter((request) => request.orderId === orderId && request.status === 'approved').reduce((sum, request) => sum + (request.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(request.value || 0))) / 100 : Math.max(0, Number(request.value || 0))), 0);
+const orderNetTotal = (order) => Math.max(0, orderTotal(order) - approvedDiscountTotal(order.id, orderTotal(order)));
+const orderStatusTransitions = { open: ['open', 'in_progress', 'cancelled'], in_progress: ['in_progress', 'ready', 'open', 'cancelled'], ready: ['ready', 'closed', 'in_progress', 'cancelled'], closed: ['closed'], cancelled: ['cancelled'] };
+const validOrderTransition = (from, to) => Boolean(orderStatusTransitions[from]?.includes(to));
 const vipSummary = (order) => {
   const minimum = Number(order.minimumOrderTotal || 0);
   const total = orderTotal(order);
@@ -552,8 +556,10 @@ if (staffProfile && req.method === 'PATCH') {
         if (orderAction[2] === 'status') {
           const allowed = ['open', 'in_progress', 'ready', 'closed', 'cancelled'];
           if (!allowed.includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
-          const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=CASE WHEN $1=\'closed\' THEN now() ELSE closed_at END WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.status, orderAction[1], venueDbId]);
-          if (!rows[0]) return json(res, 404, { error: 'order_not_found' });
+           const { rows: currentRows } = await repositories.pool.query('SELECT id,status FROM orders WHERE id=$1 AND venue_id=$2', [orderAction[1], venueDbId]);
+           if (!currentRows[0]) return json(res, 404, { error: 'order_not_found' });
+           if (!validOrderTransition(currentRows[0].status, input.status)) return json(res, 409, { error: 'invalid_order_transition', from: currentRows[0].status, to: input.status });
+           const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=CASE WHEN $1=\'closed\' THEN now() ELSE closed_at END WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.status, orderAction[1], venueDbId]);
           recordAudit(req, 'order.status_changed', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
         }
         if (!input.tableId) return json(res, 400, { error: 'table_id_required' });
@@ -565,7 +571,8 @@ if (staffProfile && req.method === 'PATCH') {
     const order = orders.find((entry) => entry.id === orderAction[1]);
     if (!order) return json(res, 404, { error: 'order_not_found' });
     if (orderAction[2] === 'status') {
-      if (!['open', 'in_progress', 'ready', 'closed', 'cancelled'].includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
+       if (!['open', 'in_progress', 'ready', 'closed', 'cancelled'].includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
+       if (!validOrderTransition(order.status, input.status)) return json(res, 409, { error: 'invalid_order_transition', from: order.status, to: input.status });
       const before = { status: order.status }; order.status = input.status; if (input.status === 'closed') order.closedAt = new Date().toISOString();
       recordAudit(req, 'order.status_changed', 'order', order.id, before, { status: order.status }); return json(res, 200, order);
     }
@@ -576,15 +583,16 @@ if (staffProfile && req.method === 'PATCH') {
   if (itemMatch && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemMatch[1])) {
-      const input = await body(req);
-      try { const { rows: productRows } = await repositories.pool.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true', [input.productId, venueDbId]); const product = productRows[0]; if (!product) return json(res, 400, { error: 'product_not_found' }); const { rows } = await repositories.pool.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,$4,$5) RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station', [itemMatch[1], product.id, Number(input.quantity || 1), product.unitPrice, product.station]); return json(res, 201, { ...rows[0], name: product.name }); } catch (error) { return json(res, 409, { error: 'order_item_create_failed', detail: error.message }); }
+      const input = await body(req); const quantity = Number(input.quantity || 1); if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' });
+      try { const { rows: productRows } = await repositories.pool.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true', [input.productId, venueDbId]); const product = productRows[0]; if (!product) return json(res, 400, { error: 'product_not_found' }); const { rows } = await repositories.pool.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,$4,$5) RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station', [itemMatch[1], product.id, quantity, product.unitPrice, product.station]); return json(res, 201, { ...rows[0], name: product.name }); } catch (error) { return json(res, 409, { error: 'order_item_create_failed', detail: error.message }); }
     }
     const order = orders.find((entry) => entry.id === itemMatch[1]);
-    const input = await body(req);
+    const input = await body(req); const quantity = Number(input.quantity || 1);
     const product = products.find((entry) => entry.id === input.productId);
     if (!order) return json(res, 404, { error: 'order_not_found' });
     if (!product) return json(res, 400, { error: 'product_not_found' });
-    const item = { id: `item-${Date.now()}`, productId: product.id, name: product.name, quantity: Number(input.quantity || 1), unitPrice: product.price, station: product.station };
+    if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' });
+    const item = { id: `item-${Date.now()}`, productId: product.id, name: product.name, quantity, unitPrice: product.price, station: product.station };
     order.items.push(item);
     return json(res, 201, item);
   }
@@ -609,14 +617,14 @@ if (staffProfile && req.method === 'PATCH') {
         const { rows: orderRows } = await repositories.pool.query('SELECT id,status,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [paymentPath[1], venueDbId]);
         const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' });
         const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [paymentPath[1]]);
-        const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const due = Math.max(subtotal, Number(persisted.minimumOrderTotal || 0));
+        const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const { rows: discountRows } = await repositories.pool.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [paymentPath[1]]); const discount = discountRows.reduce((sum, item) => sum + (item.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(item.value || 0))) / 100 : Math.max(0, Number(item.value || 0))), 0); const due = Math.max(subtotal - discount, Number(persisted.minimumOrderTotal || 0));
         if (req.method === 'GET') { const { rows } = await repositories.pool.query('SELECT id,method,amount,status,created_at AS "createdAt" FROM payments WHERE order_id=$1 ORDER BY created_at', [paymentPath[1]]); return json(res, 200, { items: rows, due, paid: rows.filter((item) => item.status === 'paid').reduce((sum, item) => sum + Number(item.amount), 0), remaining: Math.max(0, due - rows.filter((item) => item.status === 'paid').reduce((sum, item) => sum + Number(item.amount), 0)) }); }
         const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' });
         const { rows: paidRows } = await repositories.pool.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [paymentPath[1]]); const paid = Number(paidRows[0]?.paid || 0); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) });
         const { rows } = await repositories.pool.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,\'paid\') RETURNING id,method,amount,status,created_at AS "createdAt"', [paymentPath[1], method, amount]); const nextPaid = paid + amount; if (nextPaid >= due) await repositories.pool.query('UPDATE orders SET status=\'closed\',closed_at=now() WHERE id=$1', [paymentPath[1]]); recordAudit(req, 'order.payment_added', 'payment', rows[0].id, null, rows[0]); return json(res, 201, { ...rows[0], due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed: nextPaid >= due });
       } catch (error) { return json(res, 409, { error: 'payment_create_failed', detail: error.message }); }
     }
-    const order = orders.find((entry) => entry.id === paymentPath[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); order.payments ||= []; const subtotal = orderTotal(order); const due = Math.max(subtotal, Number(order.minimumOrderTotal || 0)); const paid = order.payments.reduce((sum, item) => sum + Number(item.amount), 0);
+    const order = orders.find((entry) => entry.id === paymentPath[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); order.payments ||= []; const subtotal = orderTotal(order); const discount = approvedDiscountTotal(order.id, subtotal); const due = Math.max(subtotal - discount, Number(order.minimumOrderTotal || 0)); const paid = order.payments.reduce((sum, item) => sum + Number(item.amount), 0);
     if (req.method === 'GET') return json(res, 200, { items: order.payments, due, paid, remaining: Math.max(0, due - paid) });
     const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' }); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', createdAt: new Date().toISOString() }; order.payments.push(payment); const nextPaid = paid + amount; if (nextPaid >= due) { order.status = 'closed'; order.closedAt = payment.createdAt; } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, payment); return json(res, 201, { ...payment, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed: nextPaid >= due });
   }
@@ -639,15 +647,15 @@ if (staffProfile && req.method === 'PATCH') {
   if (orderPath && req.method === 'POST' && orderPath[2] === 'close') {
     if (denyUnless(req, res, 'orders')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
-      const input = await body(req);
-      try { const { rows: orderRows } = await repositories.pool.query('SELECT id,status,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [orderPath[1], venueDbId]); const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' }); const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderPath[1]]); const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const minimum = Number(persisted.minimumOrderTotal || 0); const finalTotal = Math.max(subtotal, minimum); const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=now() WHERE id=$2 RETURNING *', ['closed', orderPath[1]]); if (finalTotal > 0) await repositories.pool.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,$4)', [orderPath[1], input.paymentMethod || 'cash', finalTotal, 'paid']); const result = { ...rows[0], subtotal, finalTotal, minimumAdjustment: Math.max(0, minimum - subtotal), paymentMethod: input.paymentMethod || 'cash' }; recordAudit(req, 'order.closed', 'order', orderPath[1], { status: persisted.status }, result); return json(res, 200, result); } catch (error) { return json(res, 409, { error: 'order_close_failed', detail: error.message }); }
+      const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
+      try { const { rows: orderRows } = await repositories.pool.query('SELECT id,status,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [orderPath[1], venueDbId]); const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' }); const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderPath[1]]); const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const { rows: discountRows } = await repositories.pool.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [orderPath[1]]); const discount = discountRows.reduce((sum, item) => sum + (item.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(item.value || 0))) / 100 : Math.max(0, Number(item.value || 0))), 0); const minimum = Number(persisted.minimumOrderTotal || 0); const finalTotal = Math.max(subtotal - discount, minimum); const { rows: paidRows } = await repositories.pool.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [orderPath[1]]); const paid = Number(paidRows[0]?.paid || 0); const remaining = Math.max(0, finalTotal - paid); const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=now() WHERE id=$2 RETURNING *', ['closed', orderPath[1]]); if (remaining > 0) await repositories.pool.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,$4)', [orderPath[1], paymentMethod, remaining, 'paid']); const result = { ...rows[0], subtotal, discountTotal: discount, finalTotal, paid: paid + remaining, remaining: 0, minimumAdjustment: Math.max(0, minimum - (subtotal - discount)), paymentMethod }; recordAudit(req, 'order.closed', 'order', orderPath[1], { status: persisted.status }, result); return json(res, 200, result); } catch (error) { return json(res, 409, { error: 'order_close_failed', detail: error.message }); }
     }
     const order = orders.find((entry) => entry.id === orderPath[1]);
     if (!order) return json(res, 404, { error: 'order_not_found' });
-    const input = await body(req);
-    const total = orderTotal(order); const minimum = Number(order.minimumOrderTotal || 0);
-    order.status = 'closed'; order.closedAt = new Date().toISOString(); order.subtotal = total; order.finalTotal = Math.max(total, minimum); order.minimumAdjustment = Math.max(0, minimum - total); order.paymentMethod = input.paymentMethod || 'cash';
-    recordAudit(req, 'order.closed', 'order', order.id, { status: 'open' }, { status: order.status, subtotal: order.subtotal, finalTotal: order.finalTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod });
+    const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
+    const total = orderTotal(order); const discount = approvedDiscountTotal(order.id, total); const minimum = Number(order.minimumOrderTotal || 0);
+    order.status = 'closed'; order.closedAt = new Date().toISOString(); order.subtotal = total; order.discountTotal = discount; order.finalTotal = Math.max(total - discount, minimum); order.payments ||= []; const alreadyPaid = order.payments.filter((payment) => payment.status === 'paid').reduce((sum, payment) => sum + Number(payment.amount || 0), 0); const remaining = Math.max(0, order.finalTotal - alreadyPaid); if (remaining > 0) order.payments.push({ id: `pay-${Date.now()}`, method: paymentMethod, amount: remaining, status: 'paid', createdAt: order.closedAt }); order.paid = alreadyPaid + remaining; order.remaining = 0; order.minimumAdjustment = Math.max(0, minimum - (total - discount)); order.paymentMethod = paymentMethod;
+    recordAudit(req, 'order.closed', 'order', order.id, { status: 'open' }, { status: order.status, subtotal: order.subtotal, discountTotal: order.discountTotal, finalTotal: order.finalTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod });
     return json(res, 200, order);
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'split') {
@@ -684,7 +692,7 @@ if (staffProfile && req.method === 'PATCH') {
     const order = orders.find((entry) => entry.id === orderPath[1]); const input = await body(req);
     if (!order) return json(res, 404, { error: 'order_not_found' });
     if (!input.reason || !input.value) return json(res, 400, { error: 'reason_and_value_required' });
-    const request = { id: `disc-${Date.now()}`, orderId: order.id, type: input.type || 'percent', value: Number(input.value), reason: input.reason, status: 'requested', requestedBy: input.requestedBy || 'unknown', createdAt: new Date().toISOString() };
+    const request = { id: `disc-${Date.now()}`, orderId: order.id, type: input.type || 'percent', value: Number(input.value), reason: input.reason, guestName: order.guestName || null, guestPhone: order.guestPhone || null, status: 'requested', requestedBy: input.requestedBy || req.user?.name || 'unknown', createdAt: new Date().toISOString() };
     discountRequests.push(request); recordAudit(req, 'discount.requested', 'discount', request.id, null, request); return json(res, 201, request);
   }
   if (pathname === '/api/discount-requests' && req.method === 'GET') {
