@@ -171,7 +171,10 @@ async function api(req, res) {
     const shift = shifts.find((entry) => entry.id === shiftClose[1]); if (!shift || shift.closedAt) return json(res, 404, { error: 'shift_not_found_or_closed' }); shift.closedAt = new Date().toISOString(); shift.closingCash = Number(input.closingCash || 0); recordAudit(req, 'shift.closed', 'shift', shift.id, null, shift); return json(res, 200, shift);
   }
   if (pathname === '/api/venue' && req.method === 'GET') {
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,phone,address,logo_url AS "logoUrl",timezone FROM venues WHERE id=$1', [venueDbId]); if (rows[0]) return json(res, 200, { ...venue, ...rows[0] }); } catch (_) {} }
+    if (repositories?.pool) { try {
+      const { rows } = await repositories.pool.query('SELECT id,name,phone,address,logo_url AS "logoUrl",timezone FROM venues WHERE id=$1', [venueDbId]);
+      if (rows[0]) { const { rows: vipRows } = await repositories.pool.query('SELECT name,min_order_total FROM tables WHERE venue_id=$1 AND name IN ($2,$3)', [venueDbId, 'VIP-\u043a\u043e\u043c\u043d\u0430\u0442\u0430 1', 'VIP-\u043a\u043e\u043c\u043d\u0430\u0442\u0430 2']); const vipRoomMinimums = { ...venue.vipRoomMinimums }; vipRows.forEach((row) => { if (row.name.endsWith('1')) vipRoomMinimums.vip_room_1 = Number(row.min_order_total); if (row.name.endsWith('2')) vipRoomMinimums.vip_room_2 = Number(row.min_order_total); }); venue.vipRoomMinimums = vipRoomMinimums; return json(res, 200, { ...venue, ...rows[0], vipRoomMinimums }); }
+    } catch (_) {} }
     return json(res, 200, venue);
   }
   if (pathname === '/api/venue' && (req.method === 'PATCH' || req.method === 'PUT')) {
@@ -179,6 +182,13 @@ async function api(req, res) {
     const input = await body(req); const before = { ...venue };
     if (input.phone !== undefined && !/^\+?[0-9 ()-]{7,24}$/.test(String(input.phone))) return json(res, 400, { error: 'invalid_phone' });
     if (input.logoUrl !== undefined && input.logoUrl !== null && !validImageData(input.logoUrl)) return json(res, 400, { error: 'invalid_logo' });
+    if (input.vipRoomMinimums !== undefined) {
+      const values = input.vipRoomMinimums || {};
+      for (const key of ['vip_room_1', 'vip_room_2']) if (values[key] !== undefined && (!Number.isFinite(Number(values[key])) || Number(values[key]) < 0)) return json(res, 400, { error: 'invalid_vip_minimum' });
+      venue.vipRoomMinimums = { ...venue.vipRoomMinimums, ...Object.fromEntries(['vip_room_1', 'vip_room_2'].filter((key) => values[key] !== undefined).map((key) => [key, Math.round(Number(values[key]))])) };
+      floor.flatMap((zone) => zone.tables).forEach((table) => { if (table.id === 'vip-room-1') table.minimumOrderTotal = venue.vipRoomMinimums.vip_room_1; if (table.id === 'vip-room-2') table.minimumOrderTotal = venue.vipRoomMinimums.vip_room_2; });
+      if (repositories?.pool) { try { await repositories.pool.query('UPDATE tables SET min_deposit=$1,min_order_total=$1 WHERE venue_id=$2 AND name=$3', [venue.vipRoomMinimums.vip_room_1, venueDbId, 'VIP-\u043a\u043e\u043c\u043d\u0430\u0442\u0430 1']); await repositories.pool.query('UPDATE tables SET min_deposit=$1,min_order_total=$1 WHERE venue_id=$2 AND name=$3', [venue.vipRoomMinimums.vip_room_2, venueDbId, 'VIP-\u043a\u043e\u043c\u043d\u0430\u0442\u0430 2']); } catch (_) {} }
+    }
     Object.assign(venue, Object.fromEntries(['name', 'phone', 'address', 'logoUrl'].filter((key) => input[key] !== undefined).map((key) => [key, input[key]])));
     if (repositories?.pool) { try { await repositories.pool.query('UPDATE venues SET name=$1,phone=$2,address=$3,logo_url=$4 WHERE id=$5', [venue.name, venue.phone, venue.address, venue.logoUrl, venueDbId]); } catch (_) {} }
     recordAudit(req, 'venue.updated', 'venue', venue.id, before, venue); return json(res, 200, venue);
