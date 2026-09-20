@@ -341,6 +341,16 @@ async function api(req, res) {
     const historyReservations = reservations.filter((reservation) => reservation.clientId === clientId || reservation.guestName === client.name || phones.has(reservation.phone)).map((reservation) => ({ id: reservation.id, tableId: reservation.tableId, date: reservation.date, time: reservation.time, status: reservation.status, guests: reservation.guests, deposit: Number(reservation.deposit || 0), notes: reservation.notes || '' }));
     return json(res, 200, { orders: historyOrders.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 50), reservations: historyReservations.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)).slice(0, 50) });
   }
+  const clientLoyalty = pathname.match(/^\/api\/clients\/([^/]+)\/loyalty$/);
+  if (clientLoyalty && req.method === 'POST') {
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'staff_manage')) return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
+    const input = await body(req); const delta = Number(input.delta); const reason = String(input.reason || '').trim();
+    if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 100000 || !reason || reason.length > 500) return json(res, 400, { error: 'invalid_loyalty_adjustment' });
+    const client = clients.find((entry) => entry.id === clientLoyalty[1]); if (!client) return json(res, 404, { error: 'client_not_found' });
+    const before = Number(client.loyaltyPoints || 0); client.loyaltyPoints = Math.max(0, before + delta);
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(client.id)) { try { await repositories.pool.query('UPDATE guests SET loyalty_points=$1 WHERE id=$2 AND venue_id=$3', [client.loyaltyPoints, client.id, venueDbId]); } catch (_) {} }
+    recordAudit(req, 'client.loyalty_adjusted', 'client', client.id, { loyaltyPoints: before }, { loyaltyPoints: client.loyaltyPoints, delta, reason }); return json(res, 200, { id: client.id, loyaltyPoints: client.loyaltyPoints, delta, reason });
+  }
   const productImage = pathname.match(/^\/api\/products\/([^/]+)\/image$/);
   if (productImage && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
