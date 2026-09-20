@@ -321,6 +321,26 @@ async function api(req, res) {
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(client.id)) { try { const primary = client.phoneNumbers.find((phone) => phone.primary)?.number || null; const { rows } = await repositories.pool.query(`UPDATE guests SET phone=$1,full_name=$2,phone_numbers=$3::jsonb,telegram=$4,tobacco_preferences=$5,bowl_preferences=$6,bar_preferences=$7,allergies=$8,notes=$9 WHERE id=$10 AND venue_id=$11 RETURNING id,full_name AS name,phone,phone_numbers AS "phoneNumbers",telegram,tobacco_preferences AS "tobaccoPreferences",bowl_preferences AS "bowlPreferences",bar_preferences AS "barPreferences",allergies,notes,loyalty_points AS "loyaltyPoints"`, [primary, client.name, JSON.stringify(client.phoneNumbers), client.telegram || null, client.tobaccoPreferences, client.bowlPreferences, client.barPreferences, client.allergies || null, client.notes || null, client.id, venueDbId]); if (rows[0]) return json(res, 200, { ...client, ...rows[0] }); } catch (_) {} }
     recordAudit(req, 'client.updated', 'client', client.id, before, client); return json(res, 200, client);
   }
+  const clientHistory = pathname.match(/^\/api\/clients\/([^/]+)\/history$/);
+  if (clientHistory && req.method === 'GET') {
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'staff_view') && !hasPermission(req, 'orders')) return json(res, 403, { error: 'forbidden', permission: 'clients' });
+    const clientId = clientHistory[1];
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(clientId)) {
+      try {
+        const [orderRows, reservationRows] = await Promise.all([
+          repositories.pool.query(`SELECT o.id,o.table_id AS "tableId",o.status,o.created_at AS "createdAt",o.closed_at AS "closedAt",o.vip_minimum AS "minimumOrderTotal",COALESCE(SUM(p.amount) FILTER (WHERE p.status IN ('paid','partially_paid')),0)::numeric AS total FROM orders o LEFT JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.guest_id=$2 GROUP BY o.id ORDER BY o.created_at DESC LIMIT 50`, [venueDbId, clientId]),
+          repositories.pool.query(`SELECT r.id,r.table_id AS "tableId",r.starts_at AS "startsAt",r.status,r.deposit,r.guests,r.notes FROM reservations r WHERE r.venue_id=$1 AND r.guest_id=$2 ORDER BY r.starts_at DESC LIMIT 50`, [venueDbId, clientId])
+        ]);
+        return json(res, 200, { orders: orderRows.rows.map((row) => ({ ...row, total: Number(row.total || 0), minimumOrderTotal: Number(row.minimumOrderTotal || 0) })), reservations: reservationRows.rows.map((row) => ({ ...row, deposit: Number(row.deposit || 0) })) });
+      } catch (_) {}
+    }
+    const client = clients.find((entry) => entry.id === clientId);
+    if (!client) return json(res, 404, { error: 'client_not_found' });
+    const phones = new Set((client.phoneNumbers || []).map((phone) => phone.number));
+    const historyOrders = orders.filter((order) => order.clientId === clientId || order.guestName === client.name || phones.has(order.guestPhone)).map((order) => ({ id: order.id, tableId: order.tableId, status: order.status, createdAt: order.createdAt, closedAt: order.closedAt || null, total: order.finalTotal ?? (order.items || []).reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0), 0), minimumOrderTotal: Number(order.minimumOrderTotal || 0) }));
+    const historyReservations = reservations.filter((reservation) => reservation.clientId === clientId || reservation.guestName === client.name || phones.has(reservation.phone)).map((reservation) => ({ id: reservation.id, tableId: reservation.tableId, date: reservation.date, time: reservation.time, status: reservation.status, guests: reservation.guests, deposit: Number(reservation.deposit || 0), notes: reservation.notes || '' }));
+    return json(res, 200, { orders: historyOrders.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 50), reservations: historyReservations.sort((a, b) => `${b.date} ${b.time}`.localeCompare(`${a.date} ${a.time}`)).slice(0, 50) });
+  }
   const productImage = pathname.match(/^\/api\/products\/([^/]+)\/image$/);
   if (productImage && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
