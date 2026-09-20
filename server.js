@@ -651,7 +651,8 @@ if (staffProfile && req.method === 'PATCH') {
   const orderEdit = pathname.match(/^\/api\/orders\/([^/]+)$/);
   if (orderEdit && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
-    const input = await body(req); if (input.notes === undefined && input.guestName === undefined && input.phone === undefined) return json(res, 400, { error: 'supported_fields_required' });
+    const input = await body(req); if (input.notes === undefined && input.guestName === undefined && input.phone === undefined && input.clientId === undefined) return json(res, 400, { error: 'supported_fields_required' });
+    if (input.clientId !== undefined && input.clientId !== null && String(input.clientId).length > 120) return json(res, 400, { error: 'invalid_client_id' });
     if (input.phone !== undefined && input.phone && !/^\+?[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
     if (input.guestName !== undefined && String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderEdit[1])) {
@@ -660,8 +661,13 @@ if (staffProfile && req.method === 'PATCH') {
         if (!currentRows[0]) return json(res, 404, { error: 'order_not_found' });
         if (!['open', 'in_progress', 'ready'].includes(currentRows[0].status)) return json(res, 409, { error: 'order_not_editable' });
         let guest = null;
-        if (input.guestName !== undefined || input.phone !== undefined) {
-          const { rows } = await repositories.pool.query(`INSERT INTO guests (phone,full_name) VALUES ($1,$2) ON CONFLICT (phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id,phone,full_name AS "name"`, [String(input.phone || '').trim() || null, String(input.guestName || '').trim() || null]);
+        if (input.clientId !== undefined && input.clientId !== null && String(input.clientId).trim()) {
+          const { rows } = await repositories.pool.query('SELECT id,phone,full_name AS "name" FROM guests WHERE id=$1 AND venue_id=$2', [String(input.clientId), venueDbId]);
+          if (!rows[0]) return json(res, 404, { error: 'client_not_found' });
+          guest = rows[0];
+          await repositories.pool.query('UPDATE orders SET guest_id=$1 WHERE id=$2 AND venue_id=$3', [guest.id, orderEdit[1], venueDbId]);
+        } else if (input.guestName !== undefined || input.phone !== undefined) {
+          const { rows } = await repositories.pool.query(`INSERT INTO guests (venue_id,phone,full_name) VALUES ($1,$2,$3) ON CONFLICT (phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id,phone,full_name AS "name"`, [venueDbId, String(input.phone || '').trim() || null, String(input.guestName || '').trim() || null]);
           guest = rows[0];
           await repositories.pool.query('UPDATE orders SET guest_id=$1 WHERE id=$2 AND venue_id=$3', [guest.id, orderEdit[1], venueDbId]);
         }
@@ -673,8 +679,8 @@ if (staffProfile && req.method === 'PATCH') {
     }
     const order = orders.find((entry) => entry.id === orderEdit[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); if (!['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' });
     if (input.notes !== undefined) order.notes = String(input.notes).slice(0, 2000);
-    if (input.guestName !== undefined || input.phone !== undefined) { order.guestName = String(input.guestName || '').trim(); order.guestPhone = String(input.phone || '').trim(); }
-    recordAudit(req, input.guestName !== undefined || input.phone !== undefined ? 'order.guest_updated' : 'order.notes_updated', 'order', order.id, null, { notes: order.notes, guestName: order.guestName, guestPhone: order.guestPhone }); return json(res, 200, order);
+    if (input.clientId !== undefined && input.clientId !== null && String(input.clientId).trim()) { const client = clients.find((entry) => entry.id === String(input.clientId)); if (!client) return json(res, 404, { error: 'client_not_found' }); order.clientId = client.id; order.guestName = client.name; order.guestPhone = client.phoneNumbers?.find((phone) => phone.primary)?.number || client.phoneNumbers?.[0]?.number || ''; } else if (input.guestName !== undefined || input.phone !== undefined) { order.clientId = null; order.guestName = String(input.guestName || '').trim(); order.guestPhone = String(input.phone || '').trim(); }
+    recordAudit(req, input.clientId !== undefined || input.guestName !== undefined || input.phone !== undefined ? 'order.guest_updated' : 'order.notes_updated', 'order', order.id, null, { notes: order.notes, clientId: order.clientId || null, guestName: order.guestName, guestPhone: order.guestPhone }); return json(res, 200, order);
   }
   const orderAction = pathname.match(/^\/api\/orders\/([^/]+)\/(status|transfer)$/);
   if (orderAction && req.method === 'POST') {
