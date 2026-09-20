@@ -1,5 +1,6 @@
 param([string]$BaseUrl = 'http://localhost:3000')
 $ErrorActionPreference = 'Stop'
+$smokeSuffix = (Get-Date).ToString('yyyyMMddHHmmss')
 $health = Invoke-RestMethod "$BaseUrl/api/health"
 if ($health.status -ne 'ok') { throw 'health failed' }
 $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType 'application/json' -Body '{"username":"admin","password":"admin"}'
@@ -42,7 +43,7 @@ if ($payment.remaining -ne 500 -or $payment.closed) { throw 'partial payment fai
 $paymentFinal = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($paymentOrder.id)/payments" -ContentType 'application/json' -Body '{"method":"qr","amount":500}'
 if ($paymentFinal.remaining -ne 0 -or -not $paymentFinal.closed) { throw 'split payment completion failed' }
 
-$regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"table-1"}'
+$regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{ tableId = "smoke-table-$smokeSuffix" } | ConvertTo-Json)
 $guest = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($regular.id)" -ContentType 'application/json' -Body '{"guestName":"Smoke guest","phone":"+79990000000"}'
 if ($guest.guestName -ne 'Smoke guest') { throw 'guest binding failed' }
 $item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
@@ -63,7 +64,9 @@ $inventory = Invoke-RestMethod "$BaseUrl/api/inventory"
 if (-not $inventory.items -or $null -eq $inventory.lowStock) { throw 'inventory endpoint failed' }
 $movement = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/inventory/movements" -ContentType 'application/json' -Body '{"itemId":"ing-redbull","delta":1,"reason":"smoke test"}'
 if ($movement.delta -ne 1) { throw 'inventory movement failed' }
-$smokeDate = (Get-Date).ToString('yyyy-MM-dd')
+# Always schedule smoke reservations for tomorrow so the test remains valid
+# when it is run late in the evening or around a timezone boundary.
+$smokeDate = (Get-Date).Date.AddDays(1).ToString('yyyy-MM-dd')
 $regularTime = "22:$((Get-Random -Minimum 10 -Maximum 59).ToString('00'))"
 $regularReservationBody = @{ guestName = 'Smoke test'; date = $smokeDate; time = $regularTime; tableId = 'table-12'; guests = 2 } | ConvertTo-Json
 $reservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body $regularReservationBody
