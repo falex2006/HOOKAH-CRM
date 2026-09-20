@@ -386,9 +386,25 @@ async function api(req, res) {
   const orderEdit = pathname.match(/^\/api\/orders\/([^/]+)$/);
   if (orderEdit && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
-    const input = await body(req); if (input.notes === undefined) return json(res, 400, { error: 'supported_fields_required' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderEdit[1])) { try { const { rows } = await repositories.pool.query('UPDATE orders SET notes=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,notes', [String(input.notes).slice(0, 2000), orderEdit[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'order_not_found' }); recordAudit(req, 'order.notes_updated', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'order_update_failed', detail: error.message }); } }
-    const order = orders.find((entry) => entry.id === orderEdit[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); order.notes = String(input.notes).slice(0, 2000); recordAudit(req, 'order.notes_updated', 'order', order.id, null, { notes: order.notes }); return json(res, 200, order);
+    const input = await body(req); if (input.notes === undefined && input.guestName === undefined && input.phone === undefined) return json(res, 400, { error: 'supported_fields_required' });
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderEdit[1])) {
+      try {
+        let guest = null;
+        if (input.guestName !== undefined || input.phone !== undefined) {
+          const { rows } = await repositories.pool.query(`INSERT INTO guests (phone,full_name) VALUES ($1,$2) ON CONFLICT (phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id,phone,full_name AS "name"`, [String(input.phone || '').trim() || null, String(input.guestName || '').trim() || null]);
+          guest = rows[0];
+          await repositories.pool.query('UPDATE orders SET guest_id=$1 WHERE id=$2 AND venue_id=$3', [guest.id, orderEdit[1], venueDbId]);
+        }
+        if (input.notes !== undefined) await repositories.pool.query('UPDATE orders SET notes=$1 WHERE id=$2 AND venue_id=$3', [String(input.notes).slice(0, 2000), orderEdit[1], venueDbId]);
+        const { rows } = await repositories.pool.query(`SELECT o.id,o.notes,o.guest_id AS "guestId",g.phone,g.full_name AS "guestName" FROM orders o LEFT JOIN guests g ON g.id=o.guest_id WHERE o.id=$1 AND o.venue_id=$2`, [orderEdit[1], venueDbId]);
+        if (!rows[0]) return json(res, 404, { error: 'order_not_found' });
+        recordAudit(req, guest ? 'order.guest_updated' : 'order.notes_updated', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
+      } catch (error) { return json(res, 409, { error: 'order_update_failed', detail: error.message }); }
+    }
+    const order = orders.find((entry) => entry.id === orderEdit[1]); if (!order) return json(res, 404, { error: 'order_not_found' });
+    if (input.notes !== undefined) order.notes = String(input.notes).slice(0, 2000);
+    if (input.guestName !== undefined || input.phone !== undefined) { order.guestName = String(input.guestName || '').trim(); order.guestPhone = String(input.phone || '').trim(); }
+    recordAudit(req, input.guestName !== undefined || input.phone !== undefined ? 'order.guest_updated' : 'order.notes_updated', 'order', order.id, null, { notes: order.notes, guestName: order.guestName, guestPhone: order.guestPhone }); return json(res, 200, order);
   }
   const orderAction = pathname.match(/^\/api\/orders\/([^/]+)\/(status|transfer)$/);
   if (orderAction && req.method === 'POST') {

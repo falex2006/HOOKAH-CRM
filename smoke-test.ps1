@@ -32,6 +32,8 @@ $paymentFinal = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($paym
 if ($paymentFinal.remaining -ne 0 -or -not $paymentFinal.closed) { throw 'split payment completion failed' }
 
 $regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"table-1"}'
+$guest = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($regular.id)" -ContentType 'application/json' -Body '{"guestName":"Smoke guest","phone":"+79990000000"}'
+if ($guest.guestName -ne 'Smoke guest') { throw 'guest binding failed' }
 $item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
 $split = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/split" -ContentType 'application/json' -Body "{`"itemIds`":[`"$($item.id)`"]}"
 if (-not $split.splitFrom) { throw 'split failed' }
