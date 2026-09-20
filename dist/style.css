@@ -105,3 +105,22 @@
 .staff-readonly-note{display:grid;gap:6px;align-content:start;padding:18px;border:1px solid #303640;border-radius:14px;background:#171a1f;color:#dfe4ea}.staff-readonly-note b{font-size:14px}.staff-readonly-note small{color:#89929d;line-height:1.45}
 
 .staff-form-contact-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.staff-form-field{display:grid;gap:6px;font-size:13px;color:#56707c}.velora-theme .staff-form-field{color:#a5adb7}@media(max-width:650px){.staff-form-contact-row{grid-template-columns:1fr}}
+
+/* Compressed admin view: preserve navigation meaning and information density. */
+@media (max-width:650px){
+  .velora-theme .portal-sidebar{width:68px;padding:20px 10px}
+  .velora-theme .portal-nav{gap:10px}
+  .velora-theme .portal-nav a{width:46px;height:42px;margin:0 auto;padding:0;display:grid;place-items:center;font-size:0;box-sizing:border-box}
+  .velora-theme .portal-nav a::before{font-size:20px;line-height:1;color:currentColor}
+  .velora-theme .portal-nav a[data-route="dashboard"]::before{content:'⌂'}
+  .velora-theme .portal-nav a[data-route="reservations"]::before{content:'◷'}
+  .velora-theme .portal-nav a[data-route="inventory"]::before{content:'◈'}
+  .velora-theme .portal-nav a[data-route="finance"]::before{content:'₽'}
+  .velora-theme .portal-nav a[href="/"]::before{content:'▣'}
+  .velora-theme .kpi-grid,.velora-theme .kpi-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .velora-theme .kpi{padding:16px}
+  .velora-theme .kpi strong{font-size:27px}
+}
+@media (max-width:430px){
+  .velora-theme .kpi-grid,.velora-theme .kpi-grid.compact{grid-template-columns:1fr}
+}
