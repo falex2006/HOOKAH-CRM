@@ -25,7 +25,7 @@ document.querySelector('#logout')?.addEventListener('click', async (event) => {
   window.location.replace('/login');
 });
 const page = document.body.dataset.page || 'dashboard';
-const pagePermissions = { dashboard: 'dashboard', orders: 'orders', clients: 'staff_view', reservations: 'reservations', inventory: 'inventory_read', finance: 'finance_read', integrations: 'integrations', delivery: 'delivery' };
+const pagePermissions = { dashboard: 'dashboard', orders: 'orders', clients: 'staff_view', reservations: 'reservations', inventory: 'inventory_read', finance: 'finance_read', finance_categories: 'finance_read', integrations: 'integrations', delivery: 'delivery' };
 if (pagePermissions[page] && !portalPermissions.has(pagePermissions[page])) {
   window.location.replace('/finance');
   throw new Error('portal_route_forbidden');
@@ -161,6 +161,18 @@ function renderInventory() {
   load();
 }
 
+function renderFinanceCategories() {
+  const target = document.querySelector('#page-content'); if (!target) return;
+  const canWrite = portalPermissions.has('finance');
+  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">ФИНАНСОВЫЙ СПРАВОЧНИК</p><h1>Категории финансов</h1><p class="muted">Разделяйте выручку и расходы по понятным направлениям.</p></div><div class="toolbar-row"><a class="button" href="/finance">← Финансы</a>${canWrite ? '<button class="button primary" id="new-finance-category" type="button">＋ Категория</button>' : '<span class="badge">Только просмотр</span>'}</div></div><section class="panel wide"><div class="panel-head"><div><h2>Категории</h2><span class="muted" id="finance-category-count">Загрузка…</span></div><input class="table-search" id="finance-category-search" aria-label="Поиск категорий" placeholder="Поиск"></div>${canWrite ? '<form id="finance-category-form" class="product-editor" hidden><input type="hidden" id="finance-category-id"><label>Название<input id="finance-category-name" maxlength="80" required placeholder="Например, Бар"></label><label>Тип<select id="finance-category-kind"><option value="income">Доход</option><option value="expense">Расход</option></select></label><div class="toolbar-row"><button class="button primary" type="submit">Сохранить</button><button class="button" id="cancel-finance-category" type="button">Отмена</button><button class="button danger-outline" id="delete-finance-category" type="button" hidden>Скрыть</button></div><p class="form-message" id="finance-category-message"></p></form>' : ''}<div class="category-list" id="finance-category-list"><div class="empty">Загрузка категорий…</div></div></section>`;
+  let items = [];
+  const draw = () => { const q = document.querySelector('#finance-category-search').value.trim().toLocaleLowerCase('ru-RU'); const visible = items.filter((item) => !q || item.name.toLocaleLowerCase('ru-RU').includes(q)); document.querySelector('#finance-category-count').textContent = `${visible.length} из ${items.length} категорий`; document.querySelector('#finance-category-list').innerHTML = visible.length ? visible.map((item) => `<div class="category-row"><div><b>${esc(item.name)}</b><small>${item.kind === 'income' ? 'Доход' : 'Расход'}</small></div><span class="badge ${item.kind === 'income' ? 'success' : 'warning'}">${item.kind === 'income' ? 'Доход' : 'Расход'}</span>${canWrite ? `<button class="button small finance-category-edit" type="button" data-category="${esc(item.id)}">Изменить</button>` : ''}</div>`).join('') : '<div class="empty">Категории не найдены</div>'; };
+  const load = () => api('/api/finance/categories').then((data) => { items = (data.items || []).filter((item) => item.active !== false); draw(); }).catch(() => portalNotice('Не удалось загрузить категории финансов', 'error'));
+  document.querySelector('#finance-category-search').addEventListener('input', draw);
+  if (canWrite) { const form = document.querySelector('#finance-category-form'); const reset = () => { form.reset(); document.querySelector('#finance-category-id').value = ''; document.querySelector('#delete-finance-category').hidden = true; form.hidden = true; }; document.querySelector('#new-finance-category').addEventListener('click', () => { reset(); form.hidden = false; form.scrollIntoView({ behavior: 'smooth', block: 'center' }); document.querySelector('#finance-category-name').focus(); }); document.querySelector('#cancel-finance-category').addEventListener('click', reset); document.querySelector('#finance-category-list').addEventListener('click', (event) => { const button = event.target.closest('[data-category]'); if (!button) return; const item = items.find((entry) => entry.id === button.dataset.category); if (!item) return; form.hidden = false; document.querySelector('#finance-category-id').value = item.id; document.querySelector('#finance-category-name').value = item.name; document.querySelector('#finance-category-kind').value = item.kind; document.querySelector('#delete-finance-category').hidden = false; form.scrollIntoView({ behavior: 'smooth', block: 'center' }); }); form.addEventListener('submit', (event) => { event.preventDefault(); const id = document.querySelector('#finance-category-id').value; const message = document.querySelector('#finance-category-message'); const payload = { name: document.querySelector('#finance-category-name').value.trim(), kind: document.querySelector('#finance-category-kind').value }; api(id ? `/api/finance/categories/${encodeURIComponent(id)}` : '/api/finance/categories', { method: id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(() => { message.textContent = 'Категория сохранена'; message.className = 'form-message success-message'; reset(); load(); }).catch(() => { message.textContent = 'Не удалось сохранить категорию'; message.className = 'form-message error-message'; }); }); document.querySelector('#delete-finance-category').addEventListener('click', () => { const id = document.querySelector('#finance-category-id').value; if (!id) return; api(`/api/finance/categories/${encodeURIComponent(id)}`, { method: 'DELETE' }).then(() => { reset(); load(); portalNotice('Категория скрыта', 'success'); }).catch(() => portalNotice('Не удалось скрыть категорию', 'error')); }); }
+  load();
+}
+
 function renderFinance() {
   const target = document.querySelector('#page-content'); if (!target) return;
   const canDecideFinance = portalPermissions.has('finance');
@@ -233,6 +245,7 @@ if (page === 'delivery') renderDelivery();
 if (page === 'clients') renderClients();
 if (page === 'inventory') renderInventory();
 if (page === 'finance') renderFinance();
+if (page === 'finance_categories') renderFinanceCategories();
 if (page === 'reservations') renderReservations();
 
 

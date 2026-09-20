@@ -61,6 +61,13 @@ const inventory = [
 const stockMovements = [];
 const reservations = [];
 const deliveries = [];
+const financeCategories = [
+  { id: 'finance-kitchen', name: 'Кухня', kind: 'income', active: true },
+  { id: 'finance-bar', name: 'Бар', kind: 'income', active: true },
+  { id: 'finance-hookah', name: 'Кальяны', kind: 'income', active: true },
+  { id: 'finance-stock', name: 'Склад', kind: 'expense', active: true },
+  { id: 'finance-delivery', name: 'Доставка', kind: 'expense', active: true }
+];
 const auditEvents = [];
 const clients = [
   { id: 'client-anna', name: 'Анна Смирнова', phoneNumbers: [{ label: 'Основной', number: '+79991112233', primary: true }], telegram: '@anna_sm', tobaccoPreferences: ['Darkside', 'Мята'], bowlPreferences: ['Кальянная чаша'], barPreferences: ['Лимонад маракуйя', 'Red Bull'], allergies: '', notes: 'Предпочитает среднюю крепость', loyaltyPoints: 420, visits: 6, totalSpent: 18400, lastVisitAt: '2026-09-18T21:30:00.000Z' },
@@ -250,6 +257,32 @@ async function api(req, res) {
     recordAudit(req, 'venue.updated', 'venue', venue.id, before, venue); return json(res, 200, venue);
   }
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
+  if (pathname === '/api/finance/categories' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
+    const query = String(url.searchParams.get('q') || '').trim().toLocaleLowerCase('ru-RU');
+    return json(res, 200, { items: financeCategories.filter((item) => !query || item.name.toLocaleLowerCase('ru-RU').includes(query)) });
+  }
+  if (pathname === '/api/finance/categories' && req.method === 'POST') {
+    if (denyUnless(req, res, 'finance')) return;
+    const input = await body(req); const name = String(input.name || '').trim(); const kind = String(input.kind || 'income');
+    if (!name || name.length > 80 || !['income', 'expense'].includes(kind)) return json(res, 400, { error: 'invalid_finance_category' });
+    if (financeCategories.some((item) => item.active && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'finance_category_exists' });
+    const category = { id: `finance-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, kind, active: true };
+    financeCategories.push(category); recordAudit(req, 'finance_category.created', 'finance_category', category.id, null, category); return json(res, 201, category);
+  }
+  const financeCategoryPath = pathname.match(/^\/api\/finance\/categories\/([^/]+)$/);
+  if (financeCategoryPath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'finance')) return;
+    const category = financeCategories.find((item) => item.id === financeCategoryPath[1]); if (!category) return json(res, 404, { error: 'finance_category_not_found' });
+    const input = await body(req); const name = input.name === undefined ? category.name : String(input.name || '').trim(); const kind = input.kind === undefined ? category.kind : String(input.kind);
+    if (!name || name.length > 80 || !['income', 'expense'].includes(kind)) return json(res, 400, { error: 'invalid_finance_category' });
+    const before = { ...category }; category.name = name; category.kind = kind; recordAudit(req, 'finance_category.updated', 'finance_category', category.id, before, category); return json(res, 200, category);
+  }
+  if (financeCategoryPath && req.method === 'DELETE') {
+    if (denyUnless(req, res, 'finance')) return;
+    const category = financeCategories.find((item) => item.id === financeCategoryPath[1]); if (!category) return json(res, 404, { error: 'finance_category_not_found' });
+    category.active = false; recordAudit(req, 'finance_category.deactivated', 'finance_category', category.id, { active: true }, { active: false }); return json(res, 200, category);
+  }
   if (pathname === '/api/metrics') {
     if (repositories?.pool) {
       try {
@@ -949,7 +982,7 @@ if (staffProfile && req.method === 'PATCH') {
 function staticFile(req, res) {
   let requestPath = new URL(req.url, 'http://localhost').pathname;
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
-  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/delivery': '/delivery.html' };
+  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/delivery': '/delivery.html' };
   requestPath = aliases[routePath] || requestPath;
   const file = path.resolve(root, `.${requestPath}`);
   if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
