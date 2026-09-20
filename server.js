@@ -288,10 +288,35 @@ async function api(req, res) {
     const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.map((table) => ({ ...table, status: table.status === 'blocked' ? 'blocked' : (orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)) ? 'occupied' : table.status) })) }));
     return json(res, 200, { zones: derivedFloor });
   }
-  if (pathname === '/api/products') {
+  if (pathname === '/api/products' && req.method === 'GET') {
     if (denyUnless(req, res, 'floor')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,name,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl" FROM products WHERE venue_id=$1 AND is_active=true ORDER BY name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, price: Number(row.price) })) }); } catch (_) {} }
+    if (repositories?.products) { try { return json(res, 200, { items: await repositories.products.list(venueDbId) }); } catch (_) {} }
     return json(res, 200, { items: products });
+  }
+  if (pathname === '/api/products' && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const name = String(input.name || '').trim(); const category = String(input.category || input.station || '').trim(); const price = Number(input.price);
+    const aliases = Array.isArray(input.aliases) ? input.aliases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [];
+    if (!name || name.length > 120 || !category || category.length > 80 || !Number.isFinite(price) || price < 0 || price > 10000000) return json(res, 400, { error: 'invalid_product' });
+    if (input.imageUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(input.imageUrl)) || String(input.imageUrl).length > 1500000)) return json(res, 400, { error: 'invalid_image' });
+    if (repositories?.products) { try { const product = await repositories.products.create({ venueId: venueDbId, name, category, price, aliases, imageUrl: input.imageUrl }); recordAudit(req, 'product.created', 'product', product.id, null, product); return json(res, 201, product); } catch (error) { return json(res, 409, { error: 'product_create_failed', detail: error.message }); } }
+    const product = { id: `product-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, category, station: category, price, aliases, imageUrl: input.imageUrl || null };
+    products.push(product); recordAudit(req, 'product.created', 'product', product.id, null, product); return json(res, 201, product);
+  }
+  const productProfile = pathname.match(/^\/api\/products\/([^/]+)$/);
+  if (productProfile && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const name = input.name === undefined ? undefined : String(input.name || '').trim(); const category = input.category === undefined && input.station === undefined ? undefined : String(input.category ?? input.station ?? '').trim(); const price = input.price === undefined ? undefined : Number(input.price);
+    const aliases = input.aliases === undefined ? undefined : (Array.isArray(input.aliases) ? input.aliases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : null);
+    if (name !== undefined && (!name || name.length > 120) || category !== undefined && (!category || category.length > 80) || price !== undefined && (!Number.isFinite(price) || price < 0 || price > 10000000) || aliases === null) return json(res, 400, { error: 'invalid_product' });
+    if (input.imageUrl !== undefined && input.imageUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(input.imageUrl)) || String(input.imageUrl).length > 1500000)) return json(res, 400, { error: 'invalid_image' });
+    if (repositories?.products) { try { const before = (await repositories.products.list(venueDbId)).find((entry) => entry.id === productProfile[1]); if (!before) return json(res, 404, { error: 'product_not_found' }); const product = await repositories.products.update(venueDbId, productProfile[1], { name, category, price, aliases, imageUrl: input.imageUrl }); recordAudit(req, 'product.updated', 'product', product.id, before, product); return json(res, 200, product); } catch (error) { return json(res, 409, { error: 'product_update_failed', detail: error.message }); } }
+    const product = products.find((entry) => entry.id === productProfile[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); const before = { ...product }; if (name !== undefined) product.name = name; if (category !== undefined) { product.category = category; product.station = category; } if (price !== undefined) product.price = price; if (aliases !== undefined) product.aliases = aliases; if (input.imageUrl !== undefined) product.imageUrl = input.imageUrl || null; recordAudit(req, 'product.updated', 'product', product.id, before, product); return json(res, 200, product);
+  }
+  if (productProfile && req.method === 'DELETE') {
+    if (denyUnless(req, res, 'inventory')) return;
+    if (repositories?.products) { try { const product = await repositories.products.deactivate(venueDbId, productProfile[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); recordAudit(req, 'product.deactivated', 'product', product.id, { active: true }, { active: false }); return json(res, 200, { ...product, active: false }); } catch (error) { return json(res, 409, { error: 'product_delete_failed', detail: error.message }); } }
+    const index = products.findIndex((entry) => entry.id === productProfile[1]); if (index < 0) return json(res, 404, { error: 'product_not_found' }); const [product] = products.splice(index, 1); recordAudit(req, 'product.deactivated', 'product', product.id, { active: true }, { active: false }); return json(res, 200, { ...product, active: false });
   }
   if (pathname === '/api/clients' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'staff_view') && !hasPermission(req, 'orders')) return json(res, 403, { error: 'forbidden', permission: 'clients' });

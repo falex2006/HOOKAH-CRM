@@ -45,6 +45,35 @@ class InventoryRepository {
   }
 }
 
+class ProductRepository {
+  constructor(pool) { this.pool = pool; }
+  async list(venueId) {
+    const { rows } = await this.pool.query(`SELECT id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl"
+      FROM products WHERE venue_id=$1 AND is_active=true ORDER BY name`, [venueId]);
+    return rows.map((row) => ({ ...row, price: Number(row.price), aliases: row.aliases || [] }));
+  }
+  async create(input) {
+    const { rows } = await this.pool.query(`INSERT INTO products (venue_id,name,category,sale_price,search_aliases,image_url)
+      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl"`,
+      [input.venueId, input.name, input.category, input.price, input.aliases, input.imageUrl || null]);
+    return rows[0] ? { ...rows[0], price: Number(rows[0].price), aliases: rows[0].aliases || [] } : null;
+  }
+  async update(venueId, id, input) {
+    const fields = []; const values = [id, venueId];
+    for (const [column, value] of [['name', input.name], ['category', input.category], ['sale_price', input.price], ['search_aliases', input.aliases], ['image_url', input.imageUrl]]) {
+      if (value !== undefined) { values.push(value); fields.push(`${column}=$${values.length}`); }
+    }
+    if (!fields.length) return null;
+    const { rows } = await this.pool.query(`UPDATE products SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_active=true
+      RETURNING id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl"`, values);
+    return rows[0] ? { ...rows[0], price: Number(rows[0].price), aliases: rows[0].aliases || [] } : null;
+  }
+  async deactivate(venueId, id) {
+    const { rows } = await this.pool.query('UPDATE products SET is_active=false WHERE id=$1 AND venue_id=$2 AND is_active=true RETURNING id,name', [id, venueId]);
+    return rows[0] || null;
+  }
+}
+
 class ReservationRepository {
   constructor(pool) { this.pool = pool; }
   async list(venueId, date) {
@@ -109,9 +138,9 @@ function createRepositories(databaseUrl = process.env.DATABASE_URL) {
   let pg;
   try { pg = require('pg'); } catch { return null; }
   const pool = new pg.Pool({ connectionString: databaseUrl, max: Number(process.env.DB_POOL_MAX || 10), idleTimeoutMillis: 30000 });
-  return { pool, orders: new OrderRepository(pool), inventory: new InventoryRepository(pool), reservations: new ReservationRepository(pool), audit: new AuditRepository(pool), sessions: new SessionRepository(pool) };
+  return { pool, orders: new OrderRepository(pool), inventory: new InventoryRepository(pool), products: new ProductRepository(pool), reservations: new ReservationRepository(pool), audit: new AuditRepository(pool), sessions: new SessionRepository(pool) };
 }
 
 function createOrderRepository(databaseUrl = process.env.DATABASE_URL) { return createRepositories(databaseUrl)?.orders || null; }
 
-module.exports = { OrderRepository, InventoryRepository, ReservationRepository, AuditRepository, SessionRepository, createRepositories, createOrderRepository };
+module.exports = { OrderRepository, InventoryRepository, ProductRepository, ReservationRepository, AuditRepository, SessionRepository, createRepositories, createOrderRepository };
