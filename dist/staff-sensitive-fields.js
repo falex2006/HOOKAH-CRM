@@ -1,6 +1,6 @@
 (function mountSensitiveStaffFields(){
   const role=()=>{try{return JSON.parse(localStorage.getItem('crm_session_user')||'{}').role||'';}catch(_){return'';}};
-  const allowed=()=>['owner','admin','manager'].includes(role());
+  const allowed=()=>role()==='owner';
   const mount=()=>{
     if(!allowed())return;
     document.querySelectorAll('form').forEach((form)=>{

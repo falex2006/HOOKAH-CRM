@@ -2,6 +2,7 @@ param(
   [string]$BaseUrl = 'http://localhost:3000',
   [string]$OwnerUser = 'owner',
   [string]$OwnerPassword = $env:DEMO_OWNER_PASSWORD,
+  [string]$AdminPassword = $(if ($env:DEMO_ADMIN_PASSWORD) { $env:DEMO_ADMIN_PASSWORD } else { 'admin' }),
   [string]$StaffLogin = "acceptance_staff_$(Get-Date -Format 'HHmmss')",
   [string]$DeveloperLogin = "acceptance_dev_$(Get-Date -Format 'HHmmss')"
 )
@@ -16,6 +17,10 @@ function StatusFor([scriptblock]$Call) {
 }
 $owner = Login $OwnerUser $OwnerPassword
 $ownerHeaders = HeadersFor $owner
+$admin = Login 'admin' $AdminPassword
+$adminHeaders = HeadersFor $admin
+if ((StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ name = 'Forbidden manager'; role = 'bartender' } | ConvertTo-Json) }) -ne 403) { throw 'manager staff creation should be denied' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/staff" -Headers $adminHeaders }) -ne 200) { throw 'manager staff listing should be allowed' }
 $staff = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance bartender'; login = $StaffLogin; password = 'acceptance-pass'; role = 'bartender' } | ConvertTo-Json)
 $developer = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance developer'; login = $DeveloperLogin; password = 'acceptance-pass'; role = 'developer' } | ConvertTo-Json)
 $staffAuth = Login $StaffLogin 'acceptance-pass'
