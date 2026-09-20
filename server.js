@@ -249,7 +249,7 @@ async function api(req, res) {
     if (repositories?.pool) { try { await repositories.pool.query('UPDATE venues SET name=$1,phone=$2,address=$3,logo_url=$4 WHERE id=$5', [venue.name, venue.phone, venue.address, venue.logoUrl, venueDbId]); } catch (_) {} }
     recordAudit(req, 'venue.updated', 'venue', venue.id, before, venue); return json(res, 200, venue);
   }
-  if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings'])) return; return json(res, 200, integrations); }
+  if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
   if (pathname === '/api/metrics') {
     if (repositories?.pool) {
       try {
