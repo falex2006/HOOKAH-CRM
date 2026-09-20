@@ -66,8 +66,16 @@ class ReservationRepository {
 
 class AuditRepository {
   constructor(pool) { this.pool = pool; }
-  async list(venueId) {
-    const { rows } = await this.pool.query(`SELECT id, action, entity_type AS "entityType", entity_id AS "entityId", actor_id AS "actorId", before_data AS "beforeData", after_data AS "afterData", created_at AS "createdAt" FROM audit_events WHERE venue_id=$1 ORDER BY created_at DESC LIMIT 100`, [venueId]);
+  async list(venueId, filters = {}) {
+    const params = [venueId];
+    const clauses = ['a.venue_id=$1'];
+    if (filters.action) { params.push(filters.action); clauses.push(`a.action=$${params.length}`); }
+    if (filters.entityType) { params.push(filters.entityType); clauses.push(`a.entity_type=$${params.length}`); }
+    if (filters.from) { params.push(filters.from); clauses.push(`a.created_at >= $${params.length}::date`); }
+    if (filters.to) { params.push(filters.to); clauses.push(`a.created_at < ($${params.length}::date + INTERVAL '1 day')`); }
+    const limit = Math.min(Math.max(Number(filters.limit) || 100, 1), 300);
+    params.push(limit);
+    const { rows } = await this.pool.query(`SELECT a.id, a.action, a.entity_type AS "entityType", a.entity_id AS "entityId", a.actor_id AS "actorId", COALESCE(u.full_name, 'система') AS actor, a.before_data AS "beforeData", a.after_data AS "afterData", a.created_at AS "createdAt" FROM audit_events a LEFT JOIN users u ON u.id=a.actor_id WHERE ${clauses.join(' AND ')} ORDER BY a.created_at DESC LIMIT $${params.length}`, params);
     return rows;
   }
   async record(input) {

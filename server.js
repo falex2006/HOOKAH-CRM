@@ -254,8 +254,17 @@ async function api(req, res) {
   }
   if (pathname === '/api/audit' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'diagnostics') && !hasPermission(req, 'settings')) return json(res, 403, { error: 'forbidden', permission: 'diagnostics' });
-    if (repositories?.audit) { try { return json(res, 200, { items: await repositories.audit.list(venueDbId) }); } catch (_) {} }
-    return json(res, 200, { items: auditEvents.slice(-100).reverse() });
+    const filters = { action: String(url.searchParams.get('action') || '').trim().slice(0, 120), entityType: String(url.searchParams.get('entityType') || '').trim().slice(0, 80), from: String(url.searchParams.get('from') || '').trim(), to: String(url.searchParams.get('to') || '').trim(), limit: url.searchParams.get('limit') };
+    if (filters.from && !/^\d{4}-\d{2}-\d{2}$/.test(filters.from)) filters.from = '';
+    if (filters.to && !/^\d{4}-\d{2}-\d{2}$/.test(filters.to)) filters.to = '';
+    if (repositories?.audit) { try { return json(res, 200, { items: await repositories.audit.list(venueDbId, filters), filters }); } catch (_) {} }
+    let items = auditEvents.slice().reverse();
+    if (filters.action) items = items.filter((item) => item.action === filters.action);
+    if (filters.entityType) items = items.filter((item) => item.entityType === filters.entityType);
+    if (filters.from) items = items.filter((item) => String(item.createdAt).slice(0, 10) >= filters.from);
+    if (filters.to) items = items.filter((item) => String(item.createdAt).slice(0, 10) <= filters.to);
+    items = items.slice(0, Math.min(Math.max(Number(filters.limit) || 100, 1), 300));
+    return json(res, 200, { items, total: items.length, filters });
   }
   if (pathname === '/api/floor') {
     if (denyUnless(req, res, 'floor')) return;
