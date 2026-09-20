@@ -90,7 +90,7 @@ $paymentOrder = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -Conte
 $payment = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($paymentOrder.id)/payments" -ContentType 'application/json' -Body '{"method":"card","amount":1000}'
 if ($payment.remaining -ne 500 -or $payment.closed) { throw 'partial payment failed' }
 $paymentFinal = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($paymentOrder.id)/payments" -ContentType 'application/json' -Body '{"method":"qr","amount":500}'
-if ($paymentFinal.remaining -ne 0 -or -not $paymentFinal.closed) { throw 'split payment completion failed' }
+if ($paymentFinal.remaining -ne 0 -or -not $paymentFinal.closed -or $paymentFinal.finalTotal -ne 1500 -or $paymentFinal.minimumAdjustment -ne 1500 -or $paymentFinal.paymentMethod -ne 'mixed') { throw 'split payment completion metadata failed' }
 
 $regular = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{ tableId = "smoke-table-$smokeSuffix" } | ConvertTo-Json)
 $guest = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($regular.id)" -ContentType 'application/json' -Body '{"guestName":"Smoke guest","phone":"+79990000000"}'
