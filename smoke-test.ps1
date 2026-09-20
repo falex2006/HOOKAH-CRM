@@ -54,6 +54,11 @@ $movement = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/inventory/movement
 if ($movement.delta -ne 1) { throw 'inventory movement failed' }
 $reservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body '{"guestName":"Smoke test","date":"2026-09-16","time":"23:00","tableId":"table-12","guests":2}'
 if ($reservation.status -ne 'confirmed') { throw 'reservation create failed' }
+$vipReservationStatus = $null
+try { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body '{"guestName":"VIP smoke","date":"2026-09-16","time":"23:30","tableId":"vip-room-1","guests":2,"deposit":0}' | Out-Null } catch { $vipReservationStatus = [int]$_.Exception.Response.StatusCode.value__ }
+if ($vipReservationStatus -ne 409) { throw 'VIP reservation deposit guard failed' }
+$vipReservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body '{"guestName":"VIP smoke","date":"2026-09-16","time":"23:30","tableId":"vip-room-1","guests":2,"deposit":1500}'
+if ($vipReservation.deposit -ne 1500) { throw 'VIP reservation deposit create failed' }
 $finance = Invoke-RestMethod "$BaseUrl/api/finance/summary"
 if ($null -eq $finance.revenue -or $null -eq $finance.byPaymentMethod) { throw 'finance summary failed' }
 $audit = Invoke-RestMethod "$BaseUrl/api/audit"

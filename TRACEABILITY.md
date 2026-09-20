@@ -5,7 +5,7 @@
 | Рабочее место персонала | `index.html`, `app.js`, `/api/floor`, `/api/orders` | `smoke-test.ps1`, HTTP 200 `/` |
 | Панель владельца | `admin.html`, `portal.js`, `/admin/` | HTTP 200 `/admin/`, Sites v42 |
 | Роли и ограничения | `rolePermissions` и `denyUnless` в `server.js` | smoke-сценарий ролей |
-| VIP-минимумы | `vipRoomMinimums`, `orders.minimumOrderTotal` | сценарий закрытия VIP-заказа |
+| VIP-минимумы | `vipRoomMinimums`, `orders.minimumOrderTotal`, reservation deposit guard | сценарий бронирования и закрытия VIP-заказа |
 | Поиск Red Bull | `search_aliases`, клиентский фильтр алиасов | русские и английские алиасы |
 | Скидки с согласованием | `/api/orders/:id/discount-request`, approve/reject | аудит решения |
 | Разделение заказа | транзакция `order_items` в `server.js` и `schema.sql` | split в smoke-тесте |

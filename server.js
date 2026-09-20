@@ -333,10 +333,26 @@ async function api(req, res) {
     if (denyUnless(req, res, 'reservations')) return;
     const input = await body(req);
     if (!input.guestName || !input.date || !input.time || !input.tableId) return json(res, 400, { error: 'guest_date_time_table_required' });
-    if (repositories?.reservations) { try { const reservation = await repositories.reservations.create({ ...input, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
-    const table = floor.flatMap((zone) => zone.tables).find((entry) => entry.id === input.tableId);
-    if (!table) return json(res, 400, { error: 'table_not_found' });
-    const reservation = { id: `res-${Date.now()}`, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName: table.name, guests: Number(input.guests || 1), status: 'confirmed', deposit: Number(input.deposit || 0), notes: input.notes || '' };
+    let tableMinimum = 0;
+    let tableName = input.tableId;
+    let table = null;
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query('SELECT name,min_order_total AS "minimumOrderTotal" FROM tables WHERE id=$1 AND venue_id=$2', [input.tableId, venueDbId]);
+        if (!rows[0]) return json(res, 400, { error: 'table_not_found' });
+        tableName = rows[0].name;
+        tableMinimum = Number(rows[0].minimumOrderTotal || 0);
+      } catch (error) { return json(res, 409, { error: 'reservation_table_lookup_failed', detail: error.message }); }
+    } else {
+      table = floor.flatMap((zone) => zone.tables).find((entry) => entry.id === input.tableId);
+      if (!table) return json(res, 400, { error: 'table_not_found' });
+      tableName = table.name;
+      tableMinimum = Number(table.minimumOrderTotal || 0);
+    }
+    const deposit = Number(input.deposit || 0);
+    if (!Number.isFinite(deposit) || deposit < tableMinimum) return json(res, 409, { error: 'vip_deposit_below_minimum', requiredDeposit: tableMinimum, providedDeposit: deposit });
+    if (repositories?.reservations) { try { const reservation = await repositories.reservations.create({ ...input, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
+    const reservation = { id: `res-${Date.now()}`, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName, guests: Number(input.guests || 1), status: 'confirmed', deposit, notes: input.notes || '' };
     reservations.push(reservation);
     table.status = 'reserved';
     recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation);
