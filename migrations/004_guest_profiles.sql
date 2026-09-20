@@ -1,0 +1,10 @@
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS venue_id uuid REFERENCES venues(id);
+UPDATE guests SET venue_id = (SELECT id FROM venues ORDER BY created_at LIMIT 1) WHERE venue_id IS NULL;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS phone_numbers jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS telegram text;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS tobacco_preferences text[] NOT NULL DEFAULT '{}';
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS bowl_preferences text[] NOT NULL DEFAULT '{}';
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS bar_preferences text[] NOT NULL DEFAULT '{}';
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS allergies text;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS loyalty_tier text NOT NULL DEFAULT 'base';
+CREATE INDEX IF NOT EXISTS guests_phone_numbers_gin_idx ON guests USING gin (phone_numbers);

@@ -58,6 +58,10 @@ const inventory = [
 const stockMovements = [];
 const reservations = [];
 const auditEvents = [];
+const clients = [
+  { id: 'client-anna', name: 'Анна Смирнова', phoneNumbers: [{ label: 'Основной', number: '+79991112233', primary: true }], telegram: '@anna_sm', tobaccoPreferences: ['Darkside', 'Мята'], bowlPreferences: ['Кальянная чаша'], barPreferences: ['Лимонад маракуйя', 'Red Bull'], allergies: '', notes: 'Предпочитает среднюю крепость', loyaltyPoints: 420, visits: 6, totalSpent: 18400, lastVisitAt: '2026-09-18T21:30:00.000Z' },
+  { id: 'client-igor', name: 'Игорь Волков', phoneNumbers: [{ label: 'Основной', number: '+79994445566', primary: true }, { label: 'Рабочий', number: '+79997778899', primary: false }], telegram: '', tobaccoPreferences: ['Tangiers', 'Ягодные миксы'], bowlPreferences: ['Калауд'], barPreferences: ['Кола', 'Виски'], allergies: 'Орехи', notes: '', loyaltyPoints: 180, visits: 3, totalSpent: 9200, lastVisitAt: '2026-09-12T20:10:00.000Z' }
+];
 const sessions = new Map();
 const loginAttempts = new Map();
 const shifts = [];
@@ -99,7 +103,7 @@ const staffPassportCipher = {
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
-  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'settings', 'diagnostics']
+  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics']
 };
 
 const json = (res, status, data) => {
@@ -284,6 +288,38 @@ async function api(req, res) {
     if (denyUnless(req, res, 'floor')) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,name,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl" FROM products WHERE venue_id=$1 AND is_active=true ORDER BY name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, price: Number(row.price) })) }); } catch (_) {} }
     return json(res, 200, { items: products });
+  }
+  if (pathname === '/api/clients' && req.method === 'GET') {
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'staff_view') && !hasPermission(req, 'orders')) return json(res, 403, { error: 'forbidden', permission: 'clients' });
+    const query = String(url.searchParams.get('q') || '').trim().toLowerCase();
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT g.id,g.full_name AS name,g.phone,g.email,g.phone_numbers AS "phoneNumbers",g.telegram,g.tobacco_preferences AS "tobaccoPreferences",g.bowl_preferences AS "bowlPreferences",g.bar_preferences AS "barPreferences",g.allergies,g.loyalty_points AS "loyaltyPoints",g.notes,COUNT(DISTINCT o.id)::int AS visits,COALESCE(SUM(p.amount),0)::numeric AS "totalSpent",MAX(o.closed_at) AS "lastVisitAt" FROM guests g LEFT JOIN orders o ON o.guest_id=g.id AND o.status='closed' LEFT JOIN payments p ON p.order_id=o.id AND p.status IN ('paid','partially_paid') WHERE g.venue_id=$1 AND ($2='' OR LOWER(CONCAT_WS(' ',g.full_name,g.phone,g.telegram)) LIKE '%'||LOWER($2)||'%') GROUP BY g.id ORDER BY COALESCE(MAX(o.closed_at),g.created_at) DESC`, [venueDbId, query]); return json(res, 200, { items: rows.map((row) => ({ ...row, phoneNumbers: row.phoneNumbers || (row.phone ? [{ label: 'Основной', number: row.phone, primary: true }] : []), tobaccoPreferences: row.tobaccoPreferences || [], bowlPreferences: row.bowlPreferences || [], barPreferences: row.barPreferences || [], loyaltyPoints: Number(row.loyaltyPoints || 0), visits: Number(row.visits || 0), totalSpent: Number(row.totalSpent || 0) })) }); } catch (_) {} }
+    const items = clients.filter((client) => !query || `${client.name} ${client.telegram} ${(client.phoneNumbers || []).map((phone) => phone.number).join(' ')} ${client.tobaccoPreferences.join(' ')} ${client.barPreferences.join(' ')}`.toLowerCase().includes(query));
+    return json(res, 200, { items });
+  }
+  if (pathname === '/api/clients' && req.method === 'POST') {
+    if (denyUnlessAny(req, res, ['staff_manage', 'orders'])) return;
+    const input = await body(req); const name = String(input.name || '').trim();
+    if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' });
+    const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers);
+    if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' });
+    if (input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
+    const client = { id: `client-${Date.now()}`, name, phoneNumbers, telegram: String(input.telegram || '').trim(), tobaccoPreferences: Array.isArray(input.tobaccoPreferences) ? input.tobaccoPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [], bowlPreferences: Array.isArray(input.bowlPreferences) ? input.bowlPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 20) : [], barPreferences: Array.isArray(input.barPreferences) ? input.barPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [], allergies: String(input.allergies || '').trim().slice(0, 500), notes: String(input.notes || '').trim().slice(0, 2000), loyaltyPoints: 0, visits: 0, totalSpent: 0, lastVisitAt: null };
+    if (repositories?.pool) { try { const primary = phoneNumbers.find((phone) => phone.primary)?.number || null; const { rows } = await repositories.pool.query(`INSERT INTO guests (venue_id,phone,full_name,phone_numbers,telegram,tobacco_preferences,bowl_preferences,bar_preferences,allergies,notes) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10) RETURNING id,full_name AS name,phone,phone_numbers AS "phoneNumbers",telegram,tobacco_preferences AS "tobaccoPreferences",bowl_preferences AS "bowlPreferences",bar_preferences AS "barPreferences",allergies,notes,loyalty_points AS "loyaltyPoints"`, [venueDbId, primary, name, JSON.stringify(phoneNumbers), client.telegram || null, client.tobaccoPreferences, client.bowlPreferences, client.barPreferences, client.allergies || null, client.notes || null]); if (rows[0]) return json(res, 201, { ...client, ...rows[0] }); } catch (_) {} }
+    clients.push(client); recordAudit(req, 'client.created', 'client', client.id, null, client); return json(res, 201, client);
+  }
+  const clientProfile = pathname.match(/^\/api\/clients\/([^/]+)$/);
+  if (clientProfile && req.method === 'PATCH') {
+    if (denyUnlessAny(req, res, ['staff_manage', 'orders'])) return;
+    const client = clients.find((entry) => entry.id === clientProfile[1]); if (!client) return json(res, 404, { error: 'client_not_found' });
+    const input = await body(req); const before = JSON.parse(JSON.stringify(client));
+    if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' }); client.name = name; }
+    if (input.phoneNumbers !== undefined) { const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers); if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' }); client.phoneNumbers = phoneNumbers; }
+    if (input.telegram !== undefined) { const telegram = String(input.telegram || '').trim(); if (telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(telegram)) return json(res, 400, { error: 'invalid_telegram' }); client.telegram = telegram; }
+    for (const key of ['tobaccoPreferences', 'bowlPreferences', 'barPreferences']) if (input[key] !== undefined) client[key] = Array.isArray(input[key]) ? input[key].map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [];
+    if (input.allergies !== undefined) client.allergies = String(input.allergies || '').trim().slice(0, 500);
+    if (input.notes !== undefined) client.notes = String(input.notes || '').trim().slice(0, 2000);
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(client.id)) { try { const primary = client.phoneNumbers.find((phone) => phone.primary)?.number || null; const { rows } = await repositories.pool.query(`UPDATE guests SET phone=$1,full_name=$2,phone_numbers=$3::jsonb,telegram=$4,tobacco_preferences=$5,bowl_preferences=$6,bar_preferences=$7,allergies=$8,notes=$9 WHERE id=$10 AND venue_id=$11 RETURNING id,full_name AS name,phone,phone_numbers AS "phoneNumbers",telegram,tobacco_preferences AS "tobaccoPreferences",bowl_preferences AS "bowlPreferences",bar_preferences AS "barPreferences",allergies,notes,loyalty_points AS "loyaltyPoints"`, [primary, client.name, JSON.stringify(client.phoneNumbers), client.telegram || null, client.tobaccoPreferences, client.bowlPreferences, client.barPreferences, client.allergies || null, client.notes || null, client.id, venueDbId]); if (rows[0]) return json(res, 200, { ...client, ...rows[0] }); } catch (_) {} }
+    recordAudit(req, 'client.updated', 'client', client.id, before, client); return json(res, 200, client);
   }
   const productImage = pathname.match(/^\/api\/products\/([^/]+)\/image$/);
   if (productImage && req.method === 'POST') {
@@ -830,7 +866,7 @@ if (staffProfile && req.method === 'PATCH') {
 function staticFile(req, res) {
   let requestPath = new URL(req.url, 'http://localhost').pathname;
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
-  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/reservations': '/reservations.html' };
+  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/reservations': '/reservations.html', '/clients': '/clients.html' };
   requestPath = aliases[routePath] || requestPath;
   const file = path.resolve(root, `.${requestPath}`);
   if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }

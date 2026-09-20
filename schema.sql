@@ -63,6 +63,7 @@ CREATE TABLE tables (
 
 CREATE TABLE guests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid REFERENCES venues(id),
   phone text UNIQUE,
   full_name text,
   email text,
@@ -70,6 +71,13 @@ CREATE TABLE guests (
   notes text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS phone_numbers jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS telegram text;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS tobacco_preferences text[] NOT NULL DEFAULT '{}';
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS bowl_preferences text[] NOT NULL DEFAULT '{}';
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS bar_preferences text[] NOT NULL DEFAULT '{}';
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS allergies text;
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS loyalty_tier text NOT NULL DEFAULT 'base';
 
 CREATE TABLE reservations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
