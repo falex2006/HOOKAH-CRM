@@ -1,5 +1,12 @@
 if (!localStorage.getItem('crm_session_token')) { window.location.replace('/login'); throw new Error('authentication_required'); }
-try { const portalUser = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); if (!['owner', 'admin'].includes(portalUser.role)) { window.location.replace('/'); throw new Error('portal_permission_required'); } } catch (error) { if (error.message === 'portal_permission_required') throw error; }
+let portalUser = {};
+try { portalUser = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); if (!['owner', 'admin'].includes(portalUser.role)) { window.location.replace('/'); throw new Error('portal_permission_required'); } } catch (error) { if (error.message === 'portal_permission_required') throw error; }
+const portalRoleLabels = { owner: ['Владелец', 'Супер-администратор'], admin: ['Управляющий', 'Подадминистратор'] };
+const portalRole = portalRoleLabels[portalUser.role] || ['Пользователь', 'Ограниченный доступ'];
+const portalFooterRole = document.querySelector('.sidebar-footer b');
+const portalFooterAccess = document.querySelector('.sidebar-footer small');
+if (portalFooterRole) portalFooterRole.textContent = `● ${portalRole[0]}`;
+if (portalFooterAccess) portalFooterAccess.textContent = portalRole[1];
 const page = document.body.dataset.page || 'dashboard';
 const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} ₽`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
@@ -58,7 +65,7 @@ function renderDashboard() {
   const target = document.querySelector('#page-content');
   if (!target) return;
   target.innerHTML = `
-    <div class="page-title"><div><p class="eyebrow">ОБЗОР ЗАВЕДЕНИЯ</p><h1>Добрый вечер, владелец</h1><p class="muted">Операционная картина смены в одном окне.</p></div><span class="live-dot">● Смена открыта</span></div>
+    <div class="page-title"><div><p class="eyebrow">ОБЗОР ЗАВЕДЕНИЯ</p><h1>Добрый вечер, ${esc(portalUser.name || portalRole[0].toLowerCase())}</h1><p class="muted">Операционная картина смены в одном окне.</p></div><span class="live-dot">● Смена открыта</span></div>
     <div class="kpi-grid">
       <article class="kpi"><span>Выручка сегодня</span><strong id="dash-revenue">${money(3000)}</strong><small class="positive">Данные обновляются из оплат</small></article>
       <article class="kpi"><span>Открытые заказы</span><strong data-metric="openOrders">4</strong><small>На обслуживании сейчас</small></article>
