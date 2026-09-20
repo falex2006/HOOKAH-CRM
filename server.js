@@ -260,7 +260,7 @@ async function api(req, res) {
   if (pathname === '/api/finance/categories' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
     const query = String(url.searchParams.get('q') || '').trim().toLocaleLowerCase('ru-RU');
-    return json(res, 200, { items: financeCategories.filter((item) => !query || item.name.toLocaleLowerCase('ru-RU').includes(query)) });
+    return json(res, 200, { items: financeCategories.filter((item) => item.active !== false && (!query || item.name.toLocaleLowerCase('ru-RU').includes(query))) });
   }
   if (pathname === '/api/finance/categories' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
@@ -642,6 +642,32 @@ if (staffProfile && req.method === 'PATCH') {
     closed.forEach((order) => { const payments = (order.payments || []).filter((payment) => payment.status === 'paid'); if (payments.length) payments.forEach((payment) => { const amount = Number(payment.amount || 0); paymentCount += 1; revenue += amount; const key = payment.method || 'не указан'; byType[key] = (byType[key] || 0) + amount; }); else { const amount = Number(order.finalTotal || orderTotal(order)); revenue += amount; const key = order.paymentMethod || 'не указан'; byType[key] = (byType[key] || 0) + amount; } });
     return json(res, 200, { date, revenue, closedOrders: closed.length, paymentCount, byPaymentMethod: byType, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length });
   }
+  if (pathname === '/api/finance/report' && req.method === 'GET') {
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
+    const date = url.searchParams.get('date') || today();
+    const type = url.searchParams.get('type') === 'waiter' ? 'waiter' : 'x';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'invalid_finance_date' });
+    const reportNumber = `R-${date.replace(/-/g, '')}-${type.toUpperCase()}-${String(Date.now()).slice(-6)}`;
+    const byPaymentMethod = {}; const byStation = {}; const byStaff = {}; let revenue = 0; let paymentCount = 0; let closedOrders = [];
+    const addOrder = (order) => {
+      const payments = (order.payments || []).filter((payment) => payment.status === 'paid');
+      if (payments.length) payments.forEach((payment) => { const amount = Number(payment.amount || 0); revenue += amount; paymentCount += 1; const key = payment.method || 'не указан'; byPaymentMethod[key] = (byPaymentMethod[key] || 0) + amount; });
+      else { const amount = Number(order.finalTotal || orderTotal(order)); revenue += amount; const key = order.paymentMethod || 'не указан'; byPaymentMethod[key] = (byPaymentMethod[key] || 0) + amount; paymentCount += amount > 0 ? 1 : 0; }
+      (order.items || []).forEach((item) => { const station = item.station || 'other'; byStation[station] = (byStation[station] || 0) + Number(item.unitPrice || item.price || 0) * Number(item.quantity || 0); });
+      const staffName = order.createdByName || order.waiterName || order.cashierName || 'Не указан'; byStaff[staffName] = (byStaff[staffName] || 0) + Number(order.finalTotal || orderTotal(order));
+    };
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query(`SELECT o.id,o.created_at AS "createdAt",o.closed_at AS "closedAt",COALESCE(u.full_name,u.login,'Не указан') AS "createdByName",COALESCE(json_agg(json_build_object('method',p.method,'amount',p.amount,'status',p.status)) FILTER (WHERE p.id IS NOT NULL),'[]') AS payments FROM orders o LEFT JOIN payments p ON p.order_id=o.id LEFT JOIN users u ON u.id=o.opened_by WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day') GROUP BY o.id,u.full_name,u.login ORDER BY o.closed_at`, [venueDbId, date]);
+        closedOrders = rows.map((row) => ({ ...row, payments: row.payments || [], items: [] }));
+        const itemRows = await repositories.pool.query(`SELECT oi.order_id AS "orderId",oi.quantity,oi.unit_price AS "unitPrice",COALESCE(oi.station,'other') AS station FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day')`, [venueDbId, date]);
+        const itemsByOrder = new Map(); itemRows.rows.forEach((item) => { if (!itemsByOrder.has(item.orderId)) itemsByOrder.set(item.orderId, []); itemsByOrder.get(item.orderId).push(item); }); closedOrders.forEach((order) => { order.items = itemsByOrder.get(order.id) || []; addOrder(order); });
+      } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
+    } else { closedOrders = orders.filter((order) => order.status === 'closed' && String(order.closedAt || order.createdAt || '').slice(0, 10) === date); closedOrders.forEach(addOrder); }
+    const report = { type, date, generatedAt: new Date().toISOString(), reportNumber, cashier: req.user?.name || 'Кассир', checksCount: closedOrders.length, closedOrders: closedOrders.length, paymentCount, revenue: Math.round(revenue * 100) / 100, cash: Math.round(Number(byPaymentMethod.cash || 0) * 100) / 100, card: Math.round(Number(byPaymentMethod.card || 0) * 100) / 100, qr: Math.round(Number(byPaymentMethod.qr || 0) * 100) / 100, byPaymentMethod, byStation, byStaff: type === 'waiter' ? byStaff : undefined };
+    recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type, date, checksCount: report.checksCount, revenue: report.revenue });
+    return json(res, 200, report);
+  }
   if (pathname === '/api/deliveries' && req.method === 'GET') {
     if (denyUnless(req, res, 'delivery')) return;
     return json(res, 200, { items: deliveries.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))) });
@@ -982,7 +1008,7 @@ if (staffProfile && req.method === 'PATCH') {
 function staticFile(req, res) {
   let requestPath = new URL(req.url, 'http://localhost').pathname;
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
-  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/delivery': '/delivery.html' };
+  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/finance/report': '/finance-report.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/delivery': '/delivery.html' };
   requestPath = aliases[routePath] || requestPath;
   const file = path.resolve(root, `.${requestPath}`);
   if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }

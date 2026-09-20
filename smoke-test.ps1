@@ -103,6 +103,11 @@ try { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentTy
 if ($duplicateStatus -ne 409) { throw 'reservation conflict guard failed' }
 $finance = Invoke-RestMethod "$BaseUrl/api/finance/summary"
 if ($null -eq $finance.revenue -or $null -eq $finance.byPaymentMethod) { throw 'finance summary failed' }
+$xReport = Invoke-RestMethod "$BaseUrl/api/finance/report?type=x"
+$waiterReport = Invoke-RestMethod "$BaseUrl/api/finance/report?type=waiter"
+if ($xReport.type -ne 'x' -or $null -eq $xReport.reportNumber -or $null -eq $xReport.byPaymentMethod) { throw 'X report failed' }
+if ($waiterReport.type -ne 'waiter' -or $null -eq $waiterReport.byStaff) { throw 'waiter report failed' }
 $audit = Invoke-RestMethod "$BaseUrl/api/audit"
 if (-not $audit.items -or $audit.items.Count -lt 1) { throw 'audit failed' }
+if (-not ($audit.items | Where-Object { $_.action -eq 'finance.report_generated' })) { throw 'report audit failed' }
 Write-Output 'CRM smoke test: PASS'
