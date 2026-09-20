@@ -152,6 +152,7 @@ const recordAudit = (req, action, entityType, entityId, beforeData, afterData) =
 };
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 2_000_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && (rolePermissions[req.user.role] || []).includes(permission));
+const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (req.user?.role === 'admin' && !['owner', 'admin', 'developer'].includes(role));
 const canSeeSensitiveStaff = (req) => Boolean(req.user && (rolePermissions[req.user.role] || []).includes('staff_sensitive'));
 const denyUnless = (req, res, permission) => { if (hasPermission(req, permission)) return false; json(res, 403, { error: 'forbidden', permission }); return true; };
 const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };
@@ -304,6 +305,7 @@ async function api(req, res) {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req);
     if (!input.name || !rolePermissions[input.role] || input.role === 'owner') return json(res, 400, { error: 'name_and_valid_role_required' });
+    if (!canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
     if (!validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
     if (input.workNotes !== undefined && String(input.workNotes).length > 4000) return json(res, 400, { error: 'work_notes_too_long' });
     if (input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
@@ -406,6 +408,7 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.role !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.name !== undefined && (!String(input.name).trim() || String(input.name).trim().length > 120)) return json(res, 400, { error: 'invalid_staff_name' });
   if (input.role !== undefined && (!rolePermissions[input.role] || input.role === 'owner')) return json(res, 400, { error: 'invalid_staff_role' });
+  if (input.role !== undefined && !canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
   if (input.employmentStartedAt !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.workNotes !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.employmentStartedAt !== undefined && !validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
@@ -517,7 +520,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!input.guestName || !input.date || !input.time || !input.tableId) return json(res, 400, { error: 'guest_date_time_table_required' });
     if (String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
     if (input.notes !== undefined && String(input.notes).length > 2000) return json(res, 400, { error: 'reservation_notes_too_long' });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)) || !/^\d{2}:\d{2}$/.test(String(input.time)) || Number.isNaN(Date.parse(`${input.date}T${input.time}:00`))) return json(res, 400, { error: 'invalid_reservation_datetime' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)) || !/^\d{2}:\d{2}$/.test(String(input.time)) || Number.isNaN(Date.parse(`${input.date}T${input.time}:00`)) || Date.parse(`${input.date}T${input.time}:00`) <= Date.now()) return json(res, 400, { error: 'invalid_reservation_datetime' });
     if (input.phone && !/^\+?[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
     if (!Number.isInteger(Number(input.guests || 1)) || Number(input.guests || 1) < 1 || Number(input.guests || 1) > 50) return json(res, 400, { error: 'invalid_guest_count' });
     let tableMinimum = 0;

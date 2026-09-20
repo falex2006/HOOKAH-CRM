@@ -21,6 +21,8 @@ $admin = Login 'admin' $AdminPassword
 $adminHeaders = HeadersFor $admin
 $manager = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ name = 'Managed manager'; login = "acceptance_manager_$(Get-Date -Format 'HHmmss')"; password = 'acceptance-pass'; role = 'bartender'; telegram = '@manager_demo'; phoneNumbers = @(@{ label = 'Рабочий'; number = '+7 900 000-00-01'; primary = $true }) } | ConvertTo-Json -Depth 5)
 if (-not $manager.id) { throw 'manager staff creation should be allowed' }
+$adminRoleStatus = StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ name = 'Rejected developer'; login = "rejected_dev_$(Get-Date -Format 'HHmmss')"; password = 'acceptance-pass'; role = 'developer' } | ConvertTo-Json) }
+if ($adminRoleStatus -ne 403) { throw 'manager must not assign developer role' }
 $managerProfile = Invoke-RestMethod "$BaseUrl/api/staff/$($manager.id)/profile" -Headers $adminHeaders
 if ($managerProfile.phoneNumbers.Count -ne 1 -or $managerProfile.telegram -ne '@manager_demo') { throw 'manager staff profile fields should be readable' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/staff" -Headers $adminHeaders }) -ne 200) { throw 'manager staff listing should be allowed' }
