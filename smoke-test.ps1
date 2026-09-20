@@ -52,15 +52,20 @@ $inventory = Invoke-RestMethod "$BaseUrl/api/inventory"
 if (-not $inventory.items -or $null -eq $inventory.lowStock) { throw 'inventory endpoint failed' }
 $movement = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/inventory/movements" -ContentType 'application/json' -Body '{"itemId":"ing-redbull","delta":1,"reason":"smoke test"}'
 if ($movement.delta -ne 1) { throw 'inventory movement failed' }
-$reservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body '{"guestName":"Smoke test","date":"2026-09-16","time":"23:00","tableId":"table-12","guests":2}'
+$smokeDate = (Get-Date).ToString('yyyy-MM-dd')
+$regularReservationBody = @{ guestName = 'Smoke test'; date = $smokeDate; time = '23:00'; tableId = 'table-12'; guests = 2 } | ConvertTo-Json
+$reservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body $regularReservationBody
 if ($reservation.status -ne 'confirmed') { throw 'reservation create failed' }
+$vipTime = "23:$((Get-Random -Minimum 10 -Maximum 59).ToString('00'))"
+$vipLowBody = @{ guestName = 'VIP smoke'; date = $smokeDate; time = $vipTime; tableId = 'vip-room-1'; guests = 2; deposit = 0 } | ConvertTo-Json
 $vipReservationStatus = $null
-try { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body '{"guestName":"VIP smoke","date":"2026-09-16","time":"23:30","tableId":"vip-room-1","guests":2,"deposit":0}' | Out-Null } catch { $vipReservationStatus = [int]$_.Exception.Response.StatusCode.value__ }
+try { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body $vipLowBody | Out-Null } catch { $vipReservationStatus = [int]$_.Exception.Response.StatusCode.value__ }
 if ($vipReservationStatus -ne 409) { throw 'VIP reservation deposit guard failed' }
-$vipReservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body '{"guestName":"VIP smoke","date":"2026-09-16","time":"23:30","tableId":"vip-room-1","guests":2,"deposit":1500}'
+$vipBody = @{ guestName = 'VIP smoke'; date = $smokeDate; time = $vipTime; tableId = 'vip-room-1'; guests = 2; deposit = 1500 } | ConvertTo-Json
+$vipReservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body $vipBody
 if ($vipReservation.deposit -ne 1500) { throw 'VIP reservation deposit create failed' }
 $duplicateStatus = $null
-try { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body '{"guestName":"VIP duplicate","date":"2026-09-16","time":"23:30","tableId":"vip-room-1","guests":2,"deposit":1500}' | Out-Null } catch { $duplicateStatus = [int]$_.Exception.Response.StatusCode.value__ }
+try { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body $vipBody | Out-Null } catch { $duplicateStatus = [int]$_.Exception.Response.StatusCode.value__ }
 if ($duplicateStatus -ne 409) { throw 'reservation conflict guard failed' }
 $finance = Invoke-RestMethod "$BaseUrl/api/finance/summary"
 if ($null -eq $finance.revenue -or $null -eq $finance.byPaymentMethod) { throw 'finance summary failed' }
