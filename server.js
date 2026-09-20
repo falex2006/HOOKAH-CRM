@@ -268,7 +268,7 @@ async function api(req, res) {
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
   if (pathname === '/api/network/venues' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,format,city,address,phone,timezone,is_current AS "isCurrent" FROM venues WHERE is_active=true ORDER BY name'); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: Boolean(row.isCurrent) || row.id === venueDbId })) }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,format,city,address,phone,timezone,is_current AS "isCurrent" FROM venues WHERE is_active=true ORDER BY name'); const hasMarkedCurrent = rows.some((row) => Boolean(row.isCurrent)); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: hasMarkedCurrent ? Boolean(row.isCurrent) : row.id === venueDbId })) }); } catch (_) {} }
     return json(res, 200, { items: networkVenues.filter((item) => item.status !== 'archived').map((item) => ({ ...item, isCurrent: item.id === currentVenueId })) });
   }
   if (pathname === '/api/network/venues' && req.method === 'POST') {
