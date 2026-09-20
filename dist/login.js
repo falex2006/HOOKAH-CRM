@@ -9,7 +9,7 @@ const demoUsers = {
 const finishLogin = (data) => {
   localStorage.setItem('crm_session_token', data.token);
   localStorage.setItem('crm_session_user', JSON.stringify(data.user));
-  window.location.replace(data.user.role === 'owner' || data.user.role === 'admin' ? '/admin' : '/');
+  window.location.replace(['owner', 'admin', 'developer'].includes(data.user.role) ? '/admin' : '/');
 };
 
 form?.addEventListener('submit', async (event) => {
