@@ -30,7 +30,15 @@ if ($managerProfile.phoneNumbers.Count -ne 1 -or $managerProfile.telegram -ne '@
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/staff" -Headers $adminHeaders }) -ne 200) { throw 'manager staff listing should be allowed' }
 $ownerPatchStatus = StatusFor { Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/u-owner/profile" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ telegram = '@blocked_owner' } | ConvertTo-Json) }
 if ($ownerPatchStatus -ne 403) { throw 'manager must not edit owner profile' }
-$staff = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance bartender'; login = $StaffLogin; password = 'acceptance-pass'; role = 'bartender' } | ConvertTo-Json)
+$staffBody = @{ name = 'Acceptance bartender'; login = $StaffLogin; password = 'acceptance-pass'; role = 'bartender'; phoneNumbers = @(@{ label = 'Основной'; number = '+7 900 000-00-11'; primary = $true }, @{ label = 'Дополнительный'; number = '+7 900 000-00-12'; primary = $false }); telegram = '@acceptance_staff'; employmentStartedAt = '2026-01-15'; workNotes = 'local acceptance' }
+if ($env:STAFF_PASSPORT_KEY) { $staffBody.passportData = @{ series = '0000'; number = '000000'; issuedBy = 'local smoke' } }
+$staff = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body ($staffBody | ConvertTo-Json -Depth 5)
+if ($staff.phoneNumbers.Count -ne 2 -or $staff.telegram -ne '@acceptance_staff' -or $staff.employmentStartedAt -ne '2026-01-15') { throw 'staff contact and HR fields failed' }
+$staffProfileCheck = Invoke-RestMethod "$BaseUrl/api/staff/$($staff.id)/profile" -Headers $ownerHeaders
+if ($env:STAFF_PASSPORT_KEY -and $staffProfileCheck.passportData.number -ne '000000') { throw 'staff passport data failed' }
+$avatarData = 'data:image/png;base64,AA=='
+$avatar = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff/$($staff.id)/avatar" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ imageData = $avatarData } | ConvertTo-Json)
+if (-not $avatar.avatarUrl) { throw 'staff avatar update failed' }
 $developer = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance developer'; login = $DeveloperLogin; password = 'acceptance-pass'; role = 'developer' } | ConvertTo-Json)
 $staffAuth = Login $StaffLogin 'acceptance-pass'
 $developerAuth = Login $DeveloperLogin 'acceptance-pass'
@@ -51,4 +59,6 @@ if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/reservations" -Headers $develop
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/floor" -Headers $developerHeaders }) -ne 200) { throw 'developer floor access should be allowed' }
 Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/logout" -Headers $staffHeaders | Out-Null
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/session" -Headers $staffHeaders }) -ne 401) { throw 'logout should revoke the staff session' }
+$blocked = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($staff.id)/status" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ active = $false } | ConvertTo-Json)
+if ($blocked.active -ne $false) { throw 'staff blocking failed' }
 Write-Output 'AUTH_REQUIRED role test: PASS'
