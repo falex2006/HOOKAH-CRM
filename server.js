@@ -184,7 +184,24 @@ async function api(req, res) {
     recordAudit(req, 'venue.updated', 'venue', venue.id, before, venue); return json(res, 200, venue);
   }
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings'])) return; return json(res, 200, integrations); }
-  if (pathname === '/api/metrics') return json(res, 200, metrics());
+  if (pathname === '/api/metrics') {
+    if (repositories?.pool) {
+      try {
+        const [ordersMetric, discountsMetric, staffMetric, reservationsMetric, stockMetric] = await Promise.all([
+          repositories.pool.query(`SELECT COUNT(*) FILTER (WHERE status IN ('open','in_progress','ready'))::int AS open_orders, COUNT(*) FILTER (WHERE status='closed')::int AS closed_orders FROM orders WHERE venue_id=$1`, [venueDbId]),
+          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]),
+          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE venue_id=$1 AND is_active=true`, [venueDbId]),
+          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM reservations WHERE venue_id=$1 AND starts_at::date=CURRENT_DATE AND status='confirmed'`, [venueDbId]),
+          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM ingredients WHERE venue_id=$1 AND on_hand <= min_level`, [venueDbId])
+        ]);
+        const orderRow = ordersMetric.rows[0] || {};
+        return json(res, 200, { openOrders: Number(orderRow.open_orders || 0), closedOrders: Number(orderRow.closed_orders || 0), discountRequests: Number(discountsMetric.rows[0]?.count || 0), staffActive: Number(staffMetric.rows[0]?.count || 0), reservationsToday: Number(reservationsMetric.rows[0]?.count || 0), lowStock: Number(stockMetric.rows[0]?.count || 0) });
+      } catch (error) {
+        return json(res, 503, { error: 'database_unavailable', detail: error.message });
+      }
+    }
+    return json(res, 200, metrics());
+  }
   if (pathname === '/api/audit' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'diagnostics') && !hasPermission(req, 'settings')) return json(res, 403, { error: 'forbidden', permission: 'diagnostics' });
     if (repositories?.audit) { try { return json(res, 200, { items: await repositories.audit.list(venueDbId) }); } catch (_) {} }
