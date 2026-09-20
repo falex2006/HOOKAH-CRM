@@ -96,7 +96,7 @@ const staffPassportCipher = {
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
-  developer: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'settings', 'diagnostics']
+  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'settings', 'diagnostics']
 };
 
 const json = (res, status, data) => {
