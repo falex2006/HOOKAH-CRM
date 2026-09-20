@@ -96,7 +96,7 @@ const staffPassportCipher = {
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
-  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'settings', 'diagnostics']
+  developer: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'settings', 'diagnostics']
 };
 
 const json = (res, status, data) => {
@@ -424,6 +424,8 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/inventory/movements' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req);
+    if (input.reason !== undefined && String(input.reason).length > 200) return json(res, 400, { error: 'movement_reason_too_long' });
+    input.reason = String(input.reason || 'Корректировка').trim().slice(0, 200);
     if (repositories?.inventory) {
       const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const delta = Number(input.delta);
       if (!item || !Number.isFinite(delta) || delta === 0) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
@@ -437,7 +439,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!item || !Number.isFinite(delta) || delta === 0) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
     if (item.onHand + delta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
     item.onHand = Math.round((item.onHand + delta) * 100) / 100;
-    const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta, reason: input.reason || 'Корректировка', createdAt: new Date().toISOString() };
+    const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta, reason: input.reason, createdAt: new Date().toISOString() };
     stockMovements.push(movement);
     recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand - delta }, { onHand: item.onHand, movement });
     return json(res, 201, movement);
