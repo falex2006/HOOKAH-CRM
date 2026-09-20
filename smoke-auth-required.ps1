@@ -7,6 +7,8 @@ param(
   [string]$DeveloperLogin = "acceptance_dev_$(Get-Date -Format 'HHmmss')"
 )
 $ErrorActionPreference = 'Stop'
+$baseUri = [Uri]$BaseUrl
+if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only auth test refused non-local BaseUrl: $BaseUrl" }
 if (-not $OwnerPassword) { throw 'Set DEMO_OWNER_PASSWORD or pass -OwnerPassword before running against AUTH_REQUIRED=true' }
 function Login([string]$Username, [string]$Password) {
   Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType 'application/json' -Body (@{ username = $Username; password = $Password } | ConvertTo-Json)

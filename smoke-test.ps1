@@ -1,5 +1,7 @@
 param([string]$BaseUrl = 'http://localhost:3000')
 $ErrorActionPreference = 'Stop'
+$baseUri = [Uri]$BaseUrl
+if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only smoke test refused non-local BaseUrl: $BaseUrl" }
 $smokeSuffix = (Get-Date).ToString('yyyyMMddHHmmss')
 $health = Invoke-RestMethod "$BaseUrl/api/health"
 if ($health.status -ne 'ok') { throw 'health failed' }

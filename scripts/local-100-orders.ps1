@@ -4,6 +4,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$baseUri = [Uri]$BaseUrl
+if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only load test refused non-local BaseUrl: $BaseUrl" }
 if ($Count -lt 1 -or $Count -gt 1000) { throw 'Count must be between 1 and 1000' }
 $health = Invoke-RestMethod "$BaseUrl/api/health"
 if ($health.status -ne 'ok') { throw "Local CRM is not healthy: $BaseUrl" }
