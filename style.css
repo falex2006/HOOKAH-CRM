@@ -29,6 +29,7 @@
 .discount-row small { display: block; margin-top: 5px; color: var(--muted); }
 .discount-actions { display: flex; gap: 8px; }
 .button.small { padding: 8px 12px; font-size: .82rem; }
+.logout-button,.staff-logout{border:1px solid #3b5662;border-radius:8px;padding:8px 10px;background:transparent;color:#a9c0c9;cursor:pointer;font-size:12px;text-align:center}.logout-button:hover,.staff-logout:hover{border-color:#ff6674;color:#fff}.staff-logout{display:block;margin-top:12px;width:100%;color:#8d949e;border-color:#343941}.staff-theme .staff-logout:hover{background:#24272d}
 .danger-outline { border-color: rgba(255,100,110,.45); color: #ff9ca4; background: transparent; }
 .badge.warning { color: #ffd17a; background: rgba(255,190,80,.12); }
 @media (max-width: 760px) { .discount-row { grid-template-columns: 1fr; } }

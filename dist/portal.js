@@ -7,6 +7,12 @@ const portalFooterRole = document.querySelector('.sidebar-footer b');
 const portalFooterAccess = document.querySelector('.sidebar-footer small');
 if (portalFooterRole) portalFooterRole.textContent = `● ${portalRole[0]}`;
 if (portalFooterAccess) portalFooterAccess.textContent = portalRole[1];
+document.querySelector('#logout')?.addEventListener('click', async () => {
+  try { await fetch('/api/logout', { method: 'POST', headers: authHeaders() }); } catch (_) {}
+  localStorage.removeItem('crm_session_token');
+  localStorage.removeItem('crm_session_user');
+  window.location.replace('/login');
+});
 const page = document.body.dataset.page || 'dashboard';
 const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} ₽`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));

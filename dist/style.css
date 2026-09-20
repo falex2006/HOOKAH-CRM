@@ -38,3 +38,4 @@
 .quantity-control button:hover { border-color: #ff745d; color: #ff9a79; }
 .shift-control { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 2px 0; }
 .shift-control:hover { color: #ff9a79; }
+.logout-button,.staff-logout{border:1px solid #3b5662;border-radius:8px;padding:8px 10px;background:transparent;color:#a9c0c9;cursor:pointer;font-size:12px;text-align:center}.logout-button:hover,.staff-logout:hover{border-color:#ff6674;color:#fff}.staff-logout{display:block;margin-top:12px;width:100%;color:#8d949e;border-color:#343941}.staff-theme .staff-logout:hover{background:#24272d}
