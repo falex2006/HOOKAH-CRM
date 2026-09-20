@@ -93,6 +93,16 @@ document.querySelector('#transfer-order')?.addEventListener('click',()=>{
   if(!currentOrder?.id){notice('Сначала откройте заказ');return;}
   requestStaffAction({title:'Передать заказ',description:'Выберите стол, на который нужно перенести заказ.',submitLabel:'Передать заказ',fields:[{name:'table',label:'Номер стола',type:'number',min:1,max:99,step:1,placeholder:'1',required:true}]}).then((choice)=>{if(!choice)return;const table=Number(choice.table);if(!Number.isInteger(table)||table<1){notice('Укажите корректный номер стола');return;}const tableId=normalizeTableId(table);apiJson(`/api/orders/${currentOrder.id}/transfer`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({tableId})}).then((saved)=>{Object.assign(currentOrder,saved,{tableId});const active=openOrders.find((order)=>order.id===currentOrder.id);if(active)Object.assign(active,saved,{tableId});drawOrder(currentOrder);drawQueue();notice('Заказ передан на новый стол');}).then(()=>refreshFloor()).catch(()=>notice('Не удалось передать заказ'));});
 });
+document.querySelector('#print-receipt')?.addEventListener('click',()=>{
+  if(!currentOrder?.id || !(currentOrder.items||[]).length){notice('Сначала добавьте позиции в заказ');return;}
+  const escapeHtml=(value)=>String(value??'').replace(/[&<>\"]/g,(char)=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[char]));
+  const rows=(currentOrder.items||[]).map((item)=>`<tr><td>${escapeHtml(item.name||'Позиция')}</td><td>${Number(item.quantity||1)}</td><td>${(Number(item.unitPrice||0)*Number(item.quantity||1)).toLocaleString('ru-RU')} ₽</td></tr>`).join('');
+  const total=(currentOrder.items||[]).reduce((sum,item)=>sum+Number(item.unitPrice||0)*Number(item.quantity||1),0);
+  const popup=window.open('','_blank','noopener,noreferrer,width=420,height=640');
+  if(!popup){notice('Разрешите всплывающие окна для печати чека');return;}
+  popup.document.write(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Чек ${escapeHtml(currentOrder.id)}</title><style>body{font:14px Arial,sans-serif;color:#111;padding:20px}h1{font-size:20px;margin:0 0 8px}p{margin:4px 0 14px;color:#555}table{width:100%;border-collapse:collapse}td{padding:7px 0;border-bottom:1px solid #ddd}td:nth-child(2),td:nth-child(3){text-align:right}.total{font-size:18px;font-weight:700;text-align:right;margin-top:18px}</style></head><body><h1>Территория · чек</h1><p>Заказ ${escapeHtml(currentOrder.id)} · ${new Date().toLocaleString('ru-RU')}</p><table>${rows}</table><div class="total">Итого: ${total.toLocaleString('ru-RU')} ₽</div><script>window.onload=()=>window.print();<\/script></body></html>`);
+  popup.document.close();
+});
 document.querySelector('#split-order')?.addEventListener('click',()=>{
   if(!currentOrder?.id || !(currentOrder.items||[]).length){notice('В заказе нет позиций для разделения');return;}
   if(['closed','cancelled'].includes(currentOrder.status)){notice('Закрытый заказ нельзя разделить');return;}
