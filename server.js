@@ -305,6 +305,8 @@ async function api(req, res) {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req);
     if (!input.name || !rolePermissions[input.role] || input.role === 'owner') return json(res, 400, { error: 'name_and_valid_role_required' });
+    if (input.login && !input.password) return json(res, 400, { error: 'password_required' });
+    if (input.password !== undefined && String(input.password).length < 6) return json(res, 400, { error: 'password_too_short' });
     if (!canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
     if (!validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
     if (input.workNotes !== undefined && String(input.workNotes).length > 4000) return json(res, 400, { error: 'work_notes_too_long' });
@@ -402,6 +404,7 @@ if (staffProfile && req.method === 'PATCH') {
     } catch (_) {}
   }
   if (!before) return json(res, 404, { error: 'staff_not_found' });
+  if (before.role === 'owner' && req.user?.role !== 'owner') return json(res, 403, { error: 'owner_staff_protected' });
   const auditBefore = { ...before, phoneNumbers: Array.isArray(before.phoneNumbers) ? before.phoneNumbers.map((phone) => ({ ...phone })) : [] };
   if (!canManageSensitive) delete auditBefore.passportData;
   if (input.name !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
