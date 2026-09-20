@@ -544,7 +544,7 @@ if (staffProfile && req.method === 'PATCH') {
     } else if (reservations.some((entry) => entry.status === 'confirmed' && entry.tableId === input.tableId && entry.date === input.date && entry.time === input.time)) {
       return json(res, 409, { error: 'table_already_reserved' });
     }
-    if (repositories?.pool) { try { const reservation = await repositories.reservations.create({ ...input, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
+    if (repositories?.pool) { try { const reservation = await repositories.reservations.create({ ...input, tableName, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
     const reservation = { id: `res-${Date.now()}`, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName, guests: Number(input.guests || 1), status: 'confirmed', deposit, notes: input.notes || '' };
     reservations.push(reservation);
     table.status = 'reserved';
@@ -558,7 +558,7 @@ if (staffProfile && req.method === 'PATCH') {
       try {
         const { rows } = await repositories.pool.query(`UPDATE reservations SET status='cancelled' WHERE id=$1 AND venue_id=$2 AND status='confirmed' RETURNING id,table_id AS "tableId",starts_at AS "startsAt",status`, [reservationId, venueDbId]);
         if (!rows[0]) return json(res, 404, { error: 'reservation_not_found_or_cancelled' });
-        await repositories.pool.query(`UPDATE tables SET status='free' WHERE id=$1 AND venue_id=$2 AND NOT EXISTS (SELECT 1 FROM reservations WHERE table_id=$1 AND venue_id=$2 AND status='confirmed' AND starts_at::date=$3::date)`, [rows[0].tableId, venueDbId, rows[0].startsAt]);
+        await repositories.pool.query(`UPDATE tables SET status=CASE WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' ELSE 'free' END WHERE id=$1 AND venue_id=$2 AND status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM reservations WHERE table_id=$1 AND venue_id=$2 AND status='confirmed' AND starts_at::date=$3::date)`, [rows[0].tableId, venueDbId, rows[0].startsAt]);
         recordAudit(req, 'reservation.cancelled', 'reservation', rows[0].id, { status: 'confirmed' }, rows[0]);
         return json(res, 200, rows[0]);
       } catch (error) { return json(res, 409, { error: 'reservation_cancel_failed', detail: error.message }); }
@@ -567,7 +567,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!reservation) return json(res, 404, { error: 'reservation_not_found' });
     reservation.status = 'cancelled';
     const stillReserved = reservations.some((entry) => entry.id !== reservation.id && entry.status === 'confirmed' && entry.tableId === reservation.tableId && entry.date === reservation.date);
-    if (!stillReserved) { const table = tables.find((entry) => entry.id === reservation.tableId); if (table) table.status = 'free'; }
+    if (!stillReserved) { const activeOrder = orders.some((order) => order.tableId === reservation.tableId && ['open', 'in_progress', 'ready'].includes(order.status)); setMemoryTableStatus(reservation.tableId, activeOrder ? 'occupied' : 'free'); }
     recordAudit(req, 'reservation.cancelled', 'reservation', reservation.id, { status: 'confirmed' }, reservation);
     return json(res, 200, reservation);
   }
