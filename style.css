@@ -321,3 +321,5 @@
 .velora-theme .kpi[data-kpi-route]:hover,.velora-theme .kpi[data-kpi-target]:hover{border-color:#ff7180;transform:translateY(-3px)}
 .velora-theme .kpi[data-kpi-route]:focus-visible,.velora-theme .kpi[data-kpi-target]:focus-visible{outline:0;box-shadow:0 0 0 3px #ff63724d,0 22px 46px #00000046}
 .velora-theme .kpi[data-kpi-route] small:after,.velora-theme .kpi[data-kpi-target] small:after{content:'  ↗';color:#ff7a86;font-size:12px}
+
+.staff-card-dialog{width:min(520px,calc(100vw - 28px));max-height:88vh}.staff-card-dialog .stack-form{gap:12px}.staff-card-dialog .panel-head{margin-bottom:4px}.staff-card-dialog .action-footer{display:flex;justify-content:flex-end;gap:10px;margin-top:4px}.staff-card-dialog .secondary{border:1px solid #3b424d;border-radius:9px;padding:10px 16px;background:#202329;color:#c4cbd3}.staff-card-dialog .icon-button{border:0;background:transparent;color:#aeb6c0;font-size:26px;cursor:pointer}.staff-card-dialog .icon-button:hover{color:#fff}
