@@ -156,6 +156,11 @@
   .velora-theme .content-grid{grid-template-columns:1fr;gap:14px}
 }
 
+@media (max-width:1300px){
+  .velora-theme .page-title{flex-wrap:wrap;gap:16px}
+  .velora-theme .page-title>.button{margin-left:auto}
+}
+
 /* Keep reservation filters and action groups inside their panel at medium widths. */
 .velora-theme .panel-head{min-width:0}
 .velora-theme .panel-head>*{min-width:0;max-width:100%}
