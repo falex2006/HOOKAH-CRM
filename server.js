@@ -24,6 +24,7 @@ const integrations = {
   payments: { enabled: false, status: 'planned' },
   telegram: { enabled: false, status: 'planned' }
 };
+const networkVenues = [{ id: venue.id, name: venue.name, format: venue.format, city: venue.city, address: venue.address, phone: venue.phone, timezone: venue.timezone, status: 'active', isCurrent: true }];
 const products = [
   { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, station: 'hookah', aliases: ['кальян', 'darkside', 'blueberry'], imageUrl: null },
   { id: 'lemonade-maracuya', name: 'Лимонад Маракуйя', price: 300, station: 'bar', aliases: ['лимонад', 'маракуйя', 'maracuya'], imageUrl: null },
@@ -257,6 +258,18 @@ async function api(req, res) {
     recordAudit(req, 'venue.updated', 'venue', venue.id, before, venue); return json(res, 200, venue);
   }
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
+  if (pathname === '/api/network/venues' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,city,address,phone,timezone FROM venues ORDER BY name'); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: row.id === venueDbId })) }); } catch (_) {} }
+    return json(res, 200, { items: networkVenues });
+  }
+  if (pathname === '/api/network/venues' && req.method === 'POST') {
+    if (denyUnless(req, res, 'settings')) return;
+    const input = await body(req); const name = String(input.name || '').trim(); const city = String(input.city || '').trim(); const address = String(input.address || '').trim();
+    if (!name || name.length > 120 || !city || city.length > 80 || !address || address.length > 240) return json(res, 400, { error: 'venue_name_city_address_required' });
+    const item = { id: `venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, format: String(input.format || 'кальян-бар').trim().slice(0, 80), city, address, phone: String(input.phone || '').trim().slice(0, 32), timezone: String(input.timezone || venue.timezone).trim().slice(0, 64), status: 'active', isCurrent: false };
+    networkVenues.push(item); recordAudit(req, 'venue.created', 'venue', item.id, null, item); return json(res, 201, item);
+  }
   if (pathname === '/api/finance/categories' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
     const query = String(url.searchParams.get('q') || '').trim().toLocaleLowerCase('ru-RU');
@@ -1008,7 +1021,7 @@ if (staffProfile && req.method === 'PATCH') {
 function staticFile(req, res) {
   let requestPath = new URL(req.url, 'http://localhost').pathname;
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
-  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/finance/report': '/finance-report.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/delivery': '/delivery.html' };
+  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/finance/report': '/finance-report.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/network': '/network.html', '/delivery': '/delivery.html' };
   requestPath = aliases[routePath] || requestPath;
   const file = path.resolve(root, `.${requestPath}`);
   if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
