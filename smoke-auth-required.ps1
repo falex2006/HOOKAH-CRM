@@ -42,12 +42,23 @@ $avatarData = 'data:image/png;base64,AA=='
 $avatar = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff/$($staff.id)/avatar" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ imageData = $avatarData } | ConvertTo-Json)
 if (-not $avatar.avatarUrl) { throw 'staff avatar update failed' }
 $developer = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance developer'; login = $DeveloperLogin; password = 'acceptance-pass'; role = 'developer' } | ConvertTo-Json)
+$seniorBarLogin = "acceptance_senior_bar_$(Get-Date -Format 'HHmmss')"
+$seniorBar = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance senior bartender'; login = $seniorBarLogin; password = 'acceptance-pass'; role = 'senior_bartender' } | ConvertTo-Json)
+$seniorHookahLogin = "acceptance_senior_hookah_$(Get-Date -Format 'HHmmss')"
+$seniorHookah = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Acceptance senior hookah'; login = $seniorHookahLogin; password = 'acceptance-pass'; role = 'senior_hookah_master' } | ConvertTo-Json)
 $staffAuth = Login $StaffLogin 'acceptance-pass'
 $developerAuth = Login $DeveloperLogin 'acceptance-pass'
+$seniorBarAuth = Login $seniorBarLogin 'acceptance-pass'
+$seniorHookahAuth = Login $seniorHookahLogin 'acceptance-pass'
 $staffHeaders = HeadersFor $staffAuth
 $developerHeaders = HeadersFor $developerAuth
+$seniorBarHeaders = HeadersFor $seniorBarAuth
+$seniorHookahHeaders = HeadersFor $seniorHookahAuth
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $staffHeaders }) -ne 403) { throw 'bartender finance access should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $staffHeaders }) -ne 403) { throw 'bartender inventory access should be denied' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $seniorBarHeaders }) -ne 403) { throw 'senior bartender finance access should be denied' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $seniorHookahHeaders }) -ne 403) { throw 'senior hookah inventory access should be denied' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/floor" -Headers $seniorBarHeaders }) -ne 200 -or (StatusFor { Invoke-RestMethod "$BaseUrl/api/floor" -Headers $seniorHookahHeaders }) -ne 200) { throw 'senior floor access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $developerHeaders }) -ne 200) { throw 'developer finance read should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $developerHeaders }) -ne 200) { throw 'developer inventory read should be allowed' }
 $developerProductsStatus = StatusFor { Invoke-RestMethod "$BaseUrl/api/products" -Headers $developerHeaders }
