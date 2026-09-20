@@ -40,8 +40,12 @@ if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $staf
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $staffHeaders }) -ne 403) { throw 'bartender inventory access should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $developerHeaders }) -ne 200) { throw 'developer finance read should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $developerHeaders }) -ne 200) { throw 'developer inventory read should be allowed' }
+$developerProductsStatus = StatusFor { Invoke-RestMethod "$BaseUrl/api/products" -Headers $developerHeaders }
+if ($developerProductsStatus -ne 200) { throw 'developer product catalog read should be allowed' }
 $developerMovementStatus = StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/inventory/movements" -Headers $developerHeaders -ContentType 'application/json' -Body (@{ itemId = 'ing-redbull'; delta = 1; reason = 'developer read-only check' } | ConvertTo-Json) }
 if ($developerMovementStatus -ne 403) { throw 'developer inventory write should be denied' }
+$developerProductWriteStatus = StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -Headers $developerHeaders -ContentType 'application/json' -Body (@{ name = 'Developer write check'; category = 'Бар'; price = 1 } | ConvertTo-Json) }
+if ($developerProductWriteStatus -ne 403) { throw 'developer product write should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/staff" -Headers $developerHeaders }) -ne 200) { throw 'developer staff access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/reservations" -Headers $developerHeaders }) -ne 200) { throw 'developer reservations access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/floor" -Headers $developerHeaders }) -ne 200) { throw 'developer floor access should be allowed' }
