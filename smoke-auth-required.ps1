@@ -26,4 +26,6 @@ if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $staf
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $staffHeaders }) -ne 403) { throw 'bartender inventory access should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $developerHeaders }) -ne 200) { throw 'developer finance read should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $developerHeaders }) -ne 200) { throw 'developer inventory read should be allowed' }
+Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/logout" -Headers $staffHeaders | Out-Null
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/session" -Headers $staffHeaders }) -ne 401) { throw 'logout should revoke the staff session' }
 Write-Output 'AUTH_REQUIRED role test: PASS'
