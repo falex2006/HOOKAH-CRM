@@ -268,7 +268,7 @@ async function api(req, res) {
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
   if (pathname === '/api/network/venues' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,city,address,phone,timezone FROM venues ORDER BY name'); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: row.id === venueDbId })) }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,format,city,address,phone,timezone FROM venues WHERE is_active=true ORDER BY name'); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: row.id === venueDbId })) }); } catch (_) {} }
     return json(res, 200, { items: networkVenues.filter((item) => item.status !== 'archived').map((item) => ({ ...item, isCurrent: item.id === currentVenueId })) });
   }
   if (pathname === '/api/network/venues' && req.method === 'POST') {
@@ -276,11 +276,24 @@ async function api(req, res) {
     const input = await body(req); const name = String(input.name || '').trim(); const city = String(input.city || '').trim(); const address = String(input.address || '').trim();
     if (!name || name.length > 120 || !city || city.length > 80 || !address || address.length > 240) return json(res, 400, { error: 'venue_name_city_address_required' });
     const item = { id: `venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, format: String(input.format || 'кальян-бар').trim().slice(0, 80), city, address, phone: String(input.phone || '').trim().slice(0, 32), timezone: String(input.timezone || venue.timezone).trim().slice(0, 64), status: 'active', isCurrent: false };
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query('INSERT INTO venues (name,format,city,address,phone,timezone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,name,format,city,address,phone,timezone', [name, item.format, city, address, item.phone || null, item.timezone]);
+        const created = { ...rows[0], status: 'active', isCurrent: false }; recordAudit(req, 'venue.created', 'venue', created.id, null, created); return json(res, 201, created);
+      } catch (error) { return json(res, 409, { error: 'venue_create_failed', detail: error.message }); }
+    }
     networkVenues.push(item); recordAudit(req, 'venue.created', 'venue', item.id, null, item); return json(res, 201, item);
   }
   const networkVenuePath = pathname.match(/^\/api\/network\/venues\/([^/]+)$/);
   if (networkVenuePath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'settings')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenuePath[1])) {
+      const input = await body(req);
+      const fields = []; const values = [networkVenuePath[1]];
+      for (const [column, key, max] of [['name', 'name', 120], ['format', 'format', 80], ['city', 'city', 80], ['address', 'address', 240], ['phone', 'phone', 32], ['timezone', 'timezone', 64]]) if (input[key] !== undefined) { fields.push(`${column}=$${values.length + 1}`); values.push(String(input[key] || '').trim().slice(0, max)); }
+      if (!fields.length) return json(res, 400, { error: 'venue_name_city_address_required' });
+      try { const { rows } = await repositories.pool.query(`UPDATE venues SET ${fields.join(',')} WHERE id=$1 AND is_active=true RETURNING id,name,format,city,address,phone,timezone`, values); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const updated = { ...rows[0], status: 'active', isCurrent: rows[0].id === venueDbId }; recordAudit(req, 'venue.updated', 'venue', updated.id, null, updated); return json(res, 200, updated); } catch (error) { return json(res, 409, { error: 'venue_update_failed', detail: error.message }); }
+    }
     const item = networkVenues.find((entry) => entry.id === networkVenuePath[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     const input = await body(req); const before = { ...item };
     for (const [key, max] of [['name', 120], ['city', 80], ['address', 240], ['format', 80], ['phone', 32], ['timezone', 64]]) if (input[key] !== undefined) item[key] = String(input[key] || '').trim().slice(0, max);
@@ -290,6 +303,10 @@ async function api(req, res) {
   }
   if (networkVenuePath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'settings')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenuePath[1])) {
+      if (networkVenuePath[1] === venueDbId) return json(res, 409, { error: 'current_venue_cannot_be_archived' });
+      try { const { rows } = await repositories.pool.query('UPDATE venues SET is_active=false WHERE id=$1 AND is_active=true RETURNING id,name,format,city,address,phone,timezone', [networkVenuePath[1]]); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const archived = { ...rows[0], status: 'archived', isCurrent: false }; recordAudit(req, 'venue.archived', 'venue', archived.id, { status: 'active' }, archived); return json(res, 200, archived); } catch (error) { return json(res, 409, { error: 'venue_archive_failed', detail: error.message }); }
+    }
     const item = networkVenues.find((entry) => entry.id === networkVenuePath[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     if (item.id === currentVenueId) return json(res, 409, { error: 'current_venue_cannot_be_archived' });
     item.status = 'archived'; recordAudit(req, 'venue.archived', 'venue', item.id, { status: 'active' }, { status: 'archived' }); return json(res, 200, item);
@@ -297,6 +314,9 @@ async function api(req, res) {
   const networkVenueSelect = pathname.match(/^\/api\/network\/venues\/([^/]+)\/select$/);
   if (networkVenueSelect && req.method === 'POST') {
     if (denyUnless(req, res, 'settings')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenueSelect[1])) {
+      try { const { rows } = await repositories.pool.query('SELECT id,name,format,city,address,phone,timezone FROM venues WHERE id=$1 AND is_active=true', [networkVenueSelect[1]]); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const selected = { ...rows[0], status: 'active', isCurrent: true }; recordAudit(req, 'venue.selected', 'venue', selected.id, { currentVenueId: venueDbId }, { currentVenueId: selected.id }); return json(res, 200, selected); } catch (error) { return json(res, 409, { error: 'venue_select_failed', detail: error.message }); }
+    }
     const item = networkVenues.find((entry) => entry.id === networkVenueSelect[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     const before = networkVenues.find((entry) => entry.id === currentVenueId); currentVenueId = item.id; Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, timezone: item.timezone, format: item.format });
     recordAudit(req, 'venue.selected', 'venue', item.id, { currentVenueId: before?.id || null }, { currentVenueId: item.id }); return json(res, 200, { ...item, isCurrent: true });
@@ -367,12 +387,14 @@ async function api(req, res) {
   }
   if (pathname === '/api/product-categories' && req.method === 'GET') {
     if (denyUnless(req, res, 'inventory_read')) return;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,is_active AS active FROM product_categories WHERE venue_id=$1 AND is_active=true ORDER BY name', [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
     return json(res, 200, { items: productCategories.filter((item) => item.active) });
   }
   if (pathname === '/api/product-categories' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO product_categories (venue_id,name) VALUES ($1,$2) RETURNING id,name,is_active AS active', [venueDbId, name]); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { return json(res, error.code === '23505' ? 409 : 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); } }
     if (productCategories.some((item) => item.active && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
     const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, active: true };
     productCategories.push(category); recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category);
@@ -380,6 +402,7 @@ async function api(req, res) {
   const productCategoryPath = pathname.match(/^\/api\/product-categories\/([^/]+)$/);
   if (productCategoryPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { const input = await body(req); const name = String(input.name || '').trim(); if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' }); try { const { rows } = await repositories.pool.query('UPDATE product_categories SET name=$1 WHERE id=$2 AND venue_id=$3 AND is_active=true RETURNING id,name,is_active AS active', [name, productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.updated', 'product_category', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_update_failed', detail: error.message }); } }
     const category = productCategories.find((item) => item.id === productCategoryPath[1]); if (!category) return json(res, 404, { error: 'product_category_not_found' });
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
@@ -388,6 +411,7 @@ async function api(req, res) {
   }
   if (productCategoryPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { try { const { rows } = await repositories.pool.query('UPDATE product_categories SET is_active=false WHERE id=$1 AND venue_id=$2 AND is_active=true RETURNING id,name,is_active AS active', [productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.deactivated', 'product_category', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'product_category_delete_failed', detail: error.message }); } }
     const category = productCategories.find((item) => item.id === productCategoryPath[1]); if (!category) return json(res, 404, { error: 'product_category_not_found' });
     const before = { ...category }; category.active = false; recordAudit(req, 'product_category.deactivated', 'product_category', category.id, before, category); return json(res, 200, category);
   }

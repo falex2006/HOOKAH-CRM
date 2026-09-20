@@ -10,6 +10,8 @@ CREATE TYPE stock_direction AS ENUM ('in','out','transfer','adjustment','waste')
 CREATE TABLE venues (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
+  format text NOT NULL DEFAULT 'кальян-бар',
+  city text,
   phone text,
   address text,
   logo_url text,
@@ -20,6 +22,8 @@ CREATE TABLE venues (
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS phone text;
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS address text;
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS logo_url text;
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'кальян-бар';
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS city text;
 
 CREATE TABLE users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -104,6 +108,17 @@ CREATE TABLE products (
   search_aliases text[] NOT NULL DEFAULT '{}'
 );
 ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url text;
+
+CREATE TABLE IF NOT EXISTS product_categories (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id, name)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_product_categories_active_name
+  ON product_categories (venue_id, lower(name)) WHERE is_active;
 
 CREATE TABLE ingredients (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
