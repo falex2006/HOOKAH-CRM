@@ -12,6 +12,7 @@ CREATE TABLE venues (
   name text NOT NULL,
   format text NOT NULL DEFAULT 'кальян-бар',
   city text,
+  is_current boolean NOT NULL DEFAULT false,
   phone text,
   address text,
   logo_url text,
@@ -24,6 +25,7 @@ ALTER TABLE venues ADD COLUMN IF NOT EXISTS address text;
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS logo_url text;
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'кальян-бар';
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS city text;
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS is_current boolean NOT NULL DEFAULT false;
 
 CREATE TABLE users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

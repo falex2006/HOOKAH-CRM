@@ -108,7 +108,7 @@ $movement = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/inventory/movement
 if ($movement.delta -ne 1) { throw 'inventory movement failed' }
 # Always schedule smoke reservations for tomorrow so the test remains valid
 # when it is run late in the evening or around a timezone boundary.
-$smokeDate = (Get-Date).Date.AddDays(1).ToString('yyyy-MM-dd')
+$smokeDate = (Get-Date).Date.AddDays(2 + (Get-Random -Minimum 0 -Maximum 365)).ToString('yyyy-MM-dd')
 $regularTime = "22:$((Get-Random -Minimum 10 -Maximum 59).ToString('00'))"
 $regularReservationBody = @{ guestName = 'Smoke test'; date = $smokeDate; time = $regularTime; tableId = 'table-12'; guests = 2 } | ConvertTo-Json
 $reservation = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/reservations" -ContentType 'application/json' -Body $regularReservationBody

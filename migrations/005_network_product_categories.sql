@@ -1,6 +1,7 @@
 -- Persist network venue metadata and product categories for existing databases.
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'кальян-бар';
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS city text;
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS is_current boolean NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS product_categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
