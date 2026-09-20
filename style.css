@@ -166,6 +166,8 @@
   .velora-theme .staff-form input,.velora-theme .staff-form select{min-width:0;width:100%;box-sizing:border-box}
   .velora-theme .staff-form-contact-row{grid-template-columns:1fr}
   .velora-theme .staff-form-contact-row>*{min-width:0}
+  .velora-theme .staff-phone-list__header{min-width:0;flex-wrap:wrap}
+  .velora-theme .staff-phone-list__add{max-width:100%;white-space:normal;font-size:11px;padding:6px 8px}
 }
 
 /* Keep reservation filters and action groups inside their panel at medium widths. */
