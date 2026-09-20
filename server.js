@@ -72,7 +72,7 @@ const verifyPassword = async (password, stored) => {
 
 const rolePermissions = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'settings'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff_view'],
   senior_bartender: ['floor', 'orders', 'reservations', 'bar_tasks'],
   senior_hookah_master: ['floor', 'orders', 'reservations', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
@@ -232,7 +232,7 @@ async function api(req, res) {
     return json(res, 200, { user, permissions: rolePermissions[user.role] || [] });
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
-    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
     return json(res, 200, { items: staff.map(({ passwordHash, ...person }) => person) });
   }
