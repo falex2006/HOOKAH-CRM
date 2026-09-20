@@ -525,15 +525,17 @@ if (staffProfile && req.method === 'PATCH') {
     let table = null;
     if (repositories?.pool) {
       try {
-        const { rows } = await repositories.pool.query('SELECT name,min_order_total AS "minimumOrderTotal" FROM tables WHERE id=$1 AND venue_id=$2', [input.tableId, venueDbId]);
+        const { rows } = await repositories.pool.query('SELECT name,status,min_order_total AS "minimumOrderTotal" FROM tables WHERE id=$1 AND venue_id=$2', [input.tableId, venueDbId]);
         if (!rows[0]) return json(res, 400, { error: 'table_not_found' });
         tableName = rows[0].name;
+        if (rows[0].status === 'blocked') return json(res, 409, { error: 'table_unavailable' });
         tableMinimum = Number(rows[0].minimumOrderTotal || 0);
       } catch (error) { return json(res, 409, { error: 'reservation_table_lookup_failed', detail: error.message }); }
     } else {
       table = floor.flatMap((zone) => zone.tables).find((entry) => entry.id === input.tableId);
       if (!table) return json(res, 400, { error: 'table_not_found' });
       tableName = table.name;
+      if (table.status === 'blocked') return json(res, 409, { error: 'table_unavailable' });
       tableMinimum = Number(table.minimumOrderTotal || 0);
     }
     const deposit = Number(input.deposit || 0);
