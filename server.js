@@ -100,7 +100,9 @@ const staffPassportCipher = {
 };
 
 const json = (res, status, data) => {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'same-origin', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' });
+  const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+  if (process.env.CORS_ORIGIN) headers['Access-Control-Allow-Origin'] = process.env.CORS_ORIGIN;
+  res.writeHead(status, headers);
   res.end(JSON.stringify(data));
 };
 const body = (req) => new Promise((resolve, reject) => {
@@ -136,8 +138,8 @@ const sessionFromRequest = async (req) => {
   const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
   if (!token) return null;
   const memorySession = sessions.get(token);
-  if (memorySession) return memorySession;
-  if (sessionRepository) { try { const persisted = await sessionRepository.get(hashToken(token)); if (persisted) return { user: { id: persisted.userId, name: persisted.name, role: persisted.role } }; } catch (_) {} }
+  if (memorySession) { if (Date.now() - memorySession.createdAt > 28_800_000) { sessions.delete(token); return null; } return memorySession; }
+  if (sessionRepository) { try { const persisted = await sessionRepository.get(hashToken(token)); if (persisted) return { user: { id: persisted.userId, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [] } }; } catch (_) {} }
   return null;
 };
 const recordAudit = (req, action, entityType, entityId, beforeData, afterData) => {
@@ -153,7 +155,7 @@ const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permiss
 async function api(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
-  if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': process.env.CORS_ORIGIN || 'same-origin', 'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' }); return res.end(); }
+  if (req.method === 'OPTIONS') { const headers = { 'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' }; if (process.env.CORS_ORIGIN) headers['Access-Control-Allow-Origin'] = process.env.CORS_ORIGIN; res.writeHead(204, headers); return res.end(); }
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
     const loginKey = String(input.username || '').trim().toLowerCase() || 'anonymous';
@@ -315,6 +317,7 @@ async function api(req, res) {
   const staffDelete = pathname.match(/^\/api\/staff\/([^/]+)$/);
   if (staffDelete && req.method === 'DELETE') {
     if (denyUnless(req, res, 'staff')) return;
+    if (String(req.user?.id || '') === staffDelete[1]) return json(res, 409, { error: 'self_deactivation_forbidden' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffDelete[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET is_active=false WHERE id=$1 AND venue_id=$2 AND role <> 'owner' RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [staffDelete[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found_or_owner' }); recordAudit(req, 'staff.deactivated', 'staff', rows[0].id, { active: true }, { active: false }); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_delete_failed', detail: error.message }); } }
     const person = staff.find((entry) => entry.id === staffDelete[1]);
     if (!person) return json(res, 404, { error: 'staff_not_found' });
@@ -373,7 +376,8 @@ if (staffProfile && req.method === 'PATCH') {
   const isSelf = String(req.user?.id || '') === personId;
   if (!canManage && !isSelf) return json(res, 403, { error: 'forbidden', permission: 'staff' });
   const input = await body(req);
-  let before = staff.find((entry) => entry.id === personId) || null;
+  const memoryPerson = staff.find((entry) => entry.id === personId);
+  let before = memoryPerson ? { ...memoryPerson, phoneNumbers: Array.isArray(memoryPerson.phoneNumbers) ? memoryPerson.phoneNumbers.map((phone) => ({ ...phone })) : [] } : null;
   if (!before && repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
       const { rows } = await repositories.pool.query('SELECT id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
@@ -381,6 +385,12 @@ if (staffProfile && req.method === 'PATCH') {
     } catch (_) {}
   }
   if (!before) return json(res, 404, { error: 'staff_not_found' });
+  const auditBefore = { ...before, phoneNumbers: Array.isArray(before.phoneNumbers) ? before.phoneNumbers.map((phone) => ({ ...phone })) : [] };
+  if (!canManageSensitive) delete auditBefore.passportData;
+  if (input.name !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
+  if (input.role !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
+  if (input.name !== undefined && (!String(input.name).trim() || String(input.name).trim().length > 120)) return json(res, 400, { error: 'invalid_staff_name' });
+  if (input.role !== undefined && (!rolePermissions[input.role] || input.role === 'owner')) return json(res, 400, { error: 'invalid_staff_role' });
   if (input.employmentStartedAt !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.workNotes !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.employmentStartedAt !== undefined && !validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
@@ -392,6 +402,8 @@ if (staffProfile && req.method === 'PATCH') {
     if (input.avatarUrl && !validImageData(input.avatarUrl)) return json(res, 400, { error: 'invalid_avatar' });
     before.avatarUrl = input.avatarUrl || null;
   }
+  if (input.name !== undefined) before.name = String(input.name).trim();
+  if (input.role !== undefined) before.role = input.role;
   if (input.telegram !== undefined) before.telegram = String(input.telegram || '').trim();
   if (input.employmentStartedAt !== undefined) before.employmentStartedAt = input.employmentStartedAt || null;
   if (input.workNotes !== undefined) before.workNotes = String(input.workNotes || '').slice(0, 4000);
@@ -407,14 +419,15 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.passportData !== undefined && repositories?.pool && canManageSensitive && !encryptedPassport) return json(res, 503, { error: 'staff_passport_key_required' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      try { await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,telegram_url=CASE WHEN $3 THEN $4 ELSE telegram_url END,phone_numbers=CASE WHEN $5 THEN $6::jsonb ELSE phone_numbers END,employment_started_at=CASE WHEN $7 THEN $8::date ELSE employment_started_at END,work_notes=CASE WHEN $9 THEN $10 ELSE work_notes END,passport_data_encrypted=COALESCE($11,passport_data_encrypted),passport_data_iv=COALESCE($12,passport_data_iv),passport_data_tag=COALESCE($13,passport_data_tag) WHERE id=$14 AND venue_id=$15', [input.avatarUrl !== undefined, input.avatarUrl || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', input.employmentStartedAt !== undefined, input.employmentStartedAt || null, input.workNotes !== undefined, input.workNotes !== undefined ? String(input.workNotes || '').slice(0, 4000) : null, encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, personId, venueDbId]); } catch (_) {
-        await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,telegram_url=CASE WHEN $3 THEN $4 ELSE telegram_url END,phone_numbers=CASE WHEN $5 THEN $6::jsonb ELSE phone_numbers END,passport_data_encrypted=COALESCE($7,passport_data_encrypted),passport_data_iv=COALESCE($8,passport_data_iv),passport_data_tag=COALESCE($9,passport_data_tag) WHERE id=$10 AND venue_id=$11', [input.avatarUrl !== undefined, input.avatarUrl || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, personId, venueDbId]);
+      try { await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,telegram_url=CASE WHEN $3 THEN $4 ELSE telegram_url END,phone_numbers=CASE WHEN $5 THEN $6::jsonb ELSE phone_numbers END,employment_started_at=CASE WHEN $7 THEN $8::date ELSE employment_started_at END,work_notes=CASE WHEN $9 THEN $10 ELSE work_notes END,passport_data_encrypted=COALESCE($11,passport_data_encrypted),passport_data_iv=COALESCE($12,passport_data_iv),passport_data_tag=COALESCE($13,passport_data_tag),full_name=CASE WHEN $14 THEN $15 ELSE full_name END,role=CASE WHEN $16 THEN $17 ELSE role END WHERE id=$18 AND venue_id=$19', [input.avatarUrl !== undefined, input.avatarUrl || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', input.employmentStartedAt !== undefined, input.employmentStartedAt || null, input.workNotes !== undefined, input.workNotes !== undefined ? String(input.workNotes || '').slice(0, 4000) : null, encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId]); } catch (_) {
+        await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,telegram_url=CASE WHEN $3 THEN $4 ELSE telegram_url END,phone_numbers=CASE WHEN $5 THEN $6::jsonb ELSE phone_numbers END,passport_data_encrypted=COALESCE($7,passport_data_encrypted),passport_data_iv=COALESCE($8,passport_data_iv),passport_data_tag=COALESCE($9,passport_data_tag),full_name=CASE WHEN $10 THEN $11 ELSE full_name END,role=CASE WHEN $12 THEN $13 ELSE role END WHERE id=$14 AND venue_id=$15', [input.avatarUrl !== undefined, input.avatarUrl || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId]);
       }
     } catch (error) { return json(res, 409, { error: 'staff_profile_save_failed', detail: error.message }); }
   }
+  if (memoryPerson) Object.assign(memoryPerson, before);
   const publicPerson = { ...before };
   if (!canManageSensitive) delete publicPerson.passportData;
-  recordAudit(req, 'staff.profile_updated', 'staff', before.id, { fields: Object.keys(input).filter((key) => key !== 'passportData' || canManageSensitive) }, publicPerson);
+  recordAudit(req, 'staff.profile_updated', 'staff', before.id, auditBefore, publicPerson);
   return json(res, 200, publicPerson);
 }if (pathname === '/api/inventory' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'inventory') && !hasPermission(req, 'inventory_read')) return json(res, 403, { error: 'forbidden', permission: 'inventory' });

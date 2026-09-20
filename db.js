@@ -57,7 +57,7 @@ class ReservationRepository {
       const guest = await client.query(`INSERT INTO guests (phone, full_name) VALUES ($1,$2) ON CONFLICT (phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id`, [input.phone || null, input.guestName]);
       const { rows } = await client.query(`INSERT INTO reservations (venue_id, table_id, guest_id, starts_at, guests_count, deposit_required, deposit_paid, status, notes)
         VALUES ($1,$2,$3,$4,$5,$6,$6,'confirmed',$7) RETURNING id`, [input.venueId, input.tableId, guest.rows[0].id, `${input.date}T${input.time}:00`, input.guests || 1, input.deposit || 0, input.notes || null]);
-      await client.query('UPDATE tables SET status=$1 WHERE id=$2', ['reserved', input.tableId]);
+      await client.query('UPDATE tables SET status=$1 WHERE id=$2 AND venue_id=$3', ['reserved', input.tableId, input.venueId]);
       await client.query('COMMIT');
       return { ...input, id: rows[0].id, status: 'confirmed' };
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
@@ -81,7 +81,7 @@ class SessionRepository {
     await this.pool.query('INSERT INTO auth_sessions (user_id,token_hash,expires_at) VALUES ($1,$2,$3)', [input.userId, input.tokenHash, input.expiresAt]);
   }
   async get(tokenHash) {
-    const { rows } = await this.pool.query(`SELECT s.id,u.id AS "userId",u.full_name AS name,u.role
+    const { rows } = await this.pool.query(`SELECT s.id,u.id AS "userId",u.full_name AS name,u.role,u.avatar_url AS "avatarUrl",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers"
       FROM auth_sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=$1 AND s.expires_at>now() AND u.is_active=true`, [tokenHash]);
     return rows[0] || null;

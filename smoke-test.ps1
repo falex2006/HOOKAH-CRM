@@ -12,6 +12,8 @@ if ($createdStaff.login -ne $staffLoginName) { throw 'staff creation failed' }
 if ($createdStaff.employmentStartedAt -ne '2026-01-15' -or $createdStaff.phoneNumbers.Count -ne 1) { throw 'staff employment/contact fields failed' }
 $staffAuth = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType 'application/json' -Body (@{ username = $staffLoginName; password = 'smoke-pass' } | ConvertTo-Json)
 if ($staffAuth.user.role -ne 'bartender') { throw 'created staff login failed' }
+$staffProfile = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($createdStaff.id)/profile" -ContentType 'application/json' -Body (@{ name = 'Smoke senior bartender'; role = 'senior_bartender'; workNotes = 'updated' } | ConvertTo-Json)
+if ($staffProfile.role -ne 'senior_bartender' -or $staffProfile.name -ne 'Smoke senior bartender') { throw 'staff role update failed' }
 $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
 if (-not $shift.id) { throw 'shift open failed' }
 $closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200}'
