@@ -9,7 +9,7 @@ class OrderRepository {
     return rows;
   }
   async create(input) {
-    const { rows } = await this.pool.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum) VALUES ($1,$2,$3,$4,$5) RETURNING *', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0]);
+    const { rows } = await this.pool.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0, input.notes || null]);
     return rows[0];
   }
 }

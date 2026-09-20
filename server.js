@@ -318,15 +318,22 @@ async function api(req, res) {
     if (repositories?.orders) {
       try {
         const openedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001';
-        const persisted = await repositories.orders.create({ venueId: venueDbId, tableId: input.tableId, openedBy, reservationId: input.reservationId, vipMinimum: Number(input.minimumOrderTotal || 0) });
+        const persisted = await repositories.orders.create({ venueId: venueDbId, tableId: input.tableId, openedBy, reservationId: input.reservationId, vipMinimum: Number(input.minimumOrderTotal || 0), notes: input.notes });
         recordAudit(req, 'order.created', 'order', persisted.id, null, persisted);
         return json(res, 201, { ...persisted, items: [] });
       } catch (error) { return json(res, 409, { error: 'order_create_failed', detail: error.message }); }
     }
-    const order = { id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal: Number(input.minimumOrderTotal || 0), items: [], createdAt: new Date().toISOString() };
+    const order = { id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal: Number(input.minimumOrderTotal || 0), notes: input.notes || '', items: [], createdAt: new Date().toISOString() };
     orders.push(order);
     recordAudit(req, 'order.created', 'order', order.id, null, order);
     return json(res, 201, order);
+  }
+  const orderEdit = pathname.match(/^\/api\/orders\/([^/]+)$/);
+  if (orderEdit && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'orders')) return;
+    const input = await body(req); if (input.notes === undefined) return json(res, 400, { error: 'supported_fields_required' });
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderEdit[1])) { try { const { rows } = await repositories.pool.query('UPDATE orders SET notes=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,notes', [String(input.notes).slice(0, 2000), orderEdit[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'order_not_found' }); recordAudit(req, 'order.notes_updated', 'order', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'order_update_failed', detail: error.message }); } }
+    const order = orders.find((entry) => entry.id === orderEdit[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); order.notes = String(input.notes).slice(0, 2000); recordAudit(req, 'order.notes_updated', 'order', order.id, null, { notes: order.notes }); return json(res, 200, order);
   }
   const orderAction = pathname.match(/^\/api\/orders\/([^/]+)\/(status|transfer)$/);
   if (orderAction && req.method === 'POST') {

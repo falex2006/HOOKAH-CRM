@@ -132,6 +132,7 @@ CREATE TABLE orders (
   created_at timestamptz NOT NULL DEFAULT now(),
   closed_at timestamptz
 );
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes text;
 CREATE TABLE order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
