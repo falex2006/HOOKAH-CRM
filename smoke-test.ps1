@@ -6,6 +6,11 @@ $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType '
 $authHeaders = @{ Authorization = "Bearer $($login.token)" }
 $authenticatedSession = Invoke-RestMethod "$BaseUrl/api/session" -Headers $authHeaders
 if ($authenticatedSession.user.role -ne 'admin' -or $authenticatedSession.permissions -notcontains 'finance') { throw 'authenticated role session failed' }
+$staffLoginName = "smoke_$(Get-Date -Format 'HHmmss')"
+$createdStaff = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -ContentType 'application/json' -Body (@{ name = 'Smoke bartender'; login = $staffLoginName; password = 'smoke-pass'; role = 'bartender' } | ConvertTo-Json)
+if ($createdStaff.login -ne $staffLoginName) { throw 'staff creation failed' }
+$staffAuth = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType 'application/json' -Body (@{ username = $staffLoginName; password = 'smoke-pass' } | ConvertTo-Json)
+if ($staffAuth.user.role -ne 'bartender') { throw 'created staff login failed' }
 $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
 if (-not $shift.id) { throw 'shift open failed' }
 $closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200}'

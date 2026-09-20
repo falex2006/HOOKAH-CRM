@@ -39,3 +39,5 @@
 .quantity-control button:hover { border-color: #ff745d; color: #ff9a79; }
 .shift-control { border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; padding: 2px 0; }
 .shift-control:hover { color: #ff9a79; }
+
+.portal-notice{position:fixed;right:24px;bottom:24px;z-index:50;max-width:360px;padding:14px 18px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:#1d2027;color:#f5f7fb;box-shadow:0 16px 40px rgba(0,0,0,.35);font-size:14px}.portal-notice[data-kind=success]{border-color:#35d39a}.portal-notice[data-kind=error]{border-color:#ff687d;color:#ffdce1}
