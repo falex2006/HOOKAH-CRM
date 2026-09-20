@@ -29,6 +29,11 @@ form?.addEventListener('submit', async (event) => {
     if (!response.ok) throw new Error(data.error || 'login_failed');
     finishLogin(data);
   } catch {
+    try {
+      const state = JSON.parse(localStorage.getItem('territory_crm_demo_state') || '{}');
+      const person = (state.staff || []).find((entry) => entry.active !== false && entry.login === username && entry.password === password);
+      if (person) { finishLogin({ token: `demo-static-${person.role}-${Date.now()}`, user: { name: person.name, role: person.role } }); return; }
+    } catch (_) {}
     const user = demoUsers[`${username}:${password}`];
     if (!user) {
       message.textContent = 'Неверный логин или пароль';
