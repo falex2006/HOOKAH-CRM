@@ -75,6 +75,8 @@ $adminNetworkStatus = StatusFor { Invoke-RestMethod "$BaseUrl/api/network/venues
 if ($adminNetworkStatus -ne 403) { throw 'manager network access should be restricted' }
 Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/logout" -Headers $staffHeaders | Out-Null
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/session" -Headers $staffHeaders }) -ne 401) { throw 'logout should revoke the staff session' }
-$blocked = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($staff.id)/status" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ active = $false } | ConvertTo-Json)
+$blocked = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/staff/$($staff.id)" -Headers $ownerHeaders
 if ($blocked.active -ne $false) { throw 'staff blocking failed' }
+$restored = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($staff.id)/status" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ active = $true } | ConvertTo-Json)
+if ($restored.active -ne $true) { throw 'staff restore failed' }
 Write-Output 'AUTH_REQUIRED role test: PASS'
