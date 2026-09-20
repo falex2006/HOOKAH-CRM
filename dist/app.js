@@ -124,6 +124,7 @@ document.querySelector('#queue-list')?.addEventListener('click',(event)=>{const 
 if(!window.__staffProfileLoaded){window.__staffProfileLoaded=true;const script=document.createElement('script');script.src='/staff-profile.js?rev=1';document.head.append(script);}
 if(!window.__staffAuditLoaded){window.__staffAuditLoaded=true;const script=document.createElement('script');script.src='/staff-audit.js?rev=1';document.head.append(script);}
 if(!window.__vipDepositLoaded){window.__vipDepositLoaded=true;const script=document.createElement('script');script.src='/vip-deposit.js?rev=1';document.head.append(script);}
-if(!window.__vipDepositUiLoaded){window.__vipDepositUiLoaded=true;const script=document.createElement('script');script.src='/vip-deposit-ui.js?rev=1';document.head.append(script);}
+if(!window.__vipDepositUiLoaded){window.__vipDepositUiLoaded=true;const script=document.createElement('script');script.src='/vip-deposit-ui.js?rev=2';document.head.append(script);}
 if(!window.__staffTelegramLinkLoaded){window.__staffTelegramLinkLoaded=true;const script=document.createElement('script');script.src='/staff-telegram-link.js?rev=1';document.head.append(script);}
+
 
