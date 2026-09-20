@@ -167,7 +167,9 @@
   .velora-theme .staff-form-contact-row{grid-template-columns:1fr}
   .velora-theme .staff-form-contact-row>*{min-width:0}
   .velora-theme .staff-phone-list__header{min-width:0;flex-wrap:wrap}
-  .velora-theme .staff-phone-list__add{max-width:100%;white-space:normal;font-size:11px;padding:6px 8px}
+  .velora-theme .staff-phone-list,.velora-theme .staff-phone-list__header{width:100%;max-width:100%;box-sizing:border-box;overflow:hidden}
+  .velora-theme .staff-phone-list__header{display:grid;grid-template-columns:minmax(0,1fr) auto}
+  .velora-theme .staff-phone-list__add{min-width:0;max-width:100%;white-space:normal;font-size:11px;padding:6px 8px}
 }
 
 /* Keep reservation filters and action groups inside their panel at medium widths. */
