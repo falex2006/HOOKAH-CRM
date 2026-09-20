@@ -523,7 +523,7 @@ async function api(req, res) {
         await client.query('BEGIN');
         const { rows: sourceRows } = await client.query('SELECT id,venue_id,table_id,reservation_id,opened_by,vip_minimum,status FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderPath[1], venueDbId]);
         const source = sourceRows[0]; if (!source) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
-        const { rows: moved } = await client.query('SELECT id,product_id AS "productId",quantity,unit_price AS "unitPrice",station,status,guest_number AS "guestNumber" FROM order_items WHERE order_id=$1 AND id=ANY($2::uuid[]) FOR UPDATE', [source.id, ids]);
+        const { rows: moved } = await client.query('SELECT oi.id,oi.product_id AS "productId",p.name,oi.quantity,oi.unit_price AS "unitPrice",oi.station,oi.status,oi.guest_number AS "guestNumber" FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id WHERE oi.order_id=$1 AND oi.id=ANY($2::uuid[]) FOR UPDATE', [source.id, ids]);
         if (!moved.length) { await client.query('ROLLBACK'); return json(res, 400, { error: 'item_ids_required' }); }
         const { rows: targetRows } = await client.query('INSERT INTO orders (venue_id,table_id,reservation_id,opened_by,vip_minimum,status) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,venue_id AS "venueId",table_id AS "tableId",reservation_id AS "reservationId",status,vip_minimum AS "minimumOrderTotal",created_at AS "createdAt"', [source.venue_id, source.table_id, source.reservation_id, source.opened_by, source.vip_minimum, 'open']);
         const target = targetRows[0]; await client.query('UPDATE order_items SET order_id=$1 WHERE id=ANY($2::uuid[]) AND order_id=$3', [target.id, ids, source.id]); await client.query('COMMIT');
