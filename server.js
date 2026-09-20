@@ -275,6 +275,31 @@ async function api(req, res) {
   }
   if (pathname === '/api/finance/summary' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance' });
+    if (repositories?.pool) {
+      const date = url.searchParams.get('date') || today();
+      try {
+        const totals = await repositories.pool.query(`
+          SELECT COALESCE(SUM(p.amount), 0) AS revenue, COUNT(DISTINCT o.id)::int AS closed_orders
+          FROM orders o JOIN payments p ON p.order_id=o.id
+          WHERE o.venue_id=$1 AND o.status='closed'
+            AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day')
+            AND p.status IN ('paid','partially_paid')`, [venueDbId, date]);
+        const methods = await repositories.pool.query(`
+          SELECT p.method, COALESCE(SUM(p.amount), 0) AS amount
+          FROM orders o JOIN payments p ON p.order_id=o.id
+          WHERE o.venue_id=$1 AND o.status='closed'
+            AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day')
+            AND p.status IN ('paid','partially_paid')
+          GROUP BY p.method ORDER BY p.method`, [venueDbId, date]);
+        const pending = await repositories.pool.query(`
+          SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id
+          WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]);
+        const row = totals.rows[0] || { revenue: 0, closed_orders: 0 };
+        return json(res, 200, { date, revenue: Number(row.revenue || 0), closedOrders: Number(row.closed_orders || 0), byPaymentMethod: Object.fromEntries(methods.rows.map((entry) => [entry.method, Number(entry.amount || 0)])), pendingDiscounts: Number(pending.rows[0]?.count || 0) });
+      } catch (error) {
+        return json(res, 503, { error: 'database_unavailable', detail: error.message });
+      }
+    }
     const closed = orders.filter((order) => order.status === 'closed');
     const revenue = closed.reduce((sum, order) => sum + Number(order.finalTotal || orderTotal(order)), 0);
     const byType = closed.reduce((result, order) => { const key = order.paymentMethod || 'не указан'; result[key] = (result[key] || 0) + Number(order.finalTotal || orderTotal(order)); return result; }, {});
