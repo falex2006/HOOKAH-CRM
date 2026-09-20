@@ -69,3 +69,17 @@
   .velora-theme .vip-settings input{min-width:0;width:100%;box-sizing:border-box}
 }
 .velora-theme .visual-product{border-color:#363b44;background:#171a1f}.velora-theme .visual-product-image{background:#20262d;color:#8b929d}.velora-theme .visual-product b{color:#e8edf2}.velora-theme .visual-product small{color:#8edfff}.velora-theme .upload-button{background:#202c34;color:#8edfff}.velora-theme .upload-button:hover{background:#293842;border-color:#56616d}
+.staff-phone-list{display:grid;gap:10px;margin-top:12px;padding:12px;border:1px solid var(--line,#2e3440);border-radius:14px;background:rgba(255,255,255,.03)}
+.staff-phone-list__header{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--text,#f5f7fa)}
+.staff-phone-list__add{border:1px solid #26b9ff;border-radius:10px;background:transparent;color:#26b9ff;padding:7px 10px;cursor:pointer}
+.staff-phone-list__rows{display:grid;gap:8px}
+.staff-phone-row{display:grid;grid-template-columns:130px minmax(160px,1fr) auto auto;align-items:center;gap:8px}
+.staff-phone-row input[type="tel"],.staff-phone-row select{min-width:0}
+.staff-phone-row__remove{border:0;background:transparent;color:#ff6e78;font-size:20px;cursor:pointer}
+@media (max-width:640px){.staff-phone-row{grid-template-columns:1fr 1fr}.staff-phone-row label{grid-column:1}.staff-phone-row__remove{grid-column:2;justify-self:end}}
+.staff-profile-avatar,.staff-profile-dialog__avatar{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#24303b center/cover no-repeat;color:#fff;font-weight:700;flex:none}
+.staff-profile-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(4,8,12,.72);backdrop-filter:blur(8px)}
+.staff-profile-dialog{position:relative;width:min(460px,100%);display:grid;gap:16px;padding:24px;border:1px solid rgba(255,255,255,.12);border-radius:22px;background:#171c22;color:#f7f9fb;box-shadow:0 24px 80px rgba(0,0,0,.42)}
+.staff-profile-close{position:absolute;top:12px;right:14px;border:0;background:transparent;color:#b8c1cb;font-size:26px;cursor:pointer}
+.staff-profile-dialog__heading{display:flex;align-items:center;gap:12px}.staff-profile-dialog__heading h2{margin:0}.staff-profile-dialog__heading p{margin:4px 0 0;color:#91a0ad}
+.staff-profile-dialog__avatar{width:58px;height:58px;font-size:23px}.staff-profile-field{display:grid;gap:7px;color:#b9c4ce}.staff-profile-field input{width:100%;box-sizing:border-box}.staff-profile-error{min-height:20px;margin:0;color:#ff8890}.staff-profile-actions{display:flex;justify-content:flex-end;gap:10px}.staff-profile-actions button{border:1px solid #26b9ff;border-radius:12px;padding:10px 16px;background:transparent;color:#26b9ff;cursor:pointer}.staff-profile-actions .staff-profile-save{background:#26b9ff;color:#07131d}

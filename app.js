@@ -116,3 +116,4 @@ document.querySelectorAll('.order-tabs span').forEach((tab)=>tab.addEventListene
 document.querySelectorAll('.chips span').forEach((chip)=>chip.addEventListener('click',()=>{drawQueue(chip.dataset.filter||'all');notice(`Фильтр «${chip.textContent.trim().replace(/\s+\d+$/,'')}» применён`);}));
 document.querySelector('#queue-list')?.addEventListener('click',(event)=>{const card=event.target.closest('[data-queue-table]');if(!card)return;const table=document.querySelector(`.table[data-table="${card.dataset.queueTable}"]`);if(table)table.click();document.querySelector('.workspace')?.scrollIntoView({behavior:'smooth',block:'start'});});
 
+if(!window.__staffProfileLoaded){window.__staffProfileLoaded=true;const script=document.createElement('script');script.src='/staff-profile.js?rev=1';document.head.append(script);}

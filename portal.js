@@ -159,3 +159,4 @@ if (page === 'finance') renderFinance();
 if (page === 'reservations') renderReservations();
 
 
+if(!window.__staffPhoneFieldsLoaded){window.__staffPhoneFieldsLoaded=true;const script=document.createElement('script');script.src='/staff-phone-fields.js?rev=1';document.head.append(script);}
