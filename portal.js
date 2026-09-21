@@ -13,6 +13,26 @@ const portalBasePermissions = {
 const portalPermissions = new Set(portalBasePermissions);
 const portalScopes = Array.isArray(portalUser.permissionScopes) ? [...new Set(portalUser.permissionScopes.filter((scope) => portalPermissionScopes.includes(scope)))] : [];
 if (portalUser.role === 'admin' && portalScopes.length) { const restricted = new Set(Object.values(portalScopedPermissionMap).flat()); [...portalPermissions].filter((permission) => restricted.has(permission)).forEach((permission) => portalPermissions.delete(permission)); portalScopes.flatMap((scope) => portalScopedPermissionMap[scope] || []).forEach((permission) => portalPermissions.add(permission)); }
+const operationsNav = document.querySelectorAll('.portal-nav')[1];
+if (operationsNav) {
+  const sharedLinks = [
+    ['/orders', 'orders', 'Заказы', 'clipboard-list'],
+    ['/clients', 'orders', 'Гости и клиенты', 'users'],
+    ['/delivery', 'delivery', 'Доставка', 'truck-delivery'],
+  ];
+  sharedLinks.forEach(([href, permission, label, iconName]) => {
+    if (operationsNav.querySelector(`a[href="${href}"]`)) return;
+    const link = document.createElement('a'); link.href = href; link.dataset.permission = permission;
+    link.innerHTML = `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${iconName}"></use></svg><span>${label}</span>`;
+    operationsNav.append(link);
+  });
+}
+const administrationNav = document.querySelector('.portal-nav.staff-nav');
+if (administrationNav && !administrationNav.querySelector('a[href="/integrations"]')) {
+  const link = document.createElement('a'); link.href = '/integrations'; link.dataset.permission = 'integrations';
+  link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#plug-connected"></use></svg><span>Интеграции</span>';
+  administrationNav.append(link);
+}
 document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
   if (!portalPermissions.has(link.dataset.permission)) link.hidden = true;
 });
