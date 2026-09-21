@@ -35,3 +35,5 @@
 When a stage is verified, record its evidence here and do not repeat that stage unless a later change invalidates its evidence. Report completion to the owner before starting the next stage.
 
 - **Inventory editor visual QA** — rounded the product editor fields and cancel action to match the dark Velora card language; added consistent focus state and verified 10px radii and dark fills in the local browser.
+
+- **Inventory table alignment QA** — fixed the stock table to a stable column grid, vertically centered cells, and added a compact header layout for narrow screens; verified the row and headings locally at mobile width.

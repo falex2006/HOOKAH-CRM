@@ -326,6 +326,13 @@
 .velora-theme .quick-actions a{padding:14px}
 .velora-theme table th{padding:10px 11px}
 .velora-theme table td{padding:12px 11px}
+.velora-theme .table-wrap table{table-layout:fixed}
+.velora-theme .table-wrap th,.velora-theme .table-wrap td{vertical-align:middle}
+.velora-theme .table-wrap th:nth-child(1),.velora-theme .table-wrap td:nth-child(1){width:28%}
+.velora-theme .table-wrap th:nth-child(2),.velora-theme .table-wrap td:nth-child(2){width:25%}
+.velora-theme .table-wrap th:nth-child(3),.velora-theme .table-wrap td:nth-child(3),.velora-theme .table-wrap th:nth-child(4),.velora-theme .table-wrap td:nth-child(4){width:14%}
+.velora-theme .table-wrap th:nth-child(5),.velora-theme .table-wrap td:nth-child(5){width:19%}
+@media(max-width:720px){.velora-theme .table-wrap th{font-size:10px;letter-spacing:.02em;white-space:normal;line-height:1.15;padding-left:7px;padding-right:7px}.velora-theme .table-wrap td{padding-left:7px;padding-right:7px}.velora-theme .table-wrap th:nth-child(1),.velora-theme .table-wrap td:nth-child(1){width:26%}.velora-theme .table-wrap th:nth-child(2),.velora-theme .table-wrap td:nth-child(2){width:23%}.velora-theme .table-wrap th:nth-child(3),.velora-theme .table-wrap td:nth-child(3){width:15%}.velora-theme .table-wrap th:nth-child(4),.velora-theme .table-wrap td:nth-child(4){width:16%}.velora-theme .table-wrap th:nth-child(5),.velora-theme .table-wrap td:nth-child(5){width:20%}}
 .velora-theme .staff-list{gap:0}
 .staff-theme .tabs{padding-top:20px;padding-bottom:16px}
 .staff-theme .workspace{gap:18px}
