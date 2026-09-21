@@ -409,6 +409,13 @@
 .velora-theme .staff-form .staff-phone-list__add{flex:0 0 auto;white-space:nowrap}
 .velora-theme .staff-form .staff-phone-row{grid-template-columns:minmax(92px,130px) minmax(0,1fr) auto auto;min-width:0}
 .velora-theme .staff-form .staff-phone-row input[type="tel"],.velora-theme .staff-form .staff-phone-row select{width:100%;min-width:0}
+/* Keep every staff control on the same typographic baseline. */
+.velora-theme .staff-form-field{display:grid;align-content:start;gap:8px;min-width:0;color:#a5adb7;font-size:13px;line-height:1.35}
+.velora-theme .staff-form-field input,.velora-theme .staff-form-field select,.velora-theme .staff-form-field textarea{font:500 14px/1.25 var(--font-ui);min-height:48px;padding:0 13px;vertical-align:middle}
+.velora-theme .staff-form-field textarea{min-height:98px;padding:12px 13px;line-height:1.45}
+.velora-theme .staff-form> b{line-height:1.25}
+.velora-theme .staff-form>.button.primary{min-height:56px;display:inline-flex;align-items:center;justify-content:center;line-height:1.2;margin-top:2px}
+.velora-theme .staff-form>small{line-height:1.35}
 .velora-theme .staff-form input,.velora-theme .staff-form select,.velora-theme .staff-form textarea{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
 .velora-theme .staff-form textarea{min-height:78px;resize:vertical;background:#111317;border:1px solid #363b44;border-radius:10px;color:#eef1f3;line-height:1.45}
 .velora-theme .staff-form textarea::placeholder{color:#747c87}
