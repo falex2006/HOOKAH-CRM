@@ -3,12 +3,13 @@
 /** PostgreSQL repositories. They are optional so the local demo can run without a database. */
 class OrderRepository {
   constructor(pool) { this.pool = pool; }
-  async listOpen(venueId) {
+  async listOpen(venueId, includeClosed = false) {
     const { rows } = await this.pool.query(`SELECT o.id, o.table_id AS "tableId", o.status, o.vip_minimum AS "minimumOrderTotal", o.notes, o.created_at AS "createdAt", o.guest_id AS "guestId", g.full_name AS "guestName", g.phone AS "guestPhone",
+      o.closed_at AS "closedAt", COALESCE((SELECT SUM(pay.amount) FROM payments pay WHERE pay.order_id=o.id AND pay.status IN ('paid','partially_paid')),0) AS "finalTotal",
       COALESCE(json_agg(json_build_object('id', oi.id, 'productId', oi.product_id, 'name', p.name, 'quantity', oi.quantity, 'unitPrice', oi.unit_price, 'station', oi.station, 'status', oi.status)) FILTER (WHERE oi.id IS NOT NULL), '[]') AS items
       FROM orders o LEFT JOIN guests g ON g.id=o.guest_id LEFT JOIN order_items oi ON oi.order_id=o.id LEFT JOIN products p ON p.id=oi.product_id
-      WHERE o.venue_id=$1 AND o.status IN ('open','in_progress','ready') GROUP BY o.id ORDER BY o.created_at DESC`, [venueId]);
-    return rows;
+      WHERE o.venue_id=$1 ${includeClosed ? '' : "AND o.status IN ('open','in_progress','ready')"} GROUP BY o.id ORDER BY o.created_at DESC`, [venueId]);
+    return rows.map((row) => ({ ...row, finalTotal: Number(row.finalTotal || 0) }));
   }
   async create(input) {
     const client = await this.pool.connect();

@@ -864,7 +864,7 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/orders' && req.method === 'GET') {
     if (denyUnless(req, res, 'orders')) return;
     if (orderRepository) {
-      try { return json(res, 200, { items: await orderRepository.listOpen(venueDbId) }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
+      try { return json(res, 200, { items: await orderRepository.listOpen(venueDbId, url.searchParams.get('scope') === 'all') }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
     }
     return json(res, 200, { items: orders });
   }
