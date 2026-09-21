@@ -510,6 +510,8 @@
 .staff-theme .table strong{line-height:1.1}
 /* Keep navigation visible while long pages scroll. */
 .velora-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden}
+.velora-theme .portal-sidebar{z-index:10;scrollbar-width:none;overscroll-behavior:contain}
+.velora-theme .portal-sidebar::-webkit-scrollbar{width:0;height:0;display:none}
 /* Match native scrollbars to the dark Velora surface instead of the browser light default. */
 .velora-theme{scrollbar-color:#4a515d #111317;scrollbar-width:thin}
 .velora-theme *{scrollbar-color:#4a515d #111317;scrollbar-width:thin}
