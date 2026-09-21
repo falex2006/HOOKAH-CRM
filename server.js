@@ -49,6 +49,8 @@ const productCategories = [
   { id: 'product-category-kitchen', name: 'Кухня', active: true },
   { id: 'product-category-fridge', name: 'Холодильник', active: true }
 ];
+const importedProductCategoryNames = [...new Set(catalogSeed.products.map((item) => String(item.category || '').trim()).filter(Boolean))];
+for (const name of importedProductCategoryNames) if (!productCategories.some((item) => item.name === name)) productCategories.push({ id: 'seed-category-' + name.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '-').slice(0, 32), name, active: true });
 const floor = [
   { id: 'hall', name: 'Зал', tables: Array.from({ length: 12 }, (_, i) => {
     const n = i + 1;
