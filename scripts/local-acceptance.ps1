@@ -8,6 +8,7 @@ if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only
 $root = Split-Path -Parent $PSScriptRoot
 $checks = @(
   @{ file = 'local-route-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
+  @{ file = 'local-asset-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-tea-catalog.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-guest-order.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-100-orders.ps1'; args = @('-BaseUrl', $BaseUrl) },
@@ -20,4 +21,4 @@ foreach ($check in $checks) {
   & pwsh -NoProfile -File $path @($check.args)
   if ($LASTEXITCODE -ne 0) { throw "Acceptance check failed: $($check.file)" }
 }
-Write-Output 'LOCAL ACCEPTANCE: PASS (routes, catalog, guests, 100 orders, finance and delivery)'
+Write-Output 'LOCAL ACCEPTANCE: PASS (routes/assets, catalog, guests, 100 orders, finance and delivery)'

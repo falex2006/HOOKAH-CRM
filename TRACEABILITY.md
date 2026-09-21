@@ -17,6 +17,7 @@
 | Меню бара и ТТК | `catalog-seed.js`, `output/bar-menu-import-preview.json`, `output/cold-teas-ttk-preview.json`, `output/tea-methods-import-preview.json`, `/api/products`, `/api/recipes` | локально: 75 товаров и 24 технологические карты, включая 18 чайных карт из новых Excel; `scripts/local-tea-catalog.ps1` проверяет импорт |
 | Сквозная нагрузочная проверка | `scripts/local-100-orders.ps1` | локально: 100 заказов создано и закрыто, 300 событий аудита |
 | Единый локальный приёмочный прогон | `scripts/local-acceptance.ps1` | объединяет маршруты, каталог/ТТК, гостей, 100 заказов, финансы, скидки, VIP, доставку и аудит |
+| Статические ассеты страниц | `scripts/local-asset-smoke.ps1` | локально: 13 маршрутов и 19 подключаемых CSS/JS/SVG-ассетов возвращают 200 |
 | Адаптивный интерфейс и иконки | `style.css`, `assets/tabler-icons.svg`, `app.js`, `portal.js` | локальная UI-проверка маршрутов и узкой ширины |
 | PostgreSQL | `schema.sql`, `seed.sql`, `migrations/001_auth_sessions.sql` | `docker compose config` |
 | Production Site | Sites version 42, private URL | deployment status `succeeded` |
