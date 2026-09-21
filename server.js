@@ -179,7 +179,7 @@ const recordAudit = (req, action, entityType, entityId, beforeData, afterData) =
 };
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 2_000_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && (rolePermissions[req.user.role] || []).includes(permission));
-const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (req.user?.role === 'admin' && !['owner', 'admin', 'developer'].includes(role));
+const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (['admin', 'developer'].includes(req.user?.role) && !['owner', 'admin', 'developer'].includes(role));
 const canSeeSensitiveStaff = (req) => Boolean(req.user && (rolePermissions[req.user.role] || []).includes('staff_sensitive'));
 const denyUnless = (req, res, permission) => { if (hasPermission(req, permission)) return false; json(res, 403, { error: 'forbidden', permission }); return true; };
 const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };

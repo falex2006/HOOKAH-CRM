@@ -68,6 +68,9 @@ if ($developerMovementStatus -ne 403) { throw 'developer inventory write should 
 $developerProductWriteStatus = StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -Headers $developerHeaders -ContentType 'application/json' -Body (@{ name = 'Developer write check'; category = 'Бар'; price = 1 } | ConvertTo-Json) }
 if ($developerProductWriteStatus -ne 403) { throw 'developer product write should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/staff" -Headers $developerHeaders }) -ne 200) { throw 'developer staff access should be allowed' }
+$developerWorker = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $developerHeaders -ContentType 'application/json' -Body (@{ name = 'Developer created worker'; login = "developer_worker_$(Get-Date -Format 'HHmmss')"; password = 'acceptance-pass'; role = 'bartender' } | ConvertTo-Json)
+if ($developerWorker.role -ne 'bartender') { throw 'developer worker creation failed' }
+if ((StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $developerHeaders -ContentType 'application/json' -Body (@{ name = 'Developer rejected manager'; login = "developer_manager_$(Get-Date -Format 'HHmmss')"; password = 'acceptance-pass'; role = 'admin' } | ConvertTo-Json) }) -ne 403) { throw 'developer manager assignment should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/reservations" -Headers $developerHeaders }) -ne 200) { throw 'developer reservations access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/floor" -Headers $developerHeaders }) -ne 200) { throw 'developer floor access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/network/venues" -Headers $developerHeaders }) -ne 200) { throw 'developer network read should be allowed' }
