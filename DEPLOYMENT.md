@@ -30,7 +30,7 @@ docker compose restart crm
 
 ## HTTPS
 
-В `nginx/default.conf` заменить `server_name` на домен. Для production выдать сертификат Let's Encrypt через Certbot или внешний reverse proxy, затем добавить listener 443 с `ssl_certificate`, `ssl_certificate_key` и редирект с 80 на 443. В `.env` оставить `AUTH_REQUIRED=true`.
+Для готового TLS-шаблона используйте `nginx/https.conf.example`: замените `crm.example.com`, получите сертификат Let's Encrypt через Certbot и смонтируйте каталог сертификатов в nginx read-only. После этого скопируйте шаблон в `nginx/default.conf`, добавьте публикацию порта 443 и перезапустите nginx. Шаблон оставляет редирект с 80 на 443, включает TLS 1.2/1.3 и HSTS. В `.env` оставьте `AUTH_REQUIRED=true` и `COOKIE_SECURE=true`.
 
 ## База и резервные копии
 
