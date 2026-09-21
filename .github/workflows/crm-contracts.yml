@@ -104,10 +104,14 @@ jobs:
             if curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then break; fi
             sleep 1
           done
-          if ! ORDER_ID=$(BASE_URL=http://127.0.0.1:3000 MODE=create node scripts/local-postgres-contract.mjs); then
+          TABLE_ID=$(node -e "fetch('http://127.0.0.1:3000/api/floor').then(r=>r.json()).then(x=>process.stdout.write(x.zones.flatMap(z=>z.tables||[]).find(t=>t.status==='free').id))")
+          if ! curl --fail --silent --show-error --max-time 15 -H 'Content-Type: application/json' -d "{\"tableId\":\"$TABLE_ID\",\"notes\":\"postgres persistence contract\"}" http://127.0.0.1:3000/api/orders >/tmp/postgres-order.json; then
+            cat /tmp/postgres-order.json || true
             cat /tmp/hookah-crm-postgres.log
             exit 1
           fi
+          cat /tmp/postgres-order.json
+          ORDER_ID=$(node -e "const fs=require('fs'); process.stdout.write(JSON.parse(fs.readFileSync('/tmp/postgres-order.json','utf8')).id)")
           echo "ORDER_ID=$ORDER_ID" >> "$GITHUB_ENV"
           kill "$CRM_PID"
       - name: Restart CRM and verify persisted order
