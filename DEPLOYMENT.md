@@ -4,7 +4,7 @@
 
 1. На VPS установить Docker Engine и Compose plugin.
 2. Скопировать проект в отдельный каталог и создать `.env` из `.env.example`.
-3. Задать уникальные значения `POSTGRES_PASSWORD`, `DEMO_OWNER_PASSWORD`, `DEMO_STAFF_PASSWORD`, домен и `AUTH_REQUIRED=true`.
+3. Задать уникальные значения `POSTGRES_PASSWORD`, `DEMO_ADMIN_PASSWORD`, `DEMO_OWNER_PASSWORD`, `DEMO_STAFF_PASSWORD`, `STAFF_PASSPORT_KEY`, домен и `AUTH_REQUIRED=true`. Для заведения в Тюмени оставить `BUSINESS_TIMEZONE=Asia/Yekaterinburg` или указать часовой пояс своего города.
 4. Открыть наружу только 80/443; порт PostgreSQL не публиковать.
 
 ## Запуск
