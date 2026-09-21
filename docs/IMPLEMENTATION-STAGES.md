@@ -49,3 +49,7 @@ When a stage is verified, record its evidence here and do not repeat that stage 
 - **Sticky navigation QA** — fixed admin and staff sidebars to remain visible while long inventory and recipe pages scroll; verified at the bottom of the local inventory page with sidebar top pinned to the viewport.
 
 - **Select control styling QA** — replaced square status and role selectors with the shared dark rounded control treatment across orders, delivery, reservations, finance reports and staff forms; verified 10px radius and theme fills locally.
+
+- **Employee discount notification QA** — employees can apply a percentage discount directly from an open order with a required reason; the discount is immediately included in totals, audited as `discount.applied_by_staff`, and surfaced to owner/administrator accounts through the notification bell. Database and memory API paths return `approved` with the actor recorded.
+
+- **Responsive visual QA** — reviewed the administrator, finance, clients, orders, inventory and staff routes at the normal desktop viewport and a 390px mobile viewport; all checked routes stayed within the viewport without horizontal overflow, and the discount notification indicator remained visible in the administrative header.
