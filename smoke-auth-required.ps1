@@ -64,11 +64,14 @@ $developerHeaders = HeadersFor $developerAuth
 $seniorBarHeaders = HeadersFor $seniorBarAuth
 $seniorHookahHeaders = HeadersFor $seniorHookahAuth
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $staffHeaders }) -ne 403) { throw 'bartender finance access should be denied' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/analytics" -Headers $staffHeaders }) -ne 403) { throw 'bartender analytics access should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $staffHeaders }) -ne 403) { throw 'bartender inventory access should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $seniorBarHeaders }) -ne 403) { throw 'senior bartender finance access should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $seniorHookahHeaders }) -ne 403) { throw 'senior hookah inventory access should be denied' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/floor" -Headers $seniorBarHeaders }) -ne 200 -or (StatusFor { Invoke-RestMethod "$BaseUrl/api/floor" -Headers $seniorHookahHeaders }) -ne 200) { throw 'senior floor access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $developerHeaders }) -ne 200) { throw 'developer finance read should be allowed' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/analytics" -Headers $developerHeaders }) -ne 200) { throw 'developer analytics read should be allowed' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/analytics" -Headers $adminHeaders }) -ne 200) { throw 'admin analytics access should be allowed' }
 if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/inventory" -Headers $developerHeaders }) -ne 200) { throw 'developer inventory read should be allowed' }
 $developerProductsStatus = StatusFor { Invoke-RestMethod "$BaseUrl/api/products" -Headers $developerHeaders }
 if ($developerProductsStatus -ne 200) { throw 'developer product catalog read should be allowed' }
