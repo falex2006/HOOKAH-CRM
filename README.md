@@ -1,6 +1,10 @@
 # Hookah CRM
 
+[![CRM contracts](https://github.com/falex2006/HOOKAH-CRM/actions/workflows/crm-contracts.yml/badge.svg)](https://github.com/falex2006/HOOKAH-CRM/actions/workflows/crm-contracts.yml)
+
 Веб-CRM для кальянной: рабочее место персонала, заказы, столы, бронирования, склад, финансы и административная аналитика.
+
+Текущий локальный статус: acceptance-тесты и браузерный визуальный QA проходят. Финальный внешний этап — запуск на VPS с PostgreSQL, HTTPS и проверенным восстановлением резервной копии.
 
 ## Сейчас реализовано
 
@@ -34,6 +38,7 @@ docker compose up -d --build
 Перед боевым запуском настроить DNS, HTTPS, резервные копии и секреты согласно `SECURITY.md`.
 Для VPS использовать `deploy-vps.sh`, а для резервной копии PostgreSQL — `backup-postgres.sh`.
 Перед публикацией локально проверить production-пакет: `node scripts/local-deploy-contract.mjs`. HTTPS-шаблон находится в `nginx/https.conf.example`; фактические сертификаты и `.env` в Git не добавляются.
+После публикации выполнить `post-deploy-acceptance.sh` с `BASE_URL`, `CRM_USERNAME` и `CRM_PASSWORD`; скрипт проверяет HTTPS, healthcheck, авторизацию, сессию и основные маршруты.
 
 ## Документация
 
