@@ -466,7 +466,14 @@ async function api(req, res) {
   const clientProfile = pathname.match(/^\/api\/clients\/([^/]+)$/);
   if (clientProfile && req.method === 'PATCH') {
     if (denyUnlessAny(req, res, ['staff_manage', 'orders'])) return;
-    const client = clients.find((entry) => entry.id === clientProfile[1]); if (!client) return json(res, 404, { error: 'client_not_found' });
+    let client = clients.find((entry) => entry.id === clientProfile[1]);
+    if (!client && repositories?.pool && /^[0-9a-f-]{36}$/i.test(clientProfile[1])) {
+      try {
+        const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,phone,phone_numbers AS "phoneNumbers",telegram,tobacco_preferences AS "tobaccoPreferences",bowl_preferences AS "bowlPreferences",bar_preferences AS "barPreferences",allergies,notes,loyalty_points AS "loyaltyPoints" FROM guests WHERE id=$1 AND venue_id=$2`, [clientProfile[1], venueDbId]);
+        if (rows[0]) client = { ...rows[0], phoneNumbers: rows[0].phoneNumbers || (rows[0].phone ? [{ label: 'Основной', number: rows[0].phone, primary: true }] : []), tobaccoPreferences: rows[0].tobaccoPreferences || [], bowlPreferences: rows[0].bowlPreferences || [], barPreferences: rows[0].barPreferences || [], loyaltyPoints: Number(rows[0].loyaltyPoints || 0) };
+      } catch (_) {}
+    }
+    if (!client) return json(res, 404, { error: 'client_not_found' });
     const input = await body(req); const before = JSON.parse(JSON.stringify(client));
     if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' }); client.name = name; }
     if (input.phoneNumbers !== undefined) { const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers); if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' }); client.phoneNumbers = phoneNumbers; }
@@ -502,7 +509,11 @@ async function api(req, res) {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'staff_manage')) return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
     const input = await body(req); const delta = Number(input.delta); const reason = String(input.reason || '').trim();
     if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 100000 || !reason || reason.length > 500) return json(res, 400, { error: 'invalid_loyalty_adjustment' });
-    const client = clients.find((entry) => entry.id === clientLoyalty[1]); if (!client) return json(res, 404, { error: 'client_not_found' });
+    let client = clients.find((entry) => entry.id === clientLoyalty[1]);
+    if (!client && repositories?.pool && /^[0-9a-f-]{36}$/i.test(clientLoyalty[1])) {
+      try { const { rows } = await repositories.pool.query('SELECT id,loyalty_points AS "loyaltyPoints" FROM guests WHERE id=$1 AND venue_id=$2', [clientLoyalty[1], venueDbId]); if (rows[0]) client = { ...rows[0], loyaltyPoints: Number(rows[0].loyaltyPoints || 0) }; } catch (_) {}
+    }
+    if (!client) return json(res, 404, { error: 'client_not_found' });
     const before = Number(client.loyaltyPoints || 0); client.loyaltyPoints = Math.max(0, before + delta);
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(client.id)) { try { await repositories.pool.query('UPDATE guests SET loyalty_points=$1 WHERE id=$2 AND venue_id=$3', [client.loyaltyPoints, client.id, venueDbId]); } catch (_) {} }
     recordAudit(req, 'client.loyalty_adjusted', 'client', client.id, { loyaltyPoints: before }, { loyaltyPoints: client.loyaltyPoints, delta, reason }); return json(res, 200, { id: client.id, loyaltyPoints: client.loyaltyPoints, delta, reason });
