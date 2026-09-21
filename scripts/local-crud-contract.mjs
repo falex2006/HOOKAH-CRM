@@ -42,7 +42,7 @@ const financeCategory = await request('/api/finance/categories', { method: 'POST
 await request(`/api/finance/categories/${financeCategory.id}`, { method: 'PATCH', body: body({ name: `Обновлённая категория ${suffix}` }) });
 
 const floor = await request('/api/floor');
-const table = floor.zones?.flatMap((zone) => zone.tables || []).find((entry) => !String(entry.id).includes('vip'));
+const table = floor.zones?.flatMap((zone) => zone.tables || []).find((entry) => !String(entry.id).includes('vip') && entry.status === 'free');
 if (!table) throw new Error('Floor contract has no regular table');
 const order = await request('/api/orders', { method: 'POST', body: body({ tableId: table.id, orderType: 'regular' }) });
 await request(`/api/orders/${order.id}/items`, { method: 'POST', body: body({ productId: 'redbull', quantity: 1 }) });
