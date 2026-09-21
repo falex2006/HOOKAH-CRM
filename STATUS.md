@@ -11,6 +11,7 @@
 - Production-проверка 22.09.2026: `deploy-vps.sh`, `backup-postgres.sh`, `verify-backup.sh` и `migrate-vps.sh` проходят `bash -n`; Docker Engine на локальной машине недоступен, поэтому фактическая сборка образа и восстановление PostgreSQL ещё не выполнены.
 - Production-preflight усилен: deploy и миграции теперь проверяют Docker Compose plugin и обязательный `STAFF_PASSPORT_KEY`, а также отклоняют `replace-*` placeholders; bash syntax, static boundary, date contract и compose config повторно прошли.
 - Подготовлен `nginx/https.conf.example` с редиректом HTTP→HTTPS, TLS 1.2/1.3, HSTS и проксированием CRM; локальная машина не содержит nginx/сертификатов, поэтому TLS-конфигурация требует проверки на целевом VPS.
+- Добавлен `scripts/local-deploy-contract.mjs` в общий acceptance: проверяет preflight секретов, healthcheck, закрытый порт PostgreSQL и HTTPS-шаблон; локальный контракт проходит.
 
 - После визуальных правок обновлены cache-busting версии `style.css` до `rev=128` во всех рабочих HTML-страницах; браузер не должен использовать старый CSS из кэша.
 
