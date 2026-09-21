@@ -21,7 +21,9 @@
 - `POST /api/orders/:id/items` — добавить позицию.
 - `PATCH /api/orders/:id/items/:item_id` — изменить количество или станцию.
 - `POST /api/orders/:id/split` — разделить позиции по гостям/новый заказ.
-- `POST /api/orders/:id/discount-requests` — заявка на скидку.
+- `POST /api/orders/:id/discount-requests` — заявка только на процентную скидку (`type: "percent"`, `value: 1..100`, `reason`).
+- `GET /api/discount-requests` — список заявок для финансовых ролей.
+- `POST /api/discount-requests/:id/approve` или `/reject` — согласование или отклонение процентной скидки финансовой ролью.
 - `POST /api/orders/:id/payments` — частичный или полный платёж.
 - `GET /api/inventory` — остатки и предупреждения.
 - `POST /api/audit/events` — внутренний журнал действий.
