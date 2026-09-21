@@ -1,0 +1,24 @@
+{
+  "source": "МЕНЮ БАРА.pdf",
+  "currency": "RUB",
+  "categories": [
+    {"name":"Классические коктейли","items":[
+      {"name":"Виски-кола","price":350,"volumeMl":270},{"name":"Ром-кола","price":350,"volumeMl":270},{"name":"Водка-редбул","price":400,"volumeMl":470},{"name":"Джин-тоник","price":350,"volumeMl":270},{"name":"Фиеро-тоник","price":400,"volumeMl":300},{"name":"Егер-редбул","price":450,"volumeMl":470},{"name":"Лонг айленд","price":500,"volumeMl":470},{"name":"Негрони","price":450,"volumeMl":120},{"name":"Пина колада","price":440,"volumeMl":470},{"name":"Текила санрайз","price":420,"volumeMl":470}
+    ]},
+    {"name":"Шоты","items":[
+      {"name":"Опухоль мозга","price":350},{"name":"Хиросима","price":350},{"name":"Б-52","price":350},{"name":"Б-53","price":350}
+    ]},
+    {"name":"Сеты шотов 6 шт / 300 мл","items":[{"name":"Сет шотов на водке","price":700},{"name":"Сет шотов на роме","price":800},{"name":"Сет шотов на текиле","price":900},{"name":"Сет шотов на джине","price":800}]},
+    {"name":"Сеты пробирок / 250 мл","items":[{"name":"Сет пробирок на водке","price":700},{"name":"Сет пробирок на роме","price":800},{"name":"Сет пробирок на текиле","price":800}]},
+    {"name":"Авторские коктейли","items":[
+      {"name":"Viola tonic","price":400,"volumeMl":470},{"name":"Fruit agave","price":420,"volumeMl":350},{"name":"Fairy Tail","price":400,"volumeMl":350},{"name":"Green fizz","price":420,"volumeMl":470},{"name":"Negroni flip","price":450,"volumeMl":190},{"name":"Bambi","price":420,"volumeMl":350},{"name":"Homeland","price":420,"volumeMl":150},{"name":"Campari sunset","price":450,"volumeMl":350},{"name":"Corona Rita","price":600,"volumeMl":500},{"name":"De Italy","price":440,"volumeMl":450},{"name":"Lady island","price":450,"volumeMl":450},{"name":"Sugar daddy","price":450,"volumeMl":350},{"name":"Peach sour","price":450,"volumeMl":270},{"name":"Bratford","price":450,"volumeMl":270},{"name":"Diamond long","price":500,"volumeMl":450},{"name":"Sunshine","price":390,"volumeMl":470}
+    ]},
+    {"name":"Безалкогольные коктейли","items":[{"name":"Vegan juice","price":280,"volumeMl":470},{"name":"Old school","price":280,"volumeMl":470},{"name":"Tropical juice","price":280,"volumeMl":470},{"name":"Basil ray","price":280,"volumeMl":470},{"name":"Flower paradise","price":280,"volumeMl":470},{"name":"Baby sunshine","price":280,"volumeMl":470}]},
+    {"name":"Пиво","items":[{"name":"Hoegaarden","price":220},{"name":"Corona","price":300},{"name":"Blanc","price":220},{"name":"Bud","price":220},{"name":"Kozel (темный)","price":220},{"name":"Stella Artois","price":220},{"name":"Miller","price":250}]},
+    {"name":"Авторские чаи / 900 мл","items":[{"name":"Вишневый пуэр","price":420},{"name":"Тропический","price":420},{"name":"Имбирный бум","price":420},{"name":"Сибирский","price":420}]},
+    {"name":"Чёрные чаи / 900 мл","items":[{"name":"Ассам","price":360},{"name":"Граф орлов","price":360},{"name":"С бергамотом","price":360},{"name":"С чабрецом","price":360},{"name":"Пуэр 8 лет","price":400},{"name":"Пуэр 3 года","price":360},{"name":"Лев","price":360}]},
+    {"name":"Зелёные чаи / 900 мл","items":[{"name":"Ганпаудер","price":360},{"name":"Медовая дыня","price":360},{"name":"Молочный улун","price":360},{"name":"С жасмином","price":360},{"name":"Земляника со сливками","price":360}]}
+  ],
+  "rules": {"vipBefore18Minutes":90,"vipAfter18Deposit":1500,"corkage":{"beer1l":150,"champagneOrWine":400,"vodkaOrWhiskey":800},"groupDeposit":{"fromGuests":8,"minimum":4000}},
+  "notes": ["Названия и цены перенесены с визуального макета PDF.","Объёмы сохранены только там, где они явно указаны в макете."]
+}
