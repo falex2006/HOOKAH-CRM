@@ -7,7 +7,8 @@
   },
   "scripts": {
     "start": "node server.js",
-    "db:migrate": "node scripts/migrate.js"
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed-menu": "node scripts/seed-menu-catalog.js"
   },
   "engines": {
     "node": ">=20"
