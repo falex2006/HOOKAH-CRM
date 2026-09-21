@@ -96,7 +96,10 @@ jobs:
           DATABASE_URL: postgresql://crm:crm-ci-password@127.0.0.1:5432/crm
         run: |
           set -euo pipefail
-          ORDER_ID=$(psql --host 127.0.0.1 --username crm --dbname crm --tuples-only --no-align --command "INSERT INTO orders (venue_id,table_id,opened_by,notes) SELECT '00000000-0000-0000-0000-000000000001',id,'20000000-0000-0000-0000-000000000001','postgres persistence contract' FROM tables WHERE venue_id='00000000-0000-0000-0000-000000000001' ORDER BY name LIMIT 1 RETURNING id")
+          TABLE_ID=$(psql --host 127.0.0.1 --username crm --dbname crm --tuples-only --no-align --command "SELECT id FROM tables WHERE venue_id='00000000-0000-0000-0000-000000000001' ORDER BY name LIMIT 1")
+          test -n "$TABLE_ID"
+          ORDER_ID=$(psql --host 127.0.0.1 --username crm --dbname crm --tuples-only --no-align --command "INSERT INTO orders (venue_id,table_id,opened_by,notes) VALUES ('00000000-0000-0000-0000-000000000001','$TABLE_ID','20000000-0000-0000-0000-000000000001','postgres persistence contract') RETURNING id")
+          test -n "$ORDER_ID"
           echo "ORDER_ID=$ORDER_ID" >> "$GITHUB_ENV"
       - name: Restart CRM and verify persisted order
         env:
