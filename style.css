@@ -311,6 +311,9 @@
  .staff-theme .order{border-radius:16px}
 }
 
+/* Keep numeric fields visually clean; keyboard input and min/max validation remain active. */
+.staff-theme input[type=number],.velora-theme input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.staff-theme input[type=number]::-webkit-inner-spin-button,.staff-theme input[type=number]::-webkit-outer-spin-button,.velora-theme input[type=number]::-webkit-inner-spin-button,.velora-theme input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 /* Workstation header: center the title and status in a taller breathing zone. */
 .staff-theme header{height:86px;min-height:86px;align-items:center;padding:0 42px;line-height:1.2}
 /* v129 spacing audit: consistent 8px rhythm and readable density */
