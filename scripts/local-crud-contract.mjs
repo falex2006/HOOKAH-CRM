@@ -65,6 +65,8 @@ await request('/api/venue', { method: 'PATCH', body: body({ phone: venueBefore.p
 
 const staff = await request('/api/staff', { method: 'POST', body: body({ name: `Тестовый бармен ${suffix}`, login: `local_staff_${suffix}`, password: 'local-test-password', role: 'bartender', phoneNumbers: [{ number: '+79990001124', primary: true }], telegram: '@local_staff_test' }) });
 if (staff.role !== 'bartender' || !staff.phoneNumbers?.length) throw new Error('Staff create contract returned incomplete profile');
+const staffAvatar = await request(`/api/staff/${staff.id}/avatar`, { method: 'POST', body: body({ imageData: 'data:image/png;base64,AA==' }) });
+if (staffAvatar.avatarUrl !== 'data:image/png;base64,AA==') throw new Error('Staff avatar contract failed');
 await request(`/api/staff/${staff.id}/status`, { method: 'PATCH', body: body({ active: false }) });
 await request(`/api/staff/${staff.id}/archive`, { method: 'POST', body: '{}' });
 const visibleStaff = await request('/api/staff');
