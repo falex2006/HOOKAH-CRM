@@ -11,8 +11,16 @@
       const rows=document.createElement('div');
       rows.className='staff-phone-list';
       rows.innerHTML='<div class="staff-phone-list__header"><strong>Телефоны</strong><button type="button" class="staff-phone-list__add">Добавить номер</button></div><div class="staff-phone-list__rows"></div><input type="hidden" name="phones_json" class="staff-phone-list__value">';
-      input.parentElement?.after(rows);
-      input.style.display='none';
+      const contactRow=input.closest('.staff-form-contact-row');
+      const secondaryInput=contactRow?.querySelector('input[name="phone_secondary"]');
+      const secondaryValue=secondaryInput?.value?.trim()||'';
+      if(contactRow){
+        contactRow.hidden=true;
+        contactRow.after(rows);
+      }else{
+        input.parentElement?.after(rows);
+        input.style.display='none';
+      }
       const list=rows.querySelector('.staff-phone-list__rows');
       const hidden=rows.querySelector('.staff-phone-list__value');
       const initial=input.value?{label:'Рабочий',number:input.value,primary:true}:{label:'Рабочий',number:'',primary:true};
@@ -30,6 +38,7 @@
         list.append(row);
       };
       add(initial);
+      if(secondaryValue) add({label:'Дополнительный',number:secondaryValue,primary:false});
       rows.querySelector('.staff-phone-list__add').addEventListener('click',()=>add());
       form.addEventListener('submit',sync); sync();
     });
