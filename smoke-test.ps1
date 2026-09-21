@@ -23,6 +23,10 @@ $staffRestored = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($cre
 if (-not $staffRestored.active) { throw 'staff restore failed' }
 $staffDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/staff/$($createdStaff.id)"
 if ($staffDeleted.active) { throw 'staff delete/deactivate failed' }
+$staffArchived = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff/$($createdStaff.id)/archive" -ContentType 'application/json' -Body '{}'
+if (-not $staffArchived.archivedAt -or $staffArchived.active) { throw 'staff archive failed' }
+$staffDirectory = Invoke-RestMethod "$BaseUrl/api/staff"
+if ($staffDirectory.items.id -contains $createdStaff.id) { throw 'archived staff remains in operational directory' }
 $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
 if (-not $shift.id) { throw 'shift open failed' }
 $closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200}'

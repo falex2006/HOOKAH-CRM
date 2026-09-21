@@ -91,4 +91,12 @@ $blocked = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/staff/$($staff.id
 if ($blocked.active -ne $false) { throw 'staff blocking failed' }
 $restored = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($staff.id)/status" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ active = $true } | ConvertTo-Json)
 if ($restored.active -ne $true) { throw 'staff restore failed' }
+$blockedAgain = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/staff/$($staff.id)" -Headers $ownerHeaders
+if ($blockedAgain.active -ne $false) { throw 'staff blocking before archive failed' }
+$developerArchiveStatus = StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff/$($staff.id)/archive" -Headers $developerHeaders -ContentType 'application/json' -Body '{}' }
+if ($developerArchiveStatus -ne 403) { throw 'developer must not archive employee records' }
+$archived = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff/$($staff.id)/archive" -Headers $ownerHeaders -ContentType 'application/json' -Body '{}'
+if (-not $archived.archivedAt -or $archived.active) { throw 'owner staff archive failed' }
+$directoryAfterArchive = Invoke-RestMethod "$BaseUrl/api/staff" -Headers $ownerHeaders
+if ($directoryAfterArchive.items.id -contains $staff.id) { throw 'archived employee should not remain in operational directory' }
 Write-Output 'AUTH_REQUIRED role test: PASS'

@@ -369,6 +369,8 @@
 .velora-theme .staff-form .staff-form-contact-row{grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
 .velora-theme .staff-form input,.velora-theme .staff-form select,.velora-theme .staff-form textarea{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
 .velora-theme .staff-form .staff-sensitive-fields label,.velora-theme .staff-form .permission-scope-fields label{min-width:0}
+.velora-theme .button.small.danger{background:#43252e;border:1px solid #80414f;color:#ffadb7;box-shadow:none}
+.velora-theme .button.small.danger:hover{background:#5a2a35;border-color:#d3596a}
 @media(max-width:1180px){
   .velora-theme .staff-layout{grid-template-columns:1fr}
   .velora-theme .staff-form{border-left:0;border-top:1px solid #2c3037;padding:20px 0 0;grid-template-columns:repeat(2,minmax(0,1fr))}

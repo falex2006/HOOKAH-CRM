@@ -564,8 +564,8 @@ async function api(req, res) {
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE venue_id=$1 ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
-    return json(res, 200, { items: staff.map(({ passwordHash, ...person }) => { if (!canSeeSensitiveStaff(req)) delete person.passportData; return person; }) });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
+    return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { if (!canSeeSensitiveStaff(req)) delete person.passportData; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff_manage')) return;
@@ -600,8 +600,8 @@ async function api(req, res) {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req); if (typeof input.active !== 'boolean') return json(res, 400, { error: 'active_boolean_required' });
     if (String(req.user?.id || '') === staffStatus[1] && !input.active) return json(res, 409, { error: 'self_deactivation_forbidden' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffStatus[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET is_active=$1 WHERE id=$2 AND venue_id=$3 AND role <> 'owner' RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [input.active, staffStatus[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found_or_owner' }); recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', rows[0].id, { active: !input.active }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_status_update_failed', detail: error.message }); } }
-    const person = staff.find((entry) => entry.id === staffStatus[1]); if (!person || person.role === 'owner') return json(res, 404, { error: 'staff_not_found_or_owner' }); const before = { active: person.active }; person.active = input.active; recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', person.id, before, { active: person.active }); return json(res, 200, person);
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffStatus[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET is_active=$1 WHERE id=$2 AND venue_id=$3 AND role <> 'owner' AND deleted_at IS NULL RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [input.active, staffStatus[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', rows[0].id, { active: !input.active }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_status_update_failed', detail: error.message }); } }
+    const person = staff.find((entry) => entry.id === staffStatus[1]); if (!person || person.role === 'owner' || person.deletedAt) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); const before = { active: person.active }; person.active = input.active; recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', person.id, before, { active: person.active }); return json(res, 200, person);
   }
   const staffDelete = pathname.match(/^\/api\/staff\/([^/]+)$/);
   if (staffDelete && req.method === 'DELETE') {
@@ -614,6 +614,26 @@ async function api(req, res) {
     if (!person.active) return json(res, 409, { error: 'staff_already_inactive' });
     person.active = false; recordAudit(req, 'staff.deactivated', 'staff', person.id, { active: true }, { active: false });
     return json(res, 200, person);
+  }
+  const staffArchive = pathname.match(/^\/api\/staff\/([^/]+)\/archive$/);
+  if (staffArchive && req.method === 'POST') {
+    if (denyUnless(req, res, 'staff_manage')) return;
+    if (process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'staff_archive_owner_required' });
+    if (String(req.user?.id || '') === staffArchive[1]) return json(res, 409, { error: 'self_archive_forbidden' });
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffArchive[1])) {
+      try {
+        const { rows } = await repositories.pool.query(`UPDATE users SET is_active=false,deleted_at=now() WHERE id=$1 AND venue_id=$2 AND role <> 'owner' AND is_active=false AND deleted_at IS NULL RETURNING id,full_name AS name,role,is_active AS active,deleted_at AS "archivedAt"`, [staffArchive[1], venueDbId]);
+        if (!rows[0]) return json(res, 404, { error: 'staff_not_found_or_owner' });
+        recordAudit(req, 'staff.archived', 'staff', rows[0].id, { active: true }, { active: false, archivedAt: rows[0].archivedAt });
+        return json(res, 200, rows[0]);
+      } catch (error) { return json(res, 409, { error: 'staff_archive_failed', detail: error.message }); }
+    }
+    const index = staff.findIndex((person) => person.id === staffArchive[1]);
+    const person = staff[index];
+    if (!person || person.role === 'owner' || person.active || person.deletedAt) return json(res, 409, { error: 'staff_must_be_blocked_before_archive' });
+    person.active = false; person.deletedAt = new Date().toISOString();
+    recordAudit(req, 'staff.archived', 'staff', person.id, { active: true }, { active: false, archivedAt: person.deletedAt });
+    return json(res, 200, { id: person.id, name: person.name, role: person.role, active: false, archivedAt: person.deletedAt });
   }
   const staffAvatar = pathname.match(/^\/api\/staff\/([^/]+)\/avatar$/);
   if (staffAvatar && req.method === 'POST') {
