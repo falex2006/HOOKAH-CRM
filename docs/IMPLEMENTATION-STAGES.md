@@ -16,6 +16,8 @@
 
 - **Staff card modal QA** — verified the edit-card action opens once, the close control remains visible on a narrow viewport, and both close actions remove the modal without submitting data. Removed the duplicate editor binding and capped modal height with internal scrolling.
 
+- **Login live-photo QA** — replaced the drawn hookah transition scene with the supplied realistic hookah photo, cinematic camera push, haze, glint and reduced-motion fallback; verified the success state in the local browser and login contract.
+
 ## Next stages
 
 1. Visual QA of every administrative route at desktop, tablet and mobile widths.
