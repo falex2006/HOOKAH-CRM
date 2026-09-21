@@ -109,7 +109,7 @@ jobs:
             exit 1
           fi
           echo "ORDER_ID=$ORDER_ID" >> "$GITHUB_ENV"
-          kill "$CRM_PID"
+          kill "$CRM_PID" || true
       - name: Restart CRM and verify persisted order
         env:
           DATABASE_URL: postgresql://crm:crm-ci-password@127.0.0.1:5432/crm
