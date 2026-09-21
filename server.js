@@ -444,6 +444,10 @@ async function api(req, res) {
     if (repositories?.products) { try { return json(res, 200, { items: await repositories.products.list(venueDbId) }); } catch (_) {} }
     return json(res, 200, { items: products });
   }
+  if (pathname === '/api/recipes' && req.method === 'GET') {
+    if (denyUnless(req, res, 'inventory_read')) return;
+    return json(res, 200, { items: catalogSeed.recipes || [] });
+  }
   if (pathname === '/api/products' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = String(input.name || '').trim(); const category = String(input.category || input.station || '').trim(); const price = Number(input.price);
