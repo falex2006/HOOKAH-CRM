@@ -10,7 +10,7 @@
 - **Catalog and inventory** — tea recipes, products, categories, visual product cards and inventory operations.
 - **Finance and operations** — shifts, finance categories/reporting, reservations, delivery and integrations sections.
 - **Login and visual system** — Velora dark theme, responsive layouts, realistic hookah photo, animated smoke, failure/success states and reduced-motion support.
-- **Local acceptance** — route, role, asset, login, catalog, CRUD, guest order, 10 test orders, audit and smoke checks pass.\r\n- **Browser order flow QA** — opened a table, added lemonade and Red Bull, bound a guest, submitted a 10% discount request, split one item into a new order, and completed mixed cash/card partial payment.
+- **Local acceptance** — route, role, asset, login, catalog, CRUD, guest order, 10 test orders, audit and smoke checks pass.\r\n- **Browser order flow QA** — opened a table, added lemonade and Red Bull, bound a guest, submitted a 10% discount request, split one item into a new order, and completed mixed cash/card partial payment.\r\n- **Role access QA** — all 7 role contracts and 13 route checks pass; restricted roles do not receive finance/inventory permissions, while owner/admin/developer scopes match their requirements.
 
 ## Next stages
 
