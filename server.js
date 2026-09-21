@@ -908,7 +908,7 @@ if (staffProfile && req.method === 'PATCH') {
           guest = rows[0];
           await repositories.pool.query('UPDATE orders SET guest_id=$1 WHERE id=$2 AND venue_id=$3', [guest.id, orderEdit[1], venueDbId]);
         } else if (input.guestName !== undefined || input.phone !== undefined) {
-          const { rows } = await repositories.pool.query(`INSERT INTO guests (venue_id,phone,full_name) VALUES ($1,$2,$3) ON CONFLICT (phone) DO UPDATE SET full_name=EXCLUDED.full_name, venue_id=EXCLUDED.venue_id RETURNING id,phone,full_name AS "name"`, [venueDbId, String(input.phone || '').trim() || null, String(input.guestName || '').trim() || null]);
+          const { rows } = await repositories.pool.query(`INSERT INTO guests (venue_id,phone,full_name) VALUES ($1,$2,$3) ON CONFLICT (venue_id,phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id,phone,full_name AS "name"`, [venueDbId, String(input.phone || '').trim() || null, String(input.guestName || '').trim() || null]);
           guest = rows[0];
           await repositories.pool.query('UPDATE orders SET guest_id=$1 WHERE id=$2 AND venue_id=$3', [guest.id, orderEdit[1], venueDbId]);
         }

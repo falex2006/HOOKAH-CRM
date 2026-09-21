@@ -70,12 +70,13 @@ CREATE TABLE tables (
 CREATE TABLE guests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   venue_id uuid REFERENCES venues(id),
-  phone text UNIQUE,
+  phone text,
   full_name text,
   email text,
   loyalty_points int NOT NULL DEFAULT 0,
   notes text,
-  created_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id, phone)
 );
 ALTER TABLE guests ADD COLUMN IF NOT EXISTS phone_numbers jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE guests ADD COLUMN IF NOT EXISTS telegram text;

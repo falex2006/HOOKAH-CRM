@@ -21,3 +21,5 @@ docker compose exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < migration
 ```
 
 Либо использовать подготовленный `./migrate-vps.sh`: он дождётся готовности PostgreSQL и применит все SQL-файлы из `migrations/`.
+
+Миграция `006_guest_venue_phone_unique.sql` переводит уникальность телефона гостя на составной ключ точки и телефона для сетевого режима.
