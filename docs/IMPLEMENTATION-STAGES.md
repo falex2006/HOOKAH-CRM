@@ -20,6 +20,8 @@
 
 - **Admin form QA** — verified inventory product creation cancellation with an exact control locator; hidden form state is restored after cancel, while the staff card modal close path is verified above.
 
+- **Search, filters and report QA** — verified guest empty-search state, inventory search narrowing to the matching item, financial report generation with a report identifier, and audit filtering/reset with owner access.
+
 ## Next stages
 
 1. Visual QA of every administrative route at desktop, tablet and mobile widths.
