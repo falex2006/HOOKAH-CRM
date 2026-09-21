@@ -463,3 +463,23 @@
 .velora-theme .product-editor input,.velora-theme .product-editor select,.velora-theme .product-editor textarea{width:100%;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #363b44;border-radius:10px;background:#111317;color:#eef1f3;font:inherit;line-height:1.35;transition:border-color .18s ease,box-shadow .18s ease}
 .velora-theme .product-editor input:focus,.velora-theme .product-editor select:focus,.velora-theme .product-editor textarea:focus{border-color:#26b9ff;box-shadow:0 0 0 3px #26b9ff1c;outline:none}
 .velora-theme .product-editor .button{border-radius:10px}
+/* Photographic assembly sequence for login transition */
+.login-transition__live-photo{position:absolute;inset:-8%;background:linear-gradient(90deg,#050505 0%,transparent 54%,#0005 100%),url('/assets/login-hookah-reference.jpg') center 58%/cover no-repeat;filter:contrast(1.06) saturate(.82) brightness(.82);will-change:transform,opacity,filter;pointer-events:none}
+.login-transition__live-photo.live-photo-base{animation:livePhotoBaseReveal 5s cubic-bezier(.18,.72,.22,1) both}
+.login-transition__live-photo.live-photo-bowl{clip-path:inset(45% 18% 29% 18% round 8%);opacity:0;animation:liveBowlSettle 5s .08s cubic-bezier(.18,.72,.22,1) both}
+.login-transition__live-photo.live-photo-tobacco{clip-path:inset(40% 19% 43% 19% round 8%);opacity:0;animation:liveTobaccoDrop 5s .7s cubic-bezier(.18,.72,.22,1) both}
+.login-transition__live-photo.live-photo-metal{clip-path:inset(38% 16% 46% 16% round 5%);opacity:0;animation:liveMetalDrop 5s 1.4s cubic-bezier(.18,.72,.22,1) both}
+.login-transition__live-photo.live-photo-coals{clip-path:inset(32% 14% 50% 14% round 8%);opacity:0;filter:contrast(1.12) saturate(1.2) brightness(.9);animation:liveCoalDrop 5s 2.1s cubic-bezier(.18,.72,.22,1) both,liveCoalWarm 1.25s 3.15s ease-in-out infinite alternate}
+@keyframes livePhotoBaseReveal{0%{opacity:.05;transform:scale(1.08);filter:contrast(1.05) saturate(.55) brightness(.42)}45%{opacity:.48}100%{opacity:.86;transform:scale(1);filter:contrast(1.06) saturate(.82) brightness(.82)}}
+@keyframes liveBowlSettle{0%{opacity:0;transform:translateY(90px) scale(1.04)}18%{opacity:.92}45%,100%{opacity:.92;transform:none}}
+@keyframes liveTobaccoDrop{0%,16%{opacity:0;transform:translateY(-120px) rotate(-2deg)}30%{opacity:.95}53%,100%{opacity:.95;transform:none}}
+@keyframes liveMetalDrop{0%,29%{opacity:0;transform:translateY(-100px) rotate(-5deg)}44%{opacity:1}63%,100%{opacity:1;transform:none}}
+@keyframes liveCoalDrop{0%,42%{opacity:0;transform:translateY(-86px) rotate(4deg)}57%{opacity:1}72%,100%{opacity:1;transform:none}}
+@keyframes liveCoalWarm{from{filter:contrast(1.12) saturate(1.2) brightness(.86)}to{filter:contrast(1.16) saturate(1.65) brightness(1.16) drop-shadow(0 0 22px #ff5b2d)}}
+@media(prefers-reduced-motion:reduce){.login-transition__live-photo.live-photo-base{animation:none;opacity:.86;transform:none;filter:contrast(1.06) saturate(.82) brightness(.82)}.login-transition__live-photo:not(.live-photo-base){display:none}}
+.login-transition__live-photo:not(.live-photo-base){background-image:url('/assets/login-hookah-reference.jpg');}
+.login-transition__live-photo.live-photo-bowl{clip-path:ellipse(25% 10% at 50% 53%)}
+.login-transition__live-photo.live-photo-tobacco{clip-path:ellipse(22% 5% at 50% 46%)}
+.login-transition__live-photo.live-photo-metal{clip-path:ellipse(24% 5% at 50% 48%)}
+.login-transition__live-photo.live-photo-coals{clip-path:ellipse(27% 5% at 50% 43%)}
+.login-transition__live-photo:not(.live-photo-base){mix-blend-mode:screen;filter:contrast(1.12) saturate(1.05) brightness(1.5);}

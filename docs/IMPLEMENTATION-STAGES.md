@@ -37,3 +37,5 @@ When a stage is verified, record its evidence here and do not repeat that stage 
 - **Inventory editor visual QA** — rounded the product editor fields and cancel action to match the dark Velora card language; added consistent focus state and verified 10px radii and dark fills in the local browser.
 
 - **Inventory table alignment QA** — fixed the stock table to a stable column grid, vertically centered cells, and added a compact header layout for narrow screens; verified the row and headings locally at mobile width.
+
+- **Login photographic animation QA** — replaced the single camera push with a staged live-photo sequence: bowl settles, tobacco drops, metal cover lands, coals warm and smoke rises; preserved the skip control and reduced-motion fallback. Local login contract passes.
