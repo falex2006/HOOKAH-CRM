@@ -9,6 +9,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $checks = @(
   @{ file = 'local-static-boundary.mjs'; node = $true },
   @{ file = 'local-route-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
+  @{ file = 'local-role-contract.mjs'; node = $true },
   @{ file = 'local-asset-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-tea-catalog.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-crud-contract.mjs'; node = $true },
