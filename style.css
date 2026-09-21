@@ -188,7 +188,8 @@
   .velora-theme .portal-content{padding:20px 14px}
   .velora-theme .page-title{display:block}
   .velora-theme .page-title h1{font-size:29px}
-  .velora-theme .page-title>.button{display:flex;width:max-content;margin-top:18px}`n  .velora-theme .page-title .date-input{margin-top:18px}
+  .velora-theme .page-title>.button{display:flex;width:max-content;margin-top:18px}
+  .velora-theme .page-title .date-input{margin-top:18px}
   .velora-theme .kpi-grid,.velora-theme .kpi-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .velora-theme .kpi{padding:16px}
   .velora-theme .kpi strong{font-size:27px}
