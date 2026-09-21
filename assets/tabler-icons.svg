@@ -55,4 +55,6 @@
   <path d="M12 16h.01" /></symbol>
   <symbol id="arrow-up-right" viewBox="0 0 24 24"><path d="M17 7l-10 10" />
   <path d="M8 7l9 0l0 9" /></symbol>
+  <symbol id="arrow-left" viewBox="0 0 24 24"><path d="M5 12h14" /><path d="M5 12l6 -6" /><path d="M5 12l6 6" /></symbol>
+  <symbol id="chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6l-6 6" /></symbol>
 </svg>

@@ -351,3 +351,5 @@
 .shift-actions{margin-left:auto;display:flex;align-items:center;gap:8px}.shift-actions .button{white-space:nowrap}@media(max-width:620px){.shift-actions{margin-left:0;margin-top:8px}}
 .live-dot.offline{color:#ffb86b}
 .network-list{display:grid;gap:10px}.network-row{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}.network-row b,.network-row small{display:block}.network-row small{color:var(--muted);margin-top:5px}@media(max-width:620px){.network-row{align-items:flex-start;flex-direction:column}}
+
+.integration-icon .icon{width:20px;height:20px;vertical-align:0}.audit-chevron .icon{width:18px;height:18px;vertical-align:0}
