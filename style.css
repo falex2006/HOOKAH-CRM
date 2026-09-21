@@ -409,7 +409,8 @@
 .velora-theme .staff-form .staff-phone-list__header{min-width:0;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .velora-theme .staff-form .staff-phone-list__header strong{min-width:0}
 .velora-theme .staff-form .staff-phone-list__add{flex:0 0 auto;white-space:nowrap}
-.velora-theme .staff-form .staff-phone-row{grid-template-columns:minmax(92px,130px) minmax(0,1fr) auto auto;min-width:0}
+.velora-theme .staff-form .staff-phone-row{grid-template-columns:minmax(96px,1fr) minmax(100px,1.25fr) auto auto;min-width:0}
+.velora-theme .staff-form .staff-form-contact-row[hidden]{display:none!important}
 .velora-theme .staff-form .staff-phone-row input[type="tel"],.velora-theme .staff-form .staff-phone-row select{width:100%;min-width:0}
 /* Keep every staff control on the same typographic baseline. */
 .velora-theme .staff-form-field{display:grid;align-content:start;gap:8px;min-width:0;color:#a5adb7;font-size:13px;line-height:1.35}
