@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$BaseUrl = 'http://localhost:3000',
   [string]$OwnerUser = 'owner',
   [string]$OwnerPassword = $env:DEMO_OWNER_PASSWORD,
