@@ -44,6 +44,8 @@ await request(`/api/finance/categories/${financeCategory.id}`, { method: 'PATCH'
 const floor = await request('/api/floor');
 const table = floor.zones?.flatMap((zone) => zone.tables || []).find((entry) => !String(entry.id).includes('vip') && entry.status === 'free');
 if (!table) throw new Error('Floor contract has no regular table');
+const tableLayout = await request(`/api/floor/tables/${table.id}`, { method: 'PATCH', body: body({ name: `Стол тест ${suffix}`, capacity: 4, layout: { x: 120, y: 80, width: 160, height: 90, rotation: 0, shape: 'rectangle' } }) });
+if (tableLayout.name !== `Стол тест ${suffix}` || Number(tableLayout.layout?.width) !== 160) throw new Error('Floor table layout contract returned incomplete data');
 const order = await request('/api/orders', { method: 'POST', body: body({ tableId: table.id, orderType: 'regular' }) });
 await request(`/api/orders/${order.id}/items`, { method: 'POST', body: body({ productId: 'redbull', quantity: 1 }) });
 const fixedDiscount = await requestRaw(`/api/orders/${order.id}/discount-requests`, { method: 'POST', body: body({ type: 'fixed', value: 100, reason: 'Неверный формат' }) });
