@@ -28,6 +28,15 @@ docker compose restart crm
 
 Сервис CRM слушает только внутренний порт контейнера 3000. Nginx принимает внешний HTTP и проксирует запросы в CRM. После запуска проверить `docker compose ps` и `curl http://127.0.0.1/api/health`.
 
+После публикации выполнить безопасную проверку внешнего контура. Пароль передаётся только через переменную окружения и не выводится:
+
+```bash
+CRM_USERNAME=admin CRM_PASSWORD='ваш-боевой-пароль' \
+  BASE_URL=https://crm.example.com ./post-deploy-acceptance.sh
+```
+
+Скрипт проверяет HTTPS, healthcheck, вход, сессию и основные маршруты `/admin`, `/orders`, `/inventory` и `/finance`.
+
 ## HTTPS
 
 Для готового TLS-шаблона используйте `nginx/https.conf.example`: замените `crm.example.com`, получите сертификат Let's Encrypt через Certbot и смонтируйте каталог сертификатов в nginx read-only. После этого скопируйте шаблон в `nginx/default.conf`, добавьте публикацию порта 443 и перезапустите nginx. Шаблон оставляет редирект с 80 на 443, включает TLS 1.2/1.3 и HSTS. В `.env` оставьте `AUTH_REQUIRED=true` и `COOKIE_SECURE=true`.
