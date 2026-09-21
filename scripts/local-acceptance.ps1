@@ -15,7 +15,7 @@ $checks = @(
   @{ file = 'local-crud-contract.mjs'; node = $true },
   @{ file = 'local-guest-order.ps1'; args = @('-BaseUrl', $BaseUrl) },
   # Keep the default acceptance run lightweight; use local-100-orders.ps1 -Count 100 for an explicit load pass.
-  @{ file = 'local-100-orders.ps1'; args = @('-BaseUrl', $BaseUrl, '-Count', '3') },
+  @{ file = 'local-100-orders.ps1'; args = @('-BaseUrl', $BaseUrl, '-Count', '10') },
   @{ file = '..\smoke-test.ps1'; args = @('-BaseUrl', $BaseUrl) }
 )
 foreach ($check in $checks) {
@@ -26,4 +26,4 @@ foreach ($check in $checks) {
   else { & pwsh -NoProfile -File $path @($check.args) }
   if ($LASTEXITCODE -ne 0) { throw "Acceptance check failed: $($check.file)" }
 }
-Write-Output 'LOCAL ACCEPTANCE: PASS (routes/assets, catalog, guests, 3 orders, finance and delivery)'
+Write-Output 'LOCAL ACCEPTANCE: PASS (routes/assets, catalog, guests, 10 orders, finance and delivery)'

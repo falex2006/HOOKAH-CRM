@@ -1,6 +1,6 @@
 param(
   [string]$BaseUrl = 'http://localhost:3000',
-  [int]$Count = 3
+  [int]$Count = 10
 )
 
 $ErrorActionPreference = 'Stop'
