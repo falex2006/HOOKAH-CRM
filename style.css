@@ -491,3 +491,6 @@
 /* Keep navigation visible while long pages scroll. */
 .velora-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden}
 .staff-theme aside{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden}
+.velora-theme select{min-height:42px;box-sizing:border-box;padding:10px 34px 10px 12px;border:1px solid #363b44;border-radius:10px;background:#111317;color:#eef1f3;font:inherit;line-height:1.2;color-scheme:dark}
+.velora-theme select:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:none}
+.staff-theme select{border-radius:10px}

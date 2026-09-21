@@ -47,3 +47,5 @@ When a stage is verified, record its evidence here and do not repeat that stage 
 - **Focus palette QA** — aligned product editor focus borders and rings with the coral-orange Velora theme; verified computed focus color locally.
 
 - **Sticky navigation QA** — fixed admin and staff sidebars to remain visible while long inventory and recipe pages scroll; verified at the bottom of the local inventory page with sidebar top pinned to the viewport.
+
+- **Select control styling QA** — replaced square status and role selectors with the shared dark rounded control treatment across orders, delivery, reservations, finance reports and staff forms; verified 10px radius and theme fills locally.
