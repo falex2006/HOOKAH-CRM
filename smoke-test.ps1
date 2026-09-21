@@ -109,6 +109,8 @@ try { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($split.id)/disc
 if ($invalidDiscountStatus -ne 400) { throw 'discount bounds guard failed' }
 $decision = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/discount-requests/$($discount.id)/approve" -ContentType 'application/json' -Body '{"decidedBy":"owner"}'
 if ($decision.status -ne 'approved') { throw 'discount approval failed' }
+$discountedClosed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($split.id)/close" -ContentType 'application/json' -Body '{"paymentMethod":"cash"}'
+if ($discountedClosed.status -ne 'closed' -or $discountedClosed.discountTotal -ne 50 -or $discountedClosed.finalTotal -ne 450) { throw 'approved discount close calculation failed' }
 $metrics = Invoke-RestMethod "$BaseUrl/api/metrics"
 if ($null -eq $metrics.staffActive) { throw 'metrics failed' }
 $inventory = Invoke-RestMethod "$BaseUrl/api/inventory"
