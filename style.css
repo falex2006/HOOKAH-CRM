@@ -490,6 +490,15 @@
 .staff-theme .table strong{line-height:1.1}
 /* Keep navigation visible while long pages scroll. */
 .velora-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden}
+/* Match native scrollbars to the dark Velora surface instead of the browser light default. */
+.velora-theme{scrollbar-color:#4a515d #111317;scrollbar-width:thin}
+.velora-theme *{scrollbar-color:#4a515d #111317;scrollbar-width:thin}
+.velora-theme ::-webkit-scrollbar{width:10px;height:10px}
+.velora-theme ::-webkit-scrollbar-track{background:#111317;border-radius:999px}
+.velora-theme ::-webkit-scrollbar-thumb{background:#4a515d;border:2px solid #111317;border-radius:999px}
+.velora-theme ::-webkit-scrollbar-thumb:hover{background:#ff6372}
+.velora-theme ::-webkit-scrollbar-corner{background:#111317}
+
 /* Keep the staff profile block on one optical grid at medium widths. */
 .velora-theme .sidebar-footer{gap:7px;padding:18px 10px 0;line-height:1.35}
 .velora-theme .sidebar-footer b{display:flex;align-items:center;gap:7px;margin-top:8px;line-height:1.25}
