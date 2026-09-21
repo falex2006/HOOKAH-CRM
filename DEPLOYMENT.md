@@ -39,6 +39,11 @@ docker compose restart crm
 ```bash
 BACKUP_DIR=/var/backups/hookah-crm ./backup-postgres.sh
 ```
+Проверка восстановления во временную базу (рабочая база не изменяется):
+
+```bash
+./verify-backup.sh /var/backups/hookah-crm/crm-YYYYmmddTHHMMSSZ.sql.gz
+```
 
 Добавить эту команду в systemd timer или cron, а копии передавать на отдельное защищённое хранилище. Периодически проверять восстановление во временную базу.
 
