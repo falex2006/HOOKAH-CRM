@@ -39,7 +39,7 @@ try {
   const blocked = [
     '/server.js', '/db.js', '/.env', '/.env.example', '/.git/config', '/.openai/hosting.json',
     '/package.json', '/package-lock.json', '/Dockerfile', '/docker-compose.yml', '/schema.sql',
-    '/seed.sql', '/backup-postgres.sh', '/scripts/migrate.js', '/dist/app.js',
+    '/seed.sql', '/backup-postgres.sh', '/verify-backup.sh', '/scripts/migrate.js', '/dist/app.js',
     '/territory-crm.tar.gz', '/node_modules/pg/package.json', '/STATUS.md',
     '/assets/../server.js', '/assets/%2e%2e/server.js', '/assets/%2e%2e%2fserver.js',
     '/assets/..%5cserver.js', '/%2eenv', '/SERVER.JS', '/server.js?rev=1', '/server.js/'
