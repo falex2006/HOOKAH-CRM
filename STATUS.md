@@ -9,6 +9,7 @@
 - Повторная локальная проверка 22.09.2026: 13 маршрутов и `/api/health` отвечают корректно; role, insights, date, login и static-boundary контракты проходят. Полный acceptance ранее подтверждён; VPS и реальное восстановление PostgreSQL остаются финальным внешним этапом.
 - Дополнительная локальная проверка 22.09.2026: CRUD-контракт PASS (товар с фото, склад, финансовая категория, бронь, доставка, точка сети и сотрудник); `docker compose config` PASS; `npm pack --dry-run` PASS (112 файлов).
 - Production-проверка 22.09.2026: `deploy-vps.sh`, `backup-postgres.sh`, `verify-backup.sh` и `migrate-vps.sh` проходят `bash -n`; Docker Engine на локальной машине недоступен, поэтому фактическая сборка образа и восстановление PostgreSQL ещё не выполнены.
+- Production-preflight усилен: deploy и миграции теперь проверяют Docker Compose plugin и обязательный `STAFF_PASSPORT_KEY`, а также отклоняют `replace-*` placeholders; bash syntax, static boundary, date contract и compose config повторно прошли.
 
 - После визуальных правок обновлены cache-busting версии `style.css` до `rev=128` во всех рабочих HTML-страницах; браузер не должен использовать старый CSS из кэша.
 

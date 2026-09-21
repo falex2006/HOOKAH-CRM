@@ -58,6 +58,6 @@ docker compose ps
 
 Перед обновлением сохранить backup. Healthcheck CRM и PostgreSQL должны быть `healthy`.
 
-Перед `deploy-vps.sh` задайте в `.env` непустые production-секреты и замените все значения `change_*`; скрипт проверяет `AUTH_REQUIRED=true` и `COOKIE_SECURE=true` до запуска контейнеров.
+Перед `deploy-vps.sh` задайте в `.env` непустые production-секреты и замените все значения `change_*` и `replace-*`, включая `STAFF_PASSPORT_KEY`; скрипт проверяет наличие Docker Compose plugin, `AUTH_REQUIRED=true` и `COOKIE_SECURE=true` до запуска контейнеров.
 
 `backup-postgres.sh` после дампа проверяет непустой файл и целостность gzip через `gzip -t`, затем хранит последние 14 дней.

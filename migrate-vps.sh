@@ -4,6 +4,8 @@ set -euo pipefail
 # Apply versioned PostgreSQL migrations to an already initialized CRM volume.
 # Run from the project directory after `docker compose up -d db`.
 command -v docker >/dev/null || { echo 'Docker is required' >&2; exit 1; }
+
+docker compose version >/dev/null 2>&1 || { echo 'Docker Compose plugin is required' >&2; exit 1; }
 test -f .env || { echo 'Create .env from .env.example first' >&2; exit 1; }
 set -a
 . ./.env
