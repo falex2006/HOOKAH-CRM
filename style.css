@@ -279,7 +279,7 @@
 .velora-theme .quick-actions a:hover{transform:translateY(-2px);border-color:#ff667955}
 .velora-theme .quick-actions a:after{content:"↗";position:absolute;right:13px;top:11px;color:#68717e;font-size:14px}
 .velora-theme .button{width:auto;letter-spacing:.01em;transition:transform .18s ease,filter .18s ease,box-shadow .18s ease}
-.velora-theme a.button,.velora-theme a.button:hover,.velora-theme a.button:focus{text-decoration:none}
+.velora-theme a.button,.velora-theme a.button:visited,.velora-theme a.button:hover,.velora-theme a.button:active,.velora-theme a.button:focus{text-decoration:none!important;text-decoration-line:none!important}
 .velora-theme a.button:not(.primary){color:#c7d0d8;border:1px solid #363b44;background:#202329}.velora-theme a.button:not(.primary):hover{color:#fff;border-color:#ff6372;background:#292d34}
 .velora-theme .button:hover{transform:translateY(-1px);filter:brightness(1.08)}
 .velora-theme .button.primary{border:1px solid #ff899044}
