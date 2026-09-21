@@ -511,6 +511,7 @@
 .velora-theme .inventory-stock-panel table{table-layout:fixed}
 .velora-theme .inventory-stock-panel th:nth-child(1){width:28%}.velora-theme .inventory-stock-panel th:nth-child(2){width:22%}.velora-theme .inventory-stock-panel th:nth-child(3){width:16%}.velora-theme .inventory-stock-panel th:nth-child(4){width:16%}.velora-theme .inventory-stock-panel th:nth-child(5){width:18%}
 .velora-theme .inventory-stock-panel th,.velora-theme .inventory-stock-panel td{min-width:0;white-space:normal;overflow-wrap:anywhere}
+.velora-theme .inventory-stock-panel th{padding:10px 8px;font-size:10px;letter-spacing:.04em;white-space:nowrap}
 .velora-theme .reservation-panel .panel-head{align-items:flex-start;gap:12px;flex-wrap:wrap}
 .velora-theme .reservation-panel .panel-head h2{flex:1 1 180px;min-width:0;line-height:1.2}
 .velora-theme .reservation-panel .panel-head .table-search{flex:1 1 140px;min-width:0;max-width:none}
