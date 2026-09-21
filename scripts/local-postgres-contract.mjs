@@ -10,10 +10,13 @@ const response = async (path, options) => {
 };
 
 if (mode === 'create') {
+  const floor = await response('/api/floor');
+  const table = floor.zones.flatMap(zone => zone.tables || []).find(entry => entry.status === 'free');
+  assert.ok(table?.id, 'seeded PostgreSQL floor must expose a free table');
   const order = await response('/api/orders', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ notes: 'postgres persistence contract' })
+    body: JSON.stringify({ tableId: table.id, notes: 'postgres persistence contract' })
   });
   assert.ok(order.id, 'created PostgreSQL order must have an id');
   process.stdout.write(order.id);
