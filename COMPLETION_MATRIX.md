@@ -23,7 +23,7 @@
 | Реальный backup restore | Не подтверждено на этой машине | `verify-backup.sh` готов, но нет production-архива и Docker Engine |
 | VPS, домен, HTTPS и боевые секреты | Не выполнено | Финальный внешний этап; использовать `DEPLOYMENT.md` и `nginx/https.conf.example` |
 | Post-deploy smoke-проверка | Подготовлено, не выполнено | `post-deploy-acceptance.sh`; запускать после появления VPS, HTTPS и боевой учётной записи |
-| Регрессии на GitHub | Подготовлено | `.github/workflows/crm-contracts.yml` запускает визуальные, security, role, insights, date, login и shell-контракты на push/PR |
+| Регрессии на GitHub | Подтверждено | `.github/workflows/crm-contracts.yml`; run `35651251737` для `f83adbb` завершён успешно, включая локальный API для role/insights/date-контрактов |
 
 ## Следующий запуск
 
