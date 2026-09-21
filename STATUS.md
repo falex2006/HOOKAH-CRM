@@ -12,6 +12,7 @@
 - Production-preflight усилен: deploy и миграции теперь проверяют Docker Compose plugin и обязательный `STAFF_PASSPORT_KEY`, а также отклоняют `replace-*` placeholders; bash syntax, static boundary, date contract и compose config повторно прошли.
 - Подготовлен `nginx/https.conf.example` с редиректом HTTP→HTTPS, TLS 1.2/1.3, HSTS и проксированием CRM; локальная машина не содержит nginx/сертификатов, поэтому TLS-конфигурация требует проверки на целевом VPS.
 - Добавлен `scripts/local-deploy-contract.mjs` в общий acceptance: проверяет preflight секретов, healthcheck, закрытый порт PostgreSQL и HTTPS-шаблон; локальный контракт проходит.
+- Проверка зависимостей 22.09.2026: `npm ci --ignore-scripts --no-audit --no-fund` завершилась успешно, `npm audit --omit=dev --audit-level=high` сообщил 0 уязвимостей.
 
 - После визуальных правок обновлены cache-busting версии `style.css` до `rev=128` во всех рабочих HTML-страницах; браузер не должен использовать старый CSS из кэша.
 
