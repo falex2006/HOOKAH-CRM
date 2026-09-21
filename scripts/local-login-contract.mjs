@@ -4,6 +4,8 @@ const js = fs.readFileSync('login.js', 'utf8');
 const css = fs.readFileSync('style.css', 'utf8');
 const required = [
   ['password toggle', html.includes('login-password-toggle') && js.includes('passwordToggle')],
+  ['idle hookah scene', html.includes('login-atmosphere') && html.includes('login-hookah')],
+  ['state machine', js.includes('setLoginState') && js.includes('failure-animation') && js.includes('success-animation')],
   ['transition layer', js.includes('login-transition')],
   ['skip control', js.includes('login-transition__skip')],
   ['five second timeout', js.includes('setTimeout(finish, 5000)')],
@@ -12,7 +14,8 @@ const required = [
   ['tobacco animation', css.includes('@keyframes tobaccoDrop')],
   ['metal animation', css.includes('@keyframes metalDrop')],
   ['coal animation', css.includes('@keyframes coalGlow')],
-  ['smoke animation', css.includes('@keyframes smokeRise')],
+  ['smoke animation', css.includes('@keyframes smokeRise') && css.includes('@keyframes loginSmoke')],
+  ['failure collapse', css.includes('@keyframes loginCollapse')],
 ];
 const missing = required.filter(([, ok]) => !ok).map(([name]) => name);
 if (missing.length) { console.error(`LOCAL LOGIN CONTRACT: FAIL (${missing.join(', ')})`); process.exit(1); }
