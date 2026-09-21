@@ -3,6 +3,7 @@
 | Требование | Реализация | Проверка |
 |---|---|---|
 | Рабочее место персонала | `index.html`, `app.js`, `/api/floor`, `/api/orders` | `smoke-test.ps1`, HTTP 200 `/` |
+| Гость и заметки заказа | вкладки «Гости» и «Заметки» в `index.html`, привязка через `PATCH /api/orders/:id` | локальный API-сценарий привязки клиента и сохранения заметки |
 | Панель владельца | `admin.html`, `portal.js`, `/admin/` | HTTP 200 `/admin/`, Sites v52 |
 | Роли и ограничения | `rolePermissions` и `denyUnless` в `server.js` | smoke-сценарий ролей |
 | VIP-минимумы | `vipRoomMinimums`, `orders.minimumOrderTotal`, reservation deposit guard | сценарий бронирования и закрытия VIP-заказа |
