@@ -167,10 +167,17 @@ function setupDashboardInsights() {
   const chart = document.querySelector('#dashboard-insight-chart');
   if (!chart) return;
   const roleKey = portalUser.role || 'admin';
-  const storageKey = `crm_insights_${roleKey}`;
+  const identityKey = String(portalUser.id || portalUser.login || portalUser.name || roleKey).trim().toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '_').slice(0, 80) || roleKey;
+  const storageKey = `crm_insights_user_${identityKey}`;
+  const legacyStorageKey = `crm_insights_${roleKey}`;
   const defaults = { revenue: true, orders: true, reservations: true, stock: true };
   let visible = defaults;
-  try { visible = { ...defaults, ...(JSON.parse(localStorage.getItem(storageKey) || '{}')) }; } catch (_) {}
+  try {
+    const stored = localStorage.getItem(storageKey);
+    const legacy = localStorage.getItem(legacyStorageKey);
+    visible = { ...defaults, ...(JSON.parse(stored || legacy || '{}')) };
+    if (!stored && legacy) localStorage.setItem(storageKey, JSON.stringify(visible));
+  } catch (_) {}
   document.querySelectorAll('[data-insight-toggle]').forEach((input) => { input.checked = visible[input.dataset.insightToggle] !== false; input.addEventListener('change', () => { visible[input.dataset.insightToggle] = input.checked; localStorage.setItem(storageKey, JSON.stringify(visible)); render(); }); });
   let metrics = null; let summary = null; let analytics = null;
   const render = () => {
