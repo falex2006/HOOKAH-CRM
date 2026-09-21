@@ -13,6 +13,7 @@
 | Визуальная карточка сотрудников и форма телефонов | Подтверждено браузером | `/admin?qa=staff-final#staff`: выравнивание, статусы и компактные действия |
 | Финансы, склад, каталог, доставка и аудит | Подтверждено локально | `local-crud-contract.mjs`, smoke-сценарии и локальная приёмка |
 | Инфографика и персональные настройки | Подтверждено контрактами и ролями | `local-insights-contract.mjs`, `local-role-contract.mjs`, analytics permission smoke |
+| Полный локальный приёмочный прогон | Подтверждено локально | `scripts/local-acceptance.ps1 -BaseUrl http://localhost:3000` — `LOCAL ACCEPTANCE: PASS` |
 | Защита локальных файлов и production-пакета | Подтверждено локально | `local-static-boundary.mjs`, `local-deploy-contract.mjs` |
 | Визуальные регрессии CSS, action-ссылок и иконок | Подтверждено локально | `local-design-contract.mjs` — актуальный `style.css?rev=128`, без подчёркиваний и со встроенными Tabler Icons |
 | Зависимости | Подтверждено локально | `npm ci --ignore-scripts`, `npm audit --omit=dev --audit-level=high` — 0 уязвимостей |
