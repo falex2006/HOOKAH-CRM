@@ -39,3 +39,5 @@ When a stage is verified, record its evidence here and do not repeat that stage 
 - **Inventory table alignment QA** — fixed the stock table to a stable column grid, vertically centered cells, and added a compact header layout for narrow screens; verified the row and headings locally at mobile width.
 
 - **Login photographic animation QA** — replaced the single camera push with a staged live-photo sequence: bowl settles, tobacco drops, metal cover lands, coals warm and smoke rises; preserved the skip control and reduced-motion fallback. Local login contract passes.
+
+- **Cross-route alignment QA** — audited all local administrative routes for viewport overflow and title/action alignment; fixed the orders page action link overlap, isolated the wide order journal inside its scroll container, and made inventory recipe cards reflow earlier on tablet widths. Route smoke passes.

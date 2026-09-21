@@ -187,7 +187,7 @@
   .velora-theme .portal-content{padding:20px 14px}
   .velora-theme .page-title{display:block}
   .velora-theme .page-title h1{font-size:29px}
-  .velora-theme .page-title .button,.velora-theme .page-title .date-input{margin-top:18px}
+  .velora-theme .page-title>.button{display:flex;width:max-content;margin-top:18px}`n  .velora-theme .page-title .date-input{margin-top:18px}
   .velora-theme .kpi-grid,.velora-theme .kpi-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .velora-theme .kpi{padding:16px}
   .velora-theme .kpi strong{font-size:27px}
@@ -313,7 +313,7 @@
 .velora-theme .portal-content{padding:36px 40px 48px}
 .velora-theme .page-title{gap:24px;margin-bottom:22px}
 .velora-theme .page-title h1{line-height:1.08}
-.velora-theme .page-title .muted{line-height:1.45}
+.velora-theme .page-title .muted{line-height:1.45}.velora-theme .page-title>.button{display:inline-flex;align-items:center;justify-content:center}
 .velora-theme .kpi-grid{margin-bottom:18px}
 .velora-theme .kpi{min-height:112px;box-sizing:border-box;padding:18px 19px}
 .velora-theme .kpi span{line-height:1.35}
@@ -483,3 +483,6 @@
 .login-transition__live-photo.live-photo-metal{clip-path:ellipse(24% 5% at 50% 48%)}
 .login-transition__live-photo.live-photo-coals{clip-path:ellipse(27% 5% at 50% 43%)}
 .login-transition__live-photo:not(.live-photo-base){mix-blend-mode:screen;filter:contrast(1.12) saturate(1.05) brightness(1.5);}
+.velora-theme .orders-table{min-width:760px}
+@media(max-width:1100px){.recipe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.recipe-grid{grid-template-columns:1fr}}
