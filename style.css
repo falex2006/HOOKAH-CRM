@@ -368,6 +368,9 @@
 .velora-theme .staff-form .staff-form-contact-row,.velora-theme .staff-form .staff-sensitive-fields,.velora-theme .staff-form .permission-scope-fields{grid-column:1/-1;min-width:0;max-width:100%}
 .velora-theme .staff-form .staff-form-contact-row{grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
 .velora-theme .staff-form input,.velora-theme .staff-form select,.velora-theme .staff-form textarea{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.velora-theme .staff-form textarea{min-height:78px;resize:vertical;background:#111317;border:1px solid #363b44;border-radius:10px;color:#eef1f3;line-height:1.45}
+.velora-theme .staff-form textarea::placeholder{color:#747c87}
+.velora-theme .staff-form textarea:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:0}
 .velora-theme .staff-form .staff-sensitive-fields label,.velora-theme .staff-form .permission-scope-fields label{min-width:0}
 .velora-theme .button.small.danger{background:#43252e;border:1px solid #80414f;color:#ffadb7;box-shadow:none}
 .velora-theme .button.small.danger:hover{background:#5a2a35;border-color:#d3596a}
