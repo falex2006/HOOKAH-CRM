@@ -92,14 +92,15 @@
   .velora-theme .staff-layout{grid-template-columns:1fr;gap:18px}
   .velora-theme .staff-form{border-left:0;border-top:1px solid #2c3037;padding:20px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .velora-theme .staff-form b,.velora-theme .staff-form button,.velora-theme .staff-form small{grid-column:1/-1}
-  .velora-theme .staff-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"avatar identity status" "avatar card card" "avatar workspace delete";gap:5px 10px;align-items:center;padding:14px 0}
+  .velora-theme .staff-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto auto;grid-template-areas:"avatar identity status status" "avatar card workspace delete";gap:7px 10px;align-items:center;padding:11px 0}
   .velora-theme .staff-row .staff-avatar{grid-area:avatar}
   .velora-theme .staff-row>div{grid-area:identity;min-width:0}
-  .velora-theme .staff-row>.badge{grid-area:status;justify-self:end}
-  .velora-theme .staff-row .staff-workspace{grid-area:workspace;justify-self:end;padding:6px 10px;font-size:11px;min-width:0;max-width:100%}
-  .velora-theme .staff-row .staff-edit{grid-area:card;justify-self:end;padding:6px 10px;font-size:11px}
-  .velora-theme .staff-row .staff-delete{grid-area:delete;justify-self:end;margin-right:0;transform:none}
-  .velora-theme .staff-row .staff-workspace+.staff-delete{margin-right:0}
+  .velora-theme .staff-row>.badge{grid-area:status;justify-self:end;white-space:nowrap}
+  .velora-theme .staff-row .staff-workspace{grid-area:workspace;justify-self:end;padding:6px 9px;font-size:11px;min-width:0;max-width:100%;white-space:nowrap}
+  .velora-theme .staff-row .staff-edit{grid-area:card;justify-self:start;padding:6px 9px;font-size:11px;white-space:nowrap}
+  .velora-theme .staff-row .staff-delete{grid-area:delete;justify-self:end;margin:0;transform:none;width:30px;height:30px;display:grid;place-items:center;padding:0;border-radius:9px;line-height:1}
+  .velora-theme .staff-row .staff-delete svg{width:16px;height:16px;display:block}
+  .velora-theme .staff-row .staff-workspace+.staff-delete{margin:0}
   .velora-theme .sidebar-footer span,.velora-theme .sidebar-footer b,.velora-theme .sidebar-footer small{display:none}
   .velora-theme .logout-button{font-size:0;padding:8px 0}
   .velora-theme .logout-button:after{content:'↪';font-size:16px}
