@@ -23,6 +23,15 @@ $admin = Login 'admin' $AdminPassword
 $adminHeaders = HeadersFor $admin
 $manager = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ name = 'Managed manager'; login = "acceptance_manager_$(Get-Date -Format 'HHmmss')"; password = 'acceptance-pass'; role = 'bartender'; telegram = '@manager_demo'; phoneNumbers = @(@{ label = 'Рабочий'; number = '+7 900 000-00-01'; primary = $true }) } | ConvertTo-Json -Depth 5)
 if (-not $manager.id) { throw 'manager staff creation should be allowed' }
+$scopedManagerLogin = "acceptance_scoped_manager_$(Get-Date -Format 'HHmmss')"
+$scopedManager = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $ownerHeaders -ContentType 'application/json' -Body (@{ name = 'Scoped manager'; login = $scopedManagerLogin; password = 'acceptance-pass'; role = 'admin'; permissionScopes = @('orders','reservations') } | ConvertTo-Json -Depth 5)
+if (($scopedManager.permissionScopes -join ',') -ne 'orders,reservations') { throw 'owner should assign manager permission scopes' }
+$scopedManagerAuth = Login $scopedManagerLogin 'acceptance-pass'
+$scopedManagerHeaders = HeadersFor $scopedManagerAuth
+$scopedSession = Invoke-RestMethod "$BaseUrl/api/session" -Headers $scopedManagerHeaders
+if ($scopedSession.permissions -notcontains 'orders' -or $scopedSession.permissions -contains 'finance') { throw 'scoped manager effective permissions failed' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/orders" -Headers $scopedManagerHeaders }) -ne 200) { throw 'scoped manager orders access should be allowed' }
+if ((StatusFor { Invoke-RestMethod "$BaseUrl/api/finance/summary" -Headers $scopedManagerHeaders }) -ne 403) { throw 'scoped manager finance access should be denied' }
 $adminRoleStatus = StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ name = 'Rejected developer'; login = "rejected_dev_$(Get-Date -Format 'HHmmss')"; password = 'acceptance-pass'; role = 'developer' } | ConvertTo-Json) }
 $shortPasswordStatus = StatusFor { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -Headers $adminHeaders -ContentType 'application/json' -Body (@{ name = 'Rejected password'; login = "rejected_password_$(Get-Date -Format 'HHmmss')"; password = '123'; role = 'bartender' } | ConvertTo-Json) }
 if ($shortPasswordStatus -ne 400) { throw 'short staff passwords must be rejected' }

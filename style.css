@@ -353,3 +353,5 @@
 .network-list{display:grid;gap:10px}.network-row{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2)}.network-row b,.network-row small{display:block}.network-row small{color:var(--muted);margin-top:5px}@media(max-width:620px){.network-row{align-items:flex-start;flex-direction:column}}
 
 .integration-icon .icon{width:20px;height:20px;vertical-align:0}.audit-chevron .icon{width:18px;height:18px;vertical-align:0}
+
+.permission-scope-fields{margin:2px 0 8px;padding:10px 12px;border:1px solid #dfe7ea;border-radius:10px}.permission-scope-fields summary{cursor:pointer;font-weight:700;color:#2b4c5a}.scope-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.scope-grid label{display:flex;align-items:center;gap:7px;color:#4f6873;font-size:13px}.scope-grid input{accent-color:#0aa9df}@media(max-width:560px){.scope-grid{grid-template-columns:1fr}}
