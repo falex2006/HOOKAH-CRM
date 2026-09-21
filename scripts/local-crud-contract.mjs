@@ -58,6 +58,13 @@ await request(`/api/reservations/${reservation.id}/cancel`, { method: 'POST', bo
 const delivery = await request('/api/deliveries', { method: 'POST', body: body({ customerName: `Локальная доставка ${suffix}`, phone: '+79990001123', address: 'Тестовый адрес', total: 500 }) });
 await request(`/api/deliveries/${delivery.id}`, { method: 'PATCH', body: body({ status: 'in_delivery' }) });
 
+const staff = await request('/api/staff', { method: 'POST', body: body({ name: `Тестовый бармен ${suffix}`, login: `local_staff_${suffix}`, password: 'local-test-password', role: 'bartender', phoneNumbers: [{ number: '+79990001124', primary: true }], telegram: '@local_staff_test' }) });
+if (staff.role !== 'bartender' || !staff.phoneNumbers?.length) throw new Error('Staff create contract returned incomplete profile');
+await request(`/api/staff/${staff.id}/status`, { method: 'PATCH', body: body({ active: false }) });
+await request(`/api/staff/${staff.id}/archive`, { method: 'POST', body: '{}' });
+const visibleStaff = await request('/api/staff');
+if (visibleStaff.items?.some((person) => person.id === staff.id)) throw new Error('Archived staff remains visible');
+
 await request(`/api/products/${product.id}`, { method: 'DELETE' });
 await request(`/api/product-categories/${category.id}`, { method: 'DELETE' });
-console.log(`LOCAL CRUD CONTRACT: PASS (product=${product.id}, inventory=${inventoryItem.id}, finance=${financeCategory.id}, reservation=${reservation.id}, delivery=${delivery.id})`);
+console.log(`LOCAL CRUD CONTRACT: PASS (product=${product.id}, inventory=${inventoryItem.id}, finance=${financeCategory.id}, reservation=${reservation.id}, delivery=${delivery.id}, staff=${staff.id})`);
