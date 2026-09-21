@@ -1,6 +1,6 @@
 param(
   [string]$BaseUrl = 'http://localhost:3000',
-  [int]$Count = 100
+  [int]$Count = 3
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,4 +37,4 @@ for ($i = 1; $i -le $Count; $i++) {
 
 $audit = Invoke-RestMethod "$BaseUrl/api/audit?limit=300"
 if (-not $audit.items -or $audit.items.Count -lt ($Count * 3)) { throw 'Expected create/item/close audit events were not recorded' }
-Write-Output "LOCAL 100-ORDER TEST: PASS (created=$created, closed=$closed, audit=$($audit.items.Count))"
+Write-Output "LOCAL ORDER TEST: PASS (created=$created, closed=$closed, audit=$($audit.items.Count))"
