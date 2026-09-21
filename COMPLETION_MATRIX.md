@@ -16,6 +16,7 @@
 | Полный локальный приёмочный прогон | Подтверждено локально | `scripts/local-acceptance.ps1 -BaseUrl http://localhost:3000` — `LOCAL ACCEPTANCE: PASS` |
 | Защита локальных файлов и production-пакета | Подтверждено локально | `local-static-boundary.mjs`, `local-deploy-contract.mjs` |
 | Визуальные регрессии CSS, action-ссылок и иконок | Подтверждено локально | `local-design-contract.mjs` — актуальный `style.css?rev=128`, без подчёркиваний и со встроенными Tabler Icons |
+| Браузерный визуальный QA основных экранов | Подтверждено локально | `/admin?qa=visual-next`, `/orders?qa=visual-orders`, `/inventory?qa=visual-inventory` |
 | Зависимости | Подтверждено локально | `npm ci --ignore-scripts`, `npm audit --omit=dev --audit-level=high` — 0 уязвимостей |
 | Автоматическое продолжение после лимитов | Подтверждено в Codex | Активный heartbeat `crm`, описание в `HANDOFF.md` |
 | PostgreSQL-сохранность после перезапуска | Не подтверждено на этой машине | Нужен работающий PostgreSQL/Docker-контур |
