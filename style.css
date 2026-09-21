@@ -31,6 +31,7 @@
 
 /* Tabler Icons: one consistent outline language across admin and staff navigation. */
 .icon{width:18px;height:18px;display:inline-block;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-4px}
+.staff-theme .icon{vertical-align:-4px}.staff-theme .shift-control,.staff-theme .primary,.staff-theme .close,.staff-theme .staff-logout{display:inline-flex;align-items:center;justify-content:center;gap:8px}.quantity-control{display:inline-flex;align-items:center;gap:8px}.quantity-control button{display:grid;place-items:center;width:28px;height:28px;border:1px solid #3b424d;border-radius:8px;background:#202329;color:#8edfff}.quantity-control button .icon{width:15px;height:15px;vertical-align:0}.product-placeholder{display:grid;place-items:center}.product-placeholder .icon,.product b .icon{width:16px;height:16px;vertical-align:-3px}
 .portal-nav a,.staff-theme nav button{display:flex;align-items:center;gap:11px}
 .portal-nav a .icon{width:18px;height:18px}
 .staff-theme nav button .icon{width:18px;height:18px}
