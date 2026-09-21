@@ -43,3 +43,5 @@ When a stage is verified, record its evidence here and do not repeat that stage 
 - **Cross-route alignment QA** — audited all local administrative routes for viewport overflow and title/action alignment; fixed the orders page action link overlap, isolated the wide order journal inside its scroll container, and made inventory recipe cards reflow earlier on tablet widths. Route smoke passes.
 
 - **Spacing rhythm QA** — reviewed admin and staff workspaces visually; stabilized the staff table-card text so long names cannot collide with status or guest-count labels, while preserving compact table geometry.
+
+- **Focus palette QA** — aligned product editor focus borders and rings with the coral-orange Velora theme; verified computed focus color locally.

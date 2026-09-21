@@ -461,7 +461,7 @@
 @media(max-width:560px){.login-transition__title{font-size:16px;bottom:17%}.login-transition__live-haze.haze-a{width:80vw;height:65vh;left:36%}.login-transition__live-haze.haze-b{width:65vw;height:55vh;left:58%}}
 @media(prefers-reduced-motion:reduce){.login-transition__live-photo,.login-transition__live-haze,.login-transition__live-glint,.login-transition__title{animation:none}.login-transition__live-photo{transform:none;opacity:1}.login-transition__live-haze{opacity:.14}}
 .velora-theme .product-editor input,.velora-theme .product-editor select,.velora-theme .product-editor textarea{width:100%;min-width:0;box-sizing:border-box;padding:11px 12px;border:1px solid #363b44;border-radius:10px;background:#111317;color:#eef1f3;font:inherit;line-height:1.35;transition:border-color .18s ease,box-shadow .18s ease}
-.velora-theme .product-editor input:focus,.velora-theme .product-editor select:focus,.velora-theme .product-editor textarea:focus{border-color:#26b9ff;box-shadow:0 0 0 3px #26b9ff1c;outline:none}
+.velora-theme .product-editor input:focus,.velora-theme .product-editor select:focus,.velora-theme .product-editor textarea:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:none}
 .velora-theme .product-editor .button{border-radius:10px}
 /* Photographic assembly sequence for login transition */
 .login-transition__live-photo{position:absolute;inset:-8%;background:linear-gradient(90deg,#050505 0%,transparent 54%,#0005 100%),url('/assets/login-hookah-reference.jpg') center 58%/cover no-repeat;filter:contrast(1.06) saturate(.82) brightness(.82);will-change:transform,opacity,filter;pointer-events:none}
