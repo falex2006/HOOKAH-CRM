@@ -14,6 +14,7 @@ $checks = @(
   @{ file = 'local-tea-catalog.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-crud-contract.mjs'; node = $true },
   @{ file = 'local-guest-order.ps1'; args = @('-BaseUrl', $BaseUrl) },
+  # Keep the default acceptance run lightweight; use local-100-orders.ps1 -Count 100 for an explicit load pass.
   @{ file = 'local-100-orders.ps1'; args = @('-BaseUrl', $BaseUrl, '-Count', '3') },
   @{ file = '..\smoke-test.ps1'; args = @('-BaseUrl', $BaseUrl) }
 )
