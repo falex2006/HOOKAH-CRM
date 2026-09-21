@@ -32,6 +32,33 @@
 
 /* Tabler Icons: one consistent outline language across admin and staff navigation. */
 .icon{width:18px;height:18px;display:inline-block;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-4px}
+
+/* Keep the collapsed portal rail stable on narrow screens.  The old
+   first-letter rule was intended for text glyph fallbacks and made SVG
+   symbols inherit inconsistent sizing/line-height (especially Finance). */
+@media (max-width:650px){
+  .portal-sidebar .portal-nav a{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    min-height:44px;
+    padding:12px 8px;
+    gap:0;
+    font-size:0;
+    line-height:0;
+  }
+  .portal-sidebar .portal-nav a:first-letter{font-size:0}
+  .portal-sidebar .portal-nav a .icon{
+    display:block;
+    width:20px;
+    height:20px;
+    min-width:20px;
+    flex:0 0 20px;
+    margin:0;
+    vertical-align:0;
+  }
+}
 .staff-theme .icon{vertical-align:-4px}.staff-theme .shift-control,.staff-theme .primary,.staff-theme .close,.staff-theme .staff-logout{display:inline-flex;align-items:center;justify-content:center;gap:8px}.quantity-control{display:inline-flex;align-items:center;gap:8px}.quantity-control button{display:grid;place-items:center;width:28px;height:28px;border:1px solid #3b424d;border-radius:8px;background:#202329;color:#8edfff}.quantity-control button .icon{width:15px;height:15px;vertical-align:0}.product-placeholder{display:grid;place-items:center}.product-placeholder .icon,.product b .icon{width:16px;height:16px;vertical-align:-3px}
 .portal-nav a,.staff-theme nav button{display:flex;align-items:center;gap:11px}
 .portal-nav a .icon{width:18px;height:18px}
