@@ -21,6 +21,7 @@ docker compose pull
 docker compose build --pull
 docker compose up -d
 ./migrate-vps.sh
+docker compose exec -T crm npm run db:seed-menu
 docker compose restart crm
 
 for attempt in $(seq 1 30); do

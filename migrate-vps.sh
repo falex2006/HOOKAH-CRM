@@ -24,3 +24,6 @@ for migration in migrations/*.sql; do
 done
 
 echo 'CRM migrations applied'
+docker compose up -d crm
+docker compose exec -T crm npm run db:seed-menu
+echo 'CRM menu catalog synchronized'
