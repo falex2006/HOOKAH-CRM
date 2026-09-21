@@ -9,7 +9,10 @@ const root = __dirname;
 const repositories = createRepositories();
 const orderRepository = repositories?.orders || null;
 const sessionRepository = repositories?.sessions || null;
-const venueDbId = process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001';
+// The selected network point is process-wide for the current local POS server.
+// It starts from VENUE_ID and is updated by the network selector so subsequent
+// floor, orders, inventory and reporting requests use the selected point.
+let venueDbId = process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001';
 const venue = {
   id: 'venue-territory', name: 'Территория', format: 'кальян-бар', city: 'Тюмень',
   address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', logoUrl: null,
@@ -315,7 +318,7 @@ async function api(req, res) {
   if (networkVenueSelect && req.method === 'POST') {
     if (denyUnless(req, res, 'settings')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenueSelect[1])) {
-      try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const { rows } = await client.query('SELECT id,name,format,city,address,phone,timezone FROM venues WHERE id=$1 AND is_active=true FOR UPDATE', [networkVenueSelect[1]]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'venue_not_found' }); } await client.query('UPDATE venues SET is_current=false WHERE is_active=true'); await client.query('UPDATE venues SET is_current=true WHERE id=$1', [networkVenueSelect[1]]); await client.query('COMMIT'); const selected = { ...rows[0], status: 'active', isCurrent: true }; recordAudit(req, 'venue.selected', 'venue', selected.id, { currentVenueId: venueDbId }, { currentVenueId: selected.id }); return json(res, 200, selected); } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); } } catch (error) { return json(res, 409, { error: 'venue_select_failed', detail: error.message }); }
+      try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const { rows } = await client.query('SELECT id,name,format,city,address,phone,timezone FROM venues WHERE id=$1 AND is_active=true FOR UPDATE', [networkVenueSelect[1]]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'venue_not_found' }); } await client.query('UPDATE venues SET is_current=false WHERE is_active=true'); await client.query('UPDATE venues SET is_current=true WHERE id=$1', [networkVenueSelect[1]]); await client.query('COMMIT'); const previousVenueId = venueDbId; const selected = { ...rows[0], status: 'active', isCurrent: true }; venueDbId = selected.id; recordAudit(req, 'venue.selected', 'venue', selected.id, { currentVenueId: previousVenueId }, { currentVenueId: selected.id }); return json(res, 200, selected); } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); } } catch (error) { return json(res, 409, { error: 'venue_select_failed', detail: error.message }); }
     }
     const item = networkVenues.find((entry) => entry.id === networkVenueSelect[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     const before = networkVenues.find((entry) => entry.id === currentVenueId); currentVenueId = item.id; Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, timezone: item.timezone, format: item.format });

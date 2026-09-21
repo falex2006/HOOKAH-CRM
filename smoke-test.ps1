@@ -62,6 +62,8 @@ $networkUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/network/ven
 if ($networkUpdated.name -notlike '*updated*') { throw 'network venue update failed' }
 $networkSelected = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/network/venues/$($networkVenue.id)/select"
 if (-not $networkSelected.isCurrent) { throw 'network venue select failed' }
+$selectedVenueSettings = Invoke-RestMethod "$BaseUrl/api/venue"
+if ($selectedVenueSettings.name -ne $networkSelected.name) { throw 'network venue context did not propagate to venue settings' }
 $networkCurrentDeleteStatus = $null
 try { Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/network/venues/$($networkVenue.id)" | Out-Null } catch { $networkCurrentDeleteStatus = [int]$_.Exception.Response.StatusCode.value__ }
 if ($networkCurrentDeleteStatus -ne 409) { throw 'current network venue archive guard failed' }
