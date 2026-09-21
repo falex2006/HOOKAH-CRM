@@ -29,6 +29,8 @@ node server.js
 pwsh ./scripts/local-acceptance.ps1 -BaseUrl http://localhost:3000
 ```
 
+Приёмка включает `scripts/local-crud-contract.mjs`: локально проверяются создание/изменение товара с изображением, складское движение, финансовая категория, бронирование и доставка.
+
 Проверка авторизации и ролей выполняется на отдельном локальном процессе с `AUTH_REQUIRED=true`. Полная инструкция находится в [ACCEPTANCE.md](ACCEPTANCE.md).
 
 Последний подтверждённый результат role smoke:
