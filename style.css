@@ -488,3 +488,6 @@
 @media(max-width:650px){.recipe-grid{grid-template-columns:1fr}}
 .staff-theme .table strong,.staff-theme .table em,.staff-theme .table small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .staff-theme .table strong{line-height:1.1}
+/* Keep navigation visible while long pages scroll. */
+.velora-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden}
+.staff-theme aside{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden}

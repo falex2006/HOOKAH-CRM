@@ -45,3 +45,5 @@ When a stage is verified, record its evidence here and do not repeat that stage 
 - **Spacing rhythm QA** — reviewed admin and staff workspaces visually; stabilized the staff table-card text so long names cannot collide with status or guest-count labels, while preserving compact table geometry.
 
 - **Focus palette QA** — aligned product editor focus borders and rings with the coral-orange Velora theme; verified computed focus color locally.
+
+- **Sticky navigation QA** — fixed admin and staff sidebars to remain visible while long inventory and recipe pages scroll; verified at the bottom of the local inventory page with sidebar top pinned to the viewport.
