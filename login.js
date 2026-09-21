@@ -10,6 +10,10 @@ const demoUsers = {
   'developer:developer': { id: 'demo-developer', name: 'Главный разработчик', role: 'developer' },
 };
 
+const setLoginState = (state) => { document.body.dataset.loginState = state; form?.setAttribute('data-login-state', state); };
+const showFailureAnimation = () => new Promise((resolve) => { setLoginState('failure-animation'); window.setTimeout(() => { setLoginState('error-reset'); window.setTimeout(() => { setLoginState('idle'); resolve(); }, 260); }, 1500); });
+setLoginState('idle');
+
 const showLoginTransition = () => new Promise((resolve) => {
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { resolve(); return; }
   const layer = document.createElement('div'); layer.className = 'login-transition'; layer.setAttribute('role', 'status'); layer.setAttribute('aria-label', 'Открываем рабочее пространство');
@@ -20,6 +24,7 @@ const showLoginTransition = () => new Promise((resolve) => {
 const finishLogin = async (data) => {
   localStorage.setItem('crm_session_token', data.token);
   localStorage.setItem('crm_session_user', JSON.stringify(data.user));
+  setLoginState('success-animation');
   await showLoginTransition();
   window.location.replace(['owner', 'admin', 'developer'].includes(data.user.role) ? '/admin' : '/');
 };
@@ -51,6 +56,7 @@ form?.addEventListener('submit', async (event) => {
     const user = demoUsers[`${username}:${password}`];
     if (!user) {
       message.textContent = error?.message === 'too_many_login_attempts' ? 'Слишком много попыток. Повторите позже.' : 'Неверный логин или пароль';
+      await showFailureAnimation();
       if (submit) { submit.disabled = false; submit.textContent = 'Войти в систему'; }
       return;
     }
