@@ -18,19 +18,24 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Validate visual and security contracts
-        run: |
-          node scripts/local-design-contract.mjs
-          node scripts/local-static-boundary.mjs
-          node scripts/local-deploy-contract.mjs
-          node scripts/local-role-contract.mjs
-          node scripts/local-insights-contract.mjs
-          node scripts/local-date-contract.mjs
-          node scripts/local-login-contract.mjs
+      - name: Design contract
+        run: node scripts/local-design-contract.mjs
+      - name: Static boundary contract
+        run: node scripts/local-static-boundary.mjs
+      - name: Deployment contract
+        run: node scripts/local-deploy-contract.mjs
+      - name: Role contract
+        run: node scripts/local-role-contract.mjs
+      - name: Insights contract
+        run: node scripts/local-insights-contract.mjs
+      - name: Date contract
+        run: node scripts/local-date-contract.mjs
+      - name: Login contract
+        run: node scripts/local-login-contract.mjs
       - name: Validate shell scripts
         run: |
           bash -n deploy-vps.sh
