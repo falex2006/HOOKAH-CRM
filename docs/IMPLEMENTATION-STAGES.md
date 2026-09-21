@@ -12,6 +12,8 @@
 - **Login and visual system** — Velora dark theme, responsive layouts, realistic hookah photo, animated smoke, failure/success states and reduced-motion support.
 - **Local acceptance** — route, role, asset, login, catalog, CRUD, guest order, 10 test orders, audit and smoke checks pass.\r\n- **Browser order flow QA** — opened a table, added lemonade and Red Bull, bound a guest, submitted a 10% discount request, split one item into a new order, and completed mixed cash/card partial payment.\r\n- **Role access QA** — all 7 role contracts and 13 route checks pass; restricted roles do not receive finance/inventory permissions, while owner/admin/developer scopes match their requirements.\r\n- **Staff management QA** — created a staff account in the browser with role, Telegram and two phone numbers, verified both numbers in the API, and verified the blocked state in the staff list. Fixed creation-form merging so dynamic and legacy phone fields are both persisted.
 
+- **Responsive route QA** — checked 11 administrative routes at 642px and 360px viewport widths; document and body widths stayed within the viewport and horizontal overflow remained hidden on every route.
+
 ## Next stages
 
 1. Visual QA of every administrative route at desktop, tablet and mobile widths.
