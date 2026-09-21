@@ -358,3 +358,22 @@
 .permission-scope-fields{margin:2px 0 8px;padding:10px 12px;border:1px solid #dfe7ea;border-radius:10px}.permission-scope-fields summary{cursor:pointer;font-weight:700;color:#2b4c5a}.scope-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.scope-grid label{display:flex;align-items:center;gap:7px;color:#4f6873;font-size:13px}.scope-grid input{accent-color:#0aa9df}@media(max-width:560px){.scope-grid{grid-template-columns:1fr}}
 .visual-product-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#f7f9fb;overflow:hidden;position:relative}.visual-product-placeholder::after{content:"";position:absolute;width:110px;height:110px;border-radius:50%;right:-45px;bottom:-55px;background:rgba(255,255,255,.16)}.visual-product-placeholder strong{font-size:28px;letter-spacing:.04em;line-height:1}.visual-product-placeholder span{max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:rgba(255,255,255,.78)}.visual-product-placeholder.palette-1{background:linear-gradient(145deg,#153f50,#0f2735)}.visual-product-placeholder.palette-2{background:linear-gradient(145deg,#4b2637,#241a2b)}.visual-product-placeholder.palette-3{background:linear-gradient(145deg,#4a3c1d,#252015)}.visual-product-placeholder.palette-4{background:linear-gradient(145deg,#1e4c3d,#142a2c)}.visual-product-placeholder.palette-5{background:linear-gradient(145deg,#3b315b,#211d39)}
 .cash-register-panel{margin-top:18px}.cash-register-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.cash-register-grid>div{padding:14px 16px;border:1px solid rgba(111,151,170,.18);border-radius:12px;background:rgba(10,18,24,.34);display:grid;gap:5px}.cash-register-grid span{font-size:12px;color:#91a8b5}.cash-register-grid strong{font-size:18px;color:#f2f7fa}@media(max-width:650px){.cash-register-grid{grid-template-columns:1fr}}
+
+/* Keep the personnel form inside the administrative panel at every desktop width.
+   The contacts row previously sat in one half of the two-column form, which gave
+   each of its two phone fields a larger intrinsic width than the viewport. */
+.velora-theme .staff-layout{grid-template-columns:minmax(0,1fr) minmax(0,360px);align-items:start}
+.velora-theme .staff-list,.velora-theme .staff-form,.velora-theme .staff-form>*{min-width:0}
+.velora-theme .staff-form{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;max-width:100%;overflow:hidden}
+.velora-theme .staff-form .staff-form-contact-row,.velora-theme .staff-form .staff-sensitive-fields,.velora-theme .staff-form .permission-scope-fields{grid-column:1/-1;min-width:0;max-width:100%}
+.velora-theme .staff-form .staff-form-contact-row{grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+.velora-theme .staff-form input,.velora-theme .staff-form select,.velora-theme .staff-form textarea{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.velora-theme .staff-form .staff-sensitive-fields label,.velora-theme .staff-form .permission-scope-fields label{min-width:0}
+@media(max-width:1180px){
+  .velora-theme .staff-layout{grid-template-columns:1fr}
+  .velora-theme .staff-form{border-left:0;border-top:1px solid #2c3037;padding:20px 0 0;grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+  .velora-theme .staff-form,.velora-theme .staff-form .staff-form-contact-row{grid-template-columns:1fr}
+  .velora-theme .staff-form .staff-form-contact-row{gap:10px}
+}
