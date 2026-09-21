@@ -102,6 +102,11 @@ if ($attachedGuest.guestName -ne $client.name) { throw 'client profile attachmen
 $item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
 $itemMerged = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}'
 if ($itemMerged.id -ne $item.id -or $itemMerged.quantity -ne 2) { throw 'duplicate product quantity merge failed' }
+$itemChanged = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($regular.id)/items/$($item.id)" -ContentType 'application/json' -Body '{"quantity":1}'
+if ($itemChanged.id -ne $item.id -or $itemChanged.quantity -ne 1) { throw 'order item quantity edit failed' }
+$removableItem = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/items" -ContentType 'application/json' -Body '{"productId":"energy-tiger","quantity":1}'
+$removedItem = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/orders/$($regular.id)/items/$($removableItem.id)"
+if ($removedItem.id -ne $removableItem.id) { throw 'order item delete failed' }
 $split = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($regular.id)/split" -ContentType 'application/json' -Body "{`"itemIds`":[`"$($item.id)`"]}"
 if (-not $split.splitFrom) { throw 'split failed' }
 $discount = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($split.id)/discount-requests" -ContentType 'application/json' -Body '{"type":"percent","value":10,"reason":"guest promo","requestedBy":"u-test"}'
@@ -112,7 +117,7 @@ if ($invalidDiscountStatus -ne 400) { throw 'discount bounds guard failed' }
 $decision = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/discount-requests/$($discount.id)/approve" -ContentType 'application/json' -Body '{"decidedBy":"owner"}'
 if ($decision.status -ne 'approved') { throw 'discount approval failed' }
 $discountedClosed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($split.id)/close" -ContentType 'application/json' -Body '{"paymentMethod":"cash"}'
-if ($discountedClosed.status -ne 'closed' -or $discountedClosed.discountTotal -ne 50 -or $discountedClosed.finalTotal -ne 450) { throw 'approved discount close calculation failed' }
+if ($discountedClosed.status -ne 'closed' -or $discountedClosed.discountTotal -ne 25 -or $discountedClosed.finalTotal -ne 225) { throw 'approved discount close calculation failed' }
 $workflowOrder = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{ tableId = "workflow-table-$smokeSuffix" } | ConvertTo-Json)
 $workflowProgress = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($workflowOrder.id)/status" -ContentType 'application/json' -Body '{"status":"in_progress"}'
 if ($workflowProgress.status -ne 'in_progress') { throw 'order station status transition failed' }
@@ -122,6 +127,9 @@ $workflowReady = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($wor
 if ($workflowReady.status -ne 'ready') { throw 'order ready status transition failed' }
 $workflowClosed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($workflowOrder.id)/close" -ContentType 'application/json' -Body '{"paymentMethod":"qr"}'
 if ($workflowClosed.status -ne 'closed' -or $workflowClosed.paymentMethod -ne 'qr') { throw 'workflow order close failed' }
+$closedItemGuardStatus = $null
+try { Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($workflowOrder.id)/items" -ContentType 'application/json' -Body '{"productId":"redbull","quantity":1}' | Out-Null } catch { $closedItemGuardStatus = [int]$_.Exception.Response.StatusCode.value__ }
+if ($closedItemGuardStatus -ne 409) { throw 'closed order item guard failed' }
 $delivery = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/deliveries" -ContentType 'application/json' -Body (@{ customerName = 'Smoke delivery'; phone = '+79990003333'; address = 'Local test address'; total = 750; paymentMethod = 'card' } | ConvertTo-Json)
 if ($delivery.status -ne 'new' -or $delivery.total -ne 750) { throw 'delivery create failed' }
 $deliveryUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/deliveries/$($delivery.id)" -ContentType 'application/json' -Body '{"status":"in_delivery","courier":"Smoke courier"}'
