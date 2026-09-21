@@ -7,9 +7,17 @@ const demoUsers = {
   'developer:developer': { id: 'demo-developer', name: 'Главный разработчик', role: 'developer' },
 };
 
-const finishLogin = (data) => {
+const showLoginTransition = () => new Promise((resolve) => {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { resolve(); return; }
+  const layer = document.createElement('div'); layer.className = 'login-transition'; layer.setAttribute('role', 'status'); layer.setAttribute('aria-label', 'Открываем рабочее пространство');
+  layer.innerHTML = '<div class="login-transition__scene"><div class="login-transition__smoke smoke-a"></div><div class="login-transition__smoke smoke-b"></div><div class="login-transition__bowl"><span class="login-transition__tobacco"></span><span class="login-transition__metal"></span><span class="login-transition__coal coal-a"></span><span class="login-transition__coal coal-b"></span><span class="login-transition__coal coal-c"></span></div></div><p class="login-transition__title">Готовим рабочее пространство</p><button class="login-transition__skip" type="button">Пропустить</button>';
+  document.body.append(layer); document.body.classList.add('login-transition-active'); let done = false; const finish = () => { if (done) return; done = true; layer.remove(); document.body.classList.remove('login-transition-active'); resolve(); }; layer.querySelector('.login-transition__skip')?.addEventListener('click', finish); window.setTimeout(finish, 5000);
+});
+
+const finishLogin = async (data) => {
   localStorage.setItem('crm_session_token', data.token);
   localStorage.setItem('crm_session_user', JSON.stringify(data.user));
+  await showLoginTransition();
   window.location.replace(['owner', 'admin', 'developer'].includes(data.user.role) ? '/admin' : '/');
 };
 
