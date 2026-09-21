@@ -1,10 +1,10 @@
 # Статус CRM «Территория»
 
-Дата проверки: 2026-09-20
+Дата проверки: 2026-09-21
 
-## Подтверждено
+## Подтверждено`n`n- После визуальных правок обновлены cache-busting версии `style.css` до `rev=100` во всех рабочих HTML-страницах; браузер не должен использовать старый CSS из кэша.
 
-- Локальный asset-smoke 21.09.2026: 13 маршрутов и 19 подключаемых CSS/JS/SVG-ассетов возвращают HTTP 200; проверка включена в единый acceptance-прогон.
+- Локальный asset-smoke 21.09.2026: 13 маршрутов и 18 подключаемых CSS/JS/SVG-ассетов возвращают HTTP 200; проверка включена в единый acceptance-прогон.
 - Локальная проверка отдачи страниц 21.09.2026: все 13 маршрутов возвращают HTTP 200 и подключают актуальный runtime (`portal.js`, `app.js` или `login.js`).
 - VPS-пакет дополнительно проверен: Docker-образ теперь содержит `scripts/` и `migrations/`, поэтому `npm run db:seed-menu` и миграционные операции доступны внутри контейнера; проверка support-файлов прошла.
 - Production packaging check 21.09.2026: Dockerfile now includes all 21 runtime files, including every administrative route and `catalog-seed.js`; static asset check passed. Full image build awaits a running Docker Engine on the local workstation.
