@@ -37,4 +37,9 @@ for ($i = 1; $i -le $Count; $i++) {
 
 $audit = Invoke-RestMethod "$BaseUrl/api/audit?limit=300"
 if (-not $audit.items -or $audit.items.Count -lt ($Count * 3)) { throw 'Expected create/item/close audit events were not recorded' }
+$today = (Get-Date).ToString('yyyy-MM-dd')
+$summary = Invoke-RestMethod "$BaseUrl/api/finance/summary?date=$today"
+if ([int]$summary.closedOrders -lt $Count -or [decimal]$summary.revenue -lt ($Count * 250)) { throw "Finance summary invariant failed: closed=$($summary.closedOrders), revenue=$($summary.revenue)" }
+$report = Invoke-RestMethod "$BaseUrl/api/finance/report?date=$today&type=x"
+if ([int]$report.closedOrders -lt $Count -or [decimal]$report.revenue -lt ($Count * 250)) { throw 'Finance report invariant failed' }
 Write-Output "LOCAL ORDER TEST: PASS (created=$created, closed=$closed, audit=$($audit.items.Count))"
