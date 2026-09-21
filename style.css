@@ -35,6 +35,8 @@
 .portal-nav a .icon{width:18px;height:18px}
 .staff-theme nav button .icon{width:18px;height:18px}
 .portal-nav a:first-letter{font-size:inherit}
+.check .icon,.audit-icon .icon{width:16px;height:16px;vertical-align:0}
+.quick-actions a{display:flex;align-items:center;gap:8px}
 @media(max-width:650px){.portal-nav a .icon{width:20px;height:20px}.staff-theme nav button .icon{width:20px;height:20px}.staff-theme nav button span{display:inline}}
 .staff-notice.show { opacity: 1; transform: translate(-50%, 0); }
 .chips span.active { border-color: #ff745d; color: #fff; background: rgba(255,116,93,.18); }
