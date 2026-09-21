@@ -4,6 +4,7 @@
 
 ## Подтверждено
 
+- VPS-пакет дополнительно проверен: Docker-образ теперь содержит `scripts/` и `migrations/`, поэтому `npm run db:seed-menu` и миграционные операции доступны внутри контейнера; проверка support-файлов прошла.
 - Production packaging check 21.09.2026: Dockerfile now includes all 21 runtime files, including every administrative route and `catalog-seed.js`; static asset check passed. Full image build awaits a running Docker Engine on the local workstation.
 - Единый локальный приёмочный прогон `scripts/local-acceptance.ps1`: PASS — 13 маршрутов, 24 ТТК, 75 товаров, гости, 100 заказов, VIP/скидки/оплаты, отчёты, доставка и аудит.
 - Браузерная проверка административного справочника 21.09.2026: страница «Категории финансов» открывает форму через «Категория», сохраняет новую категорию и обновляет счётчик списка; подтверждено сообщение «Категория сохранена».
