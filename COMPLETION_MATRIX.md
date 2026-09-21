@@ -14,6 +14,7 @@
 | Финансы, склад, каталог, доставка и аудит | Подтверждено локально | `local-crud-contract.mjs`, smoke-сценарии и локальная приёмка |
 | Инфографика и персональные настройки | Подтверждено контрактами и ролями | `local-insights-contract.mjs`, `local-role-contract.mjs`, analytics permission smoke |
 | Защита локальных файлов и production-пакета | Подтверждено локально | `local-static-boundary.mjs`, `local-deploy-contract.mjs` |
+| Визуальные регрессии CSS, action-ссылок и иконок | Подтверждено локально | `local-design-contract.mjs` — актуальный `style.css?rev=128`, без подчёркиваний и со встроенными Tabler Icons |
 | Зависимости | Подтверждено локально | `npm ci --ignore-scripts`, `npm audit --omit=dev --audit-level=high` — 0 уязвимостей |
 | Автоматическое продолжение после лимитов | Подтверждено в Codex | Активный heartbeat `crm`, описание в `HANDOFF.md` |
 | PostgreSQL-сохранность после перезапуска | Не подтверждено на этой машине | Нужен работающий PostgreSQL/Docker-контур |
