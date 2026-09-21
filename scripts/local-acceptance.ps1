@@ -11,6 +11,7 @@ $checks = @(
   @{ file = 'local-route-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-role-contract.mjs'; node = $true },
   @{ file = 'local-insights-contract.mjs'; node = $true },
+  @{ file = 'local-date-contract.mjs'; node = $true },
   @{ file = 'local-asset-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-login-contract.mjs'; node = $true },
   @{ file = 'local-tea-catalog.ps1'; args = @('-BaseUrl', $BaseUrl) },
