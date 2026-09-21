@@ -5,6 +5,8 @@ if (!['localhost', '127.0.0.1', '::1'].includes(target.hostname)) throw new Erro
 const roles = {
   bartender: { required: ['floor', 'orders'], forbidden: ['finance', 'inventory'] },
   hookah_master: { required: ['floor', 'orders'], forbidden: ['finance', 'inventory'] },
+  senior_bartender: { required: ['floor', 'orders', 'bar_tasks'], forbidden: ['finance', 'inventory'] },
+  senior_hookah_master: { required: ['floor', 'orders', 'hookah_tasks'], forbidden: ['finance', 'inventory'] },
   admin: { required: ['floor', 'orders', 'finance', 'inventory', 'staff_manage'], forbidden: [] },
   owner: { required: ['floor', 'orders', 'finance', 'inventory', 'staff_sensitive'], forbidden: [] },
   developer: { required: ['floor', 'orders', 'finance_read', 'inventory_read', 'diagnostics'], forbidden: ['finance', 'inventory'] }
