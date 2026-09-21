@@ -2,7 +2,7 @@ FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
-COPY db.js server.js index.html admin.html login.html inventory.html finance.html reservations.html admin.js style.css app.js portal.js login.js ./
+COPY db.js server.js index.html admin.html login.html inventory.html finance.html finance-categories.html finance-report.html reservations.html clients.html orders.html integrations.html network.html delivery.html admin.js style.css app.js portal.js login.js catalog-seed.js ./
 COPY assets ./assets
 EXPOSE 3000
 CMD ["node","server.js"]
