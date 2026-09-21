@@ -1202,7 +1202,7 @@ function staticFile(req, res) {
     '/login.js', '/catalog-seed.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
-    '/assets/tabler-icons.svg',
+    '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg',
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
   if (!publicFiles.has(requestPath)) { res.writeHead(404); return res.end('Not found'); }
@@ -1211,7 +1211,7 @@ function staticFile(req, res) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
   if (relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(404); return res.end('Not found'); }
-  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.ttf': 'font/ttf' };
+  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf' };
   res.writeHead(200, { 'Content-Type': `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' });
   return res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(file));
 }
