@@ -52,6 +52,7 @@ const percentDiscount = await request(`/api/orders/${order.id}/discount-requests
 const duplicateDiscount = await requestRaw(`/api/orders/${order.id}/discount-requests`, { method: 'POST', body: body({ type: 'percent', value: 5, reason: 'Повторная заявка' }) });
 if (duplicateDiscount.status !== 409) throw new Error(`Duplicate discount was accepted: ${duplicateDiscount.status}`);
 await request(`/api/discount-requests/${percentDiscount.id}/approve`, { method: 'POST', body: body({ decidedBy: 'локальная проверка' }) });
+await request(`/api/orders/${order.id}/close`, { method: 'POST', body: body({ paymentMethod: 'cash' }) });
 const reservation = await request('/api/reservations', { method: 'POST', body: body({ guestName: `Локальный гость ${suffix}`, phone: '+79990001122', date: new Date(Date.now() + 86400000).toISOString().slice(0, 10), time: '22:00', tableId: table.id, guests: 2, deposit: 0, notes: 'Локальная проверка' }) });
 await request(`/api/reservations/${reservation.id}/cancel`, { method: 'POST', body: '{}' });
 
@@ -59,9 +60,9 @@ const delivery = await request('/api/deliveries', { method: 'POST', body: body({
 await request(`/api/deliveries/${delivery.id}`, { method: 'PATCH', body: body({ status: 'in_delivery' }) });
 
 const venueBefore = await request('/api/venue');
-const venueAfter = await request('/api/venue', { method: 'PATCH', body: body({ phone: '+79990001125', logoUrl: 'data:image/png;base64,AA==', vipRoomMinimums: { vip_room_1: 1500, vip_room_2: 2500 } }) });
-if (venueAfter.phone !== '+79990001125' || venueAfter.logoUrl !== 'data:image/png;base64,AA==' || venueAfter.vipRoomMinimums?.vip_room_1 !== 1500 || venueAfter.vipRoomMinimums?.vip_room_2 !== 2500) throw new Error('Venue settings contract returned incomplete data');
-await request('/api/venue', { method: 'PATCH', body: body({ phone: venueBefore.phone, logoUrl: venueBefore.logoUrl, vipRoomMinimums: venueBefore.vipRoomMinimums }) });
+const venueAfter = await request('/api/venue', { method: 'PATCH', body: body({ name: `Территория тест ${suffix}`, address: 'Тестовый адрес заведения', phone: '+79990001125', logoUrl: 'data:image/png;base64,AA==', vipRoomMinimums: { vip_room_1: 1500, vip_room_2: 2500 } }) });
+if (venueAfter.name !== `Территория тест ${suffix}` || venueAfter.address !== 'Тестовый адрес заведения' || venueAfter.phone !== '+79990001125' || venueAfter.logoUrl !== 'data:image/png;base64,AA==' || venueAfter.vipRoomMinimums?.vip_room_1 !== 1500 || venueAfter.vipRoomMinimums?.vip_room_2 !== 2500) throw new Error('Venue settings contract returned incomplete data');
+await request('/api/venue', { method: 'PATCH', body: body({ name: venueBefore.name, address: venueBefore.address, phone: venueBefore.phone, logoUrl: venueBefore.logoUrl, vipRoomMinimums: venueBefore.vipRoomMinimums }) });
 
 const staff = await request('/api/staff', { method: 'POST', body: body({ name: `Тестовый бармен ${suffix}`, login: `local_staff_${suffix}`, password: 'local-test-password', role: 'bartender', phoneNumbers: [{ number: '+79990001124', primary: true }], telegram: '@local_staff_test' }) });
 if (staff.role !== 'bartender' || !staff.phoneNumbers?.length) throw new Error('Staff create contract returned incomplete profile');
