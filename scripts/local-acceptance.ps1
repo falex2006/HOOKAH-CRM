@@ -7,6 +7,7 @@ $baseUri = [Uri]$BaseUrl
 if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only acceptance refused non-local BaseUrl: $BaseUrl" }
 $root = Split-Path -Parent $PSScriptRoot
 $checks = @(
+  @{ file = 'local-static-boundary.mjs'; node = $true },
   @{ file = 'local-route-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-asset-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-tea-catalog.ps1'; args = @('-BaseUrl', $BaseUrl) },

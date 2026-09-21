@@ -1155,16 +1155,30 @@ function staticFile(req, res) {
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
   const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/finance/report': '/finance-report.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/network': '/network.html', '/delivery': '/delivery.html' };
   requestPath = aliases[routePath] || requestPath;
+  // Only browser runtime files are public. Never expose the project directory.
+  const publicFiles = new Set([
+    ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/admin.js',
+    '/login.js', '/catalog-seed.js', '/staff-profile.js', '/staff-audit.js',
+    '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
+    '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
+    '/assets/tabler-icons.svg',
+    ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
+  ]);
+  if (!publicFiles.has(requestPath)) { res.writeHead(404); return res.end('Not found'); }
+  if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end(); }
   const file = path.resolve(root, `.${requestPath}`);
-  if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
+  const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
+  if (relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(404); return res.end('Not found'); }
   const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.ttf': 'font/ttf' };
   res.writeHead(200, { 'Content-Type': `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' });
-  return res.end(fs.readFileSync(file));
+  return res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(file));
 }
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   try {
     if (req.url.startsWith('/api/')) { const result = await api(req, res); if (result !== null) return result; }
     return staticFile(req, res);
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
-}).listen(process.env.PORT || 3000, () => console.log(`CRM running on http://localhost:${process.env.PORT || 3000}`));
+});
+server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
