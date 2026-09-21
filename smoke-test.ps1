@@ -17,6 +17,12 @@ $staffAuth = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentTy
 if ($staffAuth.user.role -ne 'bartender') { throw 'created staff login failed' }
 $staffProfile = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($createdStaff.id)/profile" -ContentType 'application/json' -Body (@{ name = 'Smoke senior bartender'; role = 'senior_bartender'; workNotes = 'updated' } | ConvertTo-Json)
 if ($staffProfile.role -ne 'senior_bartender' -or $staffProfile.name -ne 'Smoke senior bartender') { throw 'staff role update failed' }
+$staffBlocked = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($createdStaff.id)/status" -ContentType 'application/json' -Body '{"active":false}'
+if ($staffBlocked.active) { throw 'staff block failed' }
+$staffRestored = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($createdStaff.id)/status" -ContentType 'application/json' -Body '{"active":true}'
+if (-not $staffRestored.active) { throw 'staff restore failed' }
+$staffDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/staff/$($createdStaff.id)"
+if ($staffDeleted.active) { throw 'staff delete/deactivate failed' }
 $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
 if (-not $shift.id) { throw 'shift open failed' }
 $closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200}'
