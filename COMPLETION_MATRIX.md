@@ -19,7 +19,7 @@
 | Браузерный визуальный QA основных экранов | Подтверждено локально | `/admin?qa=visual-next`, `/orders?qa=visual-orders`, `/inventory?qa=visual-inventory` |
 | Зависимости | Подтверждено локально | `npm ci --ignore-scripts`, `npm audit --omit=dev --audit-level=high` — 0 уязвимостей |
 | Автоматическое продолжение после лимитов | Подтверждено в Codex | Активный heartbeat `crm`, описание в `HANDOFF.md` |
-| PostgreSQL-сохранность после перезапуска | Подтверждено в CI | GitHub Actions job `postgres-persistence`: реальный Postgres-сервис, создание заказа, рестарт CRM и повторное чтение |
+| PostgreSQL-сохранность после перезапуска | Не подтверждено на этой машине | `scripts/local-postgres-contract.mjs` подготовлен для работающего PostgreSQL-контурa; нужен VPS или доступный Docker Engine |
 | Реальный backup restore | Не подтверждено на этой машине | `verify-backup.sh` готов, но нет production-архива и Docker Engine |
 | VPS, домен, HTTPS и боевые секреты | Не выполнено | Финальный внешний этап; использовать `DEPLOYMENT.md` и `nginx/https.conf.example` |
 | Post-deploy smoke-проверка | Подготовлено, не выполнено | `post-deploy-acceptance.sh`; запускать после появления VPS, HTTPS и боевой учётной записи |
