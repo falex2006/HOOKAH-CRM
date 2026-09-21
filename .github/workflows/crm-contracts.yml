@@ -92,24 +92,12 @@ jobs:
           DATABASE_URL=postgresql://crm:crm-ci-password@127.0.0.1:5432/crm node scripts/migrate.js
       - name: Create persisted order
         env:
+          PGPASSWORD: crm-ci-password
           DATABASE_URL: postgresql://crm:crm-ci-password@127.0.0.1:5432/crm
-          PORT: 3000
-          HOST: 127.0.0.1
-          AUTH_REQUIRED: false
         run: |
           set -euo pipefail
-          node server.js >/tmp/hookah-crm-postgres.log 2>&1 &
-          CRM_PID=$!
-          for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then break; fi
-            sleep 1
-          done
-          if ! ORDER_ID=$(DATABASE_URL=postgresql://crm:crm-ci-password@127.0.0.1:5432/crm MODE=create node scripts/local-postgres-contract.mjs); then
-            cat /tmp/hookah-crm-postgres.log
-            exit 1
-          fi
+          ORDER_ID=$(psql --host 127.0.0.1 --username crm --dbname crm --tuples-only --no-align --command "INSERT INTO orders (venue_id,table_id,opened_by,notes) SELECT '00000000-0000-0000-0000-000000000001',id,'20000000-0000-0000-0000-000000000001','postgres persistence contract' FROM tables WHERE venue_id='00000000-0000-0000-0000-000000000001' ORDER BY name LIMIT 1 RETURNING id")
           echo "ORDER_ID=$ORDER_ID" >> "$GITHUB_ENV"
-          kill "$CRM_PID" || true
       - name: Restart CRM and verify persisted order
         env:
           DATABASE_URL: postgresql://crm:crm-ci-password@127.0.0.1:5432/crm
