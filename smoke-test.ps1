@@ -144,6 +144,11 @@ $deliveryDelivered = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/deliveri
 if ($deliveryDelivered.status -ne 'delivered') { throw 'delivery completion failed' }
 $metrics = Invoke-RestMethod "$BaseUrl/api/metrics"
 if ($null -eq $metrics.staffActive) { throw 'metrics failed' }
+$floor = Invoke-RestMethod "$BaseUrl/api/floor"
+$vipZone = $floor.zones | Where-Object { $_.name -match 'VIP' }
+$vipRoom1 = $vipZone.tables | Where-Object id -eq 'vip-room-1'
+$vipRoom2 = $vipZone.tables | Where-Object id -eq 'vip-room-2'
+if (-not $vipRoom1 -or -not $vipRoom2 -or $vipRoom1.minimumOrderTotal -ne 1500 -or $vipRoom2.minimumOrderTotal -ne 2500) { throw 'VIP floor rooms/minimums failed' }
 $inventory = Invoke-RestMethod "$BaseUrl/api/inventory"
 if (-not $inventory.items -or $null -eq $inventory.lowStock) { throw 'inventory endpoint failed' }
 $movement = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/inventory/movements" -ContentType 'application/json' -Body '{"itemId":"ing-redbull","delta":1,"reason":"smoke test"}'
