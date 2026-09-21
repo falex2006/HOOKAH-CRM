@@ -14,7 +14,7 @@
 | Финансы | `/finance/`, summary API, audit | API smoke-проверка |
 | Бронирования | `/reservations/`, reservation repository | создание и чтение брони |
 | Изображения и данные компании | product/staff avatar, phone/logo PATCH | серверная валидация |
-| Меню бара и ТТК | `catalog-seed.js`, `output/bar-menu-import-preview.json`, `output/cold-teas-ttk-preview.json`, `output/tea-methods-import-preview.json`, `/api/products`, `/api/recipes` | локально: 75 товаров и 24 технологические карты, включая 18 чайных карт из новых Excel |
+| Меню бара и ТТК | `catalog-seed.js`, `output/bar-menu-import-preview.json`, `output/cold-teas-ttk-preview.json`, `output/tea-methods-import-preview.json`, `/api/products`, `/api/recipes` | локально: 75 товаров и 24 технологические карты, включая 18 чайных карт из новых Excel; `scripts/local-tea-catalog.ps1` проверяет импорт |
 | Сквозная нагрузочная проверка | `scripts/local-100-orders.ps1` | локально: 100 заказов создано и закрыто, 300 событий аудита |
 | Адаптивный интерфейс и иконки | `style.css`, `assets/tabler-icons.svg`, `app.js`, `portal.js` | локальная UI-проверка маршрутов и узкой ширины |
 | PostgreSQL | `schema.sql`, `seed.sql`, `migrations/001_auth_sessions.sql` | `docker compose config` |
