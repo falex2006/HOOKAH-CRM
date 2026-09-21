@@ -53,3 +53,5 @@ When a stage is verified, record its evidence here and do not repeat that stage 
 - **Employee discount notification QA** — employees can apply a percentage discount directly from an open order with a required reason; the discount is immediately included in totals, audited as `discount.applied_by_staff`, and surfaced to owner/administrator accounts through the notification bell. Database and memory API paths return `approved` with the actor recorded.
 
 - **Responsive visual QA** — reviewed the administrator, finance, clients, orders, inventory and staff routes at the normal desktop viewport and a 390px mobile viewport; all checked routes stayed within the viewport without horizontal overflow, and the discount notification indicator remained visible in the administrative header.
+
+- **Profile and deposit copy QA** — aligned the sidebar role/access block and logout width, gave the staff lock action a centered dark Velora icon at medium widths, and replaced vague VIP-minimum wording with explicit mandatory VIP-room deposit copy across dashboard, orders, finance and reservations.
