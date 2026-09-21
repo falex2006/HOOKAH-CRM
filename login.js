@@ -1,4 +1,7 @@
 const form = document.querySelector('#login-form');
+const passwordInput = document.querySelector('#login-password');
+const passwordToggle = document.querySelector('#login-password-toggle');
+passwordToggle?.addEventListener('click', () => { const visible = passwordInput.type === 'text'; passwordInput.type = visible ? 'password' : 'text'; passwordToggle.textContent = visible ? 'Показать' : 'Скрыть'; passwordToggle.setAttribute('aria-label', visible ? 'Показать пароль' : 'Скрыть пароль'); passwordToggle.setAttribute('aria-pressed', String(!visible)); passwordInput.focus(); });
 
 const demoUsers = {
   'admin:admin': { id: 'demo-admin', name: 'Администратор', role: 'admin' },
