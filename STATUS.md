@@ -15,6 +15,7 @@
 - Проверка зависимостей 22.09.2026: `npm ci --ignore-scripts --no-audit --no-fund` завершилась успешно, `npm audit --omit=dev --audit-level=high` сообщил 0 уязвимостей.
 - Свежая браузерная визуальная проверка `/admin?qa=final-ui` 22.09.2026: Velora-тема, KPI, инфографика, навигация и действия отображаются согласованно; горизонтального переполнения на desktop-экране не обнаружено.
 - Браузерная проверка `/login?qa=live-login` 22.09.2026: фотографический hookah-фон, живой 5-секундный smoke/light transition после входа, рабочая кнопка «Пропустить» и переход в `/admin` подтверждены.
+- Финальный локальный quality gate после login QA: `node --check` для server/app/portal/login/db, deploy, insights, date и static contracts — PASS; GitHub SHA синхронизирован.
 - Повторный локальный `AUTH_REQUIRED` security smoke 22.09.2026 завершён с `AUTH_REQUIRED role test: PASS`: проверены scoped permissions, developer read-only, analytics, logout, блокировка и архивирование сотрудников.
 
 - После визуальных правок обновлены cache-busting версии `style.css` до `rev=128` во всех рабочих HTML-страницах; браузер не должен использовать старый CSS из кэша.
