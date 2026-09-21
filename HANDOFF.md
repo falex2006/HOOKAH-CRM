@@ -59,6 +59,8 @@ AUTH_REQUIRED role test: PASS
 - Повторный `AUTH_REQUIRED` role smoke завершён с `PASS`; `scripts/local-deploy-contract.mjs` проверяет VPS preflight и HTTPS-шаблон.
 - В рабочих HTML-страницах обновлён cache-busting до `style.css?rev=128`; ссылки-кнопки принудительно не подчёркиваются во всех состояниях. Визуально проверено на `/orders`, кнопка «Открыть рабочее место» отображается корректно.
 
+Полная матрица требований и доказательств: `COMPLETION_MATRIX.md`.
+
 ## Публикация
 
 Репозиторий опубликован в GitHub: [falex2006/HOOKAH-CRM](https://github.com/falex2006/HOOKAH-CRM). Ветка `main` отправлена, локальный и удалённый commit SHA совпадают. Секреты и токены в этот файл не добавлять.
