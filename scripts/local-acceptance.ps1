@@ -8,6 +8,7 @@ if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only
 $root = Split-Path -Parent $PSScriptRoot
 $checks = @(
   @{ file = 'local-static-boundary.mjs'; node = $true },
+  @{ file = 'local-deploy-contract.mjs'; node = $true },
   @{ file = 'local-route-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-role-contract.mjs'; node = $true },
   @{ file = 'local-insights-contract.mjs'; node = $true },
