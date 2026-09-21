@@ -28,6 +28,15 @@ jobs:
         run: node scripts/local-static-boundary.mjs
       - name: Deployment contract
         run: node scripts/local-deploy-contract.mjs
+      - name: Start local CRM for API contracts
+        run: |
+          PORT=3000 HOST=127.0.0.1 AUTH_REQUIRED=false node server.js >/tmp/hookah-crm.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/hookah-crm.log
+          exit 1
       - name: Role contract
         run: node scripts/local-role-contract.mjs
       - name: Insights contract
