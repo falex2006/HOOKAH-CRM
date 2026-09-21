@@ -97,14 +97,19 @@ jobs:
           HOST: 127.0.0.1
           AUTH_REQUIRED: false
         run: |
+          set -euo pipefail
           node server.js >/tmp/hookah-crm-postgres.log 2>&1 &
+          CRM_PID=$!
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:3000/api/health >/dev/null; then break; fi
             sleep 1
           done
-          ORDER_ID=$(BASE_URL=http://127.0.0.1:3000 MODE=create node scripts/local-postgres-contract.mjs)
+          if ! ORDER_ID=$(BASE_URL=http://127.0.0.1:3000 MODE=create node scripts/local-postgres-contract.mjs); then
+            cat /tmp/hookah-crm-postgres.log
+            exit 1
+          fi
           echo "ORDER_ID=$ORDER_ID" >> "$GITHUB_ENV"
-          pkill -f "node server.js" || true
+          kill "$CRM_PID"
       - name: Restart CRM and verify persisted order
         env:
           DATABASE_URL: postgresql://crm:crm-ci-password@127.0.0.1:5432/crm
