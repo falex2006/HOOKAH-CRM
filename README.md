@@ -33,6 +33,7 @@ docker compose up -d --build
 
 Перед боевым запуском настроить DNS, HTTPS, резервные копии и секреты согласно `SECURITY.md`.
 Для VPS использовать `deploy-vps.sh`, а для резервной копии PostgreSQL — `backup-postgres.sh`.
+Перед публикацией локально проверить production-пакет: `node scripts/local-deploy-contract.mjs`. HTTPS-шаблон находится в `nginx/https.conf.example`; фактические сертификаты и `.env` в Git не добавляются.
 
 ## Документация
 
@@ -42,6 +43,7 @@ docker compose up -d --build
 - `seed.sql` — начальные данные;
 - `ROADMAP.md` — этапы разработки;
 - `DEPLOYMENT.md` — развёртывание;
+- `HANDOFF.md` — актуальное состояние, проверки и продолжение с другого аккаунта;
 - `SECURITY.md` — требования безопасности.
 
 - feature flags будущих интеграций ЕГАИС, Честный знак, ККТ и ОФД (/api/integrations);

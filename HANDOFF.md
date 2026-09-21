@@ -30,6 +30,7 @@ pwsh ./scripts/local-acceptance.ps1 -BaseUrl http://localhost:3000
 ```
 
 Приёмка включает `scripts/local-crud-contract.mjs`: локально проверяются создание/изменение товара с изображением, складское движение, финансовая категория, бронирование и доставка.
+Контракт production-пакета: `node scripts/local-deploy-contract.mjs` проверяет секреты, Compose healthcheck, закрытый PostgreSQL-порт и HTTPS-шаблон.
 
 Проверка авторизации и ролей выполняется на отдельном локальном процессе с `AUTH_REQUIRED=true`. Полная инструкция находится в [ACCEPTANCE.md](ACCEPTANCE.md).
 
