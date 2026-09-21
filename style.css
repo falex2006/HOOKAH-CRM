@@ -436,3 +436,20 @@
 .login-card input,.login-password-wrap input{background:#111317!important;color:#f4f7f8!important;border-color:#3a424d!important}.login-card input:-webkit-autofill,.login-card input:-webkit-autofill:hover,.login-card input:-webkit-autofill:focus{-webkit-text-fill-color:#f4f7f8;box-shadow:0 0 0 1000px #111317 inset;transition:background-color 9999s ease-in-out 0s}.login-card input::placeholder{color:#77828e}@media(max-width:760px){body{overflow-x:hidden}.login{min-height:100svh;box-sizing:border-box;padding-top:18px;padding-bottom:24px}.login-card{max-height:calc(100svh - 42px);overflow:auto}.login-hookah{bottom:23%;opacity:.5}}
 
 .login-atmosphere{background-image:linear-gradient(90deg,#0d0f12 0%,#0d0f1299 42%,#0d0f1230 78%),url("/assets/login-hookah-reference.jpg");background-size:cover;background-position:center 58%;animation:loginPhotoBreath 16s ease-in-out infinite alternate}.login-atmosphere:before{content:"";position:absolute;inset:-4%;background:inherit;background-size:cover;background-position:center 58%;opacity:.6;filter:contrast(1.08) saturate(.78);animation:loginPhotoZoom 18s ease-in-out infinite alternate}.login-hookah{display:none}.login-atmosphere:after{z-index:1}.login-smoke{z-index:2}.login-card{z-index:3}@keyframes loginPhotoBreath{from{background-position:center 58%}to{background-position:52% 55%}}@keyframes loginPhotoZoom{from{transform:scale(1)}to{transform:scale(1.06)}}@media(prefers-reduced-motion:reduce){.login-atmosphere,.login-atmosphere:before{animation:none}}
+/* Live-photo login transition */
+.login-transition{background:#070708f5;overflow:hidden}
+.login-transition__live-scene{position:absolute;inset:0;overflow:hidden;background:#090a0b}
+.login-transition__live-photo{position:absolute;inset:-8%;background:linear-gradient(90deg,#050505 0%,transparent 54%,#0005 100%),url('/assets/login-hookah-reference.jpg') center 58%/cover no-repeat;filter:contrast(1.06) saturate(.82) brightness(.82);animation:livePhotoPush 5s cubic-bezier(.18,.72,.22,1) both}
+.login-transition__live-photo:after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 62% 45%,transparent 0 23%,#0008 76%),linear-gradient(0deg,#050505 0%,transparent 46%,#0005 100%)}
+.login-transition__live-haze{position:absolute;border-radius:50%;filter:blur(42px);mix-blend-mode:screen;opacity:0;background:radial-gradient(ellipse,#d9e5ed38 0%,#9ba9b218 38%,transparent 72%);animation:liveHazeRise 5s ease-out both}
+.login-transition__live-haze.haze-a{width:48vw;height:70vh;left:48%;bottom:-18%;animation-delay:.35s}
+.login-transition__live-haze.haze-b{width:36vw;height:54vh;left:70%;bottom:-12%;animation-delay:1.25s;transform:rotate(18deg)}
+.login-transition__live-glint{position:absolute;left:56%;top:42%;width:16vw;height:16vw;border-radius:50%;background:#ff6e2930;filter:blur(22px);opacity:0;animation:liveGlint 5s ease-out both}
+.login-transition__title{z-index:2;bottom:14%;font-size:19px;letter-spacing:.04em;text-shadow:0 2px 20px #000;animation:liveTitleIn .8s 1.4s ease both}
+.login-transition__skip{z-index:3;background:#111418b8;backdrop-filter:blur(10px)}
+@keyframes livePhotoPush{0%{transform:scale(1.02) translate3d(0,1%,0);opacity:.55}18%{opacity:1}100%{transform:scale(1.1) translate3d(-2%,-1%,0);opacity:1}}
+@keyframes liveHazeRise{0%{opacity:0;transform:translate3d(5%,20%,0) scale(.72)}22%{opacity:.22}58%{opacity:.5}100%{opacity:.08;transform:translate3d(-9%,-28%,0) scale(1.35)}}
+@keyframes liveGlint{0%{opacity:0;transform:scale(.55)}30%{opacity:.12}70%{opacity:.3}100%{opacity:.04;transform:scale(1.7)}}
+@keyframes liveTitleIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media(max-width:560px){.login-transition__title{font-size:16px;bottom:17%}.login-transition__live-haze.haze-a{width:80vw;height:65vh;left:36%}.login-transition__live-haze.haze-b{width:65vw;height:55vh;left:58%}}
+@media(prefers-reduced-motion:reduce){.login-transition__live-photo,.login-transition__live-haze,.login-transition__live-glint,.login-transition__title{animation:none}.login-transition__live-photo{transform:none;opacity:1}.login-transition__live-haze{opacity:.14}}
