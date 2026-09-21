@@ -279,6 +279,7 @@
 .velora-theme .quick-actions a:after{content:"↗";position:absolute;right:13px;top:11px;color:#68717e;font-size:14px}
 .velora-theme .button{letter-spacing:.01em;transition:transform .18s ease,filter .18s ease,box-shadow .18s ease}
 .velora-theme a.button,.velora-theme a.button:hover,.velora-theme a.button:focus{text-decoration:none}
+.velora-theme a.button:not(.primary){color:#c7d0d8;border:1px solid #363b44;background:#202329}.velora-theme a.button:not(.primary):hover{color:#fff;border-color:#ff6372;background:#292d34}
 .velora-theme .button:hover{transform:translateY(-1px);filter:brightness(1.08)}
 .velora-theme .button.primary{border:1px solid #ff899044}
 .velora-theme .table-search:focus,.velora-theme .date-input:focus,.velora-theme .stack-form input:focus,.velora-theme .stack-form select:focus,.velora-theme .stack-form textarea:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:0}
@@ -506,6 +507,14 @@
 .login-transition__live-photo:not(.live-photo-base){mix-blend-mode:screen;filter:contrast(1.12) saturate(1.05) brightness(1.5);}
 .velora-theme .orders-table{min-width:0;width:100%;table-layout:fixed}
 .velora-theme .orders-table th,.velora-theme .orders-table td{min-width:0;white-space:normal;overflow-wrap:anywhere}
+.velora-theme .inventory-stock-panel table{table-layout:fixed}
+.velora-theme .inventory-stock-panel th:nth-child(1){width:28%}.velora-theme .inventory-stock-panel th:nth-child(2){width:22%}.velora-theme .inventory-stock-panel th:nth-child(3){width:16%}.velora-theme .inventory-stock-panel th:nth-child(4){width:16%}.velora-theme .inventory-stock-panel th:nth-child(5){width:18%}
+.velora-theme .inventory-stock-panel th,.velora-theme .inventory-stock-panel td{min-width:0;white-space:normal;overflow-wrap:anywhere}
+.velora-theme .reservation-panel .panel-head{align-items:flex-start;gap:12px;flex-wrap:wrap}
+.velora-theme .reservation-panel .panel-head h2{flex:1 1 180px;min-width:0;line-height:1.2}
+.velora-theme .reservation-panel .panel-head .table-search{flex:1 1 140px;min-width:0;max-width:none}
+.velora-theme .reservation-panel .panel-head .date-input{flex:0 0 132px;min-width:0}
+@media(max-width:760px){.velora-theme .inventory-stock-panel .table-wrap{overflow-x:auto}.velora-theme .inventory-stock-panel table{min-width:620px}.velora-theme .reservation-panel .panel-head>*{flex:1 1 100%;width:100%;max-width:none}.velora-theme .reservation-panel .panel-head h2{flex-basis:100%}}
 @media(min-width:651px){.velora-theme .table-wrap{overflow-x:hidden}}
 @media(max-width:1100px){.recipe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.recipe-grid{grid-template-columns:1fr}}
