@@ -111,6 +111,21 @@ $decision = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/discount-requests/
 if ($decision.status -ne 'approved') { throw 'discount approval failed' }
 $discountedClosed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($split.id)/close" -ContentType 'application/json' -Body '{"paymentMethod":"cash"}'
 if ($discountedClosed.status -ne 'closed' -or $discountedClosed.discountTotal -ne 50 -or $discountedClosed.finalTotal -ne 450) { throw 'approved discount close calculation failed' }
+$workflowOrder = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{ tableId = "workflow-table-$smokeSuffix" } | ConvertTo-Json)
+$workflowProgress = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($workflowOrder.id)/status" -ContentType 'application/json' -Body '{"status":"in_progress"}'
+if ($workflowProgress.status -ne 'in_progress') { throw 'order station status transition failed' }
+$workflowTransfer = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($workflowOrder.id)/transfer" -ContentType 'application/json' -Body '{"tableId":"workflow-table-transferred"}'
+if ($workflowTransfer.tableId -ne 'workflow-table-transferred') { throw 'order transfer failed' }
+$workflowReady = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($workflowOrder.id)/status" -ContentType 'application/json' -Body '{"status":"ready"}'
+if ($workflowReady.status -ne 'ready') { throw 'order ready status transition failed' }
+$workflowClosed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($workflowOrder.id)/close" -ContentType 'application/json' -Body '{"paymentMethod":"qr"}'
+if ($workflowClosed.status -ne 'closed' -or $workflowClosed.paymentMethod -ne 'qr') { throw 'workflow order close failed' }
+$delivery = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/deliveries" -ContentType 'application/json' -Body (@{ customerName = 'Smoke delivery'; phone = '+79990003333'; address = 'Local test address'; total = 750; paymentMethod = 'card' } | ConvertTo-Json)
+if ($delivery.status -ne 'new' -or $delivery.total -ne 750) { throw 'delivery create failed' }
+$deliveryUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/deliveries/$($delivery.id)" -ContentType 'application/json' -Body '{"status":"in_delivery","courier":"Smoke courier"}'
+if ($deliveryUpdated.status -ne 'in_delivery' -or $deliveryUpdated.courier -ne 'Smoke courier') { throw 'delivery status update failed' }
+$deliveryDelivered = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/deliveries/$($delivery.id)" -ContentType 'application/json' -Body '{"status":"delivered"}'
+if ($deliveryDelivered.status -ne 'delivered') { throw 'delivery completion failed' }
 $metrics = Invoke-RestMethod "$BaseUrl/api/metrics"
 if ($null -eq $metrics.staffActive) { throw 'metrics failed' }
 $inventory = Invoke-RestMethod "$BaseUrl/api/inventory"
