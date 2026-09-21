@@ -15,6 +15,16 @@ const request = async (path, options = {}) => {
   if (!response.ok) throw new Error(`${options.method || 'GET'} ${path} ${response.status} ${JSON.stringify(payload)}`);
   return payload;
 };
+const requestRaw = async (path, options = {}) => {
+  const response = await fetch(new URL(path, target), {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = JSON.parse(text); } catch (_) { payload = text; }
+  return { status: response.status, payload };
+};
 const body = (value) => JSON.stringify(value);
 const suffix = Date.now();
 
@@ -34,6 +44,14 @@ await request(`/api/finance/categories/${financeCategory.id}`, { method: 'PATCH'
 const floor = await request('/api/floor');
 const table = floor.zones?.flatMap((zone) => zone.tables || []).find((entry) => !String(entry.id).includes('vip'));
 if (!table) throw new Error('Floor contract has no regular table');
+const order = await request('/api/orders', { method: 'POST', body: body({ tableId: table.id, orderType: 'regular' }) });
+await request(`/api/orders/${order.id}/items`, { method: 'POST', body: body({ productId: 'redbull', quantity: 1 }) });
+const fixedDiscount = await requestRaw(`/api/orders/${order.id}/discount-requests`, { method: 'POST', body: body({ type: 'fixed', value: 100, reason: 'Неверный формат' }) });
+if (fixedDiscount.status !== 400) throw new Error(`Fixed discount was accepted: ${fixedDiscount.status}`);
+const percentDiscount = await request(`/api/orders/${order.id}/discount-requests`, { method: 'POST', body: body({ type: 'percent', value: 10, reason: 'Локальная проверка' }) });
+const duplicateDiscount = await requestRaw(`/api/orders/${order.id}/discount-requests`, { method: 'POST', body: body({ type: 'percent', value: 5, reason: 'Повторная заявка' }) });
+if (duplicateDiscount.status !== 409) throw new Error(`Duplicate discount was accepted: ${duplicateDiscount.status}`);
+await request(`/api/discount-requests/${percentDiscount.id}/approve`, { method: 'POST', body: body({ decidedBy: 'локальная проверка' }) });
 const reservation = await request('/api/reservations', { method: 'POST', body: body({ guestName: `Локальный гость ${suffix}`, phone: '+79990001122', date: new Date(Date.now() + 86400000).toISOString().slice(0, 10), time: '22:00', tableId: table.id, guests: 2, deposit: 0, notes: 'Локальная проверка' }) });
 await request(`/api/reservations/${reservation.id}/cancel`, { method: 'POST', body: '{}' });
 
