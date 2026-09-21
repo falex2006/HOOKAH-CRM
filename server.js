@@ -270,7 +270,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/venue' && req.method === 'GET') {
     if (repositories?.pool) { try {
-      const { rows } = await repositories.pool.query('SELECT id,name,phone,address,logo_url AS "logoUrl",timezone FROM venues WHERE id=$1', [venueDbId]);
+      const { rows } = await repositories.pool.query('SELECT id,name,city,format,phone,address,logo_url AS "logoUrl",timezone FROM venues WHERE id=$1', [venueDbId]);
       if (rows[0]) { const { rows: vipRows } = await repositories.pool.query('SELECT name,min_order_total FROM tables WHERE venue_id=$1 AND name IN ($2,$3)', [venueDbId, 'VIP-\u043a\u043e\u043c\u043d\u0430\u0442\u0430 1', 'VIP-\u043a\u043e\u043c\u043d\u0430\u0442\u0430 2']); const vipRoomMinimums = { ...venue.vipRoomMinimums }; vipRows.forEach((row) => { if (row.name.endsWith('1')) vipRoomMinimums.vip_room_1 = Number(row.min_order_total); if (row.name.endsWith('2')) vipRoomMinimums.vip_room_2 = Number(row.min_order_total); }); venue.vipRoomMinimums = vipRoomMinimums; return json(res, 200, { ...venue, ...rows[0], vipRoomMinimums }); }
     } catch (_) {} }
     return json(res, 200, venue);
@@ -278,6 +278,11 @@ async function api(req, res) {
   if (pathname === '/api/venue' && (req.method === 'PATCH' || req.method === 'PUT')) {
     if (denyUnless(req, res, 'settings')) return;
     const input = await body(req); const before = { ...venue };
+    if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'venue_name_required' });
+    if (input.city !== undefined && (!String(input.city).trim() || String(input.city).length > 80)) return json(res, 400, { error: 'venue_city_required' });
+    if (input.address !== undefined && (!String(input.address).trim() || String(input.address).length > 240)) return json(res, 400, { error: 'venue_address_required' });
+    if (input.format !== undefined && String(input.format).length > 80) return json(res, 400, { error: 'venue_format_too_long' });
+    if (input.timezone !== undefined && String(input.timezone).length > 64) return json(res, 400, { error: 'venue_timezone_too_long' });
     if (input.phone !== undefined && !/^\+?[0-9 ()-]{7,24}$/.test(String(input.phone))) return json(res, 400, { error: 'invalid_phone' });
     if (input.logoUrl !== undefined && input.logoUrl !== null && !validImageData(input.logoUrl)) return json(res, 400, { error: 'invalid_logo' });
     if (input.vipRoomMinimums !== undefined) {
@@ -287,8 +292,8 @@ async function api(req, res) {
       floor.flatMap((zone) => zone.tables).forEach((table) => { if (table.id === 'vip-room-1') table.minimumOrderTotal = venue.vipRoomMinimums.vip_room_1; if (table.id === 'vip-room-2') table.minimumOrderTotal = venue.vipRoomMinimums.vip_room_2; });
       if (repositories?.pool) { try { await repositories.pool.query('UPDATE tables SET min_deposit=$1,min_order_total=$1 WHERE venue_id=$2 AND name=$3', [venue.vipRoomMinimums.vip_room_1, venueDbId, 'VIP-\u043a\u043e\u043c\u043d\u0430\u0442\u0430 1']); await repositories.pool.query('UPDATE tables SET min_deposit=$1,min_order_total=$1 WHERE venue_id=$2 AND name=$3', [venue.vipRoomMinimums.vip_room_2, venueDbId, 'VIP-\u043a\u043e\u043c\u043d\u0430\u0442\u0430 2']); } catch (_) {} }
     }
-    Object.assign(venue, Object.fromEntries(['name', 'phone', 'address', 'logoUrl'].filter((key) => input[key] !== undefined).map((key) => [key, input[key]])));
-    if (repositories?.pool) { try { await repositories.pool.query('UPDATE venues SET name=$1,phone=$2,address=$3,logo_url=$4 WHERE id=$5', [venue.name, venue.phone, venue.address, venue.logoUrl, venueDbId]); } catch (_) {} }
+    Object.assign(venue, Object.fromEntries(['name', 'city', 'format', 'phone', 'address', 'timezone', 'logoUrl'].filter((key) => input[key] !== undefined).map((key) => [key, key === 'logoUrl' ? input[key] : String(input[key]).trim()])));
+    if (repositories?.pool) { try { await repositories.pool.query('UPDATE venues SET name=$1,city=$2,format=$3,phone=$4,address=$5,timezone=$6,logo_url=$7 WHERE id=$8', [venue.name, venue.city, venue.format, venue.phone, venue.address, venue.timezone, venue.logoUrl, venueDbId]); } catch (_) {} }
     recordAudit(req, 'venue.updated', 'venue', venue.id, before, venue); return json(res, 200, venue);
   }
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
