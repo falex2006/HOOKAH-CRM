@@ -14,6 +14,8 @@
 
 - **Responsive route QA** — checked 11 administrative routes at 642px and 360px viewport widths; document and body widths stayed within the viewport and horizontal overflow remained hidden on every route.
 
+- **Staff card modal QA** — verified the edit-card action opens once, the close control remains visible on a narrow viewport, and both close actions remove the modal without submitting data. Removed the duplicate editor binding and capped modal height with internal scrolling.
+
 ## Next stages
 
 1. Visual QA of every administrative route at desktop, tablet and mobile widths.
