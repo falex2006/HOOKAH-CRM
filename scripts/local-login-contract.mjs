@@ -5,6 +5,7 @@ const css = fs.readFileSync('style.css', 'utf8');
 const required = [
   ['password toggle', html.includes('login-password-toggle') && js.includes('passwordToggle')],
   ['idle hookah scene', html.includes('login-atmosphere') && html.includes('login-hookah')],
+  ['real hookah photo', fs.existsSync('assets/login-hookah-reference.jpg') && css.includes('login-hookah-reference.jpg')],
   ['state machine', js.includes('setLoginState') && js.includes('failure-animation') && js.includes('success-animation')],
   ['transition layer', js.includes('login-transition')],
   ['skip control', js.includes('login-transition__skip')],
