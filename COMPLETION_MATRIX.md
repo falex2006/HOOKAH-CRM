@@ -14,7 +14,7 @@
 | Финансы, склад, каталог, доставка и аудит | Подтверждено локально | `local-crud-contract.mjs`, smoke-сценарии и локальная приёмка |
 | Инфографика и персональные настройки | Подтверждено контрактами и ролями | `local-insights-contract.mjs`, `local-preferences-contract.mjs`, `local-role-contract.mjs`, server-backed dashboard/insights/lock preferences and analytics permission smoke |
 | Кликабельность меню, кнопок и форм | Подтверждено локально и браузером | `local-click-contract.mjs` (113 ссылок, 150 кнопок, 4 формы); проверены переходы меню, KPI, настройки инфографики, карточка сотрудника, вкладки и модальные окна |
-| Полный локальный приёмочный прогон | Подтверждено локально | `scripts/local-acceptance.ps1 -BaseUrl http://localhost:3000` — `LOCAL ACCEPTANCE: PASS` |
+| Полный локальный приёмочный прогон | Подтверждено локально | Свежий запуск `scripts/local-acceptance.ps1 -BaseUrl http://localhost:3043` 22.09.2026 — `LOCAL ACCEPTANCE: PASS`; проверены маршруты, ресурсы, роли, lock/preferences, SaaS, каталог, залы, CRUD, гости, 10 заказов, финансы, доставка и аудит |
 | Защита локальных файлов и production-пакета | Подтверждено локально | `local-static-boundary.mjs`, `local-deploy-contract.mjs` |
 | Визуальные регрессии CSS, action-ссылок и иконок | Подтверждено локально | `local-design-contract.mjs` — актуальный `style.css?rev=182`, без подчёркиваний, с focus-state и встроенными Tabler Icons |
 | Выпадающие меню и сортировки | Подтверждено браузером | Единый custom-select на portal-страницах: выбранное состояние, клавиатура, Escape, клик вне меню и отсутствие дублей в accessibility-дереве; проверено на `/orders` |
