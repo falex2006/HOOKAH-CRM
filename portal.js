@@ -69,6 +69,15 @@ const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} ₽`; co
 const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${name}"></use></svg>`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 const displayName = (value) => { const text = String(value ?? '').trim(); return text ? text.replace(/(^|[\s(\/-])([\p{L}])/gu, (_, prefix, letter) => prefix + letter.toLocaleUpperCase('ru-RU')) : text; };
+const portalHeaderName = displayName(portalUser.name || portalUser.fullName || portalRole[0]);
+const portalHeaderInitials = portalHeaderName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('ru-RU') || 'С';
+document.querySelectorAll('[data-user-name]').forEach((node) => { node.textContent = portalHeaderName; });
+document.querySelectorAll('[data-user-role]').forEach((node) => { node.textContent = portalRole[0]; });
+document.querySelectorAll('[data-user-avatar]').forEach((node) => {
+  node.title = `${portalHeaderName} · ${portalRole[0]}`;
+  if (portalUser.avatarUrl) { const image = document.createElement('img'); image.src = portalUser.avatarUrl; image.alt = portalHeaderName; node.replaceChildren(image); }
+  else node.textContent = portalHeaderInitials;
+});
 const permissionScopeLabels = { orders: 'Заказы', reservations: 'Бронирования', inventory: 'Склад', finance: 'Финансы', staff: 'Сотрудники', delivery: 'Доставка', integrations: 'Интеграции', settings: 'Настройки и сеть' };
 const permissionScopeMarkup = (selected = []) => `<details class="permission-scope-fields"><summary>Доступ управляющего по направлениям</summary><small class="muted">Пустой список оставляет стандартный полный доступ управляющего.</small><div class="scope-grid">${Object.entries(permissionScopeLabels).map(([scope, label]) => `<label><input type="checkbox" name="permissionScopes" value="${scope}" ${selected.includes(scope) ? 'checked' : ''}>${label}</label>`).join('')}</div></details>`;
 const authHeaders = () => { const token = localStorage.getItem('crm_session_token'); return token ? { Authorization: `Bearer ${token}` } : {}; };
