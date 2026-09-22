@@ -8,7 +8,7 @@ for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, /style\.css\?rev=174/, `${file} must use current CSS cache version`);
   assert.doesNotMatch(html, /style\.css\?rev=(?:12[0-7]|1[01]\d)/, `${file} has stale CSS cache version`);
-  if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, /portal\.js\?rev=160/, `${file} must use current portal JS cache version`);
+  if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, /portal\.js\?rev=161/, `${file} must use current portal JS cache version`);
   if (file === 'index.html') assert.match(html, /app\.js\?rev=108/, 'index.html must use current staff app JS cache version');
   if (file === 'platform.html') assert.match(html, /platform\.js\?rev=3/, 'platform.html must use platform JS');
 }
