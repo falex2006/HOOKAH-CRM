@@ -17,6 +17,8 @@ const required = [
   ['coal animation', css.includes('@keyframes coalGlow')],
   ['smoke animation', css.includes('@keyframes smokeRise') && css.includes('@keyframes loginSmoke')],
   ['failure collapse', css.includes('@keyframes loginCollapse')],
+  ['staff PIN mode', html.includes('data-auth-mode="pin"') && html.includes('id="login-pin"') && js.includes("authMode === 'pin'")],
+  ['PIN validation', js.includes("authMode === 'pin'") && js.includes('\\d{4}')],
 ];
 const missing = required.filter(([, ok]) => !ok).map(([name]) => name);
 if (missing.length) { console.error(`LOCAL LOGIN CONTRACT: FAIL (${missing.join(', ')})`); process.exit(1); }

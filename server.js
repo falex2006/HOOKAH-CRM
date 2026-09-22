@@ -96,7 +96,7 @@ const shifts = [];
 const demoAccounts = [
   { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Администратор', role: 'admin', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner', organizationId: '00000000-0000-0000-0000-000000000010' },
-  { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' }
+  { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' }
 ];
 
 const hashPassword = async (password) => { const salt = crypto.randomBytes(16).toString('hex'); const derived = await scryptAsync(String(password), salt, 64); return `scrypt$${salt}$${derived.toString('hex')}`; };
@@ -221,10 +221,12 @@ async function api(req, res) {
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
     const loginKey = String(input.username || '').trim().toLowerCase() || 'anonymous';
+    const requestedPin = String(input.pin || '').trim();
+    if (requestedPin && !/^\d{4}$/.test(requestedPin)) return json(res, 400, { error: 'invalid_staff_pin_format' });
     const attempt = loginAttempts.get(loginKey);
     if (attempt && attempt.blockedUntil > Date.now()) return json(res, 429, { error: 'too_many_login_attempts', retryAfter: Math.ceil((attempt.blockedUntil - Date.now()) / 1000) });
-    let account = demoAccounts.find((entry) => entry.username === input.username && entry.password === input.password);
-    if (!account) { const person = staff.find((entry) => entry.active && entry.login === input.username); if (person && await verifyPassword(input.password, person.passwordHash)) account = { username: person.login, id: person.id, organizationId: person.organizationId || saasAccount.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl, telegram: person.telegram, phoneNumbers: person.phoneNumbers, permissionScopes: person.permissionScopes || [] }; }
+    let account = demoAccounts.find((entry) => entry.username === input.username && ((requestedPin && entry.pin === requestedPin) || (!requestedPin && entry.password === input.password)));
+    if (!account) { const person = staff.find((entry) => entry.active && entry.login === input.username); const credential = requestedPin || input.password; if (person && credential && await verifyPassword(credential, person.passwordHash)) account = { username: person.login, id: person.id, organizationId: person.organizationId || saasAccount.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl, telegram: person.telegram, phoneNumbers: person.phoneNumbers, permissionScopes: person.permissionScopes || [] }; }
     if (!account && repositories?.pool) {
       try {
         let rows;
@@ -234,7 +236,7 @@ async function api(req, res) {
           try { ({ rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username])); }
           catch (_) { ({ rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash,avatar_url AS "avatarUrl" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username])); }
         }
-        const row = rows[0]; if (row && await verifyPassword(input.password, row.pin_hash)) account = { username: row.login, id: row.id, organizationId: row.organizationId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [] };
+        const row = rows[0]; const credential = requestedPin || input.password; if (row && credential && await verifyPassword(credential, row.pin_hash)) account = { username: row.login, id: row.id, organizationId: row.organizationId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [] };
       } catch (_) {}
     }
     if (!account) { const current = loginAttempts.get(loginKey) || { count: 0, firstAt: Date.now() }; const withinWindow = Date.now() - current.firstAt < 60_000; const next = withinWindow ? { count: current.count + 1, firstAt: current.firstAt } : { count: 1, firstAt: Date.now() }; if (next.count >= 5) next.blockedUntil = Date.now() + 60_000; loginAttempts.set(loginKey, next); return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_login_attempts' : 'invalid_credentials', ...(next.blockedUntil ? { retryAfter: 60 } : {}) }); }

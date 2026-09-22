@@ -558,3 +558,5 @@
 .velora-theme input[type=number],.staff-theme input[type=number]{-moz-appearance:textfield}
 .velora-theme input[type=number]::-webkit-inner-spin-button,.velora-theme input[type=number]::-webkit-outer-spin-button,.staff-theme input[type=number]::-webkit-inner-spin-button,.staff-theme input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 
+/* Staff quick sign-in */
+.login-auth-modes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 0 2px;padding:4px;border:1px solid #303741;border-radius:12px;background:#12151a}.login-auth-mode{border:0;border-radius:9px;padding:9px 10px;background:transparent;color:#89929e;font:inherit;font-size:13px;cursor:pointer}.login-auth-mode.is-active{background:linear-gradient(135deg,#ff4965,#ff8a3d);color:#fff;box-shadow:0 7px 18px rgba(255,86,74,.18)}.login-auth-mode:focus-visible{outline:2px solid #ff7182;outline-offset:2px}.login-pin-field input{text-align:center;letter-spacing:.45em;font-size:22px;font-weight:700}.login-pin-field input::placeholder{letter-spacing:.35em}
