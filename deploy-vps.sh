@@ -18,7 +18,7 @@ for secret_name in POSTGRES_PASSWORD DEMO_ADMIN_PASSWORD DEMO_OWNER_PASSWORD DEM
   case "$secret_value" in change_*|*change_me*|*change_this*|replace-*|*replace-with*) echo "Replace placeholder in $secret_name" >&2; exit 1;; esac
 done
 [ -n "${SAAS_OWNER_EMAIL:-}" ] || { echo 'SAAS_OWNER_EMAIL is required' >&2; exit 1; }
-case "${SAAS_OWNER_EMAIL}" in platform-owner@example.com|change_*|replace-*) echo 'Replace placeholder in SAAS_OWNER_EMAIL' >&2; exit 1;; esac
+case "${SAAS_OWNER_EMAIL}" in platform-owner@example.com|change_*|replace-*|replace_*|*@example.com) echo 'Replace placeholder in SAAS_OWNER_EMAIL' >&2; exit 1;; esac
 
 docker compose config --quiet
 docker compose pull
