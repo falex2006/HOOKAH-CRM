@@ -105,7 +105,7 @@ document.querySelector('#discount-request')?.addEventListener('click',async()=>{
 
 const notice=(text)=>{let el=document.querySelector('#staff-notice');if(!el){el=document.createElement('div');el.id='staff-notice';el.className='staff-notice';document.body.append(el);}el.textContent=text;el.classList.add('show');clearTimeout(el._timer);el._timer=setTimeout(()=>el.classList.remove('show'),2400);};
 document.querySelectorAll('aside nav button').forEach((button)=>button.addEventListener('click',()=>{
-  document.querySelectorAll('aside nav button').forEach((item)=>item.classList.remove('active')); button.classList.add('active');
+  document.querySelectorAll('aside nav button').forEach((item)=>{item.classList.remove('active');item.removeAttribute('aria-current');}); button.classList.add('active'); button.setAttribute('aria-current','page');
   const label=button.textContent.trim(); if(label.includes('Бронирования')) window.location.href='/reservations'; else if(label.includes('Склад')) window.location.href='/inventory'; else if(label.includes('Финансы')) window.location.href='/finance'; else if(label.includes('Заказы')||label.includes('Задачи')) { drawQueue(label.includes('Задачи')?'ready':'all'); document.querySelector('.queue')?.scrollIntoView({behavior:'smooth'}); notice(label.includes('Задачи')?'Показаны готовые задачи':'Показаны активные заказы'); } else document.querySelector('.tables')?.scrollIntoView({behavior:'smooth'});
 }));
 document.querySelector('#shift-toggle')?.addEventListener('click',async()=>{
