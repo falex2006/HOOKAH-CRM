@@ -20,4 +20,3 @@ for (const file of ['admin.html', 'orders.html', 'inventory.html']) {
     `${file} must use Tabler Icons`);
 }
 console.log(`LOCAL DESIGN CONTRACT: PASS (routes=${htmlFiles.length}, CSS rev=142, action links and Tabler Icons)`);
-
