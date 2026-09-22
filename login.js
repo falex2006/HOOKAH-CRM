@@ -1,4 +1,5 @@
 const form = document.querySelector('#login-form');
+fetch('/api/public/venue-brand').then((response) => response.ok ? response.json() : null).then((brand) => { const node = document.querySelector('[data-login-brand]'); if (!node || !brand?.logoUrl) return; node.innerHTML = `<img src="${brand.logoUrl}" alt="Логотип заведения">`; node.classList.add('has-logo'); }).catch(() => {});
 const passwordInput = document.querySelector('#login-password');
 const passwordToggle = document.querySelector('#login-password-toggle');
 const pinInput = document.querySelector('#login-pin');

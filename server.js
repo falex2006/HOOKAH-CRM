@@ -274,12 +274,16 @@ async function api(req, res) {
   }
   if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
-  if ((process.env.AUTH_REQUIRED === 'true' || hasRequestCredential) && pathname !== '/api/health' && pathname !== '/api/login') {
+  if ((process.env.AUTH_REQUIRED === 'true' || hasRequestCredential) && pathname !== '/api/health' && pathname !== '/api/login' && pathname !== '/api/public/venue-brand') {
     const session = await sessionFromRequest(req);
     if (!session) { if (process.env.AUTH_REQUIRED === 'true') return json(res, 401, { error: 'authentication_required' }); }
     else { req.user = session.user; if (req.user?.venueId && /^[0-9a-f-]{36}$/i.test(req.user.venueId)) venueDbId = req.user.venueId; }
   }
   if (pathname === '/api/health') return json(res, 200, { status: 'ok', service: 'hookah-crm' });
+  if (pathname === '/api/public/venue-brand' && req.method === 'GET') {
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT name,logo_url AS "logoUrl" FROM venues WHERE id=$1', [venueDbId]); if (rows[0]) return json(res, 200, rows[0]); } catch (_) {} }
+    return json(res, 200, { name: venue.name, logoUrl: venue.logoUrl || null });
+  }
   if (pathname === '/api/notifications' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['staff_view', 'settings'])) return;
     const items = staffNotifications.filter((item) => !item.notificationRecipients?.length || process.env.AUTH_REQUIRED !== 'true' || item.notificationRecipients.includes(req.user?.role));
