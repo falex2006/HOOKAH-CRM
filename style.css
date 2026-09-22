@@ -631,3 +631,6 @@
 
 /* Align native date/time controls with the dark UI */
 .velora-theme input[type=date],.velora-theme input[type=time]{min-height:48px;line-height:1.2;color-scheme:dark}.velora-theme input[type=date]::-webkit-calendar-picker-indicator,.velora-theme input[type=time]::-webkit-calendar-picker-indicator{width:17px;height:17px;margin:0 2px 0 8px;opacity:.82;filter:invert(88%) sepia(8%) saturate(320%) hue-rotate(175deg);cursor:pointer}.velora-theme input[type=date]:hover::-webkit-calendar-picker-indicator,.velora-theme input[type=time]:hover::-webkit-calendar-picker-indicator{opacity:1;filter:invert(74%) sepia(54%) saturate(680%) hue-rotate(306deg)}
+
+/* Notification control uses a stable vector icon instead of a platform emoji */
+.velora-theme .notification-bell{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;padding:0}.velora-theme .notification-bell .icon{display:block;width:18px;height:18px;stroke:currentColor;stroke-width:1.8}.velora-theme .notification-bell #notification-count{display:grid;place-items:center}
