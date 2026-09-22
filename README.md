@@ -16,6 +16,7 @@
 - роли и разрешения;
 - начальная PostgreSQL-схема и демо-данные;
 - Docker Compose для CRM, PostgreSQL и Nginx.
+- SaaS-основа multi-tenant: организации, членство пользователей, тариф и лимиты заведений (`migrations/009_saas_foundation.sql`).
 
 ## Запуск без Docker
 
