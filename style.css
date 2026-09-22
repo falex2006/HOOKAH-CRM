@@ -639,3 +639,6 @@
 .staff-theme .tables{padding-top:54px}.staff-theme .tables.vip-floor{padding-top:54px}@media(max-width:760px){.staff-theme .tables,.staff-theme .tables.vip-floor{padding-top:43px}}
 
 .login-pin-fields{display:grid;gap:12px}.login-pin-fields[hidden]{display:none}.login-pin-fields label{display:grid;gap:7px}.login-pin-fields input{width:100%}.login-pin-fields input:invalid:not(:placeholder-shown){border-color:#ff6372!important}.login-pin-confirm-field{margin-top:0}
+
+/* Login controls: keep the password action optically centered and inactive PIN panels truly hidden */
+.login-password-wrap{min-height:48px}.login-password-wrap input{height:48px;line-height:1.2}.login-password-toggle{display:inline-flex;align-items:center;justify-content:center;height:38px;min-width:76px;line-height:1;padding:0 10px;margin:0}.login-pin-fields[hidden],.login-pin-field[hidden]{display:none!important}
