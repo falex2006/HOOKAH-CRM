@@ -166,3 +166,5 @@ ev=130.
 - Control Center: PATCH организации теперь сохраняет имя, тариф и активность в PostgreSQL, синхронизирует лимиты подписки и возвращает 503 при ошибке; memory/demo режим сохраняет прежний fallback.
 
 - PATCH организации переведён на транзакцию PostgreSQL: имя, тариф, активность и лимиты подписки фиксируются атомарно; при сбое выполняется ROLLBACK. Acceptance повторно прошёл.
+
+- Пакет VPS перепроверен локально: docker compose config --quiet и shell-синтаксис deploy-vps.sh, ackup-postgres.sh, erify-backup.sh, migrate-vps.sh, post-deploy-acceptance.sh проходят. Реальный запуск по-прежнему требует Docker Engine и целевого VPS.
