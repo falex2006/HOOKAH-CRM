@@ -248,29 +248,30 @@ async function api(req, res) {
     const attempt = loginAttempts.get(loginKey);
     if (attempt && attempt.blockedUntil > Date.now()) return json(res, 429, { error: 'too_many_login_attempts', retryAfter: Math.ceil((attempt.blockedUntil - Date.now()) / 1000) });
     let account = [...demoAccounts, ...provisionedAccounts].find((entry) => entry.username === input.username && ((requestedPin && entry.pin === requestedPin) || (!requestedPin && entry.password === input.password)));
-    if (!account) { const person = staff.find((entry) => entry.active && entry.login === input.username); const credential = requestedPin || input.password; if (person && credential && await verifyPassword(credential, person.passwordHash)) account = { username: person.login, id: person.id, organizationId: person.organizationId || saasAccount.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl, telegram: person.telegram, phoneNumbers: person.phoneNumbers, permissionScopes: person.permissionScopes || [] }; }
+    if (!account) { const person = staff.find((entry) => entry.active && entry.login === input.username); const credential = requestedPin || input.password; if (person && credential && await verifyPassword(credential, person.passwordHash)) account = { username: person.login, id: person.id, organizationId: person.organizationId || saasAccount.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl, telegram: person.telegram, phoneNumbers: person.phoneNumbers, permissionScopes: person.permissionScopes || [], pinHash: person.pinCode ? person.passwordHash : null, pinConfigured: Boolean(person.pinCode) }; }
     if (!account && repositories?.pool) {
       try {
         let rows;
         try {
-          ({ rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",venue_id AS "venueId",full_name AS name,role,pin_hash,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]));
+          ({ rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",venue_id AS "venueId",full_name AS name,role,pin_hash,pin_updated_at,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]));
         } catch (_) {
           try { ({ rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username])); }
           catch (_) { ({ rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash,avatar_url AS "avatarUrl" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username])); }
         }
-        const row = rows[0]; const credential = requestedPin || input.password; if (row && credential && await verifyPassword(credential, row.pin_hash)) account = { username: row.login, id: row.id, organizationId: row.organizationId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [] };
+        const row = rows[0]; const credential = requestedPin || input.password; if (row && credential && await verifyPassword(credential, row.pin_hash)) account = { username: row.login, id: row.id, organizationId: row.organizationId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
       } catch (_) {}
     }
     if (!account) { const current = loginAttempts.get(loginKey) || { count: 0, firstAt: Date.now() }; const withinWindow = Date.now() - current.firstAt < 60_000; const next = withinWindow ? { count: current.count + 1, firstAt: current.firstAt } : { count: 1, firstAt: Date.now() }; if (next.count >= 5) next.blockedUntil = Date.now() + 60_000; loginAttempts.set(loginKey, next); return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_login_attempts' : 'invalid_credentials', ...(next.blockedUntil ? { retryAfter: 60 } : {}) }); }
     loginAttempts.delete(loginKey);
     const token = crypto.randomBytes(32).toString('hex');
+    if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
     const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
     const organizationId = account.organizationId === undefined ? '00000000-0000-0000-0000-000000000010' : account.organizationId;
     const userVenueId = account.venueId || null;
-    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes) }, createdAt: Date.now() });
+    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, unlockHash: account.pinHash || null, createdAt: Date.now() });
     if (sessionRepository) { try { await sessionRepository.create({ userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 28_800_000).toISOString() }); } catch (_) {} }
     res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
-    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: 28800 });
+    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: 28800 });
   }
   if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
@@ -289,6 +290,18 @@ async function api(req, res) {
       }
     }
     return json(res, 200, { status: 'ok', service: 'hookah-crm', database: 'memory' });
+  }
+  if (pathname === '/api/session/unlock' && req.method === 'POST') {
+    const input = await body(req); const pin = String(input.pin || '').trim();
+    if (!/^\d{4}$/.test(pin)) return json(res, 400, { error: 'invalid_staff_pin_format' });
+    const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
+    const memorySession = sessions.get(token); let unlockHash = memorySession?.unlockHash || null; let pinConfigured = Boolean(memorySession?.user?.pinConfigured);
+    if (!unlockHash && repositories?.pool && /^[0-9a-f-]{36}$/i.test(req.user?.id || '')) {
+      try { const { rows } = await repositories.pool.query('SELECT pin_hash AS "pinHash",pin_updated_at AS "pinUpdatedAt",is_active AS active FROM users WHERE id=$1 LIMIT 1', [req.user.id]); if (rows[0]?.active && rows[0]?.pinUpdatedAt) { unlockHash = rows[0].pinHash; pinConfigured = true; } } catch (error) { return json(res, 503, { error: 'unlock_unavailable', detail: error.message }); }
+    }
+    if (!pinConfigured || !unlockHash) return json(res, 409, { error: 'pin_not_configured' });
+    if (!(await verifyPassword(pin, unlockHash))) return json(res, 401, { error: 'invalid_pin' });
+    return json(res, 200, { ok: true });
   }
   if (pathname === '/api/public/venue-brand' && req.method === 'GET') {
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT name,logo_url AS "logoUrl" FROM venues WHERE id=$1', [venueDbId]); if (rows[0]) return json(res, 200, rows[0]); } catch (_) {} }
@@ -1464,7 +1477,7 @@ function staticFile(req, res) {
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
     ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/admin.js',
-    '/login.js', '/platform.js', '/catalog-seed.js', '/staff-profile.js', '/staff-audit.js',
+    '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
     '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg',
