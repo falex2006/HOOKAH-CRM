@@ -7,6 +7,7 @@ const migrate = read('migrate-vps.sh');
 const compose = read('docker-compose.yml');
 const envExample = read('.env.example');
 const https = read('nginx/https.conf.example');
+const server = read('server.js');
 
 for (const script of [deploy, migrate]) {
   assert.match(script, /docker compose version/, 'deployment scripts must require Compose plugin');
@@ -26,6 +27,9 @@ assert.match(https, /return 301 https:\/\/\$host\$request_uri/);
 assert.match(https, /ssl_certificate_key/);
 assert.match(https, /Strict-Transport-Security/);
 assert.match(envExample, /STAFF_PASSPORT_KEY=replace-/);
+assert.match(envExample, /SAAS_OWNER_EMAIL=platform-owner@example\.com/);
+assert.match(server, /platform-owner@example\.com/);
+assert.doesNotMatch(server, /alphasat72@gmail\.com/);
 assert.equal(existsSync(new URL('../.env', import.meta.url)), false, 'real .env must stay out of the repository');
 
 console.log('LOCAL DEPLOY CONTRACT: PASS (preflight, secrets, healthcheck and HTTPS template)');
