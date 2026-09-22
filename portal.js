@@ -114,6 +114,13 @@ const portalAction = ({ title, description = '', submitLabel = 'Сохранит
   form.addEventListener('submit', (event) => { event.preventDefault(); const data = Object.fromEntries(new FormData(form).entries()); const invalid = fields.find((field) => field.type === 'number' && (!Number.isFinite(Number(data[field.name])) || (field.min !== undefined && Number(data[field.name]) < Number(field.min)))); if (invalid) { const message = modal.querySelector('.form-message'); message.textContent = `Введите корректное значение: ${invalid.label.toLocaleLowerCase('ru-RU')}`; modal.querySelector(`[name="${CSS.escape(invalid.name)}"]`)?.focus(); return; } close(data); });
   firstField?.focus();
 });
+// На узких экранах подписи навигации скрываются, поэтому сохраняем название
+// пункта в нативной подсказке и доступном имени ссылки.
+document.querySelectorAll('.portal-nav a').forEach((link) => {
+  const label = link.querySelector('span')?.textContent?.trim();
+  if (label && !link.title) link.title = label;
+  if (label && !link.getAttribute('aria-label')) link.setAttribute('aria-label', label);
+});
 const portalConfirm = (title, description, submitLabel = 'Подтвердить') => portalAction({ title, description, submitLabel, fields: [], danger: true }).then((result) => result !== null);
 const refreshStaffPinNotifications = () => {
   if (!['owner', 'admin'].includes(portalUser.role)) return;
