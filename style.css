@@ -716,3 +716,9 @@
 .velora-theme .client-card{transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
 .velora-theme .client-card.is-selected{border-color:#ff7180;box-shadow:0 0 0 2px #ff718033,0 14px 30px #00000030;transform:translateY(-1px)}
 .velora-theme .client-card.is-selected .client-avatar{box-shadow:0 0 0 2px #ff718088}
+
+/* Унифицированные выпадающие меню во всех режимах и модальных окнах */
+.velora-theme select,.staff-theme select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aa3ae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:16px;padding-right:38px;line-height:1.2}
+.velora-theme select:focus,.staff-theme select:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:none}
+.staff-theme select{min-height:42px;padding:9px 38px 9px 12px;border:1px solid #3b4a55;border-radius:9px;background-color:#111920;color:#eef3f6;color-scheme:dark;font:inherit}
+.velora-theme .plan-select{min-height:34px;padding:0 34px 0 9px;background-color:#151a20;color:#dbe0e7;border-color:#3c4652}
