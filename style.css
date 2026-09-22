@@ -628,3 +628,6 @@
 
 /* Give the floor plan enough room before switching to the compact phone layout */
 @media (max-width:1200px) and (min-width:761px){.staff-theme .workspace{grid-template-columns:minmax(0,1fr);gap:18px}.staff-theme .tables{grid-template-columns:repeat(12,minmax(0,1fr));min-height:540px}.staff-theme .order{width:100%;max-width:none}.staff-theme .queue{padding-top:18px}}
+
+/* Align native date/time controls with the dark UI */
+.velora-theme input[type=date],.velora-theme input[type=time]{min-height:48px;line-height:1.2;color-scheme:dark}.velora-theme input[type=date]::-webkit-calendar-picker-indicator,.velora-theme input[type=time]::-webkit-calendar-picker-indicator{width:17px;height:17px;margin:0 2px 0 8px;opacity:.82;filter:invert(88%) sepia(8%) saturate(320%) hue-rotate(175deg);cursor:pointer}.velora-theme input[type=date]:hover::-webkit-calendar-picker-indicator,.velora-theme input[type=time]:hover::-webkit-calendar-picker-indicator{opacity:1;filter:invert(74%) sepia(54%) saturate(680%) hue-rotate(306deg)}
