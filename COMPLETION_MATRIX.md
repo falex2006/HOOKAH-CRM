@@ -23,10 +23,10 @@
 | Браузерный визуальный QA основных экранов | Подтверждено локально | `/admin?qa=visual-next`, `/orders?qa=visual-orders`, `/inventory?qa=visual-inventory` |
 | Зависимости | Подтверждено локально | `npm ci --ignore-scripts`, `npm audit --omit=dev --audit-level=high` — 0 уязвимостей |
 | Автоматическое продолжение после лимитов | Подтверждено в Codex | Активный heartbeat `crm`, описание в `HANDOFF.md` |
-| PostgreSQL-сохранность после перезапуска | Не подтверждено на этой машине | `scripts/local-postgres-contract.mjs` подготовлен для работающего PostgreSQL-контурa; нужен VPS или доступный Docker Engine |
+| PostgreSQL-сохранность после перезапуска | Не подтверждено на этой машине | `scripts/local-postgres-contract.mjs` подготовлен для работающего PostgreSQL-контура; локального Docker-контура нет, нужен целевой VPS |
 | Ошибки сохранения профиля сотрудника | Подтверждено локально | Ошибка обновления `permissionScopes` больше не подавляется; API возвращает `staff_profile_save_failed`, acceptance проходит |
 | Управление залами, этажами и VIP-комнатами | Подтверждено локально | `local-floor-management-contract.mjs`: создание, изменение депозита/вместимости, валидная вместимость в floor API, защита непустой зоны и удаление; полный acceptance проходит |
-| Реальный backup restore | Не подтверждено на этой машине | `verify-backup.sh` готов, но нет production-архива и Docker Engine |
+| Реальный backup restore | Не подтверждено на этой машине | `verify-backup.sh` готов, но нет production-архива и локального Docker-контура; проверка выполняется на целевом VPS |
 | VPS, домен, HTTPS и боевые секреты | Не выполнено | Финальный внешний этап; использовать `DEPLOYMENT.md` и `nginx/https.conf.example` |
 | Post-deploy smoke-проверка | Подготовлено, не выполнено | `post-deploy-acceptance.sh`; запускать после появления VPS, HTTPS и боевой учётной записи |
 | Блокировка рабочего места и PIN-разблокировка | Подтверждено локально и браузером | В рабочем месте открываются настройки интервала 1/5/10/15/30 минут или отключения; ручная блокировка показывает стеклянно-ледяной экран с клавиатурой, корректный PIN возвращает в рабочее место; `local-lock-contract.mjs` и полный acceptance |

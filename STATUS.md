@@ -22,7 +22,7 @@
 
 - Повторная локальная проверка 22.09.2026: 13 маршрутов и `/api/health` отвечают корректно; role, insights, date, login и static-boundary контракты проходят. Полный acceptance ранее подтверждён; VPS и реальное восстановление PostgreSQL остаются финальным внешним этапом.
 - Дополнительная локальная проверка 22.09.2026: CRUD-контракт PASS (товар с фото, склад, финансовая категория, бронь, доставка, точка сети и сотрудник); `docker compose config` PASS; `npm pack --dry-run` PASS (112 файлов).
-- Production-проверка 22.09.2026: `deploy-vps.sh`, `backup-postgres.sh`, `verify-backup.sh` и `migrate-vps.sh` проходят `bash -n`; Docker Engine на локальной машине недоступен, поэтому фактическая сборка образа и восстановление PostgreSQL ещё не выполнены.
+- Production-проверка 22.09.2026: `deploy-vps.sh`, `backup-postgres.sh`, `verify-backup.sh` и `migrate-vps.sh` проходят `bash -n`; локального Docker-контура на рабочей машине нет, поэтому фактическая сборка образа и восстановление PostgreSQL выполняются только на целевом VPS.
 - Production-preflight усилен: deploy и миграции теперь проверяют Docker Compose plugin и обязательный `STAFF_PASSPORT_KEY`, а также отклоняют `replace-*` placeholders; bash syntax, static boundary, date contract и compose config повторно прошли.
 - Подготовлен `nginx/https.conf.example` с редиректом HTTP→HTTPS, TLS 1.2/1.3, HSTS и проксированием CRM; локальная машина не содержит nginx/сертификатов, поэтому TLS-конфигурация требует проверки на целевом VPS.
 - Добавлен `scripts/local-deploy-contract.mjs` в общий acceptance: проверяет preflight секретов, healthcheck, закрытый порт PostgreSQL и HTTPS-шаблон; локальный контракт проходит.
@@ -38,7 +38,7 @@
 - Локальный asset-smoke 21.09.2026: 13 маршрутов и 18 подключаемых CSS/JS/SVG-ассетов возвращают HTTP 200; проверка включена в единый acceptance-прогон.
 - Локальная проверка отдачи страниц 21.09.2026: все 13 маршрутов возвращают HTTP 200 и подключают актуальный runtime (`portal.js`, `app.js` или `login.js`).
 - VPS-пакет дополнительно проверен: Docker-образ теперь содержит `scripts/` и `migrations/`, поэтому `npm run db:seed-menu` и миграционные операции доступны внутри контейнера; проверка support-файлов прошла.
-- Production packaging check 21.09.2026: Dockerfile now includes all 21 runtime files, including every administrative route and `catalog-seed.js`; static asset check passed. Full image build awaits a running Docker Engine on the local workstation.
+- Production packaging check 21.09.2026: Dockerfile now includes all 21 runtime files, including every administrative route and `catalog-seed.js`; static asset check passed. Образ будет собран на целевом VPS: локальный Docker-контур отсутствует.
 - Единый локальный приёмочный прогон `scripts/local-acceptance.ps1`: PASS — 13 маршрутов, 24 ТТК, 75 товаров, гости, 10 заказов, VIP/скидки/оплаты, отчёты, доставка и аудит. Нагрузочный прогон на 100 заказов выполняется отдельно через `scripts/local-100-orders.ps1 -Count 100`.
 - Браузерная проверка административного справочника 21.09.2026: страница «Категории финансов» открывает форму через «Категория», сохраняет новую категорию и обновляет счётчик списка; подтверждено сообщение «Категория сохранена».
 - Браузерная проверка рабочего места 21.09.2026: свободный стол → Red Bull → «Отправить на бар» → статус «Готовится» → смешанная оплата 100 ₽ наличными + 150 ₽ картой; заказ закрывается, редактирование закрытого заказа блокируется.
@@ -187,6 +187,6 @@ pm audit --omit=dev --audit-level=high — 0 уязвимостей.
 - Пользовательские настройки теперь сохраняются в аккаунте: добавлена миграция `011_user_preferences.sql` и `/api/session/preferences`. Таймер автоблокировки синхронизируется с сервером между устройствами, валидируется и откатывается при ошибке БД.
 - Полный acceptance после добавления хранения предпочтений прошёл, включая новый `local-preferences-contract.mjs`.
 - Актуализация документации: текущие значения cache-busting — `style.css` rev=182, `portal.js` rev=173, `app.js` rev=109; click contract подтверждает 113 ссылок, 150 кнопок и 4 формы. Исторические записи предыдущих ревизий сохранены как журнал изменений.
-- Проверка Docker CLI 22.09.2026: compose-конфигурация и shell-синтаксис подготовлены, но Docker Desktop daemon на рабочей машине не запущен; реальный PostgreSQL restart/backup restore остаются задачами целевого окружения.
+- Проверка Docker CLI 22.09.2026: CLI/Compose доступны только для статической проверки конфигурации; локального Docker-контура нет. Реальная сборка, PostgreSQL restart и backup restore выполняются на целевом VPS.
 - Главная и аналитика переведены на серверные предпочтения аккаунта: видимость модулей, стиль показателя выручки и набор показателей сохраняются через `/api/session/preferences`, при этом локальная настройка остаётся резервом для demo-режима.
 - Полный acceptance после синхронизации dashboard/insights preference прошёл на отдельном локальном порту: `LOCAL ACCEPTANCE: PASS`.
