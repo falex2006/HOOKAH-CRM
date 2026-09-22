@@ -735,6 +735,19 @@
 .velora-theme .finance-chart-grid .finance-chart-bars{position:relative;height:100%}
 @media(max-width:700px){.velora-theme .finance-chart-summary{grid-template-columns:1fr 1fr}.velora-theme .finance-chart-summary div:last-child{grid-column:1/-1}.velora-theme .finance-chart-grid{height:180px}.velora-theme .finance-chart-grid .finance-chart-bars{height:180px}}
 
+/* Report page rhythm and rounded controls */
+.velora-theme .report-controls{margin-bottom:0;padding:20px 24px;border-radius:16px}
+.velora-theme .report-controls .toolbar-row{display:grid;grid-template-columns:220px minmax(260px,420px) auto;align-items:end;gap:14px}
+.velora-theme .report-controls label{display:grid;gap:7px;color:#9aa3ae;font-size:12px}
+.velora-theme .report-controls input,.velora-theme .report-controls select{width:100%;min-width:0;box-sizing:border-box;min-height:44px;border-radius:10px}
+.velora-theme .report-controls .button{min-height:44px;border-radius:10px;white-space:nowrap}
+.velora-theme #report-kpis{gap:14px;margin-top:16px;margin-bottom:20px}
+.velora-theme #report-kpis .kpi{border-radius:15px;padding:17px 18px}
+.velora-theme .report-grid{gap:18px}
+.velora-theme .report-grid .panel{border-radius:15px;padding:20px 22px}
+.velora-theme .report-grid .panel-head{margin-bottom:12px}
+@media(max-width:760px){.velora-theme .report-controls .toolbar-row{grid-template-columns:1fr}.velora-theme .report-controls .button{width:max-content}.velora-theme #report-kpis{gap:10px}}
+
 .velora-theme .cash-register-panel .panel-head{align-items:flex-start}
 .velora-theme .cash-register-panel .panel-head>div{display:grid;gap:4px}
 .velora-theme .cash-register-hint{display:block;color:#7f8994;font-size:11px;line-height:1.35}
