@@ -703,3 +703,6 @@
 .velora-theme .orders-view .orders-table tbody td{padding:8px 10px;line-height:1.25;vertical-align:middle}
 .velora-theme .orders-view .orders-table tbody td b{line-height:1.25}
 .velora-theme .orders-view .table-wrap{max-height:calc(100vh - 390px);overflow:auto}
+.velora-theme .orders-view .toolbar-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.velora-theme .orders-view #orders-sort{width:238px;min-width:238px;height:42px}
+@media(max-width:900px){.velora-theme .orders-view .toolbar-row{width:100%}.velora-theme .orders-view #orders-search,.velora-theme .orders-view #orders-sort,.velora-theme .orders-view #orders-status{flex:1 1 180px;width:auto;min-width:0;max-width:none}}
