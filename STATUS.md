@@ -12,6 +12,8 @@
 
 ## Подтверждено
 
+- Повторный полный локальный acceptance после усиления production-secret preflight 22.09.2026 на `http://localhost:3044`: все контракты и сквозные сценарии завершились `PASS`, включая deploy contract с обязательными данными платформенного владельца.
+
 - Production-секреты очищены от личных данных 22.09.2026: fallback и `.env.example` используют нейтральный `platform-owner@example.com`, а `deploy-vps.sh` требует боевые `SAAS_OWNER_EMAIL` и `SAAS_OWNER_PASSWORD`; deploy contract и `node --check server.js` проходят.
 
 - Свежий полный локальный приёмочный прогон 22.09.2026 на чистом серверном процессе (`http://localhost:3043`): static boundary, click/design/deploy, маршруты и ресурсы, роли, аналитика, даты, login/lock/preferences, SaaS и организации, onboarding, каталог, залы, CRUD, гости, 10 заказов, smoke и аудит — все проверки `PASS`.
