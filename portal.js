@@ -65,6 +65,28 @@ if (pagePermissions[page] && !portalPermissions.has(pagePermissions[page])) {
 const money = (value) => `${Number(value || 0).toLocaleString('ru-RU')} ₽`; const pluralRu=(value,one,few,many)=>{const n=Math.abs(Number(value)||0),last10=n%10,last100=n%100;return last10===1&&last100!==11?one:last10>=2&&last10<=4&&(last100<12||last100>14)?few:many;};
 const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${name}"></use></svg>`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+const enhancePortalSelect = (select) => {
+  if (!(select instanceof HTMLSelectElement) || select.dataset.customSelect === '1' || select.multiple) return;
+  const wrapper = document.createElement('div'); wrapper.className = 'custom-select';
+  const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'custom-select-trigger'; trigger.setAttribute('aria-haspopup', 'listbox'); trigger.setAttribute('aria-expanded', 'false'); trigger.setAttribute('aria-label', select.getAttribute('aria-label') || select.id || 'Выбор значения');
+  const menu = document.createElement('div'); menu.className = 'custom-select-menu'; menu.setAttribute('role', 'listbox');
+  const rebuild = () => {
+    menu.innerHTML = [...select.options].map((option) => `<button type="button" class="custom-select-option" role="option" data-value="${esc(option.value)}" aria-selected="${option.selected ? 'true' : 'false'}">${esc(option.textContent)}</button>`).join('');
+    trigger.textContent = select.selectedOptions[0]?.textContent || 'Выберите значение'; trigger.disabled = select.disabled; menu.querySelectorAll('[data-value]').forEach((option) => option.tabIndex = option.getAttribute('aria-selected') === 'true' ? 0 : -1);
+  };
+  const close = () => { wrapper.classList.remove('is-open'); trigger.setAttribute('aria-expanded', 'false'); };
+  const open = () => { if (select.disabled) return; wrapper.classList.add('is-open'); trigger.setAttribute('aria-expanded', 'true'); menu.querySelector('[aria-selected="true"]')?.focus(); };
+  trigger.addEventListener('click', () => wrapper.classList.contains('is-open') ? close() : open());
+  trigger.addEventListener('keydown', (event) => { if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') { event.preventDefault(); open(); } if (event.key === 'Escape') close(); });
+  menu.addEventListener('click', (event) => { const option = event.target.closest('[data-value]'); if (!option) return; select.value = option.dataset.value; select.dispatchEvent(new Event('change', { bubbles: true })); rebuild(); close(); trigger.focus(); });
+  menu.addEventListener('keydown', (event) => { const options = [...menu.querySelectorAll('[data-value]')]; const current = options.indexOf(document.activeElement); if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); options[(current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length]?.focus(); } else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.activeElement?.click(); } else if (event.key === 'Escape') { event.preventDefault(); close(); trigger.focus(); } });
+  select.addEventListener('change', rebuild); select.addEventListener('input', rebuild); select._customSelectRefresh = rebuild; select.dataset.customSelect = '1'; select.setAttribute('aria-hidden', 'true'); select.tabIndex = -1; select.classList.add('native-select-source'); select.parentNode.insertBefore(wrapper, select); wrapper.append(select, trigger, menu); rebuild();
+};
+const enhancePortalSelects = () => document.querySelectorAll('select:not([data-custom-select="1"])').forEach(enhancePortalSelect);
+enhancePortalSelects();
+const portalSelectObserver = new MutationObserver((records) => { records.forEach((record) => { if (record.type === 'childList' && record.target instanceof HTMLSelectElement && record.target._customSelectRefresh) record.target._customSelectRefresh(); }); enhancePortalSelects(); });
+portalSelectObserver.observe(document.body, { childList: true, subtree: true });
+document.addEventListener('click', (event) => { document.querySelectorAll('.custom-select.is-open').forEach((wrapper) => { if (!wrapper.contains(event.target)) { wrapper.classList.remove('is-open'); wrapper.querySelector('.custom-select-trigger')?.setAttribute('aria-expanded', 'false'); } }); });
 const displayName = (value) => { const text = String(value ?? '').trim(); return text ? text.replace(/(^|[\s(\/-])([\p{L}])/gu, (_, prefix, letter) => prefix + letter.toLocaleUpperCase('ru-RU')) : text; };
 const portalHeaderName = displayName(portalUser.name || portalUser.fullName || portalRole[0]);
 const portalHeaderInitials = portalHeaderName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toLocaleUpperCase('ru-RU') || 'С';

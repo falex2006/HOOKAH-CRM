@@ -721,6 +721,21 @@
 .velora-theme select,.staff-theme select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aa3ae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:16px;padding-right:38px;line-height:1.2}
 .velora-theme select:focus,.staff-theme select:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:none}
 .staff-theme select{min-height:42px;padding:9px 38px 9px 12px;border:1px solid #3b4a55;border-radius:9px;background-color:#111920;color:#eef3f6;color-scheme:dark;font:inherit}
+.velora-theme .custom-select,.staff-theme .custom-select{position:relative;min-width:0;width:100%}
+.velora-theme .native-select-source,.staff-theme .native-select-source{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;clip:rect(0 0 0 0)!important}
+.velora-theme .custom-select-trigger,.staff-theme .custom-select-trigger{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:42px;box-sizing:border-box;padding:9px 38px 9px 12px;border:1px solid #3b4652;border-radius:9px;background:#111419;color:#eef1f4;font:inherit;line-height:1.2;text-align:left;position:relative;cursor:pointer}
+.velora-theme .custom-select-trigger:after,.staff-theme .custom-select-trigger:after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:1.5px solid #aab3be;border-bottom:1.5px solid #aab3be;transform:translateY(-65%) rotate(45deg);transition:transform .16s ease}
+.velora-theme .custom-select.is-open .custom-select-trigger:after,.staff-theme .custom-select.is-open .custom-select-trigger:after{transform:translateY(-25%) rotate(225deg)}
+.velora-theme .custom-select-trigger:hover,.staff-theme .custom-select-trigger:hover{border-color:#56616f}
+.velora-theme .custom-select-trigger:focus-visible,.staff-theme .custom-select-trigger:focus-visible{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:none}
+.velora-theme .custom-select.is-open .custom-select-trigger,.staff-theme .custom-select.is-open .custom-select-trigger{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c}
+.velora-theme .custom-select-trigger:disabled,.staff-theme .custom-select-trigger:disabled{opacity:.58;cursor:not-allowed}
+.velora-theme .custom-select-menu,.staff-theme .custom-select-menu{display:none;position:absolute;z-index:40;top:calc(100% + 6px);left:0;right:0;max-height:280px;overflow:auto;padding:5px;border:1px solid #3b4652;border-radius:10px;background:#171b21;box-shadow:0 16px 36px #000b}
+.velora-theme .custom-select.is-open .custom-select-menu,.staff-theme .custom-select.is-open .custom-select-menu{display:grid;gap:2px}
+.velora-theme .custom-select-option,.staff-theme .custom-select-option{width:100%;padding:9px 10px;border:0;border-radius:7px;background:transparent;color:#cbd3dc;font:inherit;line-height:1.2;text-align:left;cursor:pointer}
+.velora-theme .custom-select-option:hover,.velora-theme .custom-select-option:focus-visible,.staff-theme .custom-select-option:hover,.staff-theme .custom-select-option:focus-visible{background:#292f38;color:#fff;outline:none}
+.velora-theme .custom-select-option[aria-selected="true"],.staff-theme .custom-select-option[aria-selected="true"]{background:#343b47;color:#fff}
+.velora-theme .toolbar-row>.custom-select,.staff-theme .toolbar-row>.custom-select{flex:1 1 auto;width:auto}
 .velora-theme .plan-select{min-height:34px;padding:0 34px 0 9px;background-color:#151a20;color:#dbe0e7;border-color:#3c4652}
 
 /* Finance chart: compact summary and readable visual scale */
