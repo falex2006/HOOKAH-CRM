@@ -689,3 +689,5 @@
 .velora-theme .staff-form>.button.primary{min-height:52px;border-radius:12px;font-size:15px;box-shadow:0 10px 24px #ff5a5420}
 @media(max-width:1180px){.velora-theme .staff-layout{grid-template-columns:1fr}.velora-theme .staff-form{border-left:0;border-top:1px solid #343943;border-radius:0;padding:22px 0 12px}}
 .platform-modal .form-section-label{grid-column:1/-1;margin-top:6px;padding-top:14px;border-top:1px solid #2e333b;color:#f0f2f4;font-size:12px;font-weight:700;letter-spacing:.04em}.platform-modal form>label input{width:100%}
+
+.velora-theme .staff-summary .staff-layout{grid-template-columns:1fr}
