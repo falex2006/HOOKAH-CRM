@@ -106,10 +106,11 @@ const clients = [
 const sessions = new Map();
 const loginAttempts = new Map();
 const shifts = [];
+const provisionedAccounts = [];
 const demoAccounts = [
-  { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Александр', role: 'admin', organizationId: '00000000-0000-0000-0000-000000000010' },
-  { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner', organizationId: '00000000-0000-0000-0000-000000000010' },
-  { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' },
+  { username: 'admin', venueId: '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Александр', role: 'admin', organizationId: '00000000-0000-0000-0000-000000000010' },
+  { username: 'owner', venueId: '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner', organizationId: '00000000-0000-0000-0000-000000000010' },
+  { username: 'staff', venueId: '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_STAFF_PASSWORD || 'demo', pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: process.env.SAAS_OWNER_EMAIL || 'alphasat72@gmail.com', password: process.env.SAAS_OWNER_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'saas-demo'), name: 'Владелец SaaS', role: 'platform_owner', organizationId: null }
 ];
 
@@ -246,13 +247,13 @@ async function api(req, res) {
     if (requestedPin && !/^\d{4}$/.test(requestedPin)) return json(res, 400, { error: 'invalid_staff_pin_format' });
     const attempt = loginAttempts.get(loginKey);
     if (attempt && attempt.blockedUntil > Date.now()) return json(res, 429, { error: 'too_many_login_attempts', retryAfter: Math.ceil((attempt.blockedUntil - Date.now()) / 1000) });
-    let account = demoAccounts.find((entry) => entry.username === input.username && ((requestedPin && entry.pin === requestedPin) || (!requestedPin && entry.password === input.password)));
+    let account = [...demoAccounts, ...provisionedAccounts].find((entry) => entry.username === input.username && ((requestedPin && entry.pin === requestedPin) || (!requestedPin && entry.password === input.password)));
     if (!account) { const person = staff.find((entry) => entry.active && entry.login === input.username); const credential = requestedPin || input.password; if (person && credential && await verifyPassword(credential, person.passwordHash)) account = { username: person.login, id: person.id, organizationId: person.organizationId || saasAccount.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl, telegram: person.telegram, phoneNumbers: person.phoneNumbers, permissionScopes: person.permissionScopes || [] }; }
     if (!account && repositories?.pool) {
       try {
         let rows;
         try {
-          ({ rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",full_name AS name,role,pin_hash,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]));
+          ({ rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",venue_id AS "venueId",full_name AS name,role,pin_hash,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]));
         } catch (_) {
           try { ({ rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username])); }
           catch (_) { ({ rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash,avatar_url AS "avatarUrl" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username])); }
@@ -265,16 +266,18 @@ async function api(req, res) {
     const token = crypto.randomBytes(32).toString('hex');
     const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
     const organizationId = account.organizationId === undefined ? '00000000-0000-0000-0000-000000000010' : account.organizationId;
-    sessions.set(token, { user: { id: userId, organizationId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes) }, createdAt: Date.now() });
+    const userVenueId = account.venueId || null;
+    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes) }, createdAt: Date.now() });
     if (sessionRepository) { try { await sessionRepository.create({ userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 28_800_000).toISOString() }); } catch (_) {} }
     res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
-    return json(res, 200, { token, user: { id: userId, organizationId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: 28800 });
+    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: 28800 });
   }
   if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
-  if (process.env.AUTH_REQUIRED === 'true' && pathname !== '/api/health' && pathname !== '/api/login') {
+  const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
+  if ((process.env.AUTH_REQUIRED === 'true' || hasRequestCredential) && pathname !== '/api/health' && pathname !== '/api/login') {
     const session = await sessionFromRequest(req);
-    if (!session) return json(res, 401, { error: 'authentication_required' });
-    req.user = session.user;
+    if (!session) { if (process.env.AUTH_REQUIRED === 'true') return json(res, 401, { error: 'authentication_required' }); }
+    else { req.user = session.user; if (req.user?.venueId && /^[0-9a-f-]{36}$/i.test(req.user.venueId)) venueDbId = req.user.venueId; }
   }
   if (pathname === '/api/health') return json(res, 200, { status: 'ok', service: 'hookah-crm' });
   if (pathname === '/api/notifications' && req.method === 'GET') {
@@ -291,12 +294,13 @@ async function api(req, res) {
           COALESCE(s.seats_limit,5) AS "seatsLimit",COALESCE(s.venues_limit,1) AS "venuesLimit",
           (SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS "activeSeats",
           (SELECT COUNT(*)::int FROM venues v2 WHERE v2.organization_id=o.id AND v2.is_active=true) AS "activeVenues"
-          FROM venues v JOIN organizations o ON o.id=v.organization_id
-          LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE v.id=$1 LIMIT 1`, [venueDbId]);
+          FROM organizations o
+          LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE o.id=$1 LIMIT 1`, [req.user?.organizationId || saasAccount.id]);
         if (rows[0]) return json(res, 200, { ...rows[0], seatsLimit: Number(rows[0].seatsLimit), venuesLimit: Number(rows[0].venuesLimit), activeSeats: Number(rows[0].activeSeats), activeVenues: Number(rows[0].activeVenues) });
       } catch (_) {}
     }
-    return json(res, 200, { ...saasAccount, activeSeats: staff.filter((person) => person.active).length, activeVenues: networkVenues.filter((item) => item.status !== 'archived').length });
+    const account = saasOrganizations.find((item) => item.id === req.user?.organizationId) || saasAccount;
+    return json(res, 200, { ...account, subscriptionStatus: account.status || account.subscriptionStatus || 'trialing', subscriptionPlan: account.plan, activeSeats: Number(account.seats ?? staff.filter((person) => person.active).length), activeVenues: Number(account.venues ?? networkVenues.filter((item) => item.status !== 'archived').length) });
   }
   if (pathname === '/api/platform/plans' && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
@@ -314,11 +318,41 @@ async function api(req, res) {
   }
   if (pathname === '/api/platform/organizations' && req.method === 'POST') {
     if (denyUnless(req, res, 'platform')) return;
-    const input = await body(req); const name = String(input.name || '').trim(); const slug = String(input.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')).trim().toLowerCase();
+    const input = await body(req);
+    const name = String(input.name || '').trim();
+    const transliteration = { а:'a', б:'b', в:'v', г:'g', д:'d', е:'e', ё:'e', ж:'zh', з:'z', и:'i', й:'y', к:'k', л:'l', м:'m', н:'n', о:'o', п:'p', р:'r', с:'s', т:'t', у:'u', ф:'f', х:'h', ц:'c', ч:'ch', ш:'sh', щ:'sh', ъ:'', ы:'y', ь:'', э:'e', ю:'yu', я:'ya' };
+    const generatedSlug = name.toLowerCase().replace(/[а-яё]/g, (letter) => transliteration[letter] || '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const slug = String(input.slug || generatedSlug || `company-${Date.now()}`).trim().toLowerCase();
+    const ownerName = String(input.ownerName || '').trim();
+    const ownerLogin = String(input.ownerLogin || '').trim().toLowerCase();
+    const ownerPassword = String(input.ownerPassword || '');
+    const plan = ['starter', 'growth', 'network', 'enterprise'].includes(input.plan) ? input.plan : 'starter';
     if (!name || name.length > 120 || !/^[a-z0-9][a-z0-9-]{1,48}$/.test(slug)) return json(res, 400, { error: 'valid_name_and_slug_required' });
-    if (repositories?.pool) { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const org = await client.query(`INSERT INTO organizations (name,slug,plan,timezone) VALUES ($1,$2,$3,$4) RETURNING id,name,slug,plan,is_active AS "isActive",created_at AS "createdAt"`, [name, slug, ['starter','growth','network','enterprise'].includes(input.plan) ? input.plan : 'starter', input.timezone || 'Europe/Moscow']); await client.query(`INSERT INTO organization_subscriptions (organization_id,plan,status) VALUES ($1,$2,'trialing')`, [org.rows[0].id, org.rows[0].plan]); if (input.city) await client.query(`INSERT INTO venues (organization_id,name,city,address,format,timezone) VALUES ($1,$2,$3,$4,$5,$6)`, [org.rows[0].id, name, String(input.city).trim(), String(input.address || '').trim(), 'кальян-бар', input.timezone || 'Europe/Moscow']); await client.query('COMMIT'); recordAudit(req, 'platform.organization_created', 'organization', org.rows[0].id, null, org.rows[0]); return json(res, 201, { ...org.rows[0], status: 'trialing', venues: input.city ? 1 : 0, seats: 0, city: input.city || '' }); } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'organization_create_failed', detail: error.code === '23505' ? 'slug_already_exists' : error.message }); } finally { client.release(); } }
-    if (saasOrganizations.some((item) => item.slug === slug)) return json(res, 409, { error: 'slug_already_exists' });
-    const item = { id: `org-${Date.now()}`, name, slug, plan: ['starter','growth','network','enterprise'].includes(input.plan) ? input.plan : 'starter', status: 'trialing', city: String(input.city || '').trim(), venues: input.city ? 1 : 0, seats: 0, createdAt: new Date().toISOString(), isActive: true }; saasOrganizations.push(item); recordAudit(req, 'platform.organization_created', 'organization', item.id, null, item); return json(res, 201, item);
+    if (!ownerName || ownerName.length > 120 || !/^[^\s@]+@[^\s@]+$/.test(ownerLogin) || ownerPassword.length < 8) return json(res, 400, { error: 'valid_owner_credentials_required' });
+    if (repositories?.pool) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const org = await client.query(`INSERT INTO organizations (name,slug,plan,timezone) VALUES ($1,$2,$3,$4) RETURNING id,name,slug,plan,is_active AS "isActive",created_at AS "createdAt"`, [name, slug, plan, input.timezone || 'Europe/Moscow']);
+        const organization = org.rows[0];
+        await client.query(`INSERT INTO organization_subscriptions (organization_id,plan,status,seats_limit,venues_limit) VALUES ($1,$2,'trialing',$3,$4)`, [organization.id, plan, saasPlans[plan].seatsLimit, saasPlans[plan].venuesLimit]);
+        const venueRow = await client.query(`INSERT INTO venues (organization_id,name,city,address,format,timezone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [organization.id, name, String(input.city || '').trim(), String(input.address || '').trim(), 'кальян-бар', input.timezone || 'Europe/Moscow']);
+        const passwordHash = await hashPassword(ownerPassword);
+        const owner = await client.query(`INSERT INTO users (venue_id,organization_id,full_name,login,pin_hash,role) VALUES ($1,$2,$3,$4,$5,'owner') RETURNING id,full_name AS name,login,role`, [venueRow.rows[0].id, organization.id, ownerName, ownerLogin, passwordHash]);
+        await client.query(`INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'owner','active')`, [organization.id, owner.rows[0].id]);
+        await client.query('COMMIT');
+        recordAudit(req, 'platform.organization_created', 'organization', organization.id, null, { ...organization, ownerLogin });
+        return json(res, 201, { ...organization, status: 'trialing', venues: 1, seats: 1, city: input.city || '', owner: owner.rows[0] });
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'organization_create_failed', detail: error.code === '23505' ? 'slug_or_owner_login_already_exists' : error.message }); }
+      finally { client.release(); }
+    }
+    if (saasOrganizations.some((item) => item.slug === slug) || provisionedAccounts.some((item) => item.username === ownerLogin)) return json(res, 409, { error: 'slug_or_owner_login_already_exists' });
+    const organizationId = `org-${Date.now()}`;
+    const item = { id: organizationId, name, slug, plan, status: 'trialing', city: String(input.city || '').trim(), venues: 1, seats: 1, createdAt: new Date().toISOString(), isActive: true, seatsLimit: saasPlans[plan].seatsLimit, venuesLimit: saasPlans[plan].venuesLimit };
+    saasOrganizations.push(item);
+    provisionedAccounts.push({ username: ownerLogin, password: ownerPassword, name: ownerName, role: 'owner', organizationId, venueId: `venue-${Date.now()}` });
+    recordAudit(req, 'platform.organization_created', 'organization', item.id, null, { ...item, ownerLogin });
+    return json(res, 201, { ...item, owner: { name: ownerName, login: ownerLogin, role: 'owner' } });
   }
   const platformOrgSubscription = pathname.match(/^\/api\/platform\/organizations\/([^/]+)\/subscription$/);
   if (platformOrgSubscription && req.method === 'GET') {

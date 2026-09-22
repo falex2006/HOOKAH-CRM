@@ -54,7 +54,7 @@
 ### SaaS Control Center
 - GET /api/platform/overview — агрегаты организаций, только platform_owner.
 - GET /api/platform/organizations — реестр компаний и тарифов, только platform_owner.
-- POST /api/platform/organizations — создание организации и trial-подписки, только platform_owner.
+- POST /api/platform/organizations — создание организации, первого заведения, trial-подписки и учётной записи владельца (`ownerName`, `ownerLogin`, `ownerPassword`), только platform_owner.
 
 - GET /api/platform/plans — тестовый каталог тарифов, все цены 0 ₽.
 - GET/PATCH /api/platform/organizations/:id/subscription — просмотр и переключение тарифа без списаний.

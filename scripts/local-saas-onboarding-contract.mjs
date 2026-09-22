@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+const base = process.argv[2] || 'http://localhost:3000';
+if (!['localhost','127.0.0.1','::1'].includes(new URL(base).hostname)) throw new Error('Local-only onboarding contract refused');
+const suffix = `${Date.now()}-${Math.floor(Math.random()*10000)}`;
+const ownerLogin = `owner-${suffix}@example.test`;
+const createResponse = await fetch(new URL('/api/platform/organizations', base), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ name:`Onboarding ${suffix}`, slug:`onboarding-${suffix}`.slice(0,49), city:'Тюмень', ownerName:'Тестовый владелец', ownerLogin, ownerPassword:'Onboarding123!' }) });
+const created = await createResponse.json();
+assert.equal(createResponse.status, 201, JSON.stringify(created));
+assert.equal(created.owner.login, ownerLogin);
+const loginResponse = await fetch(new URL('/api/login', base), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username:ownerLogin, password:'Onboarding123!' }) });
+const session = await loginResponse.json();
+assert.equal(loginResponse.status, 200, JSON.stringify(session));
+const accountResponse = await fetch(new URL('/api/saas/account', base), { headers:{ Authorization:`Bearer ${session.token}` } });
+const account = await accountResponse.json();
+assert.equal(accountResponse.status, 200, JSON.stringify(account));
+assert.equal(account.id, created.id); assert.equal(account.activeSeats, 1); assert.equal(account.activeVenues, 1);
+console.log(`LOCAL SaaS ONBOARDING CONTRACT: PASS (org=${created.slug}, owner=${ownerLogin})`);
