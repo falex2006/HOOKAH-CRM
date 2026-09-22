@@ -39,7 +39,7 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith('.js') &&
 const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
 if (!/aside nav button/.test(app)) failures.push('index navigation has no click handler');
 if (!/\.tabs button/.test(app)) failures.push('floor tabs have no click handler');
-if (!/\.chips span/.test(app)) failures.push('queue filters have no click handler');
+if (!/\.chips button/.test(app)) failures.push('queue filters have no click handler');
 const portal=fs.readFileSync(path.join(root,'portal.js'),'utf8');
 if (!/portal-nav/.test(portal)) failures.push('portal navigation runtime missing');
 if (/data-client-id/.test(portal)) {
