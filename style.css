@@ -649,3 +649,5 @@
 .velora-theme .pending-revenue-kpi strong{color:#ffc65d}.velora-theme .pending-revenue-kpi:after{background:radial-gradient(circle,#ffc65d30,transparent 67%)}
 
 .velora-theme .pending-inline{display:block;color:#ff7180!important;margin-top:5px;font-weight:600}
+
+.velora-theme .finance-chart-panel .panel-head{margin-bottom:10px;align-items:center}.velora-theme .finance-chart{min-height:168px;padding:12px 8px 2px}.velora-theme .finance-chart-bars{height:145px;gap:10px}.velora-theme .finance-chart-column{grid-template-rows:18px 1fr 18px;gap:3px}.velora-theme .finance-chart-bar{width:min(28px,70%);border-radius:7px 7px 3px 3px}
