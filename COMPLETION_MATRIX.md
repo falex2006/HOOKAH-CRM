@@ -12,7 +12,7 @@
 | Гости, сотрудники, телефоны, Telegram, аватары и роли | Подтверждено локально | `AUTH_REQUIRED role test: PASS` |
 | Визуальная карточка сотрудников и форма телефонов | Подтверждено браузером | `/admin?qa=staff-final#staff`: выравнивание, статусы и компактные действия |
 | Финансы, склад, каталог, доставка и аудит | Подтверждено локально | `local-crud-contract.mjs`, smoke-сценарии и локальная приёмка |
-| Инфографика и персональные настройки | Подтверждено контрактами и ролями | `local-insights-contract.mjs`, `local-preferences-contract.mjs`, `local-role-contract.mjs`, server-backed account preferences and analytics permission smoke |
+| Инфографика и персональные настройки | Подтверждено контрактами и ролями | `local-insights-contract.mjs`, `local-preferences-contract.mjs`, `local-role-contract.mjs`, server-backed dashboard/insights/lock preferences and analytics permission smoke |
 | Кликабельность меню, кнопок и форм | Подтверждено локально и браузером | `local-click-contract.mjs` (113 ссылок, 150 кнопок, 4 формы); проверены переходы меню, KPI, настройки инфографики, карточка сотрудника, вкладки и модальные окна |
 | Полный локальный приёмочный прогон | Подтверждено локально | `scripts/local-acceptance.ps1 -BaseUrl http://localhost:3000` — `LOCAL ACCEPTANCE: PASS` |
 | Защита локальных файлов и production-пакета | Подтверждено локально | `local-static-boundary.mjs`, `local-deploy-contract.mjs` |
