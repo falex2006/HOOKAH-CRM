@@ -605,3 +605,15 @@
 .velora-theme .cash-register-panel + .content-grid{margin-top:20px}
 .velora-theme .content-grid + .discount-panel{margin-top:20px}
 .velora-theme .cash-register-panel{margin-bottom:0}
+/* Configurable finance infographic */
+.velora-theme .finance-chart-panel{margin-top:20px}
+.velora-theme .finance-chart-controls{align-items:end;gap:10px}
+.velora-theme .finance-chart-controls label{display:grid;gap:5px;color:#8d96a2;font-size:11px}
+.velora-theme .finance-chart-controls select{min-width:125px;padding:9px 11px;border:1px solid #363d47;border-radius:9px;background:#111419;color:#e9edf1;font:inherit}
+.velora-theme .finance-chart{min-height:220px;padding:18px 8px 5px;border-top:1px solid #292e36}
+.velora-theme .finance-chart-bars{height:200px;display:grid;grid-template-columns:repeat(7,minmax(34px,1fr));align-items:end;gap:12px}
+.velora-theme .finance-chart-column{height:100%;display:grid;grid-template-rows:22px 1fr 20px;align-items:end;justify-items:center;gap:5px;color:#858e9a;font-size:11px}
+.velora-theme .finance-chart-column strong{color:#dce1e6;font-size:11px;font-variant-numeric:tabular-nums}
+.velora-theme .finance-chart-column small{color:#7d8692}
+.velora-theme .finance-chart-bar{width:min(32px,70%);min-height:6px;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#ff9a57,#ff4768);box-shadow:0 0 20px #ff5d5930;transition:height .3s ease}
+@media(max-width:700px){.velora-theme .finance-chart-controls{width:100%;display:grid;grid-template-columns:1fr 1fr}.velora-theme .finance-chart-controls select{min-width:0}.velora-theme .finance-chart-bars{gap:5px}}
