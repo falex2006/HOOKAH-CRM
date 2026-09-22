@@ -39,6 +39,7 @@ document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
 });
 document.querySelectorAll('[data-owner-only]').forEach((node) => { if (!['owner', 'developer'].includes(portalUser.role)) node.hidden = true; });
 document.querySelectorAll('[data-staff-nav]').forEach((node) => { if (!portalPermissions.has('staff_view')) node.hidden = true; });
+const adminModeSwitchAllowed = ['owner', 'admin', 'developer'].includes(portalUser.role); document.querySelectorAll('[data-admin-mode-switch]').forEach((node) => { node.hidden = !adminModeSwitchAllowed; });
 
 const portalFooterRole = document.querySelector('.sidebar-footer b');
 const portalFooterAccess = document.querySelector('.sidebar-footer small');
