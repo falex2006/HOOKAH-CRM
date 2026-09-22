@@ -279,7 +279,17 @@ async function api(req, res) {
     if (!session) { if (process.env.AUTH_REQUIRED === 'true') return json(res, 401, { error: 'authentication_required' }); }
     else { req.user = session.user; if (req.user?.venueId && /^[0-9a-f-]{36}$/i.test(req.user.venueId)) venueDbId = req.user.venueId; }
   }
-  if (pathname === '/api/health') return json(res, 200, { status: 'ok', service: 'hookah-crm' });
+  if (pathname === '/api/health') {
+    if (repositories?.pool) {
+      try {
+        await repositories.pool.query('SELECT 1');
+        return json(res, 200, { status: 'ok', service: 'hookah-crm', database: 'postgres' });
+      } catch (error) {
+        return json(res, 503, { status: 'degraded', service: 'hookah-crm', database: 'unavailable' });
+      }
+    }
+    return json(res, 200, { status: 'ok', service: 'hookah-crm', database: 'memory' });
+  }
   if (pathname === '/api/public/venue-brand' && req.method === 'GET') {
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT name,logo_url AS "logoUrl" FROM venues WHERE id=$1', [venueDbId]); if (rows[0]) return json(res, 200, rows[0]); } catch (_) {} }
     return json(res, 200, { name: venue.name, logoUrl: venue.logoUrl || null });
