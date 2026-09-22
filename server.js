@@ -849,7 +849,7 @@ if (staffProfile && req.method === 'GET') {
     try {
       const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
       if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
-      const profile = { ...rows[0] };
+      const profile = { ...rows[0], workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: rows[0].permissionScopes }) };
       if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
       delete profile.passport_data_encrypted; delete profile.passport_data_iv; delete profile.passport_data_tag;
       return json(res, 200, profile);
@@ -858,7 +858,7 @@ if (staffProfile && req.method === 'GET') {
       try {
         const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
         if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
-        const profile = { ...rows[0], permissionScopes: [], employmentStartedAt: null, workNotes: '' };
+        const profile = { ...rows[0], permissionScopes: [], employmentStartedAt: null, workNotes: '', workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: [] }) };
         if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
         delete profile.passport_data_encrypted; delete profile.passport_data_iv; delete profile.passport_data_tag;
         return json(res, 200, profile);
@@ -866,14 +866,14 @@ if (staffProfile && req.method === 'GET') {
         try {
           const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
           if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
-          return json(res, 200, { ...rows[0], telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' });
+          return json(res, 200, { ...rows[0], telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '', workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: [] }) });
         } catch (fallbackError) { return json(res, 409, { error: 'staff_profile_read_failed', detail: fallbackError.message }); }
       }
     }
   }
   const person = staff.find((entry) => entry.id === personId);
   if (!person) return json(res, 404, { error: 'staff_not_found' });
-  const profile = { ...person }; if (!canSeeSensitiveStaff(req)) delete profile.passportData;
+  const profile = { ...person, workspacePermissions: effectivePermissions(person) }; if (!canSeeSensitiveStaff(req)) delete profile.passportData;
   return json(res, 200, profile);
 }
 if (staffProfile && req.method === 'PATCH') {
