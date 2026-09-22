@@ -4,7 +4,7 @@ $ErrorActionPreference = 'Stop'
 $baseUri = [Uri]$BaseUrl
 if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only route test refused non-local BaseUrl: $BaseUrl" }
 
-$routes = @('/', '/login', '/admin', '/clients', '/inventory', '/finance', '/finance/categories', '/finance/report', '/reservations', '/orders', '/integrations', '/network', '/delivery')
+$routes = @('/', '/login', '/admin', '/clients', '/inventory', '/finance', '/finance/categories', '/finance/report', '/reservations', '/orders', '/integrations', '/network', '/delivery', '/platform')
 $failed = @()
 foreach ($route in $routes) {
   try {

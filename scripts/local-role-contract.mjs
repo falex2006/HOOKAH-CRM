@@ -9,7 +9,8 @@ const roles = {
   senior_hookah_master: { required: ['floor', 'orders', 'hookah_tasks'], forbidden: ['finance', 'inventory'] },
   admin: { required: ['floor', 'orders', 'finance', 'inventory', 'staff_manage'], forbidden: [] },
   owner: { required: ['floor', 'orders', 'finance', 'inventory', 'staff_sensitive'], forbidden: [] },
-  developer: { required: ['floor', 'orders', 'finance_read', 'inventory_read', 'diagnostics'], forbidden: ['finance', 'inventory'] }
+  developer: { required: ['floor', 'orders', 'finance_read', 'inventory_read', 'diagnostics'], forbidden: ['finance', 'inventory'] },
+  platform_owner: { required: ['platform', 'diagnostics'], forbidden: ['finance', 'inventory', 'orders'] }
 };
 for (const [role, expectation] of Object.entries(roles)) {
   const response = await fetch(`${base}/api/session?role=${encodeURIComponent(role)}`);

@@ -32,7 +32,7 @@ const finishLogin = async (data) => {
   localStorage.setItem('crm_session_user', JSON.stringify(data.user));
   setLoginState('success-animation');
   await showLoginTransition();
-  window.location.replace(['owner', 'admin', 'developer'].includes(data.user.role) ? '/admin' : '/');
+  window.location.replace(data.user.role === 'platform_owner' ? '/platform' : ['owner', 'admin', 'developer'].includes(data.user.role) ? '/admin' : '/' );
 };
 
 form?.addEventListener('submit', async (event) => {

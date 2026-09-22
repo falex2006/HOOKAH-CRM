@@ -129,3 +129,6 @@ VPS — финальный этап после завершения интерф
 
 - Added the multi-tenant foundation in migration `009_saas_foundation.sql`: organizations, memberships, subscriptions, venue/user organization links, and a bootstrap account for existing data.
 - Added `GET /api/saas/account` for owner/admin diagnostics and `local-saas-contract.mjs`; local acceptance confirms plan, seat and venue limits.
+
+## SaaS Control Center (2026-09-22)
+Добавлена платформа владельца SaaS: роль platform_owner, /platform, реестр организаций и создание новых компаний. Операционные данные CRM остаются в tenant-контуре. Локальная проверка выполнена acceptance suite на отдельном порту; пароль SaaS-владельца хранится только в ignored .env.

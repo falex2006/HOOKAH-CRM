@@ -7,6 +7,16 @@ const scryptAsync = require('util').promisify(crypto.scrypt);
 const catalogSeed = require('./catalog-seed');
 
 const root = __dirname;
+// Local development convenience: load ignored .env without adding a runtime dependency.
+try {
+  const envPath = path.join(root, '.env');
+  if (fs.existsSync(envPath)) {
+    for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
+      const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+    }
+  }
+} catch (_) {}
 const repositories = createRepositories();
 const orderRepository = repositories?.orders || null;
 const sessionRepository = repositories?.sessions || null;
@@ -31,6 +41,7 @@ const integrations = {
 const networkVenues = [{ id: venue.id, name: venue.name, format: venue.format, city: venue.city, address: venue.address, phone: venue.phone, timezone: venue.timezone, status: 'active', isCurrent: true }];
 let currentVenueId = venue.id;
 const saasAccount = { id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', subscriptionStatus: 'trialing', seatsLimit: 5, venuesLimit: 1 };
+const saasOrganizations = [{ id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', status: 'trialing', city: 'Тюмень', venues: 1, seats: 2, createdAt: '2026-09-16T00:00:00.000Z', isActive: true }];
 const products = [
   { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, station: 'hookah', aliases: ['кальян', 'darkside', 'blueberry'], imageUrl: null },
   { id: 'lemonade-maracuya', name: 'Лимонад Маракуйя', price: 300, station: 'bar', aliases: ['лимонад', 'маракуйя', 'maracuya'], imageUrl: null },
@@ -97,7 +108,8 @@ const shifts = [];
 const demoAccounts = [
   { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Администратор', role: 'admin', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner', organizationId: '00000000-0000-0000-0000-000000000010' },
-  { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' }
+  { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' },
+  { username: process.env.SAAS_OWNER_EMAIL || 'saas-owner@example.com', password: process.env.SAAS_OWNER_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'saas-demo'), name: 'Владелец SaaS', role: 'platform_owner', organizationId: null }
 ];
 
 const hashPassword = async (password) => { const salt = crypto.randomBytes(16).toString('hex'); const derived = await scryptAsync(String(password), salt, 64); return `scrypt$${salt}$${derived.toString('hex')}`; };
@@ -132,7 +144,8 @@ const staffPassportCipher = {
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
-  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations', 'delivery']
+  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations', 'delivery'],
+  platform_owner: ['platform', 'diagnostics', 'settings']
 };
 const staffPinCipher = {
   encrypt(pin) { const wrapped = staffPassportCipher.encrypt({ pin: String(pin) }); return wrapped; },
@@ -248,7 +261,7 @@ async function api(req, res) {
     loginAttempts.delete(loginKey);
     const token = crypto.randomBytes(32).toString('hex');
     const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
-    const organizationId = account.organizationId || '00000000-0000-0000-0000-000000000010';
+    const organizationId = account.organizationId === undefined ? '00000000-0000-0000-0000-000000000010' : account.organizationId;
     sessions.set(token, { user: { id: userId, organizationId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes) }, createdAt: Date.now() });
     if (sessionRepository) { try { await sessionRepository.create({ userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 28_800_000).toISOString() }); } catch (_) {} }
     res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
@@ -281,6 +294,29 @@ async function api(req, res) {
       } catch (_) {}
     }
     return json(res, 200, { ...saasAccount, activeSeats: staff.filter((person) => person.active).length, activeVenues: networkVenues.filter((item) => item.status !== 'archived').length });
+  }
+  if (pathname === '/api/platform/overview' && req.method === 'GET') {
+    if (denyUnless(req, res, 'platform')) return;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COUNT(*)::int AS companies, COUNT(*) FILTER (WHERE is_active=true)::int AS active_companies FROM organizations`); const subs = await repositories.pool.query(`SELECT COUNT(*)::int AS trials FROM organization_subscriptions WHERE status='trialing'`); return json(res, 200, { companies: Number(rows[0]?.companies || 0), activeCompanies: Number(rows[0]?.active_companies || 0), trials: Number(subs.rows[0]?.trials || 0) }); } catch (_) {} }
+    return json(res, 200, { companies: saasOrganizations.length, activeCompanies: saasOrganizations.filter((item) => item.isActive).length, trials: saasOrganizations.filter((item) => item.status === 'trialing').length });
+  }
+  if (pathname === '/api/platform/organizations' && req.method === 'GET') {
+    if (denyUnless(req, res, 'platform')) return;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,(SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,(SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS seats,(SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id ORDER BY o.created_at DESC`); return json(res, 200, { items: rows }); } catch (_) {} }
+    return json(res, 200, { items: saasOrganizations.slice().reverse() });
+  }
+  if (pathname === '/api/platform/organizations' && req.method === 'POST') {
+    if (denyUnless(req, res, 'platform')) return;
+    const input = await body(req); const name = String(input.name || '').trim(); const slug = String(input.slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')).trim().toLowerCase();
+    if (!name || name.length > 120 || !/^[a-z0-9][a-z0-9-]{1,48}$/.test(slug)) return json(res, 400, { error: 'valid_name_and_slug_required' });
+    if (repositories?.pool) { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const org = await client.query(`INSERT INTO organizations (name,slug,plan,timezone) VALUES ($1,$2,$3,$4) RETURNING id,name,slug,plan,is_active AS "isActive",created_at AS "createdAt"`, [name, slug, ['starter','growth','network','enterprise'].includes(input.plan) ? input.plan : 'starter', input.timezone || 'Europe/Moscow']); await client.query(`INSERT INTO organization_subscriptions (organization_id,plan,status) VALUES ($1,$2,'trialing')`, [org.rows[0].id, org.rows[0].plan]); if (input.city) await client.query(`INSERT INTO venues (organization_id,name,city,address,format,timezone) VALUES ($1,$2,$3,$4,$5,$6)`, [org.rows[0].id, name, String(input.city).trim(), String(input.address || '').trim(), 'кальян-бар', input.timezone || 'Europe/Moscow']); await client.query('COMMIT'); recordAudit(req, 'platform.organization_created', 'organization', org.rows[0].id, null, org.rows[0]); return json(res, 201, { ...org.rows[0], status: 'trialing', venues: input.city ? 1 : 0, seats: 0, city: input.city || '' }); } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'organization_create_failed', detail: error.code === '23505' ? 'slug_already_exists' : error.message }); } finally { client.release(); } }
+    if (saasOrganizations.some((item) => item.slug === slug)) return json(res, 409, { error: 'slug_already_exists' });
+    const item = { id: `org-${Date.now()}`, name, slug, plan: ['starter','growth','network','enterprise'].includes(input.plan) ? input.plan : 'starter', status: 'trialing', city: String(input.city || '').trim(), venues: input.city ? 1 : 0, seats: 0, createdAt: new Date().toISOString(), isActive: true }; saasOrganizations.push(item); recordAudit(req, 'platform.organization_created', 'organization', item.id, null, item); return json(res, 201, item);
+  }
+  const platformOrgPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)$/);
+  if (platformOrgPath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'platform')) return;
+    const input = await body(req); const item = saasOrganizations.find((entry) => entry.id === platformOrgPath[1]); if (!item) return json(res, 404, { error: 'organization_not_found' }); const before = { ...item }; if (input.name !== undefined) item.name = String(input.name).trim().slice(0, 120); if (input.plan !== undefined && ['starter','growth','network','enterprise'].includes(input.plan)) item.plan = input.plan; if (input.isActive !== undefined) item.isActive = Boolean(input.isActive); recordAudit(req, 'platform.organization_updated', 'organization', item.id, before, item); return json(res, 200, item);
   }
   if (pathname === '/api/shifts' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
@@ -1269,12 +1305,12 @@ if (staffProfile && req.method === 'PATCH') {
 function staticFile(req, res) {
   let requestPath = new URL(req.url, 'http://localhost').pathname;
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
-  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/finance/report': '/finance-report.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/network': '/network.html', '/delivery': '/delivery.html' };
+  const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/finance/report': '/finance-report.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/network': '/network.html', '/delivery': '/delivery.html', '/platform': '/platform.html' };
   requestPath = aliases[routePath] || requestPath;
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
     ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/admin.js',
-    '/login.js', '/catalog-seed.js', '/staff-profile.js', '/staff-audit.js',
+    '/login.js', '/platform.js', '/catalog-seed.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
     '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg',

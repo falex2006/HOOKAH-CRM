@@ -50,3 +50,8 @@
 - GET /api/audit — последние события аудита действий пользователей.
 - GET /api/orders?venueId=… — использует PostgreSQL-репозиторий при настроенном DATABASE_URL.
 - При `DATABASE_URL` список открытых заказов читает PostgreSQL-репозиторий `db.js`; без переменной используется demo-режим.
+
+### SaaS Control Center
+- GET /api/platform/overview — агрегаты организаций, только platform_owner.
+- GET /api/platform/organizations — реестр компаний и тарифов, только platform_owner.
+- POST /api/platform/organizations — создание организации и trial-подписки, только platform_owner.

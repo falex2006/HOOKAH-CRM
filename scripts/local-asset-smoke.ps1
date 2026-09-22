@@ -4,7 +4,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $baseUri = [Uri]$BaseUrl
 if ($baseUri.Host -notin @('localhost','127.0.0.1','::1')) { throw "Local-only asset test refused non-local BaseUrl: $BaseUrl" }
-$routes = @('/','/admin','/login','/inventory','/finance','/finance/categories','/finance/report','/reservations','/clients','/orders','/integrations','/network','/delivery')
+$routes = @('/','/admin','/login','/inventory','/finance','/finance/categories','/finance/report','/reservations','/clients','/orders','/integrations','/network','/delivery','/platform')
 $seen = [System.Collections.Generic.HashSet[string]]::new()
 $missing = [System.Collections.Generic.List[string]]::new()
 foreach ($route in $routes) {

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root = process.cwd();
 const htmlFiles = fs.readdirSync(root).filter((name) => name.endsWith('.html'));
-const knownRoutes = new Set(['/','/login','/login.html','/admin','/clients','/inventory','/finance','/finance/categories','/finance/report','/reservations','/orders','/integrations','/network','/delivery']);
+const knownRoutes = new Set(['/','/login','/login.html','/admin','/clients','/inventory','/finance','/finance/categories','/finance/report','/reservations','/orders','/integrations','/network','/delivery','/platform']);
 const failures=[]; let anchors=0, buttons=0, forms=0;
 for (const file of htmlFiles) {
   const source=fs.readFileSync(path.join(root,file),'utf8');

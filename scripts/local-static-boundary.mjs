@@ -50,7 +50,7 @@ try {
     assert.equal(response.body, 'Not found', `${path} must not disclose file contents`);
   }
   const routes = ['/', '/login', '/admin', '/inventory', '/finance', '/finance/categories',
-    '/finance/report', '/reservations', '/clients', '/orders', '/integrations', '/network', '/delivery'];
+    '/finance/report', '/reservations', '/clients', '/orders', '/integrations', '/network', '/delivery', '/platform'];
   const resources = new Set(['/assets/tabler-icons.svg']);
   for (const route of routes) {
     const response = await get(route);
