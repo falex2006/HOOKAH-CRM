@@ -67,11 +67,11 @@ for (const name of importedProductCategoryNames) if (!productCategories.some((it
 const floor = [
   { id: 'hall', name: 'Зал', tables: Array.from({ length: 12 }, (_, i) => {
     const n = i + 1;
-    return { id: `table-${n}`, name: `Стол ${n}`, status: n === 8 || [2, 6, 11].includes(n) ? 'occupied' : [4, 9].includes(n) ? 'reserved' : 'free' };
+    return { id: `table-${n}`, name: `Стол ${n}`, status: n === 8 || [2, 6, 11].includes(n) ? 'occupied' : [4, 9].includes(n) ? 'reserved' : 'free', capacity: 2, minimumOrderTotal: 0, layout: {} };
   }) },
   { id: 'vip', name: 'VIP-комнаты', tables: [
-    { id: 'vip-room-1', name: 'VIP-комната 1', status: 'free', minimumOrderTotal: 1500 },
-    { id: 'vip-room-2', name: 'VIP-комната 2', status: 'free', minimumOrderTotal: 2500 }
+    { id: 'vip-room-1', name: 'VIP-комната 1', status: 'free', capacity: 4, minimumOrderTotal: 1500, layout: {} },
+    { id: 'vip-room-2', name: 'VIP-комната 2', status: 'free', capacity: 6, minimumOrderTotal: 2500, layout: {} }
   ] }
 ];
 const orders = [];

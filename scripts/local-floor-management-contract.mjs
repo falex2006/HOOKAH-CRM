@@ -25,4 +25,6 @@ await request(`/api/floor/tables/${encodeURIComponent(room.id)}`, { method: 'DEL
 await request(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'DELETE' });
 const floor = await request('/api/floor');
 if ((floor.zones || []).some((entry) => entry.id === zone.id)) throw new Error('Deleted zone remains in floor response');
+const floorObjects = (floor.zones || []).flatMap((entry) => entry.tables || []);
+if (floorObjects.some((entry) => !Number.isInteger(Number(entry.capacity)) || Number(entry.capacity) < 1)) throw new Error('Floor response contains an object without a valid capacity');
 console.log(`LOCAL FLOOR MANAGEMENT CONTRACT: PASS (zone=${zone.id}, room=${room.id})`);
