@@ -8,6 +8,7 @@ for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, /style\.css\?rev=131/, `${file} must use current CSS cache version`);
   assert.doesNotMatch(html, /style\.css\?rev=(?:12[0-7]|1[01]\d)/, `${file} has stale CSS cache version`);
+  if (file !== 'index.html' && file !== 'login.html') assert.match(html, /portal\.js\?rev=116/, `${file} must use current portal JS cache version`);
 }
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 assert.match(css, /\.velora-theme a\.button[^}]*text-decoration:none!important/);

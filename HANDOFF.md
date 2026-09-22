@@ -76,3 +76,5 @@ AUTH_REQUIRED role test: PASS
 - Вкладки зон рабочего места семантически размечены как tablist/tab; активная зона отражается через aria-selected, JS cache-busting обновлён до rev=100.
 
 - Активный пункт бокового меню staff-workspace синхронизирует визуальное состояние и ria-current=page (JS rev=101).
+
+- Устранен риск старого portal.js в браузере: административные HTML-страницы используют rev=116, design contract это контролирует.
