@@ -507,6 +507,20 @@
 .login-transition__live-photo.live-photo-metal{clip-path:ellipse(24% 5% at 50% 48%)}
 .login-transition__live-photo.live-photo-coals{clip-path:ellipse(27% 5% at 50% 43%)}
 .login-transition__live-photo:not(.live-photo-base){mix-blend-mode:screen;filter:contrast(1.12) saturate(1.05) brightness(1.5);}
+/* Live-action finish: slow handheld camera drift, focus pull, film grain and lens bloom. */
+.login-transition__live-scene{isolation:isolate;perspective:1200px;transform-origin:58% 52%;animation:liveCameraDrift 5s cubic-bezier(.2,.65,.25,1) both}
+.login-transition__live-scene:before{content:'';position:absolute;inset:0;z-index:8;pointer-events:none;opacity:.13;background-image:repeating-radial-gradient(circle at 17% 23%,#fff 0 1px,transparent 1px 4px),repeating-linear-gradient(118deg,transparent 0 3px,#fff1 4px 5px,transparent 6px 10px);mix-blend-mode:soft-light;animation:liveFilmGrain .18s steps(2) infinite}
+.login-transition__live-scene:after{content:'';position:absolute;inset:0;z-index:9;pointer-events:none;background:radial-gradient(ellipse at 58% 46%,transparent 0 28%,#0003 72%,#000b 100%),linear-gradient(90deg,#0007,transparent 28% 72%,#0005);opacity:.72}
+.login-transition__live-photo{background-position:52% 57%;will-change:transform,background-position,filter;backface-visibility:hidden}
+.login-transition__live-photo.live-photo-base{animation:liveCinematicPush 5s cubic-bezier(.18,.72,.22,1) both}
+.login-transition__live-photo.live-photo-bowl{animation:liveBowlSettle 5s .08s cubic-bezier(.18,.72,.22,1) both,liveFocusPull 5s ease-out both}
+.login-transition__live-photo.live-photo-tobacco{animation:liveTobaccoDrop 5s .7s cubic-bezier(.18,.72,.22,1) both,liveFocusPull 5s ease-out both}
+.login-transition__live-glint{mix-blend-mode:screen;filter:blur(28px);background:radial-gradient(circle,#ffb76b80 0 5%,#ff6e2930 28%,transparent 70%)}
+@keyframes liveCameraDrift{0%{transform:scale(1.035) translate3d(1.5%,1%,0) rotate(-.35deg)}38%{transform:scale(1.07) translate3d(-.7%,-.8%,0) rotate(.18deg)}72%{transform:scale(1.095) translate3d(-1.5%,-1.8%,0) rotate(-.12deg)}100%{transform:scale(1.12) translate3d(-2.2%,-2.3%,0) rotate(.08deg)}}
+@keyframes liveCinematicPush{0%{opacity:.15;transform:scale(1.12) translate3d(1.5%,1%,0);background-position:50% 60%;filter:contrast(1.04) saturate(.5) brightness(.42) blur(2px)}18%{opacity:.7}46%{filter:contrast(1.08) saturate(.72) brightness(.67) blur(.7px)}100%{opacity:.9;transform:scale(1.02) translate3d(-1%,-1%,0);background-position:54% 55%;filter:contrast(1.07) saturate(.88) brightness(.82) blur(0)}}
+@keyframes liveFocusPull{0%,35%{filter:contrast(1.05) saturate(.7) brightness(.6) blur(3px)}65%{filter:contrast(1.1) saturate(.88) brightness(.78) blur(.55px)}100%{filter:contrast(1.12) saturate(.98) brightness(.86) blur(0)}}
+@keyframes liveFilmGrain{0%{transform:translate3d(0,0,0)}50%{transform:translate3d(-1%,1%,0)}100%{transform:translate3d(1%,-1%,0)}}
+@media(prefers-reduced-motion:reduce){.login-transition__live-scene{animation:none;transform:none}.login-transition__live-scene:before{animation:none}.login-transition__live-photo.live-photo-base{animation:none}}
 .velora-theme .orders-table{min-width:0;width:100%;table-layout:fixed}
 .velora-theme .orders-table th,.velora-theme .orders-table td{min-width:0;white-space:normal;overflow-wrap:anywhere}
 .velora-theme .inventory-stock-panel table{table-layout:fixed}
