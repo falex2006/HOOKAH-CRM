@@ -78,6 +78,9 @@ document.querySelectorAll('[data-user-avatar]').forEach((node) => {
   if (portalUser.avatarUrl) { const image = document.createElement('img'); image.src = portalUser.avatarUrl; image.alt = portalHeaderName; node.replaceChildren(image); }
   else node.textContent = portalHeaderInitials;
 });
+document.querySelectorAll('[data-sidebar-name]').forEach((node) => { node.textContent = portalHeaderName; });
+document.querySelectorAll('[data-sidebar-role]').forEach((node) => { node.textContent = portalRole[0]; });
+document.querySelectorAll('[data-sidebar-avatar]').forEach((node) => { node.title = `${portalHeaderName} · ${portalRole[0]}`; if (portalUser.avatarUrl) { const image = document.createElement('img'); image.src = portalUser.avatarUrl; image.alt = portalHeaderName; node.replaceChildren(image); } else node.textContent = portalHeaderInitials; });
 const permissionScopeLabels = { orders: 'Заказы', reservations: 'Бронирования', inventory: 'Склад', finance: 'Финансы', staff: 'Сотрудники', delivery: 'Доставка', integrations: 'Интеграции', settings: 'Настройки и сеть' };
 const permissionScopeMarkup = (selected = []) => `<details class="permission-scope-fields"><summary>Доступ управляющего по направлениям</summary><small class="muted">Пустой список оставляет стандартный полный доступ управляющего.</small><div class="scope-grid">${Object.entries(permissionScopeLabels).map(([scope, label]) => `<label><input type="checkbox" name="permissionScopes" value="${scope}" ${selected.includes(scope) ? 'checked' : ''}>${label}</label>`).join('')}</div></details>`;
 const authHeaders = () => { const token = localStorage.getItem('crm_session_token'); return token ? { Authorization: `Bearer ${token}` } : {}; };
