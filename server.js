@@ -30,6 +30,7 @@ const integrations = {
 };
 const networkVenues = [{ id: venue.id, name: venue.name, format: venue.format, city: venue.city, address: venue.address, phone: venue.phone, timezone: venue.timezone, status: 'active', isCurrent: true }];
 let currentVenueId = venue.id;
+const saasAccount = { id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', subscriptionStatus: 'trialing', seatsLimit: 5, venuesLimit: 1 };
 const products = [
   { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, station: 'hookah', aliases: ['кальян', 'darkside', 'blueberry'], imageUrl: null },
   { id: 'lemonade-maracuya', name: 'Лимонад Маракуйя', price: 300, station: 'bar', aliases: ['лимонад', 'маракуйя', 'maracuya'], imageUrl: null },
@@ -252,6 +253,22 @@ async function api(req, res) {
     req.user = session.user;
   }
   if (pathname === '/api/health') return json(res, 200, { status: 'ok', service: 'hookah-crm' });
+  if (pathname === '/api/saas/account' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(venueDbId)) {
+      try {
+        const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.timezone,
+          COALESCE(s.status,'trialing') AS "subscriptionStatus",COALESCE(s.plan,o.plan) AS "subscriptionPlan",
+          COALESCE(s.seats_limit,5) AS "seatsLimit",COALESCE(s.venues_limit,1) AS "venuesLimit",
+          (SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS "activeSeats",
+          (SELECT COUNT(*)::int FROM venues v2 WHERE v2.organization_id=o.id AND v2.is_active=true) AS "activeVenues"
+          FROM venues v JOIN organizations o ON o.id=v.organization_id
+          LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE v.id=$1 LIMIT 1`, [venueDbId]);
+        if (rows[0]) return json(res, 200, { ...rows[0], seatsLimit: Number(rows[0].seatsLimit), venuesLimit: Number(rows[0].venuesLimit), activeSeats: Number(rows[0].activeSeats), activeVenues: Number(rows[0].activeVenues) });
+      } catch (_) {}
+    }
+    return json(res, 200, { ...saasAccount, activeSeats: staff.filter((person) => person.active).length, activeVenues: networkVenues.filter((item) => item.status !== 'archived').length });
+  }
   if (pathname === '/api/shifts' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash" FROM shifts WHERE venue_id=$1 ORDER BY opened_at DESC LIMIT 20', [venueDbId]); return json(res, 200, { items: rows, current: rows.find((entry) => !entry.closedAt) || null }); } catch (_) {} }

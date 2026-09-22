@@ -125,3 +125,7 @@ VPS — финальный этап после завершения интерф
 - Кэш административной логики синхронизирован: все portal-страницы подключают portal.js?rev=116; добавлена проверка версии в design contract.
 
 - Исправлена последняя stale-ссылка: рабочее место подключает pp.js?rev=101; design contract теперь проверяет и эту версию.
+## SaaS progress
+
+- Added the multi-tenant foundation in migration `009_saas_foundation.sql`: organizations, memberships, subscriptions, venue/user organization links, and a bootstrap account for existing data.
+- Added `GET /api/saas/account` for owner/admin diagnostics and `local-saas-contract.mjs`; local acceptance confirms plan, seat and venue limits.
