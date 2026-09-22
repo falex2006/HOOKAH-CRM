@@ -4,9 +4,13 @@
   let user = {};
   try { user = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); } catch (_) {}
 
-  const staffRoles = new Set(['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master']);
-  const autoLockEnabled = Boolean(user.pinConfigured) && (location.pathname === '/' || staffRoles.has(String(user.role || '')));
-  const inactivityMs = 5 * 60 * 1000;
+  const identityKey = String(user.id || user.login || user.name || 'user').trim().toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '_').slice(0, 80) || 'user';
+  const timeoutKey = `crm_lock_timeout_user_${identityKey}`;
+  const timeoutOptions = [0, 1, 5, 10, 15, 30];
+  const readTimeout = () => { try { const value = Number(localStorage.getItem(timeoutKey)); return timeoutOptions.includes(value) ? value : 5; } catch (_) { return 5; } };
+  let timeoutMinutes = readTimeout();
+  const autoLockEnabled = Boolean(user.pinConfigured);
+  const inactivityMs = () => timeoutMinutes * 60 * 1000;
   let locked = false;
   let timer = null;
   let unlockRequest = null;
@@ -49,10 +53,10 @@
     document.body.classList.add('screen-locked');
     pinInput.value = '';
     setMessage('');
-    hint.textContent = reason === 'auto' ? 'Система заблокирована после 5 минут бездействия.' : 'Экран заблокирован вручную.';
+    hint.textContent = reason === 'auto' ? `Система заблокирована после ${timeoutMinutes} минут бездействия.` : 'Экран заблокирован вручную.';
     pinInput.focus();
   };
-  const schedule = () => { if (autoLockEnabled && !locked) { clearTimeout(timer); timer = setTimeout(() => lock('auto'), inactivityMs); } };
+  const schedule = () => { if (autoLockEnabled && timeoutMinutes > 0 && !locked) { clearTimeout(timer); timer = setTimeout(() => lock('auto'), inactivityMs()); } };
   const unlock = async () => {
     if (unlockRequest || pinInput.value.length !== 4) return;
     unlockRequest = fetch('/api/session/unlock', { method: 'POST', headers: headers(), body: JSON.stringify({ pin: pinInput.value }) }).then(async (response) => {
@@ -72,7 +76,16 @@
   overlay.querySelector('#screen-lock-exit').addEventListener('click', logout);
 
   const addLockButton = (host) => { if (!host || document.querySelector('#lock-screen-button')) return; const button = document.createElement('button'); button.type = 'button'; button.id = 'lock-screen-button'; button.className = 'lock-screen-button'; button.title = 'Заблокировать экран'; button.setAttribute('aria-label', 'Заблокировать экран'); button.innerHTML = `${icon('lock')}<span>Заблокировать</span>`; button.addEventListener('click', () => lock('manual')); host.prepend(button); };
-  addLockButton(document.querySelector('.header-right') || document.querySelector('.staff-header-user') || document.querySelector('.user'));
+  const settingsDialog = document.createElement('dialog');
+  settingsDialog.className = 'lock-settings-dialog';
+  settingsDialog.innerHTML = `<form method="dialog" class="lock-settings-card"><div class="lock-settings-head"><div><p class="eyebrow">БЕЗОПАСНОСТЬ</p><h2>Автоблокировка</h2><p>Настройте защиту этого пользователя.</p></div><button type="submit" class="lock-settings-close" aria-label="Закрыть">${icon('x')}</button></div><div class="lock-timeout-options" role="radiogroup" aria-label="Интервал автоблокировки">${timeoutOptions.map((value) => `<label><input type="radio" name="lock-timeout" value="${value}"><span>${value ? `Через ${value} мин` : 'Выключена'}</span></label>`).join('')}</div><p class="lock-settings-note">Ручная блокировка остаётся доступной при выключенном таймере.</p><button type="button" class="button primary lock-settings-save">Сохранить</button></form>`;
+  document.body.append(settingsDialog);
+  const syncSettings = () => settingsDialog.querySelectorAll('input[name="lock-timeout"]').forEach((input) => { input.checked = Number(input.value) === timeoutMinutes; });
+  const settingsButton = document.createElement('button'); settingsButton.type = 'button'; settingsButton.className = 'lock-settings-button'; settingsButton.title = 'Настройки автоблокировки'; settingsButton.setAttribute('aria-label', 'Настройки автоблокировки'); settingsButton.innerHTML = icon('settings'); settingsButton.addEventListener('click', () => { syncSettings(); settingsDialog.showModal(); });
+  const lockHost = document.querySelector('.header-right') || document.querySelector('.staff-header-user') || document.querySelector('.user');
+  addLockButton(lockHost);
+  if (lockHost && !document.querySelector('#lock-settings-button')) { settingsButton.id = 'lock-settings-button'; lockHost.prepend(settingsButton); }
+  settingsDialog.querySelector('.lock-settings-save').addEventListener('click', () => { const selected = settingsDialog.querySelector('input[name="lock-timeout"]:checked'); timeoutMinutes = Number(selected?.value || 0); try { localStorage.setItem(timeoutKey, String(timeoutMinutes)); } catch (_) {} clearTimeout(timer); schedule(); settingsDialog.close(); });
   ['pointerdown', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach((eventName) => document.addEventListener(eventName, () => { if (!locked) schedule(); }, { passive: true }));
   schedule();
 })();
