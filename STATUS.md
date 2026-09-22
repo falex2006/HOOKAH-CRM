@@ -168,3 +168,5 @@ ev=130.
 - PATCH организации переведён на транзакцию PostgreSQL: имя, тариф, активность и лимиты подписки фиксируются атомарно; при сбое выполняется ROLLBACK. Acceptance повторно прошёл.
 
 - Пакет VPS перепроверен локально: docker compose config --quiet и shell-синтаксис deploy-vps.sh, ackup-postgres.sh, erify-backup.sh, migrate-vps.sh, post-deploy-acceptance.sh проходят. Реальный запуск по-прежнему требует Docker Engine и целевого VPS.
+
+- Добавлен отдельный local-platform-organization-contract.mjs: проверяет валидацию тарифа и безопасный атомарный PATCH организации; включён в полный acceptance и прошёл.
