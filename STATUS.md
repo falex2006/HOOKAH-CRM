@@ -12,6 +12,8 @@
 
 ## Подтверждено
 
+- Sites-публикация для тестирования завершена 22.09.2026: owner-private URL — `https://territory-crm.nazarov02002usa.chatgpt.site`; deployment status `succeeded`. Ссылка предназначена для владельца текущего Sites-аккаунта.
+
 - Повторный полный локальный acceptance после усиления production-secret preflight 22.09.2026 на `http://localhost:3044`: все контракты и сквозные сценарии завершились `PASS`, включая deploy contract с обязательными данными платформенного владельца.
 
 - Production-секреты очищены от личных данных 22.09.2026: fallback и `.env.example` используют нейтральный `platform-owner@example.com`, а `deploy-vps.sh` требует боевые `SAAS_OWNER_EMAIL` и `SAAS_OWNER_PASSWORD`; deploy contract и `node --check server.js` проходят.

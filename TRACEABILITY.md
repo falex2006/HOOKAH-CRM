@@ -20,5 +20,5 @@
 | Статические ассеты страниц | `scripts/local-asset-smoke.ps1` | локально: 13 маршрутов и 19 подключаемых CSS/JS/SVG-ассетов возвращают 200 |
 | Адаптивный интерфейс и иконки | `style.css`, `assets/tabler-icons.svg`, `app.js`, `portal.js` | локальная UI-проверка маршрутов и узкой ширины |
 | PostgreSQL | `schema.sql`, `seed.sql`, `migrations/001_auth_sessions.sql` | `docker compose config` |
-| Production Site | Sites version 42, private URL | deployment status `succeeded` |
+| Production Site | Sites project `territory-crm`, private URL [territory-crm.nazarov02002usa.chatgpt.site](https://territory-crm.nazarov02002usa.chatgpt.site) | deployment `appgdep_6ab2c00ad8b481919a106753a4faa824` status `succeeded` |
 | VPS | `deploy-vps.sh`, `migrate-vps.sh`, Nginx, backup | требуется запуск на целевом сервере |
