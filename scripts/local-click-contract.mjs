@@ -42,6 +42,10 @@ if (!/\.tabs button/.test(app)) failures.push('floor tabs have no click handler'
 if (!/\.chips span/.test(app)) failures.push('queue filters have no click handler');
 const portal=fs.readFileSync(path.join(root,'portal.js'),'utf8');
 if (!/portal-nav/.test(portal)) failures.push('portal navigation runtime missing');
+if (/data-client-id/.test(portal)) {
+  if (!/data-client-id=.{0,180}role="button" tabindex="0"/.test(portal)) failures.push('client cards must expose keyboard-focusable button semantics');
+  if (!/clients-list.*keydown/.test(portal)) failures.push('client cards must support Enter/Space activation');
+}
 if (failures.length) { console.error(failures.join('\n')); process.exit(1); }
 console.log(`LOCAL CLICK CONTRACT: PASS (anchors=${anchors}, buttons=${buttons}, forms=${forms}, routes=${knownRoutes.size})`);
 
