@@ -58,6 +58,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_encrypted text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_iv text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_tag text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_updated_at timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences jsonb NOT NULL DEFAULT '{}'::jsonb;
 
 CREATE TABLE IF NOT EXISTS organization_memberships (
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

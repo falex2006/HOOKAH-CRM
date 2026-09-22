@@ -253,12 +253,12 @@ async function api(req, res) {
       try {
         let rows;
         try {
-          ({ rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",venue_id AS "venueId",full_name AS name,role,pin_hash,pin_updated_at,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]));
+          ({ rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",venue_id AS "venueId",full_name AS name,role,pin_hash,pin_updated_at,preferences,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]));
         } catch (_) {
           try { ({ rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username])); }
           catch (_) { ({ rows } = await repositories.pool.query('SELECT id,login,full_name AS name,role,pin_hash,avatar_url AS "avatarUrl" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username])); }
         }
-        const row = rows[0]; const credential = requestedPin || input.password; if (row && credential && await verifyPassword(credential, row.pin_hash)) account = { username: row.login, id: row.id, organizationId: row.organizationId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
+        const row = rows[0]; const credential = requestedPin || input.password; if (row && credential && await verifyPassword(credential, row.pin_hash)) account = { username: row.login, id: row.id, organizationId: row.organizationId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
       } catch (_) {}
     }
     if (!account) { const current = loginAttempts.get(loginKey) || { count: 0, firstAt: Date.now() }; const withinWindow = Date.now() - current.firstAt < 60_000; const next = withinWindow ? { count: current.count + 1, firstAt: current.firstAt } : { count: 1, firstAt: Date.now() }; if (next.count >= 5) next.blockedUntil = Date.now() + 60_000; loginAttempts.set(loginKey, next); return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_login_attempts' : 'invalid_credentials', ...(next.blockedUntil ? { retryAfter: 60 } : {}) }); }
@@ -268,10 +268,10 @@ async function api(req, res) {
     const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
     const organizationId = account.organizationId === undefined ? '00000000-0000-0000-0000-000000000010' : account.organizationId;
     const userVenueId = account.venueId || null;
-    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, unlockHash: account.pinHash || null, createdAt: Date.now() });
+    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: account.preferences || {}, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, unlockHash: account.pinHash || null, createdAt: Date.now() });
     if (sessionRepository) { try { await sessionRepository.create({ userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 28_800_000).toISOString() }); } catch (_) {} }
     res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
-    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: 28800 });
+    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: account.preferences || {}, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: 28800 });
   }
   if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
@@ -302,6 +302,28 @@ async function api(req, res) {
     if (!pinConfigured || !unlockHash) return json(res, 409, { error: 'pin_not_configured' });
     if (!(await verifyPassword(pin, unlockHash))) return json(res, 401, { error: 'invalid_pin' });
     return json(res, 200, { ok: true });
+  }
+  if (pathname === '/api/session/preferences' && (req.method === 'GET' || req.method === 'PATCH')) {
+    const allowed = new Set(['lockTimeoutMinutes', 'dashboardModules', 'dashboardRevenueStyle', 'insights']);
+    const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
+    const memorySession = sessions.get(token);
+    if (req.method === 'GET') {
+      if (memorySession?.user?.preferences) return json(res, 200, { preferences: memorySession.user.preferences });
+      if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(req.user?.id || '')) { try { const { rows } = await repositories.pool.query('SELECT preferences FROM users WHERE id=$1 AND is_active=true LIMIT 1', [req.user.id]); return json(res, 200, { preferences: rows[0]?.preferences || {} }); } catch (_) {} }
+      return json(res, 200, { preferences: {} });
+    }
+    const input = await body(req); const incoming = input && typeof input.preferences === 'object' && !Array.isArray(input.preferences) ? input.preferences : input;
+    if (!incoming || typeof incoming !== 'object') return json(res, 400, { error: 'preferences_object_required' });
+    const patch = {}; for (const [key, value] of Object.entries(incoming)) if (allowed.has(key)) patch[key] = value;
+    if (Object.prototype.hasOwnProperty.call(patch, 'lockTimeoutMinutes') && ![0, 1, 5, 10, 15, 30].includes(Number(patch.lockTimeoutMinutes))) return json(res, 400, { error: 'invalid_lock_timeout' });
+    const current = memorySession?.user?.preferences || {};
+    const next = { ...current, ...patch };
+    if (memorySession) memorySession.user.preferences = next;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(req.user?.id || '')) {
+      try { const { rows } = await repositories.pool.query('UPDATE users SET preferences=$1::jsonb WHERE id=$2 AND is_active=true RETURNING preferences', [JSON.stringify(next), req.user.id]); if (!rows[0]) return json(res, 404, { error: 'user_not_found' }); return json(res, 200, { preferences: rows[0].preferences || {} }); }
+      catch (error) { if (memorySession) memorySession.user.preferences = current; return json(res, 503, { error: 'preferences_save_failed', detail: error.message }); }
+    }
+    return json(res, 200, { preferences: next });
   }
   if (pathname === '/api/public/venue-brand' && req.method === 'GET') {
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT name,logo_url AS "logoUrl" FROM venues WHERE id=$1', [venueDbId]); if (rows[0]) return json(res, 200, rows[0]); } catch (_) {} }

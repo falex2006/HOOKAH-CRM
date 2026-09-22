@@ -7,7 +7,7 @@
   const identityKey = String(user.id || user.login || user.name || 'user').trim().toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '_').slice(0, 80) || 'user';
   const timeoutKey = `crm_lock_timeout_user_${identityKey}`;
   const timeoutOptions = [0, 1, 5, 10, 15, 30];
-  const readTimeout = () => { try { const value = Number(localStorage.getItem(timeoutKey)); return timeoutOptions.includes(value) ? value : 5; } catch (_) { return 5; } };
+  const readTimeout = () => { const accountValue = Number(user.preferences?.lockTimeoutMinutes); if (timeoutOptions.includes(accountValue)) return accountValue; try { const value = Number(localStorage.getItem(timeoutKey)); return timeoutOptions.includes(value) ? value : 5; } catch (_) { return 5; } };
   let timeoutMinutes = readTimeout();
   const autoLockEnabled = Boolean(user.pinConfigured);
   const inactivityMs = () => timeoutMinutes * 60 * 1000;
@@ -85,7 +85,8 @@
   const lockHost = document.querySelector('.header-right') || document.querySelector('.staff-header-user') || document.querySelector('.user');
   addLockButton(lockHost);
   if (lockHost && !document.querySelector('#lock-settings-button')) { settingsButton.id = 'lock-settings-button'; lockHost.prepend(settingsButton); }
-  settingsDialog.querySelector('.lock-settings-save').addEventListener('click', () => { const selected = settingsDialog.querySelector('input[name="lock-timeout"]:checked'); timeoutMinutes = Number(selected?.value || 0); try { localStorage.setItem(timeoutKey, String(timeoutMinutes)); } catch (_) {} clearTimeout(timer); schedule(); settingsDialog.close(); });
+  settingsDialog.querySelector('.lock-settings-save').addEventListener('click', () => { const selected = settingsDialog.querySelector('input[name="lock-timeout"]:checked'); timeoutMinutes = Number(selected?.value || 0); user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: timeoutMinutes }; try { localStorage.setItem(timeoutKey, String(timeoutMinutes)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {} fetch('/api/session/preferences', { method: 'PATCH', headers: headers(), body: JSON.stringify({ lockTimeoutMinutes: timeoutMinutes }) }).catch(() => {}); clearTimeout(timer); schedule(); settingsDialog.close(); });
+  fetch('/api/session/preferences', { headers: headers() }).then((response) => response.ok ? response.json() : null).then((payload) => { const serverValue = Number(payload?.preferences?.lockTimeoutMinutes); if (!timeoutOptions.includes(serverValue)) return; timeoutMinutes = serverValue; user.preferences = { ...(user.preferences || {}), lockTimeoutMinutes: serverValue }; try { localStorage.setItem(timeoutKey, String(serverValue)); localStorage.setItem('crm_session_user', JSON.stringify(user)); } catch (_) {} clearTimeout(timer); schedule(); }).catch(() => {});
   ['pointerdown', 'keydown', 'touchstart', 'mousemove', 'scroll'].forEach((eventName) => document.addEventListener(eventName, () => { if (!locked) schedule(); }, { passive: true }));
   schedule();
 })();

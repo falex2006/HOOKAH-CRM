@@ -18,6 +18,7 @@ $checks = @(
   @{ file = 'local-asset-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-login-contract.mjs'; node = $true },
   @{ file = 'local-lock-contract.mjs'; node = $true },
+  @{ file = 'local-preferences-contract.mjs'; node = $true },
   @{ file = 'local-saas-contract.mjs'; node = $true },
   @{ file = 'local-platform-organization-contract.mjs'; node = $true },
   @{ file = 'local-saas-onboarding-contract.mjs'; node = $true },
