@@ -41,7 +41,8 @@ const integrations = {
 const networkVenues = [{ id: venue.id, name: venue.name, format: venue.format, city: venue.city, address: venue.address, phone: venue.phone, timezone: venue.timezone, status: 'active', isCurrent: true }];
 let currentVenueId = venue.id;
 const saasAccount = { id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', subscriptionStatus: 'trialing', seatsLimit: 5, venuesLimit: 1 };
-const saasOrganizations = [{ id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', status: 'trialing', city: 'Тюмень', venues: 1, seats: 2, createdAt: '2026-09-16T00:00:00.000Z', isActive: true }];
+const saasPlans = { starter: { name: 'Starter', monthlyPrice: 0, seatsLimit: 5, venuesLimit: 1, description: 'Для первого тестового заведения' }, growth: { name: 'Growth', monthlyPrice: 0, seatsLimit: 15, venuesLimit: 3, description: 'Для растущей команды' }, network: { name: 'Network', monthlyPrice: 0, seatsLimit: 50, venuesLimit: 10, description: 'Для сети заведений' }, enterprise: { name: 'Enterprise', monthlyPrice: 0, seatsLimit: 9999, venuesLimit: 9999, description: 'Индивидуальные лимиты' } };
+const saasOrganizations = [{ id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', status: 'trialing', city: 'Тюмень', venues: 1, seats: 2, seatsLimit: 5, venuesLimit: 1, monthlyPrice: 0, createdAt: '2026-09-16T00:00:00.000Z', isActive: true }];
 const products = [
   { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, station: 'hookah', aliases: ['кальян', 'darkside', 'blueberry'], imageUrl: null },
   { id: 'lemonade-maracuya', name: 'Лимонад Маракуйя', price: 300, station: 'bar', aliases: ['лимонад', 'маракуйя', 'maracuya'], imageUrl: null },
@@ -295,6 +296,10 @@ async function api(req, res) {
     }
     return json(res, 200, { ...saasAccount, activeSeats: staff.filter((person) => person.active).length, activeVenues: networkVenues.filter((item) => item.status !== 'archived').length });
   }
+  if (pathname === '/api/platform/plans' && req.method === 'GET') {
+    if (denyUnless(req, res, 'platform')) return;
+    return json(res, 200, { billingMode: 'test_free', currency: 'RUB', plans: saasPlans });
+  }
   if (pathname === '/api/platform/overview' && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COUNT(*)::int AS companies, COUNT(*) FILTER (WHERE is_active=true)::int AS active_companies FROM organizations`); const subs = await repositories.pool.query(`SELECT COUNT(*)::int AS trials FROM organization_subscriptions WHERE status='trialing'`); return json(res, 200, { companies: Number(rows[0]?.companies || 0), activeCompanies: Number(rows[0]?.active_companies || 0), trials: Number(subs.rows[0]?.trials || 0) }); } catch (_) {} }
@@ -303,7 +308,7 @@ async function api(req, res) {
   if (pathname === '/api/platform/organizations' && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,(SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,(SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS seats,(SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id ORDER BY o.created_at DESC`); return json(res, 200, { items: rows }); } catch (_) {} }
-    return json(res, 200, { items: saasOrganizations.slice().reverse() });
+    return json(res, 200, { items: saasOrganizations.slice().reverse().map((item) => ({ ...item, ...(saasPlans[item.plan] || saasPlans.starter), monthlyPrice: 0 })) });
   }
   if (pathname === '/api/platform/organizations' && req.method === 'POST') {
     if (denyUnless(req, res, 'platform')) return;
@@ -313,7 +318,15 @@ async function api(req, res) {
     if (saasOrganizations.some((item) => item.slug === slug)) return json(res, 409, { error: 'slug_already_exists' });
     const item = { id: `org-${Date.now()}`, name, slug, plan: ['starter','growth','network','enterprise'].includes(input.plan) ? input.plan : 'starter', status: 'trialing', city: String(input.city || '').trim(), venues: input.city ? 1 : 0, seats: 0, createdAt: new Date().toISOString(), isActive: true }; saasOrganizations.push(item); recordAudit(req, 'platform.organization_created', 'organization', item.id, null, item); return json(res, 201, item);
   }
-  const platformOrgPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)$/);
+  const platformOrgSubscription = pathname.match(/^\/api\/platform\/organizations\/([^/]+)\/subscription$/);
+  if (platformOrgSubscription && req.method === 'GET') {
+    if (denyUnless(req, res, 'platform')) return;
+    const item = saasOrganizations.find((entry) => entry.id === platformOrgSubscription[1]); if (!item) return json(res, 404, { error: 'organization_not_found' }); const plan = saasPlans[item.plan] || saasPlans.starter; return json(res, 200, { organizationId: item.id, plan: item.plan, status: item.status, billingMode: 'test_free', monthlyPrice: 0, seatsLimit: plan.seatsLimit, venuesLimit: plan.venuesLimit, trialEndsAt: item.trialEndsAt || null });
+  }
+  if (platformOrgSubscription && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'platform')) return;
+    const input = await body(req); const item = saasOrganizations.find((entry) => entry.id === platformOrgSubscription[1]); const planKey = String(input.plan || ''); if (!item) return json(res, 404, { error: 'organization_not_found' }); if (!saasPlans[planKey]) return json(res, 400, { error: 'invalid_plan' }); const before = { ...item }; item.plan = planKey; item.status = ['active','trialing','past_due','cancelled'].includes(input.status) ? input.status : item.status; Object.assign(item, { seatsLimit: saasPlans[planKey].seatsLimit, venuesLimit: saasPlans[planKey].venuesLimit, monthlyPrice: 0 }); recordAudit(req, 'platform.subscription_updated', 'organization_subscription', item.id, before, item); return json(res, 200, { organizationId: item.id, plan: item.plan, status: item.status, billingMode: 'test_free', monthlyPrice: 0, seatsLimit: item.seatsLimit, venuesLimit: item.venuesLimit });
+  }  const platformOrgPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)$/);
   if (platformOrgPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'platform')) return;
     const input = await body(req); const item = saasOrganizations.find((entry) => entry.id === platformOrgPath[1]); if (!item) return json(res, 404, { error: 'organization_not_found' }); const before = { ...item }; if (input.name !== undefined) item.name = String(input.name).trim().slice(0, 120); if (input.plan !== undefined && ['starter','growth','network','enterprise'].includes(input.plan)) item.plan = input.plan; if (input.isActive !== undefined) item.isActive = Boolean(input.isActive); recordAudit(req, 'platform.organization_updated', 'organization', item.id, before, item); return json(res, 200, item);

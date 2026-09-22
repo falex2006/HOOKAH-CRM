@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+const base = process.argv[2] || 'http://localhost:3000';
+if (!['localhost','127.0.0.1','::1'].includes(new URL(base).hostname)) throw new Error('local-only billing check');
+const plans = await (await fetch(`${base}/api/platform/plans`)).json();
+assert.equal(plans.billingMode, 'test_free');
+assert.equal(Object.keys(plans.plans || {}).length, 4);
+for (const plan of Object.values(plans.plans)) assert.equal(plan.monthlyPrice, 0);
+const organizations = await (await fetch(`${base}/api/platform/organizations`)).json();
+assert.ok(organizations.items?.length);
+const id = organizations.items[0].id;
+const switched = await (await fetch(`${base}/api/platform/organizations/${id}/subscription`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ plan:'growth' }) })).json();
+assert.equal(switched.plan, 'growth'); assert.equal(switched.monthlyPrice, 0); assert.equal(switched.billingMode, 'test_free');
+console.log(`LOCAL BILLING CONTRACT: PASS (plans=${Object.keys(plans.plans).length}, free test mode)`);
