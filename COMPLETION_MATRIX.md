@@ -16,7 +16,7 @@
 | Кликабельность меню, кнопок и форм | Подтверждено локально и браузером | `local-click-contract.mjs` (99 ссылок, 118 кнопок, 3 формы); проверены переходы меню, KPI, настройки инфографики, карточка сотрудника, вкладки и модальные окна |
 | Полный локальный приёмочный прогон | Подтверждено локально | `scripts/local-acceptance.ps1 -BaseUrl http://localhost:3000` — `LOCAL ACCEPTANCE: PASS` |
 | Защита локальных файлов и production-пакета | Подтверждено локально | `local-static-boundary.mjs`, `local-deploy-contract.mjs` |
-| Визуальные регрессии CSS, action-ссылок и иконок | Подтверждено локально | `local-design-contract.mjs` — актуальный `style.css?rev=131`, без подчёркиваний, с focus-state и встроенными Tabler Icons |
+| Визуальные регрессии CSS, action-ссылок и иконок | Подтверждено локально | `local-design-contract.mjs` — актуальный `style.css?rev=176`, без подчёркиваний, с focus-state и встроенными Tabler Icons |
 | Браузерный визуальный QA основных экранов | Подтверждено локально | `/admin?qa=visual-next`, `/orders?qa=visual-orders`, `/inventory?qa=visual-inventory` |
 | Зависимости | Подтверждено локально | `npm ci --ignore-scripts`, `npm audit --omit=dev --audit-level=high` — 0 уязвимостей |
 | Автоматическое продолжение после лимитов | Подтверждено в Codex | Активный heartbeat `crm`, описание в `HANDOFF.md` |
@@ -34,7 +34,7 @@
 3. Запустить `./deploy-vps.sh`, затем проверить HTTPS, healthcheck, вход по ролям и backup restore.
 4. После каждой внешней проверки обновить эту матрицу и `STATUS.md`.
 
-- Числовые поля и системные спиннеры | Подтверждено локально | CSS rev=131, единый тёмный стиль для staff/Velora
+- Числовые поля и системные спиннеры | Подтверждено локально | CSS rev=176, единый тёмный стиль для staff/Velora
 
 - SaaS multi-tenant foundation | Подтверждено локально | `migrations/009_saas_foundation.sql`, `/api/saas/account`, `local-saas-contract.mjs`; организация, тариф, лимиты и активное использование
 
@@ -44,6 +44,6 @@
 
 - Навигация рабочего места | Подтверждено локально | Активный пункт меню синхронизирован с aria-current=page
 
-- Кэширование административной логики | Подтверждено локально | Все portal HTML используют portal.js rev=116, stale-cache проверяется контрактом
+- Кэширование административной логики | Подтверждено локально | Все portal HTML используют portal.js rev=165, stale-cache проверяется контрактом
 
 - Кэш рабочего места | Подтверждено локально | index.html app.js rev=101 проверяется design contract
