@@ -59,7 +59,7 @@ AUTH_REQUIRED role test: PASS
 
 - Для проверки синхронизации выполните `git rev-parse HEAD` и `git ls-remote origin refs/heads/main`; значения должны совпадать. На момент последней проверки рабочая копия была чистой.
 - Повторный `AUTH_REQUIRED` role smoke завершён с `PASS`; `scripts/local-deploy-contract.mjs` проверяет VPS preflight и HTTPS-шаблон.
-- В рабочих HTML-страницах обновлён cache-busting до `style.css?rev=129`; ссылки-кнопки принудительно не подчёркиваются во всех состояниях, а карточки гостей получили клавиатурное управление и фирменный focus-state.
+- В рабочих HTML-страницах обновлён cache-busting до `style.css?rev=130`; ссылки-кнопки принудительно не подчёркиваются во всех состояниях, а карточки гостей получили клавиатурное управление и фирменный focus-state.
 
 Полная матрица требований и доказательств: `COMPLETION_MATRIX.md`.
 
