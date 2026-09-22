@@ -21,6 +21,7 @@
 - **Admin form QA** — verified inventory product creation cancellation with an exact control locator; hidden form state is restored after cancel, while the staff card modal close path is verified above.
 
 - **Search, filters and report QA** — verified guest empty-search state, inventory search narrowing to the matching item, financial report generation with a report identifier, and audit filtering/reset with owner access.
+- **Venue layout management** — added administrator controls for zones/floors and VIP rooms, including capacity, minimum deposit, protected deletion and synchronization with floor/reservation data; verified with `local-floor-management-contract.mjs` and the full local acceptance run.
 
 ## Next stages
 

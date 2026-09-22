@@ -21,6 +21,7 @@
 | Зависимости | Подтверждено локально | `npm ci --ignore-scripts`, `npm audit --omit=dev --audit-level=high` — 0 уязвимостей |
 | Автоматическое продолжение после лимитов | Подтверждено в Codex | Активный heartbeat `crm`, описание в `HANDOFF.md` |
 | PostgreSQL-сохранность после перезапуска | Не подтверждено на этой машине | `scripts/local-postgres-contract.mjs` подготовлен для работающего PostgreSQL-контурa; нужен VPS или доступный Docker Engine |
+| Управление залами, этажами и VIP-комнатами | Подтверждено локально | `local-floor-management-contract.mjs`: создание, изменение депозита/вместимости, защита непустой зоны и удаление; полный acceptance проходит |
 | Реальный backup restore | Не подтверждено на этой машине | `verify-backup.sh` готов, но нет production-архива и Docker Engine |
 | VPS, домен, HTTPS и боевые секреты | Не выполнено | Финальный внешний этап; использовать `DEPLOYMENT.md` и `nginx/https.conf.example` |
 | Post-deploy smoke-проверка | Подготовлено, не выполнено | `post-deploy-acceptance.sh`; запускать после появления VPS, HTTPS и боевой учётной записи |

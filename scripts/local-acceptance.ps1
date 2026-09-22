@@ -20,6 +20,7 @@ $checks = @(
   @{ file = 'local-saas-contract.mjs'; node = $true },
   @{ file = 'local-saas-onboarding-contract.mjs'; node = $true },
   @{ file = 'local-tea-catalog.ps1'; args = @('-BaseUrl', $BaseUrl) },
+  @{ file = 'local-floor-management-contract.mjs'; node = $true },
   @{ file = 'local-crud-contract.mjs'; node = $true },
   @{ file = 'local-guest-order.ps1'; args = @('-BaseUrl', $BaseUrl) },
   # Keep the default acceptance run lightweight; use local-100-orders.ps1 -Count 100 for an explicit load pass.
