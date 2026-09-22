@@ -608,6 +608,7 @@ async function api(req, res) {
     if (denyUnlessAny(req, res, ['staff_manage', 'orders'])) return;
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' });
+    if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+?[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
     const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers);
     if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' });
     if (input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
@@ -630,7 +631,7 @@ async function api(req, res) {
     if (!client) return json(res, 404, { error: 'client_not_found' });
     const input = await body(req); const before = JSON.parse(JSON.stringify(client));
     if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' }); client.name = name; }
-    if (input.phoneNumbers !== undefined) { const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers); if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' }); client.phoneNumbers = phoneNumbers; }
+    if (input.phoneNumbers !== undefined) { if (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+?[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim()))) return json(res, 400, { error: 'invalid_phone_numbers' }); const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers); if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' }); client.phoneNumbers = phoneNumbers; }
     if (input.avatarUrl !== undefined) { const avatarUrl = String(input.avatarUrl || ''); if (avatarUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatarUrl) || avatarUrl.length > 2000000)) return json(res, 400, { error: 'invalid_avatar' }); client.avatarUrl = avatarUrl || null; }
     if (input.telegram !== undefined) { const telegram = String(input.telegram || '').trim(); if (telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(telegram)) return json(res, 400, { error: 'invalid_telegram' }); client.telegram = telegram; }
     for (const key of ['tobaccoPreferences', 'bowlPreferences', 'barPreferences']) if (input[key] !== undefined) client[key] = Array.isArray(input[key]) ? input[key].map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [];
