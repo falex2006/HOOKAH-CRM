@@ -170,3 +170,5 @@ ev=130.
 - Пакет VPS перепроверен локально: docker compose config --quiet и shell-синтаксис deploy-vps.sh, ackup-postgres.sh, erify-backup.sh, migrate-vps.sh, post-deploy-acceptance.sh проходят. Реальный запуск по-прежнему требует Docker Engine и целевого VPS.
 
 - Добавлен отдельный local-platform-organization-contract.mjs: проверяет валидацию тарифа и безопасный атомарный PATCH организации; включён в полный acceptance и прошёл.
+
+- Браузерная визуальная приёмка 22.09.2026: /finance и /inventory проверены на desktop 1440×900 и mobile 390×844; карточки, заголовки, действия и адаптивная сетка не перекрываются, выпадающие поля сохраняют единый стиль.
