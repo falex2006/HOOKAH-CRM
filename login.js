@@ -11,7 +11,7 @@ authModeButtons.forEach((button) => button.addEventListener('click', () => setAu
 passwordToggle?.addEventListener('click', () => { const visible = passwordInput.type === 'text'; passwordInput.type = visible ? 'password' : 'text'; passwordToggle.textContent = visible ? 'Показать' : 'Скрыть'; passwordToggle.setAttribute('aria-label', visible ? 'Показать пароль' : 'Скрыть пароль'); passwordToggle.setAttribute('aria-pressed', String(!visible)); passwordInput.focus(); });
 
 const demoUsers = {
-  'admin:admin': { id: 'demo-admin', name: 'Администратор', role: 'admin' },
+  'admin:admin': { id: 'demo-admin', name: 'Александр', role: 'admin' },
   'owner:demo': { id: 'demo-owner', name: 'Владелец', role: 'owner' },
   'staff:demo': { id: 'demo-bartender', name: 'Мария', role: 'bartender' },
   'developer:developer': { id: 'demo-developer', name: 'Главный разработчик', role: 'developer' },

@@ -107,7 +107,7 @@ const sessions = new Map();
 const loginAttempts = new Map();
 const shifts = [];
 const demoAccounts = [
-  { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Администратор', role: 'admin', organizationId: '00000000-0000-0000-0000-000000000010' },
+  { username: 'admin', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Александр', role: 'admin', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: 'owner', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: 'staff', password: process.env.DEMO_STAFF_PASSWORD || 'demo', pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: process.env.SAAS_OWNER_EMAIL || 'alphasat72@gmail.com', password: process.env.SAAS_OWNER_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'saas-demo'), name: 'Владелец SaaS', role: 'platform_owner', organizationId: null }
@@ -199,8 +199,10 @@ const businessTimezone = process.env.BUSINESS_TIMEZONE || 'Asia/Yekaterinburg';
 const businessDateKey = (value) => { const raw = String(value || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw; const parsed = value instanceof Date ? value : new Date(value); if (Number.isNaN(parsed.getTime())) return raw.slice(0, 10); return new Intl.DateTimeFormat('en-CA', { timeZone: businessTimezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(parsed); };
 const today = () => businessDateKey(new Date());
 const recentBusinessDates = (count = 7) => { const current = new Date(`${today()}T00:00:00Z`); return Array.from({ length: count }, (_, index) => { const date = new Date(current); date.setUTCDate(current.getUTCDate() - (count - 1 - index)); return date.toISOString().slice(0, 10); }); };
+const pendingPaymentSummary = (items = orders) => { const active = items.filter((order) => ['open', 'in_progress', 'ready'].includes(order.status)); const pendingRevenue = active.reduce((sum, order) => { const due = Math.max(Number(order.minimumOrderTotal || 0), orderNetTotal(order)); const paid = (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)).reduce((total, payment) => total + Number(payment.amount || 0), 0); return sum + Math.max(0, due - paid); }, 0); return { pendingOrders: active.length, pendingRevenue: Math.round(pendingRevenue * 100) / 100 }; };
 const metrics = () => ({
-  openOrders: orders.filter((order) => order.status === 'open').length,
+  ...pendingPaymentSummary(),
+  openOrders: orders.filter((order) => ['open', 'in_progress', 'ready'].includes(order.status)).length,
   closedOrders: orders.filter((order) => order.status === 'closed').length,
   discountRequests: discountRequests.filter((request) => request.status === 'requested').length,
   staffActive: staff.filter((person) => person.active).length,
@@ -465,14 +467,14 @@ async function api(req, res) {
     if (repositories?.pool) {
       try {
         const [ordersMetric, discountsMetric, staffMetric, reservationsMetric, stockMetric] = await Promise.all([
-          repositories.pool.query(`SELECT COUNT(*) FILTER (WHERE status IN ('open','in_progress','ready'))::int AS open_orders, COUNT(*) FILTER (WHERE status='closed')::int AS closed_orders FROM orders WHERE venue_id=$1`, [venueDbId]),
+          repositories.pool.query(`WITH item_totals AS (SELECT order_id, COALESCE(SUM(quantity * unit_price),0) AS subtotal FROM order_items GROUP BY order_id), discount_totals AS (SELECT order_id, COALESCE(SUM(CASE WHEN type='percent' THEN (SELECT COALESCE(SUM(oi.quantity * oi.unit_price),0) FROM order_items oi WHERE oi.order_id=d.order_id) * LEAST(100,GREATEST(0,value))/100 ELSE GREATEST(0,value) END),0) AS discount FROM discounts d WHERE status='approved' GROUP BY order_id), paid_totals AS (SELECT order_id, COALESCE(SUM(amount) FILTER (WHERE status IN ('paid','partially_paid')),0) AS paid FROM payments GROUP BY order_id) SELECT COUNT(*) FILTER (WHERE o.status IN ('open','in_progress','ready'))::int AS open_orders, COUNT(*) FILTER (WHERE o.status='closed')::int AS closed_orders, COALESCE(SUM(CASE WHEN o.status IN ('open','in_progress','ready') THEN GREATEST(COALESCE(o.vip_minimum,0),COALESCE(i.subtotal,0)-COALESCE(d.discount,0)) - COALESCE(p.paid,0) ELSE 0 END),0) AS pending_revenue FROM orders o LEFT JOIN item_totals i ON i.order_id=o.id LEFT JOIN discount_totals d ON d.order_id=o.id LEFT JOIN paid_totals p ON p.order_id=o.id WHERE o.venue_id=$1`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE venue_id=$1 AND is_active=true`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM reservations WHERE venue_id=$1 AND starts_at::date=CURRENT_DATE AND status='confirmed'`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM ingredients WHERE venue_id=$1 AND on_hand <= min_level`, [venueDbId])
         ]);
         const orderRow = ordersMetric.rows[0] || {};
-        return json(res, 200, { openOrders: Number(orderRow.open_orders || 0), closedOrders: Number(orderRow.closed_orders || 0), discountRequests: Number(discountsMetric.rows[0]?.count || 0), staffActive: Number(staffMetric.rows[0]?.count || 0), reservationsToday: Number(reservationsMetric.rows[0]?.count || 0), lowStock: Number(stockMetric.rows[0]?.count || 0) });
+        return json(res, 200, { openOrders: Number(orderRow.open_orders || 0), pendingOrders: Number(orderRow.open_orders || 0), pendingRevenue: Number(orderRow.pending_revenue || 0), closedOrders: Number(orderRow.closed_orders || 0), discountRequests: Number(discountsMetric.rows[0]?.count || 0), staffActive: Number(staffMetric.rows[0]?.count || 0), reservationsToday: Number(reservationsMetric.rows[0]?.count || 0), lowStock: Number(stockMetric.rows[0]?.count || 0) });
       } catch (error) {
         return json(res, 503, { error: 'database_unavailable', detail: error.message });
       }
@@ -942,8 +944,9 @@ if (staffProfile && req.method === 'PATCH') {
         const pending = await repositories.pool.query(`
           SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id
           WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]);
+        const pendingTotals = await repositories.pool.query(`WITH item_totals AS (SELECT order_id, COALESCE(SUM(quantity * unit_price),0) AS subtotal FROM order_items GROUP BY order_id), discount_totals AS (SELECT order_id, COALESCE(SUM(CASE WHEN type='percent' THEN (SELECT COALESCE(SUM(oi.quantity * oi.unit_price),0) FROM order_items oi WHERE oi.order_id=d.order_id) * LEAST(100,GREATEST(0,value))/100 ELSE GREATEST(0,value) END),0) AS discount FROM discounts d WHERE status='approved' GROUP BY order_id), paid_totals AS (SELECT order_id, COALESCE(SUM(amount) FILTER (WHERE status IN ('paid','partially_paid')),0) AS paid FROM payments GROUP BY order_id) SELECT COUNT(*)::int AS pending_orders, COALESCE(SUM(GREATEST(0, GREATEST(COALESCE(o.vip_minimum,0),COALESCE(i.subtotal,0)-COALESCE(d.discount,0))-COALESCE(p.paid,0))),0) AS pending_revenue FROM orders o LEFT JOIN item_totals i ON i.order_id=o.id LEFT JOIN discount_totals d ON d.order_id=o.id LEFT JOIN paid_totals p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.status IN ('open','in_progress','ready')`, [venueDbId]);
         const row = totals.rows[0] || { revenue: 0, closed_orders: 0, payment_count: 0 };
-        return json(res, 200, { date, revenue: Number(row.revenue || 0), closedOrders: Number(row.closed_orders || 0), paymentCount: Number(row.payment_count || 0), byPaymentMethod: Object.fromEntries(methods.rows.map((entry) => [entry.method, Number(entry.amount || 0)])), pendingDiscounts: Number(pending.rows[0]?.count || 0) });
+        return json(res, 200, { date, revenue: Number(row.revenue || 0), closedOrders: Number(row.closed_orders || 0), paymentCount: Number(row.payment_count || 0), byPaymentMethod: Object.fromEntries(methods.rows.map((entry) => [entry.method, Number(entry.amount || 0)])), pendingOrders: Number(pendingTotals.rows[0]?.pending_orders || 0), pendingRevenue: Number(pendingTotals.rows[0]?.pending_revenue || 0), pendingDiscounts: Number(pending.rows[0]?.count || 0) });
       } catch (error) {
         return json(res, 503, { error: 'database_unavailable', detail: error.message });
       }
@@ -951,7 +954,7 @@ if (staffProfile && req.method === 'PATCH') {
     const closed = orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date);
     const byType = {}; let revenue = 0; let paymentCount = 0;
     closed.forEach((order) => { const payments = (order.payments || []).filter((payment) => payment.status === 'paid'); if (payments.length) payments.forEach((payment) => { const amount = Number(payment.amount || 0); paymentCount += 1; revenue += amount; const key = payment.method || 'не указан'; byType[key] = (byType[key] || 0) + amount; }); else { const amount = Number(order.finalTotal || orderTotal(order)); revenue += amount; const key = order.paymentMethod || 'не указан'; byType[key] = (byType[key] || 0) + amount; } });
-    return json(res, 200, { date, revenue, closedOrders: closed.length, paymentCount, byPaymentMethod: byType, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length });
+    const pending = pendingPaymentSummary(); return json(res, 200, { date, revenue, closedOrders: closed.length, paymentCount, byPaymentMethod: byType, pendingOrders: pending.pendingOrders, pendingRevenue: pending.pendingRevenue, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length });
   }
   if (pathname === '/api/finance/report' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
