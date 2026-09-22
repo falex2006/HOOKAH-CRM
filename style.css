@@ -625,3 +625,6 @@
 
 /* Keep floor labels legible and centered when a table has custom geometry/rotation */
 .staff-theme .table{align-items:center;text-align:center;overflow:hidden;word-break:break-word;line-height:1.2;transform:rotate(var(--table-rotation,0deg))}.staff-theme .table>strong,.staff-theme .table>em,.staff-theme .table>small{width:100%;transform:rotate(calc(var(--table-rotation,0deg) * -1));transform-origin:center;display:block}.staff-theme .table>strong{margin:0;line-height:1.15}.staff-theme .table>em{margin-top:12px;line-height:1.2}.staff-theme .table>small{margin-top:7px;line-height:1.2}.staff-theme .table:hover{transform:rotate(var(--table-rotation,0deg)) translateY(-3px)}
+
+/* Give the floor plan enough room before switching to the compact phone layout */
+@media (max-width:1200px) and (min-width:761px){.staff-theme .workspace{grid-template-columns:minmax(0,1fr);gap:18px}.staff-theme .tables{grid-template-columns:repeat(12,minmax(0,1fr));min-height:540px}.staff-theme .order{width:100%;max-width:none}.staff-theme .queue{padding-top:18px}}
