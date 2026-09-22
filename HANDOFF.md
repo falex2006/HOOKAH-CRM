@@ -29,6 +29,8 @@ node server.js
 pwsh ./scripts/local-acceptance.ps1 -BaseUrl http://localhost:3000
 ```
 
+Приёмка включает `scripts/local-click-contract.mjs`: проверяет все статические и динамические кнопки на явный тип, ссылки на реальные локальные маршруты и наличие обработчиков меню/форм.
+
 Приёмка включает `scripts/local-crud-contract.mjs`: локально проверяются создание/изменение товара с изображением, складское движение, финансовая категория, бронирование и доставка.
 Контракт production-пакета: `node scripts/local-deploy-contract.mjs` проверяет секреты, Compose healthcheck, закрытый PostgreSQL-порт и HTTPS-шаблон.
 

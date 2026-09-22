@@ -24,6 +24,8 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Design contract
         run: node scripts/local-design-contract.mjs
+      - name: Clickability contract
+        run: node scripts/local-click-contract.mjs
       - name: Static boundary contract
         run: node scripts/local-static-boundary.mjs
       - name: Deployment contract
