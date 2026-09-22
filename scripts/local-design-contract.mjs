@@ -9,7 +9,7 @@ for (const file of htmlFiles) {
   assert.match(html, /style\.css\?rev=142/, `${file} must use current CSS cache version`);
   assert.doesNotMatch(html, /style\.css\?rev=(?:12[0-7]|1[01]\d)/, `${file} has stale CSS cache version`);
   if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, /portal\.js\?rev=122/, `${file} must use current portal JS cache version`);
-  if (file === 'index.html') assert.match(html, /app\.js\?rev=102/, 'index.html must use current staff app JS cache version');
+  if (file === 'index.html') assert.match(html, /app\.js\?rev=103/, 'index.html must use current staff app JS cache version');
   if (file === 'platform.html') assert.match(html, /platform\.js\?rev=3/, 'platform.html must use platform JS');
 }
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
