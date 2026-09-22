@@ -54,6 +54,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id uuid REFERENCES organ
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS permission_scopes jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_encrypted text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_iv text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_tag text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_updated_at timestamptz;
 
 CREATE TABLE IF NOT EXISTS organization_memberships (
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,

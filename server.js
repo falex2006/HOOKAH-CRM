@@ -86,6 +86,7 @@ const financeCategories = [
   { id: 'finance-delivery', name: 'Доставка', kind: 'expense', active: true }
 ];
 const auditEvents = [];
+const staffNotifications = [];
 const clients = [
   { id: 'client-anna', name: 'Анна Смирнова', phoneNumbers: [{ label: 'Основной', number: '+79991112233', primary: true }], telegram: '@anna_sm', tobaccoPreferences: ['Darkside', 'Мята'], bowlPreferences: ['Кальянная чаша'], barPreferences: ['Лимонад маракуйя', 'Red Bull'], allergies: '', notes: 'Предпочитает среднюю крепость', loyaltyPoints: 420, visits: 6, totalSpent: 18400, lastVisitAt: '2026-09-18T21:30:00.000Z' },
   { id: 'client-igor', name: 'Игорь Волков', phoneNumbers: [{ label: 'Основной', number: '+79994445566', primary: true }, { label: 'Рабочий', number: '+79997778899', primary: false }], telegram: '', tobaccoPreferences: ['Tangiers', 'Ягодные миксы'], bowlPreferences: ['Калауд'], barPreferences: ['Кола', 'Виски'], allergies: 'Орехи', notes: '', loyaltyPoints: 180, visits: 3, totalSpent: 9200, lastVisitAt: '2026-09-12T20:10:00.000Z' }
@@ -132,6 +133,10 @@ const staffPassportCipher = {
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
   developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations', 'delivery']
+};
+const staffPinCipher = {
+  encrypt(pin) { const wrapped = staffPassportCipher.encrypt({ pin: String(pin) }); return wrapped; },
+  decrypt(row) { const wrapped = staffPassportCipher.decrypt({ passport_data_encrypted: row?.pin_data_encrypted, passport_data_iv: row?.pin_data_iv, passport_data_tag: row?.pin_data_tag }); return wrapped?.pin || null; }
 };
 const permissionScopes = ['orders', 'reservations', 'inventory', 'finance', 'staff', 'delivery', 'integrations', 'settings'];
 const scopedPermissionMap = {
@@ -256,6 +261,11 @@ async function api(req, res) {
     req.user = session.user;
   }
   if (pathname === '/api/health') return json(res, 200, { status: 'ok', service: 'hookah-crm' });
+  if (pathname === '/api/notifications' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['staff_view', 'settings'])) return;
+    const items = staffNotifications.filter((item) => !item.notificationRecipients?.length || process.env.AUTH_REQUIRED !== 'true' || item.notificationRecipients.includes(req.user?.role));
+    return json(res, 200, { items });
+  }
   if (pathname === '/api/saas/account' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(venueDbId)) {
@@ -625,7 +635,7 @@ async function api(req, res) {
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
-    return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { if (!canSeeSensitiveStaff(req)) delete person.passportData; return person; }) });
+    return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { person.pinConfigured = Boolean(person.pinCode || person.pinHash || person.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff_manage')) return;
@@ -650,7 +660,7 @@ async function api(req, res) {
     if (input.passportData !== undefined && !canSeeSensitiveStaff(req)) return json(res, 403, { error: 'sensitive_staff_permission_required' });
     if (input.passportData !== undefined && !createdPassport) return json(res, 503, { error: 'staff_passport_key_required' });
     if (repositories?.pool) { try { const login = input.login || `user_${Date.now()}`; const passwordHash = input.password ? await hashPassword(input.password) : (input.pin ? await hashPassword(input.pin) : null); let rows; try { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,permission_scopes,avatar_url,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::jsonb,$10,$11,$12,$13,$14) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } catch (_) { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,avatar_url,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) }; recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result); } catch (error) { return json(res, 409, { error: 'staff_create_failed', detail: error.message }); } }
-    const person = { id: `u-${Date.now()}`, name: input.name, login: input.login || `user_${Date.now()}`, passwordHash: input.password ? await hashPassword(input.password) : (input.pin ? await hashPassword(input.pin) : null), role: input.role, active: true, avatarUrl: input.avatarUrl || null, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null };
+    const person = { id: `u-${Date.now()}`, name: input.name, login: input.login || `user_${Date.now()}`, passwordHash: input.password ? await hashPassword(input.password) : (input.pin ? await hashPassword(input.pin) : null), role: input.role, active: true, avatarUrl: input.avatarUrl || null, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: input.pin || null, pinConfigured: Boolean(input.pin), pinUpdatedAt: input.pin ? new Date().toISOString() : null };
     staff.push(person);
     const { passwordHash, ...publicPerson } = person;
     recordAudit(req, 'staff.created', 'staff', person.id, null, publicPerson);
@@ -704,7 +714,32 @@ async function api(req, res) {
     const person = staff.find((entry) => entry.id === staffAvatar[1]); if (!person) return json(res, 404, { error: 'staff_not_found' });
     const hadAvatar = Boolean(person.avatarUrl); person.avatarUrl = input.imageData; recordAudit(req, 'staff.avatar_updated', 'staff', person.id, { avatarUrl: hadAvatar ? '[image]' : null }, { avatarUrl: '[image]' }); return json(res, 200, person);
   }
-const staffProfile = pathname.match(/^\/api\/staff\/([^/]+)\/profile$/);
+  const staffProfile = pathname.match(/^\/api\/staff\/([^/]+)\/profile$/);
+  const staffPinPath = pathname.match(/^\/api\/staff\/([^/]+)\/pin$/);
+  if (staffPinPath && req.method === 'PATCH') {
+    const personId = staffPinPath[1]; const isSelf = String(req.user?.id || '') === personId;
+    if (!isSelf && denyUnless(req, res, 'staff_manage')) return;
+    const input = await body(req); const pin = String(input.pin || '').trim();
+    if (!/^\d{4}$/.test(pin)) return json(res, 400, { error: 'invalid_staff_pin_format' });
+    const memoryPerson = staff.find((entry) => entry.id === personId);
+    if (memoryPerson) {
+      if (!memoryPerson.active || memoryPerson.deletedAt) return json(res, 404, { error: 'staff_not_found' });
+      memoryPerson.passwordHash = await hashPassword(pin); memoryPerson.pinCode = pin; memoryPerson.pinConfigured = true; memoryPerson.pinUpdatedAt = new Date().toISOString();
+      const notification = { id: `staff-pin-${Date.now()}`, type: 'staff_pin_updated', staffId: personId, staffName: memoryPerson.name, actor: req.user?.name || 'сотрудник', createdAt: memoryPerson.pinUpdatedAt, notificationRecipients: ['owner', 'admin'] };
+      staffNotifications.push(notification); recordAudit(req, 'staff.pin_updated', 'staff', personId, { pinConfigured: true }, { pinConfigured: true, notificationRecipients: ['owner', 'admin'] });
+      return json(res, 200, { id: personId, pinConfigured: true, pinUpdatedAt: memoryPerson.pinUpdatedAt });
+    }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
+      const encrypted = staffPinCipher.encrypt(pin); if (!encrypted) return json(res, 503, { error: 'staff_pin_key_required' });
+      try {
+        const { rows } = await repositories.pool.query('UPDATE users SET pin_hash=$1,pin_data_encrypted=$2,pin_data_iv=$3,pin_data_tag=$4,pin_updated_at=now() WHERE id=$5 AND venue_id=$6 AND is_active=true AND deleted_at IS NULL RETURNING id,full_name AS name,pin_updated_at AS "pinUpdatedAt"', [await hashPassword(pin), encrypted.data, encrypted.iv, encrypted.tag, personId, venueDbId]);
+        if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
+        recordAudit(req, 'staff.pin_updated', 'staff', personId, { pinConfigured: true }, { pinConfigured: true, notificationRecipients: ['owner', 'admin'] });
+        return json(res, 200, { id: rows[0].id, pinConfigured: true, pinUpdatedAt: rows[0].pinUpdatedAt });
+      } catch (error) { return json(res, 409, { error: 'staff_pin_save_failed', detail: error.message }); }
+    }
+    return json(res, 404, { error: 'staff_not_found' });
+  }
 if (staffProfile && req.method === 'GET') {
   const personId = staffProfile[1];
   const canRead = hasPermission(req, 'staff') || hasPermission(req, 'staff_view') || String(req.user?.id || '') === personId;

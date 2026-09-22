@@ -2,6 +2,7 @@ import fs from 'node:fs';
 const html = fs.readFileSync('login.html', 'utf8');
 const js = fs.readFileSync('login.js', 'utf8');
 const css = fs.readFileSync('style.css', 'utf8');
+const profile = fs.readFileSync('staff-profile.js', 'utf8');
 const required = [
   ['password toggle', html.includes('login-password-toggle') && js.includes('passwordToggle')],
   ['idle hookah scene', html.includes('login-atmosphere') && html.includes('login-hookah')],
@@ -19,6 +20,7 @@ const required = [
   ['failure collapse', css.includes('@keyframes loginCollapse')],
   ['staff PIN mode', html.includes('data-auth-mode="pin"') && html.includes('id="login-pin"') && js.includes("authMode === 'pin'")],
   ['PIN validation', js.includes("authMode === 'pin'") && js.includes('\\d{4}')],
+  ['self-service PIN settings', profile.includes('staff-profile-pin') && profile.includes('__syncStaffPin')],
 ];
 const missing = required.filter(([, ok]) => !ok).map(([name]) => name);
 if (missing.length) { console.error(`LOCAL LOGIN CONTRACT: FAIL (${missing.join(', ')})`); process.exit(1); }
