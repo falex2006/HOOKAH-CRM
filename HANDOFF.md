@@ -78,3 +78,5 @@ AUTH_REQUIRED role test: PASS
 - Активный пункт бокового меню staff-workspace синхронизирует визуальное состояние и ria-current=page (JS rev=101).
 
 - Устранен риск старого portal.js в браузере: административные HTML-страницы используют rev=116, design contract это контролирует.
+
+- Cache-busting staff workspace синхронизирован: index.html использует app.js rev=101 после изменений доступности.
