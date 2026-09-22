@@ -734,3 +734,13 @@
 .velora-theme .finance-chart-grid>i:nth-child(1){top:8px}.velora-theme .finance-chart-grid>i:nth-child(2){top:33%}.velora-theme .finance-chart-grid>i:nth-child(3){top:66%}.velora-theme .finance-chart-grid>i:nth-child(4){bottom:20px}
 .velora-theme .finance-chart-grid .finance-chart-bars{position:relative;height:100%}
 @media(max-width:700px){.velora-theme .finance-chart-summary{grid-template-columns:1fr 1fr}.velora-theme .finance-chart-summary div:last-child{grid-column:1/-1}.velora-theme .finance-chart-grid{height:180px}.velora-theme .finance-chart-grid .finance-chart-bars{height:180px}}
+
+.velora-theme .cash-register-panel .panel-head{align-items:flex-start}
+.velora-theme .cash-register-panel .panel-head>div{display:grid;gap:4px}
+.velora-theme .cash-register-hint{display:block;color:#7f8994;font-size:11px;line-height:1.35}
+.velora-theme .cash-register-panel.is-closed{border-color:#51402c}
+.velora-theme .cash-register-panel.is-closed .cash-register-hint{color:#c29a56}
+.velora-theme .cash-register-panel.is-open{border-color:#285345}
+.velora-theme .cash-register-panel.is-open .cash-register-hint{color:#68cba0}
+.velora-theme .cash-register-panel.is-closed .cash-register-grid strong{color:#c1a16c;font-size:15px}
+@media(max-width:650px){.velora-theme .cash-register-panel .panel-head{gap:12px;flex-direction:column}.velora-theme .cash-register-panel .panel-head .button{align-self:flex-start}}
