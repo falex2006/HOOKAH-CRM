@@ -2,10 +2,11 @@ const form = document.querySelector('#login-form');
 const passwordInput = document.querySelector('#login-password');
 const passwordToggle = document.querySelector('#login-password-toggle');
 const pinInput = document.querySelector('#login-pin');
+const pinConfirmInput = document.querySelector('#login-pin-confirm');
 const authModeButtons = [...document.querySelectorAll('[data-auth-mode]')];
 const authPanels = [...document.querySelectorAll('[data-auth-panel]')];
 let authMode = 'password';
-const setAuthMode = (mode) => { authMode = mode === 'pin' ? 'pin' : 'password'; authModeButtons.forEach((button) => { const active = button.dataset.authMode === authMode; button.classList.toggle('is-active', active); button.setAttribute('aria-selected', String(active)); }); authPanels.forEach((panel) => { panel.hidden = panel.dataset.authPanel !== authMode; }); if (authMode === 'pin') { passwordInput.value = ''; pinInput?.focus(); } else { pinInput.value = ''; passwordInput.focus(); } };
+const setAuthMode = (mode) => { authMode = mode === 'pin' ? 'pin' : 'password'; authModeButtons.forEach((button) => { const active = button.dataset.authMode === authMode; button.classList.toggle('is-active', active); button.setAttribute('aria-selected', String(active)); }); authPanels.forEach((panel) => { panel.hidden = panel.dataset.authPanel !== authMode; }); passwordInput.required = authMode === 'password'; pinInput.required = authMode === 'pin'; pinConfirmInput.required = authMode === 'pin'; if (authMode === 'pin') { passwordInput.value = ''; pinInput.value = ''; pinConfirmInput.value = ''; pinInput.focus(); } else { pinInput.value = ''; pinConfirmInput.value = ''; passwordInput.focus(); } };
 authModeButtons.forEach((button) => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));
 passwordToggle?.addEventListener('click', () => { const visible = passwordInput.type === 'text'; passwordInput.type = visible ? 'password' : 'text'; passwordToggle.textContent = visible ? 'Показать' : 'Скрыть'; passwordToggle.setAttribute('aria-label', visible ? 'Показать пароль' : 'Скрыть пароль'); passwordToggle.setAttribute('aria-pressed', String(!visible)); passwordInput.focus(); });
 
@@ -42,7 +43,9 @@ form?.addEventListener('submit', async (event) => {
   const username = document.querySelector('#login-username').value.trim();
   const password = document.querySelector('#login-password').value;
   const pin = String(pinInput?.value || '').trim();
+  const pinConfirm = String(pinConfirmInput?.value || '').trim();
   if (authMode === 'pin' && !/^\d{4}$/.test(pin)) { message.textContent = 'Введите ровно 4 цифры PIN'; pinInput?.focus(); return; }
+  if (authMode === 'pin' && pin !== pinConfirm) { message.textContent = 'PIN-коды не совпадают'; pinConfirmInput?.focus(); return; }
   message.textContent = 'Проверяем доступ…';
   if (submit) { submit.disabled = true; submit.textContent = 'Проверяем…'; }
 
