@@ -634,3 +634,6 @@
 
 /* Notification control uses a stable vector icon instead of a platform emoji */
 .velora-theme .notification-bell{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;padding:0}.velora-theme .notification-bell .icon{display:block;width:18px;height:18px;stroke:currentColor;stroke-width:1.8}.velora-theme .notification-bell #notification-count{display:grid;place-items:center}
+
+/* Reserve a clear header lane inside the floor plan so zone labels never sit under cards */
+.staff-theme .tables{padding-top:54px}.staff-theme .tables.vip-floor{padding-top:54px}@media(max-width:760px){.staff-theme .tables,.staff-theme .tables.vip-floor{padding-top:43px}}
