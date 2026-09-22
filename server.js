@@ -377,10 +377,43 @@ async function api(req, res) {
   if (platformOrgSubscription && req.method === 'PATCH') {
     if (denyUnless(req, res, 'platform')) return;
     const input = await body(req); const item = saasOrganizations.find((entry) => entry.id === platformOrgSubscription[1]); const planKey = String(input.plan || ''); if (!item) return json(res, 404, { error: 'organization_not_found' }); if (!saasPlans[planKey]) return json(res, 400, { error: 'invalid_plan' }); const before = { ...item }; item.plan = planKey; item.status = ['active','trialing','past_due','cancelled'].includes(input.status) ? input.status : item.status; Object.assign(item, { seatsLimit: saasPlans[planKey].seatsLimit, venuesLimit: saasPlans[planKey].venuesLimit, monthlyPrice: 0 }); if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(item.id)) { try { await repositories.pool.query(`UPDATE organization_subscriptions SET plan=$1,status=$2,billing_mode='test_free',monthly_price_cents=0,seats_limit=$3,venues_limit=$4,updated_at=now() WHERE organization_id=$5`, [planKey, item.status, saasPlans[planKey].seatsLimit, saasPlans[planKey].venuesLimit, item.id]); await repositories.pool.query('UPDATE organizations SET plan=$1 WHERE id=$2', [planKey, item.id]); } catch (error) { Object.assign(item, before); return json(res, 503, { error: 'subscription_save_failed', detail: error.message }); } } recordAudit(req, 'platform.subscription_updated', 'organization_subscription', item.id, before, item); return json(res, 200, { organizationId: item.id, plan: item.plan, status: item.status, billingMode: 'test_free', monthlyPrice: 0, seatsLimit: item.seatsLimit, venuesLimit: item.venuesLimit });
-  }  const platformOrgPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)$/);
+  }
+  const platformOrgPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)$/);
   if (platformOrgPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'platform')) return;
-    const input = await body(req); const item = saasOrganizations.find((entry) => entry.id === platformOrgPath[1]); if (!item) return json(res, 404, { error: 'organization_not_found' }); const before = { ...item }; if (input.name !== undefined) item.name = String(input.name).trim().slice(0, 120); if (input.plan !== undefined && ['starter','growth','network','enterprise'].includes(input.plan)) item.plan = input.plan; if (input.isActive !== undefined) item.isActive = Boolean(input.isActive); recordAudit(req, 'platform.organization_updated', 'organization', item.id, before, item); return json(res, 200, item);
+    const input = await body(req);
+    const name = input.name === undefined ? undefined : String(input.name).trim().slice(0, 120);
+    const plan = input.plan === undefined ? undefined : String(input.plan);
+    if (name !== undefined && !name) return json(res, 400, { error: 'organization_name_required' });
+    if (plan !== undefined && !saasPlans[plan]) return json(res, 400, { error: 'invalid_plan' });
+    const organizationId = platformOrgPath[1];
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(organizationId)) {
+      try {
+        const beforeResult = await repositories.pool.query('SELECT id,name,plan,is_active AS "isActive" FROM organizations WHERE id=$1 LIMIT 1', [organizationId]);
+        if (!beforeResult.rows[0]) return json(res, 404, { error: 'organization_not_found' });
+        const before = beforeResult.rows[0];
+        const fields = [];
+        const values = [];
+        if (name !== undefined) { values.push(name); fields.push(`name=$${values.length}`); }
+        if (plan !== undefined) { values.push(plan); fields.push(`plan=$${values.length}`); }
+        if (input.isActive !== undefined) { values.push(Boolean(input.isActive)); fields.push(`is_active=$${values.length}`); }
+        if (!fields.length) return json(res, 200, before);
+        values.push(organizationId);
+        const { rows } = await repositories.pool.query(`UPDATE organizations SET ${fields.join(',')},updated_at=now() WHERE id=$${values.length} RETURNING id,name,plan,is_active AS "isActive"`, values);
+        const updated = rows[0];
+        if (plan !== undefined) await repositories.pool.query('UPDATE organization_subscriptions SET plan=$1,seats_limit=$2,venues_limit=$3,updated_at=now() WHERE organization_id=$4', [plan, saasPlans[plan].seatsLimit, saasPlans[plan].venuesLimit, organizationId]);
+        recordAudit(req, 'platform.organization_updated', 'organization', organizationId, before, updated);
+        return json(res, 200, updated);
+      } catch (error) { return json(res, 503, { error: 'organization_save_failed', detail: error.message }); }
+    }
+    const item = saasOrganizations.find((entry) => entry.id === organizationId);
+    if (!item) return json(res, 404, { error: 'organization_not_found' });
+    const before = { ...item };
+    if (name !== undefined) item.name = name;
+    if (plan !== undefined) { item.plan = plan; item.seatsLimit = saasPlans[plan].seatsLimit; item.venuesLimit = saasPlans[plan].venuesLimit; }
+    if (input.isActive !== undefined) item.isActive = Boolean(input.isActive);
+    recordAudit(req, 'platform.organization_updated', 'organization', item.id, before, item);
+    return json(res, 200, item);
   }
   if (pathname === '/api/shifts' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
