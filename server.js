@@ -399,9 +399,18 @@ async function api(req, res) {
         if (input.isActive !== undefined) { values.push(Boolean(input.isActive)); fields.push(`is_active=$${values.length}`); }
         if (!fields.length) return json(res, 200, before);
         values.push(organizationId);
-        const { rows } = await repositories.pool.query(`UPDATE organizations SET ${fields.join(',')},updated_at=now() WHERE id=$${values.length} RETURNING id,name,plan,is_active AS "isActive"`, values);
-        const updated = rows[0];
-        if (plan !== undefined) await repositories.pool.query('UPDATE organization_subscriptions SET plan=$1,seats_limit=$2,venues_limit=$3,updated_at=now() WHERE organization_id=$4', [plan, saasPlans[plan].seatsLimit, saasPlans[plan].venuesLimit, organizationId]);
+        const client = await repositories.pool.connect();
+        let updated;
+        try {
+          await client.query('BEGIN');
+          const { rows } = await client.query(`UPDATE organizations SET ${fields.join(',')},updated_at=now() WHERE id=$${values.length} RETURNING id,name,plan,is_active AS "isActive"`, values);
+          updated = rows[0];
+          if (plan !== undefined) await client.query('UPDATE organization_subscriptions SET plan=$1,seats_limit=$2,venues_limit=$3,updated_at=now() WHERE organization_id=$4', [plan, saasPlans[plan].seatsLimit, saasPlans[plan].venuesLimit, organizationId]);
+          await client.query('COMMIT');
+        } catch (error) {
+          await client.query('ROLLBACK').catch(() => {});
+          throw error;
+        } finally { client.release(); }
         recordAudit(req, 'platform.organization_updated', 'organization', organizationId, before, updated);
         return json(res, 200, updated);
       } catch (error) { return json(res, 503, { error: 'organization_save_failed', detail: error.message }); }
