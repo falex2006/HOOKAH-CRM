@@ -301,10 +301,13 @@ function renderDashboard() {
   if (!dashboardFocus) {
     setDashboardPanelVisibility('#staff, .floor-editor-panel, #audit, #company', false);
   } else if (dashboardFocus === 'staff') {
+    setDashboardPanelVisibility('#staff', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], .floor-editor-panel, #audit, #company', false);
   } else if (dashboardFocus === 'company') {
+    setDashboardPanelVisibility('.floor-editor-panel, #company', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, #audit', false);
   } else if (dashboardFocus === 'audit' || dashboardFocus === 'diagnostics') {
+    setDashboardPanelVisibility(dashboardFocus === 'audit' ? '#audit' : '#diagnostics', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #company', false);
   }
   window.addEventListener('hashchange', () => window.location.reload(), { once: true });
