@@ -75,7 +75,10 @@ CREATE TABLE IF NOT EXISTS organization_subscriptions (
   venues_limit integer NOT NULL DEFAULT 1 CHECK (venues_limit > 0),
   current_period_end timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  billing_mode text NOT NULL DEFAULT 'test_free' CHECK (billing_mode IN ('test_free','live')),
+  monthly_price_cents integer NOT NULL DEFAULT 0 CHECK (monthly_price_cents >= 0),
+  trial_ends_at timestamptz
 );
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
