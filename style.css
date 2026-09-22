@@ -691,3 +691,8 @@
 .platform-modal .form-section-label{grid-column:1/-1;margin-top:6px;padding-top:14px;border-top:1px solid #2e333b;color:#f0f2f4;font-size:12px;font-weight:700;letter-spacing:.04em}.platform-modal form>label input{width:100%}
 
 .velora-theme .staff-summary .staff-layout{grid-template-columns:1fr}
+
+/* Единый вид выпадающих списков в тёмной панели */
+.velora-theme select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aa3ae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:16px;padding-right:40px}
+.velora-theme .orders-view #orders-status{width:214px;min-width:214px;height:42px}
+.velora-theme select:hover{border-color:#56616f}
