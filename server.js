@@ -111,7 +111,7 @@ const demoAccounts = [
   { username: 'admin', venueId: '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Александр', role: 'admin', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: 'owner', venueId: '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: 'staff', venueId: '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_STAFF_PASSWORD || 'demo', pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' },
-  { username: process.env.SAAS_OWNER_EMAIL || 'alphasat72@gmail.com', password: process.env.SAAS_OWNER_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'saas-demo'), name: 'Владелец SaaS', role: 'platform_owner', organizationId: null }
+  { username: process.env.SAAS_OWNER_EMAIL || 'platform-owner@example.com', password: process.env.SAAS_OWNER_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'saas-demo'), name: 'Владелец SaaS', role: 'platform_owner', organizationId: null }
 ];
 
 const hashPassword = async (password) => { const salt = crypto.randomBytes(16).toString('hex'); const derived = await scryptAsync(String(password), salt, 64); return `scrypt$${salt}$${derived.toString('hex')}`; };

@@ -12,11 +12,13 @@ set -a
 set +a
 [ "${AUTH_REQUIRED:-}" = 'true' ] || { echo 'AUTH_REQUIRED=true is required on VPS' >&2; exit 1; }
 [ "${COOKIE_SECURE:-}" = 'true' ] || { echo 'COOKIE_SECURE=true is required on VPS' >&2; exit 1; }
-for secret_name in POSTGRES_PASSWORD DEMO_ADMIN_PASSWORD DEMO_OWNER_PASSWORD DEMO_STAFF_PASSWORD STAFF_PASSPORT_KEY; do
+for secret_name in POSTGRES_PASSWORD DEMO_ADMIN_PASSWORD DEMO_OWNER_PASSWORD DEMO_STAFF_PASSWORD STAFF_PASSPORT_KEY SAAS_OWNER_PASSWORD; do
   secret_value="${!secret_name:-}"
   [ -n "$secret_value" ] || { echo "$secret_name is required" >&2; exit 1; }
   case "$secret_value" in change_*|*change_me*|*change_this*|replace-*|*replace-with*) echo "Replace placeholder in $secret_name" >&2; exit 1;; esac
 done
+[ -n "${SAAS_OWNER_EMAIL:-}" ] || { echo 'SAAS_OWNER_EMAIL is required' >&2; exit 1; }
+case "${SAAS_OWNER_EMAIL}" in platform-owner@example.com|change_*|replace-*) echo 'Replace placeholder in SAAS_OWNER_EMAIL' >&2; exit 1;; esac
 
 docker compose config --quiet
 docker compose pull

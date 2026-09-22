@@ -11,9 +11,10 @@ const https = read('nginx/https.conf.example');
 for (const script of [deploy, migrate]) {
   assert.match(script, /docker compose version/, 'deployment scripts must require Compose plugin');
 }
-for (const secret of ['POSTGRES_PASSWORD', 'DEMO_ADMIN_PASSWORD', 'DEMO_OWNER_PASSWORD', 'DEMO_STAFF_PASSWORD', 'STAFF_PASSPORT_KEY']) {
+for (const secret of ['POSTGRES_PASSWORD', 'DEMO_ADMIN_PASSWORD', 'DEMO_OWNER_PASSWORD', 'DEMO_STAFF_PASSWORD', 'STAFF_PASSPORT_KEY', 'SAAS_OWNER_PASSWORD']) {
   assert.match(deploy, new RegExp(`\\b${secret}\\b`), `${secret} must be checked before deployment`);
 }
+assert.match(deploy, /SAAS_OWNER_EMAIL is required/);
 assert.match(deploy, /replace-with|replace-\*/, 'replace placeholders must be rejected');
 assert.match(deploy, /AUTH_REQUIRED=true/);
 assert.match(deploy, /COOKIE_SECURE=true/);
