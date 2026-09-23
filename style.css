@@ -1590,6 +1590,16 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 
 /* Device coverage: safe areas and tablet/large-phone logical viewports. */
 html{min-width:0;overflow-x:hidden}
+/* Navigation frame rule: the sidebar is a fixed-height navigation rail. Only the
+   workspace on the right scrolls, so navigation and the return-to-admin controls
+   never move away while a long page is being reviewed. */
+.portal{height:100vh;overflow:hidden}
+.portal .portal-app{height:100%;min-height:0;overflow:hidden}
+.portal.velora-theme .portal-sidebar{position:relative;top:auto;align-self:stretch;flex:0 0 auto;height:100%;max-height:none;overflow-y:auto;overflow-x:hidden}
+.portal.velora-theme .portal-main{height:100%;overflow-y:auto;overflow-x:hidden}
+.staff-theme .app{height:100vh;overflow:hidden}
+.staff-theme aside{position:relative;top:auto;align-self:stretch;flex:0 0 auto;height:100%;box-sizing:border-box;overflow-y:auto;overflow-x:hidden}
+.staff-theme main{height:100%;overflow-y:auto;overflow-x:hidden}
 body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 .portal-content{padding-bottom:max(42px,env(safe-area-inset-bottom))}
 .staff-theme main{min-width:0;padding-bottom:env(safe-area-inset-bottom)}
