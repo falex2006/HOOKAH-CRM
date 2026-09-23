@@ -1062,3 +1062,8 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .velora-theme .dashboard-revenue-pending.is-expanded .dashboard-revenue-pending-toggle>b{transform:rotate(45deg);background:#ff637722}
 @media(max-width:760px){.velora-theme .dashboard-revenue-card .dashboard-revenue-pending{width:min(100%,150px)}}
 @container (max-width:300px){.velora-theme .dashboard-revenue-card .dashboard-revenue-pending{width:min(100%,150px)}}
+
+/* Staff card action clearly signals editability. */
+.velora-theme .staff-row .staff-edit{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:96px}
+.velora-theme .staff-row .staff-edit .icon{width:14px;height:14px;color:#8edfff}
+.velora-theme .staff-row .staff-edit:hover .icon{color:#fff}
