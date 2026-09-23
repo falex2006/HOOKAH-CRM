@@ -66,6 +66,7 @@ const productCategories = [
 ];
 const importedProductCategoryNames = [...new Set(catalogSeed.products.map((item) => String(item.category || '').trim()).filter(Boolean))];
 for (const name of importedProductCategoryNames) if (!productCategories.some((item) => item.name === name)) productCategories.push({ id: 'seed-category-' + name.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '-').slice(0, 32), name, active: true });
+const recipes = (catalogSeed.recipes || []).map((recipe, index) => ({ ...recipe, id: recipe.id || 'recipe-' + (index + 1), ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [] }));
 const floor = [
   { id: 'hall', name: 'Зал', tables: Array.from({ length: 12 }, (_, i) => {
     const n = i + 1;
@@ -738,7 +739,31 @@ async function api(req, res) {
   }
   if (pathname === '/api/recipes' && req.method === 'GET') {
     if (denyUnless(req, res, 'inventory_read')) return;
-    return json(res, 200, { items: catalogSeed.recipes || [] });
+    return json(res, 200, { items: recipes });
+  }
+  if (pathname === '/api/recipes' && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const name = String(input.name || '').trim();
+    const ingredients = Array.isArray(input.ingredients) ? input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), quantity: String(item?.quantity || '').trim() }).filter((item) => item.name) : [];
+    const technology = String(input.technology || '').trim(); const serve = String(input.serve || '').trim();
+    if (!name || name.length > 120 || technology.length > 4000 || serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' });
+    const recipe = { id: 'recipe-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name, ingredients, technology, serve }; recipes.push(recipe); recordAudit(req, 'recipe.created', 'recipe', recipe.id, null, recipe); return json(res, 201, recipe);
+  }
+  const recipeProfile = pathname.match(/^\/api\/recipes\/([^/]+)$/);
+  if (recipeProfile && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const recipe = recipes.find((item) => item.id === recipeProfile[1]); if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
+    const input = await body(req); const before = { ...recipe };
+    if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'invalid_recipe' }); recipe.name = name; }
+    if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); recipe.ingredients = input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), quantity: String(item?.quantity || '').trim() }).filter((item) => item.name); }
+    if (input.technology !== undefined) { recipe.technology = String(input.technology || '').trim(); if (recipe.technology.length > 4000) return json(res, 400, { error: 'invalid_recipe' }); }
+    if (input.serve !== undefined) { recipe.serve = String(input.serve || '').trim(); if (recipe.serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' }); }
+    recordAudit(req, 'recipe.updated', 'recipe', recipe.id, before, recipe); return json(res, 200, recipe);
+  }
+  if (recipeProfile && req.method === 'DELETE') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const index = recipes.findIndex((item) => item.id === recipeProfile[1]); if (index < 0) return json(res, 404, { error: 'recipe_not_found' });
+    const recipe = recipes.splice(index, 1)[0]; recordAudit(req, 'recipe.deleted', 'recipe', recipe.id, recipe, null); return json(res, 200, recipe);
   }
   if (pathname === '/api/products' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
