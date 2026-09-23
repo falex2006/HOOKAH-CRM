@@ -11,6 +11,7 @@
     "qa:tasks": "node scripts/tasks-qa.mjs",
     "qa:security": "node scripts/security-qa.mjs",
     "qa:warehouse": "node scripts/warehouse-qa.mjs",
+    "qa:payroll": "node scripts/payroll-qa.mjs",
     "db:seed-menu": "node scripts/seed-menu-catalog.js"
   },
   "engines": {
