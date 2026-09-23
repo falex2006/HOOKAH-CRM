@@ -4,9 +4,7 @@
     inputs.forEach((input)=>{
       const form=input.closest('form')||input.parentElement;
       if(!form||form.dataset.staffPhonesReady==='1') return;
-      if(form.matches('.staff-admin-box,.staff-editor-form')) return;
-      const signature=(form.textContent+' '+form.innerHTML).toLowerCase();
-      if(!/(сотруд|staff|employee|роль|role)/.test(signature)) return;
+      if(!form.matches('.staff-form,.staff-editor-form')) return;
       form.dataset.staffPhonesReady='1';
       const rows=document.createElement('div');
       rows.className='staff-phone-list';
@@ -50,8 +48,7 @@
   const mount=()=>{
     document.querySelectorAll('form').forEach((form)=>{
       if(form.dataset.staffTelegramReady==='1') return;
-      const signature=(form.textContent+' '+form.innerHTML).toLowerCase();
-      if(!/(сотруд|staff|employee|роль|role)/.test(signature)) return;
+      if(!form.matches('.staff-form,.staff-editor-form')) return;
       if(form.querySelector('input[name*="telegram" i]')){form.dataset.staffTelegramReady='1';return;}
       const field=document.createElement('label'); field.className='staff-profile-field staff-telegram-field'; field.textContent='Telegram';
       const input=document.createElement('input'); input.type='text'; input.name='telegram'; input.placeholder='@username или https://t.me/username'; input.autocomplete='off';
