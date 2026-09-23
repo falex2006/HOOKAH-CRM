@@ -28,8 +28,9 @@
   overlay.className = 'screen-lock-overlay';
   overlay.setAttribute('aria-hidden', 'true');
   overlay.innerHTML = `<section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
-    <div class="screen-lock-mark">${user.avatarUrl ? `<img src="${String(user.avatarUrl).replaceAll('"', '&quot;')}" alt="">` : String(user.name || 'С').slice(0, 1)}</div>
-    <p class="eyebrow">РАБОЧЕЕ МЕСТО ЗАБЛОКИРОВАНО</p>
+    <div class="screen-lock-mark" aria-hidden="true">T</div>
+    <p class="screen-lock-kicker">TERRITORY CRM</p>
+    <p class="screen-lock-eyebrow">РАБОЧЕЕ МЕСТО ЗАБЛОКИРОВАНО</p>
     <h2 id="screen-lock-title">Вернитесь к работе</h2>
     <p class="screen-lock-user">${String(user.name || 'Сотрудник').replaceAll('<', '&lt;')}</p>
     <p class="screen-lock-hint" id="screen-lock-hint">Введите свой 4-значный PIN, чтобы продолжить.</p>

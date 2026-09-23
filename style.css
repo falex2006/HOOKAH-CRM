@@ -1201,3 +1201,27 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .login-card label{display:grid;gap:8px;margin:18px 0 0;line-height:1.35}
 .login-card input{margin-top:0}
 .login-password-wrap{margin-top:0}
+
+
+/* Screen lock uses the same visual language as the login card. */
+.screen-lock-overlay{background:radial-gradient(circle at 50% -10%,#303946 0,#16191e 42%,#0d0f12 78%);backdrop-filter:none}
+.screen-lock-card{width:min(430px,calc(100% - 32px));padding:42px;border:1px solid #343a44;border-radius:24px;background:linear-gradient(145deg,#1b1e23ee,#121417ee);box-shadow:0 26px 90px #0009;color:#f7f8fa;text-align:left}
+.screen-lock-mark{width:54px;height:54px;margin:0 0 22px;border:0;border-radius:16px;background:linear-gradient(145deg,#ff4164,#ff963d);box-shadow:0 12px 28px #ff5b5228;font-size:29px}
+.screen-lock-mark img{border-radius:inherit}
+.screen-lock-kicker{margin:0 0 8px;color:#ff8d76;font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+.screen-lock-eyebrow{margin:0 0 8px;color:#ff8793;font-size:10px;font-weight:800;letter-spacing:.14em}
+.screen-lock-card h2{margin:0 0 8px;color:#f7f8fa;font-size:32px;letter-spacing:-.04em}
+.screen-lock-user{margin:0;color:#8d949e;font-size:14px}
+.screen-lock-hint{margin:28px 0 8px;color:#aeb6c0;font-size:13px;line-height:1.45}
+.screen-lock-pin{min-height:50px;border:1px solid #363b44;border-radius:11px;background:#111317;color:#f7f8fa;caret-color:#ff8796;font-size:24px;letter-spacing:.55em}
+.screen-lock-pin:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c}
+.screen-lock-keypad{grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 2px}
+.screen-lock-keypad button{width:100%;height:58px;min-height:58px;padding:0;border:1px solid #363b44;border-radius:16px;background:#202329;color:#f0f2f4;font-size:18px;font-weight:700;box-shadow:0 5px 12px #0003;transition:transform .12s ease,background .12s ease,border-color .12s ease}
+.screen-lock-keypad button:active{transform:scale(.95);background:#2a2027}
+.screen-lock-keypad button:hover,.screen-lock-keypad button:focus-visible{border-color:#ff6372;background:#2a2027;box-shadow:0 0 0 3px #ff63721c,0 6px 15px #0004}
+.screen-lock-keypad button[data-lock-key="⌫"],.screen-lock-keypad button[data-lock-key="Очистить"]{font-size:12px;color:#aeb6c0;background:#171a1f}
+.screen-lock-message{margin:14px 0 0;color:#8d949e}
+.screen-lock-message.error{color:#ff8792}
+.screen-lock-exit{display:flex;width:100%;justify-content:center;margin-top:14px;color:#8d949e;font-size:13px}
+.screen-lock-exit:hover{color:#ff9ba3}
+@media(max-width:600px){.screen-lock-card{padding:32px 24px}.screen-lock-keypad{gap:10px}.screen-lock-keypad button{height:54px;min-height:54px}}
