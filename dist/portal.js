@@ -817,7 +817,7 @@ function renderReservations() {
 }
 
 if (page === 'admin' && location.hash === '#loyalty') renderLoyalty();
-if (page === 'dashboard') renderDashboard();
+if (page === 'dashboard' && location.hash !== '#loyalty') renderDashboard();
 if (page === 'orders') renderOrders();
 if (page === 'integrations') renderIntegrations();
 if (page === 'network') renderNetwork();
