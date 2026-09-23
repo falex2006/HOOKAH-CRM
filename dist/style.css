@@ -706,7 +706,13 @@
 .velora-theme .orders-view .toolbar-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .velora-theme .orders-view #orders-sort{width:238px;min-width:238px;height:42px}
 @media(max-width:900px){.velora-theme .orders-view .toolbar-row{width:100%}.velora-theme .orders-view #orders-search,.velora-theme .orders-view #orders-sort,.velora-theme .orders-view #orders-status{flex:1 1 180px;width:auto;min-width:0;max-width:none}}
-.velora-theme .client-groups{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 14px;padding:4px;border:1px solid #2b3038;border-radius:12px;background:#15181d}.velora-theme .client-groups button{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:7px 11px;border:1px solid transparent;border-radius:9px;background:transparent;color:#9ca5b0;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}.velora-theme .client-groups button:hover{color:#f2f4f6;background:#20242a}.velora-theme .client-groups button.is-active{color:#fff;border-color:#ff6879;background:linear-gradient(100deg,#ff456922,#ff963d22);box-shadow:0 0 0 1px #ff637711}.velora-theme .client-groups button span{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#252b34;color:#c1cad4;font-size:10px;font-variant-numeric:tabular-nums}.velora-theme .client-groups button.is-active span{background:#ff637933;color:#ffb0aa}@media(max-width:700px){.velora-theme .client-groups{overflow-x:auto;flex-wrap:nowrap;margin-inline:-2px}.velora-theme .client-groups button{flex:0 0 auto}}
+.velora-theme .client-groups{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 14px;padding:4px;border:1px solid #2b3038;border-radius:12px;background:#15181d}
+.velora-theme .client-groups button{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:7px 11px;border:1px solid transparent;border-radius:9px;background:transparent;color:#9ca5b0;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.velora-theme .client-groups button:hover{color:#f2f4f6;background:#20242a}
+.velora-theme .client-groups button.is-active{color:#fff;border-color:#ff6879;background:linear-gradient(100deg,#ff456922,#ff963d22);box-shadow:0 0 0 1px #ff637711}
+.velora-theme .client-groups button span{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#252b34;color:#c1cad4;font-size:10px;font-variant-numeric:tabular-nums}
+.velora-theme .client-groups button.is-active span{background:#ff637933;color:#ffb0aa}
+@media(max-width:700px){.velora-theme .client-groups{overflow-x:auto;flex-wrap:nowrap;margin-inline:-2px}.velora-theme .client-groups button{flex:0 0 auto}}
 
 .velora-theme .client-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
 .velora-theme .client-insights article{display:grid;gap:5px;padding:14px 16px;border:1px solid #2b3038;border-radius:14px;background:linear-gradient(145deg,#1c1f24,#17191d)}
@@ -1097,11 +1103,58 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 @media(max-width:640px){.velora-theme .staff-admin-phone-row,.velora-theme .staff-phone-row{grid-template-columns:minmax(105px,1fr) minmax(0,1.5fr) 34px;gap:7px}.velora-theme .staff-admin-phone-row label,.velora-theme .staff-phone-row label{grid-column:1/3;grid-row:2;height:28px}.velora-theme .staff-admin-phone-row button,.velora-theme .staff-phone-row__remove{grid-column:3;grid-row:2;justify-self:end}}
 
 /* Responsive layout: desktop, tablets, phones and foldable screens. */
-@media (min-width:1800px){.velora-theme .portal-sidebar{width:280px;padding-inline:22px}.velora-theme .portal-header{padding-inline:56px}.velora-theme .portal-content{max-width:1760px;padding:52px 56px}.velora-theme .page-title h1{font-size:40px}}
-@media (max-width:1180px) and (min-width:761px){.velora-theme .portal-sidebar{width:210px;padding-inline:14px}.velora-theme .portal-header{padding-inline:28px}.velora-theme .portal-content{padding:30px 28px}.velora-theme .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme .content-grid{grid-template-columns:1fr}.velora-theme .insight-layout{grid-template-columns:1fr}}
-@media (max-width:760px){.velora-theme .portal-main{min-width:0;overflow-x:hidden}.velora-theme .portal-header{height:68px;padding-inline:16px;gap:10px}.velora-theme .portal-header>div:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.velora-theme .header-user-copy{display:none}.velora-theme .portal-content{padding:22px 14px}.velora-theme .page-title{gap:12px}.velora-theme .page-title h1{font-size:30px}.velora-theme .page-title .button{width:100%;box-sizing:border-box;text-align:center}.velora-theme .panel{padding:16px;border-radius:14px}.velora-theme .panel-head{gap:10px;flex-wrap:wrap}.velora-theme .toolbar-row{flex-wrap:wrap}.velora-theme .toolbar-row>*{min-width:0}.velora-theme .content-grid,.velora-theme .insight-layout{grid-template-columns:1fr;gap:14px}.velora-theme .quick-actions{grid-template-columns:1fr}.velora-theme .table-wrap{margin-inline:-4px}}
-@media (max-width:420px){.velora-theme .portal-sidebar{width:58px;padding:16px 6px}.velora-theme .portal-sidebar .brand{padding-bottom:22px}.velora-theme .portal-sidebar .portal-nav{gap:8px}.velora-theme .portal-sidebar .portal-nav a{width:44px;height:42px;padding:0;justify-content:center}.velora-theme .portal-header{height:62px;padding-inline:10px}.velora-theme .portal-content{padding:16px 10px}.velora-theme .page-title h1{font-size:26px}.velora-theme .page-title .muted{font-size:13px;line-height:1.35}.velora-theme .kpi{padding:15px}.velora-theme .kpi strong{font-size:28px}.velora-theme .staff-drawer-panel{padding:16px}.velora-theme .form-row,.velora-theme .settings-dashboard-insights{grid-template-columns:1fr}}
-@media (min-width:600px) and (max-width:900px) and (orientation:landscape){.velora-theme .portal-sidebar{width:84px;padding:18px 10px}.velora-theme .portal-sidebar .brand div,.velora-theme .portal-sidebar .side-label,.velora-theme .portal-sidebar .portal-nav span,.velora-theme .portal-sidebar .sidebar-footer{display:none}.velora-theme .portal-sidebar .brand{justify-content:center;padding-bottom:22px}.velora-theme .portal-sidebar .portal-nav a{justify-content:center;padding:12px 8px}.velora-theme .portal-content{padding:22px}}
+@media (min-width:1800px){
+  .velora-theme .portal-sidebar{width:280px;padding-inline:22px}
+  .velora-theme .portal-header{padding-inline:56px}
+  .velora-theme .portal-content{max-width:1760px;padding:52px 56px}
+  .velora-theme .page-title h1{font-size:40px}
+}
+@media (max-width:1180px) and (min-width:761px){
+  .velora-theme .portal-sidebar{width:210px;padding-inline:14px}
+  .velora-theme .portal-header{padding-inline:28px}
+  .velora-theme .portal-content{padding:30px 28px}
+  .velora-theme .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .velora-theme .content-grid{grid-template-columns:1fr}
+  .velora-theme .insight-layout{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .velora-theme .portal-main{min-width:0;overflow-x:hidden}
+  .velora-theme .portal-header{height:68px;padding-inline:16px;gap:10px}
+  .velora-theme .portal-header>div:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .velora-theme .header-user-copy{display:none}
+  .velora-theme .portal-content{padding:22px 14px}
+  .velora-theme .page-title{gap:12px}
+  .velora-theme .page-title h1{font-size:30px}
+  .velora-theme .page-title .button{width:100%;box-sizing:border-box;text-align:center}
+  .velora-theme .panel{padding:16px;border-radius:14px}
+  .velora-theme .panel-head{gap:10px;flex-wrap:wrap}
+  .velora-theme .toolbar-row{flex-wrap:wrap}
+  .velora-theme .toolbar-row>*{min-width:0}
+  .velora-theme .content-grid,.velora-theme .insight-layout{grid-template-columns:1fr;gap:14px}
+  .velora-theme .quick-actions{grid-template-columns:1fr}
+  .velora-theme .table-wrap{margin-inline:-4px}
+}
+@media (max-width:420px){
+  .velora-theme .portal-sidebar{width:58px;padding:16px 6px}
+  .velora-theme .portal-sidebar .brand{padding-bottom:22px}
+  .velora-theme .portal-sidebar .portal-nav{gap:8px}
+  .velora-theme .portal-sidebar .portal-nav a{width:44px;height:42px;padding:0;justify-content:center}
+  .velora-theme .portal-header{height:62px;padding-inline:10px}
+  .velora-theme .portal-content{padding:16px 10px}
+  .velora-theme .page-title h1{font-size:26px}
+  .velora-theme .page-title .muted{font-size:13px;line-height:1.35}
+  .velora-theme .kpi{padding:15px}
+  .velora-theme .kpi strong{font-size:28px}
+  .velora-theme .staff-drawer-panel{padding:16px}
+  .velora-theme .form-row,.velora-theme .settings-dashboard-insights{grid-template-columns:1fr}
+}
+@media (min-width:600px) and (max-width:900px) and (orientation:landscape){
+  .velora-theme .portal-sidebar{width:84px;padding:18px 10px}
+  .velora-theme .portal-sidebar .brand div,.velora-theme .portal-sidebar .side-label,.velora-theme .portal-sidebar .portal-nav span,.velora-theme .portal-sidebar .sidebar-footer{display:none}
+  .velora-theme .portal-sidebar .brand{justify-content:center;padding-bottom:22px}
+  .velora-theme .portal-sidebar .portal-nav a{justify-content:center;padding:12px 8px}
+  .velora-theme .portal-content{padding:22px}
+}
 @media (min-width:1800px){.staff-theme .workspace,.staff-theme .tabs,.staff-theme .queue{max-width:1760px;margin-inline:auto}.staff-theme .workspace{padding-inline:56px}.staff-theme header{padding-inline:56px}.staff-theme .tables{grid-template-columns:repeat(5,minmax(125px,1fr))}}
 @media (max-width:1180px) and (min-width:761px){.staff-theme aside{width:210px;padding-inline:14px}.staff-theme header{padding-inline:28px}.staff-theme .tabs,.staff-theme .workspace,.staff-theme .queue{padding-inline:28px}.staff-theme .workspace{grid-template-columns:minmax(0,1fr) 340px}.staff-theme .tables{grid-template-columns:repeat(3,minmax(110px,1fr))}}
 @media (max-width:760px){.staff-theme header{height:68px;padding-inline:16px}.staff-theme .tabs{padding:16px 14px 12px;overflow-x:auto}.staff-theme .tabs button{flex:0 0 auto;padding:9px 14px}.staff-theme .workspace{grid-template-columns:1fr;padding:0 14px;gap:14px}.staff-theme .tables{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.staff-theme .table{height:116px;padding:13px}.staff-theme .table strong{font-size:20px}.staff-theme .table em{margin-top:10px}.staff-theme .order{padding:18px}.staff-theme .queue{padding:18px 14px 24px}}
@@ -1124,3 +1177,8 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .finance-segment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.finance-segment-grid article{padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);display:grid;gap:6px}.finance-segment-grid span,.finance-segment-grid small{color:var(--muted)}.finance-segment-grid strong{font-size:22px;color:var(--text)}.finance-chart-median{stroke:#72ddff!important;stroke-dasharray:7 7;fill:none}@media(max-width:700px){.finance-segment-grid{grid-template-columns:1fr}}
 
 .finance-preferences{margin-top:16px}.finance-preferences small{display:block;color:var(--muted);margin-top:8px;line-height:1.4}
+
+/* Personal light theme */
+.portal.light-theme{background:#f5f7fa;color:#1b2832}.portal.light-theme .portal-app{background:#f5f7fa}.portal.light-theme .portal-sidebar{background:#fff;color:#5d6b76;border-right-color:#e1e7eb}.portal.light-theme .brand b{color:#20313d}.portal.light-theme .brand small,.portal.light-theme .side-label{color:#7b8b95}.portal.light-theme .portal-nav a{color:#61717b}.portal.light-theme .portal-nav a:hover{background:#eef3f6;color:#20313d}.portal.light-theme .portal-nav a.active{color:#fff}.portal.light-theme .sidebar-footer{border-top-color:#e2e8ec;color:#82919a}.portal.light-theme .sidebar-footer b{color:#30434f}.portal.light-theme .portal-main{background:radial-gradient(circle at 84% -10%,#e5eef5 0,#f6f8fa 38%,#f5f7fa 72%)}.portal.light-theme .portal-header{background:#ffffffdd;border-bottom-color:#e1e7eb;color:#526672}.portal.light-theme .muted,.portal.light-theme .page-title .muted{color:#71818b}.portal.light-theme .page-title h1{color:#1a2a34}.portal.light-theme .panel,.portal.light-theme .kpi{background:#fff;border-color:#e0e7eb;box-shadow:0 8px 24px #1934420d;color:#263944}.portal.light-theme .panel h2,.portal.light-theme .staff-form b{color:#20313d}.portal.light-theme .kpi span,.portal.light-theme .kpi small{color:#71818b}.portal.light-theme .kpi strong{color:#1a2a34}.portal.light-theme .table-search,.portal.light-theme .date-input,.portal.light-theme .stack-form input,.portal.light-theme .stack-form select,.portal.light-theme .stack-form textarea,.portal.light-theme .company-form input,.portal.light-theme .staff-form input,.portal.light-theme .staff-form select{background:#fff;border-color:#d3dfe5;color:#253b47}.portal.light-theme th{color:#71818b;border-bottom-color:#e1e8ec}.portal.light-theme td{color:#405762;border-bottom-color:#e7edf0}.portal.light-theme .staff-row{border-bottom-color:#e2e8ec}.portal.light-theme .staff-row small{color:#7b8b95}.portal.light-theme .quick-actions a{background:#f8fbfc;border-color:#dfe8ec;color:#147795}.portal.light-theme .company-panel,.portal.light-theme .audit-panel{background:#fff}
+.staff-theme.light-theme{background:#f4f7fa;color:#20313d}.staff-theme.light-theme .app{background:radial-gradient(circle at 78% -15%,#e7f1f7 0,#f7f9fa 45%,#f4f7fa 78%)}.staff-theme.light-theme aside{background:#fff;border-right-color:#e1e7eb}.staff-theme.light-theme aside h1{color:#20313d}.staff-theme.light-theme aside>small,.staff-theme.light-theme .user small{color:#71818b}.staff-theme.light-theme nav button{color:#62737d}.staff-theme.light-theme nav button:hover{background:#eef3f6;color:#20313d}.staff-theme.light-theme header{background:#ffffffdd;border-bottom-color:#e1e7eb;color:#62737d}.staff-theme.light-theme header b{color:#20313d}.staff-theme.light-theme .tabs button{background:#fff;border-color:#d7e1e6;color:#71818b}.staff-theme.light-theme .tabs .selected{background:#eef3f6;color:#20313d;border-color:#ff6372}.staff-theme.light-theme .table,.staff-theme.light-theme .order{background:#fff;border-color:#dfe7eb;box-shadow:0 10px 24px #19344212}.staff-theme.light-theme .table strong,.staff-theme.light-theme .order h2{color:#20313d}.staff-theme.light-theme .meta,.staff-theme.light-theme .items div{color:#5f717b}.staff-theme.light-theme .secondary,.staff-theme.light-theme .actions button{background:#f8fbfc;border-color:#cbd9e0;color:#167795}.staff-theme.light-theme .queue-card{background:#fff;border-color:#dfe7eb;color:#304650}.staff-theme.light-theme .chips button{background:#eef3f6;border-color:#d4e0e6;color:#62737d}
+.theme-preference{display:flex!important;align-items:center;gap:8px;margin:10px 0 14px;color:#6c7e88!important;font-size:13px!important}.theme-preference input{width:16px!important;min-width:16px!important;accent-color:#ff5b70}
