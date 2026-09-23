@@ -36,6 +36,10 @@ document.querySelector('#setup-password-toggle')?.addEventListener('click', (eve
 const showSetupIfNeeded = async () => {
   try {
     const response = await fetch('/api/setup/status', { cache: 'no-store' });
+    if (response.status === 404) {
+      if (form && setupForm) { form.hidden = true; setupForm.hidden = false; setupForm.querySelector('#setup-venue')?.focus(); }
+      return;
+    }
     const status = response.ok ? await response.json() : null;
     if (status?.required && form && setupForm) {
       form.hidden = true;
@@ -61,6 +65,12 @@ setupForm?.addEventListener('submit', async (event) => {
   if (submit) { submit.disabled = true; submit.textContent = 'Создаём…'; }
   try {
     const response = await fetch('/api/setup/owner', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    if (response.status === 404) {
+      const owner = { id: `local-owner-${Date.now()}`, name: payload.ownerName, role: 'owner', avatarUrl: null };
+      localStorage.setItem('territory_crm_demo_state', JSON.stringify({ venue: { name: payload.venueName, city: payload.city, timezone: payload.timezone }, staff: [{ ...owner, login: payload.ownerLogin, password: payload.ownerPassword, active: true }] }));
+      await finishLogin({ token: `demo-static-owner-${Date.now()}`, user: owner });
+      return;
+    }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'setup_failed');
     const loginResponse = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: payload.ownerLogin, password: payload.ownerPassword }) });
