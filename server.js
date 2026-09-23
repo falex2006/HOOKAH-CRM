@@ -1369,22 +1369,24 @@ if (staffProfile && req.method === 'PATCH') {
     const input = await body(req);
     if (input.reason !== undefined && String(input.reason).length > 200) return json(res, 400, { error: 'movement_reason_too_long' });
     input.reason = String(input.reason || 'Корректировка').trim().slice(0, 200);
+    const unitFactors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
     if (repositories?.inventory) {
       const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const delta = Number(input.delta);
-      if (!item || !Number.isFinite(delta) || delta === 0) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
-      if (item.onHand + delta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
-      const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: delta > 0 ? 'in' : 'out', quantity: Math.abs(delta), reason: input.reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
-      recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand }, { onHand: item.onHand + delta, movement });
-      return json(res, 201, { ...movement, itemName: item.name, delta });
+      const sourceUnit = String(input.unit || item?.unit || ''); const convertedDelta = item && unitFactors[sourceUnit]?.[item.unit] ? delta * unitFactors[sourceUnit][item.unit] : delta;
+      if (!item || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(convertedDelta)) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
+      if (item.onHand + convertedDelta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
+      const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: convertedDelta > 0 ? 'in' : 'out', quantity: Math.abs(convertedDelta), reason: input.reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
+      recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand }, { onHand: item.onHand + convertedDelta, movement });
+      return json(res, 201, { ...movement, itemName: item.name, delta: convertedDelta, unit: item.unit, sourceUnit });
     }
     const item = inventory.find((entry) => entry.id === input.itemId);
-    const delta = Number(input.delta);
-    if (!item || !Number.isFinite(delta) || delta === 0) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
-    if (item.onHand + delta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
-    item.onHand = Math.round((item.onHand + delta) * 100) / 100;
-    const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta, reason: input.reason, createdAt: new Date().toISOString() };
+    const delta = Number(input.delta); const sourceUnit = String(input.unit || item?.unit || ''); const convertedDelta = item && unitFactors[sourceUnit]?.[item.unit] ? delta * unitFactors[sourceUnit][item.unit] : delta;
+    if (!item || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(convertedDelta)) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
+    if (item.onHand + convertedDelta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
+    item.onHand = Math.round((item.onHand + convertedDelta) * 100) / 100;
+    const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta: convertedDelta, unit: item.unit, sourceUnit, reason: input.reason, createdAt: new Date().toISOString() };
     stockMovements.push(movement);
-    recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand - delta }, { onHand: item.onHand, movement });
+    recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand - convertedDelta }, { onHand: item.onHand, movement });
     return json(res, 201, movement);
   }
   if (pathname === '/api/finance/summary' && req.method === 'GET') {
