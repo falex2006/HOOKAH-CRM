@@ -10,4 +10,6 @@ assert.match(server, /rule\.rule_type === 'hourly'/);
 assert.match(expenses, /CREATE TABLE IF NOT EXISTS expenses/);
 assert.match(server, /\/api\/expenses/);
 assert.match(server, /source.*payroll/);
+assert.match(server, /expensesByDate/);
+assert.match(server, /netProfit: revenue - expenses/);
 console.log('PAYROLL QA: schedule, work time, rules and hourly calculation wired');
