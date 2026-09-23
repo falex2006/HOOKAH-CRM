@@ -717,6 +717,34 @@
 .velora-theme .client-card.is-selected{border-color:#ff7180;box-shadow:0 0 0 2px #ff718033,0 14px 30px #00000030;transform:translateY(-1px)}
 .velora-theme .client-card.is-selected .client-avatar{box-shadow:0 0 0 2px #ff718088}
 
+/* Guests: search first, then a dense scannable list and an always-ready editor. */
+@media(min-width:761px){
+  body[data-page="clients"] .content-grid{grid-template-columns:minmax(0,1fr) minmax(340px,390px);align-items:start}
+  body[data-page="clients"] .content-grid>#client-editor{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow:auto}
+  body[data-page="clients"] .panel.wide>.panel-head{display:grid;grid-template-columns:minmax(150px,.65fr) minmax(0,1.35fr);gap:16px;align-items:center}
+  body[data-page="clients"] .clients-toolbar{display:grid;grid-template-columns:minmax(170px,1fr) repeat(2,minmax(120px,.7fr));gap:8px;min-width:0}
+  body[data-page="clients"] .clients-toolbar .table-search{width:100%;max-width:none;min-width:0}
+  body[data-page="clients"] .clients-toolbar select{width:100%;min-width:0}
+}
+body[data-page="clients"] .client-grid{grid-template-columns:1fr;gap:8px}
+body[data-page="clients"] .client-card{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:13px}
+body[data-page="clients"] .client-card:hover{transform:translateX(2px) translateY(0)}
+body[data-page="clients"] .client-card-head{flex:1 1 250px;min-width:220px}
+body[data-page="clients"] .client-tags{flex:0 1 185px;min-width:145px;margin:0;align-content:center}
+body[data-page="clients"] .client-card>.preference-line,body[data-page="clients"] .client-card>.muted{display:none}
+body[data-page="clients"] .client-actions{flex:0 0 auto}
+body[data-page="clients"] .client-card h3{font-size:15px;margin-bottom:3px}
+body[data-page="clients"] .client-card small{font-size:11px}
+body[data-page="clients"] .client-editor .panel-head{position:sticky;top:-1px;z-index:2;padding-bottom:12px;background:linear-gradient(145deg,#1b1e23,#17191d);border-bottom:1px solid #2b3038}
+body[data-page="clients"] #client-form{gap:11px}
+body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0ba}
+@media(max-width:760px){body[data-page="clients"] .client-card{align-items:flex-start;flex-wrap:wrap}.client-card-head{min-width:0;flex:1 1 100%}.client-tags{flex:1 1 auto}.client-actions{margin-left:auto}body[data-page="clients"] .content-grid>#client-editor{order:-1}}
+@media(max-width:1100px) and (min-width:761px){
+  body[data-page="clients"] .content-grid{grid-template-columns:1fr}
+  body[data-page="clients"] .content-grid>#client-editor{position:static;max-height:none;overflow:visible}
+  body[data-page="clients"] .panel.wide>.panel-head{grid-template-columns:minmax(170px,.7fr) minmax(0,1.3fr)}
+}
+
 /* Унифицированные выпадающие меню во всех режимах и модальных окнах */
 .velora-theme select,.staff-theme select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aa3ae' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:16px;padding-right:38px;line-height:1.2}
 .velora-theme select:focus,.staff-theme select:focus{border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c;outline:none}
