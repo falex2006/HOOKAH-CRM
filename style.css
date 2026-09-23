@@ -933,6 +933,22 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .velora-theme .lock-screen-button .icon,.staff-theme .lock-screen-button .icon{position:absolute;left:15px;top:50%;margin:0;transform:translateY(-50%)}
 @media(max-width:600px){.velora-theme .lock-screen-button,.staff-theme .lock-screen-button{min-width:42px;width:42px;padding:0}.velora-theme .lock-screen-button .icon,.staff-theme .lock-screen-button .icon{left:50%;transform:translate(-50%,-50%)}}
 
+/* Keep the staff workspace shell visually identical to the administrator shell. */
+.staff-theme .portal-sidebar{width:244px;box-sizing:border-box;background:#17191d;color:#b8bec7;border-right:1px solid #2a2d33;padding:26px 16px}
+.staff-theme .portal-sidebar .brand{padding:0 10px 34px}
+.staff-theme .portal-sidebar .brand b{color:#f7f8fa;letter-spacing:-.02em}
+.staff-theme .portal-sidebar .brand small{color:#777e89;margin-top:4px}
+.staff-theme .portal-sidebar .brand-icon{width:38px;height:38px;border-radius:12px;background:linear-gradient(145deg,#ff4f65,#ff9b3d);box-shadow:0 6px 18px #ff5b5228;color:#fff}
+.staff-theme .portal-sidebar .side-label{min-height:28px;margin:0;padding:0 13px 9px;color:#6d737e;letter-spacing:.16em;line-height:1.2}
+.staff-theme .portal-sidebar .portal-nav{display:grid;gap:6px;margin:0;flex:0 0 auto}
+.staff-theme .portal-sidebar .portal-nav button{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;box-sizing:border-box;margin:0;padding:0 13px;border:1px solid transparent;border-radius:12px;background:transparent;color:#aeb4bd;text-align:left;font:inherit;line-height:1.25;transition:background .18s ease,border-color .18s ease,transform .18s ease,box-shadow .18s ease}
+.staff-theme .portal-sidebar .portal-nav button:hover{background:#24272d;border-color:#3b424c;color:#fff;transform:translateX(2px)}
+.staff-theme .portal-sidebar .portal-nav button.active{background:linear-gradient(100deg,#ff4164,#ff963d);border-color:#ff718044;color:#fff;box-shadow:0 8px 18px #ff5b4c25}
+.staff-theme .portal-sidebar .portal-nav + .side-label{margin-top:18px}
+.staff-theme .portal-sidebar .portal-nav button .icon{width:18px;height:18px;flex:0 0 18px;color:currentColor}
+.staff-theme .portal-sidebar .user{margin-top:auto;color:#dfe2e6}
+@media(max-width:650px){.staff-theme .portal-sidebar{width:68px;padding:20px 10px}.staff-theme .portal-sidebar .brand{padding:0 0 26px;justify-content:center}.staff-theme .portal-sidebar .brand div,.staff-theme .portal-sidebar .side-label,.staff-theme .portal-sidebar .portal-nav span{display:none}.staff-theme .portal-sidebar .portal-nav{gap:10px}.staff-theme .portal-sidebar .portal-nav button{width:46px;height:42px;min-height:42px;margin:0 auto;padding:0;justify-content:center;font-size:0}.staff-theme .portal-sidebar .portal-nav button .icon{width:20px;height:20px;flex-basis:20px}.staff-theme .portal-sidebar .user{width:46px;margin:18px auto 0;font-size:0}.staff-theme .portal-sidebar .user .current-mode,.staff-theme .portal-sidebar .user .mode-switch-menu,.staff-theme .portal-sidebar .user .staff-logout{font-size:0}}
+
 /* Sidebar navigation rhythm: keep section labels and links on a steady vertical grid. */
 .velora-theme .portal-sidebar > .side-label{
   min-height:28px;
