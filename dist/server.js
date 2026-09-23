@@ -56,14 +56,21 @@ const products = [
 ];
 products.forEach((product) => { product.category = product.category || (product.station === 'bar' ? 'Бар' : 'Кальянная зона'); });
 products.push(...catalogSeed.products);
+// The hosted demo starts with an empty business workspace. Technology cards
+// remain seeded below, while menu items are created by the customer.
+products.length = 0;
 const productCategories = [
-  { id: 'product-category-bar', name: 'Бар', active: true },
-  { id: 'product-category-hookah', name: 'Кальянная зона', active: true },
-  { id: 'product-category-kitchen', name: 'Кухня', active: true },
-  { id: 'product-category-fridge', name: 'Холодильник', active: true }
+  { id: 'product-category-soft', name: 'Безалкогольные напитки', department: 'bar', active: true },
+  { id: 'product-category-alcohol', name: 'Алкогольные напитки', department: 'bar', active: true },
+  { id: 'product-category-tea', name: 'Чай и кофе', department: 'bar', active: true },
+  { id: 'product-category-kitchen', name: 'Продукты и заготовки', department: 'kitchen', active: true },
+  { id: 'product-category-hookah', name: 'Табак и смеси', department: 'hookah', active: true },
+  { id: 'product-category-inventory', name: 'Расходники и инвентарь', department: 'inventory', active: true }
 ];
 const importedProductCategoryNames = [...new Set(catalogSeed.products.map((item) => String(item.category || '').trim()).filter(Boolean))];
 for (const name of importedProductCategoryNames) if (!productCategories.some((item) => item.name === name)) productCategories.push({ id: 'seed-category-' + name.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '-').slice(0, 32), name, active: true });
+productCategories.length = 0;
+const recipes = (catalogSeed.recipes || []).map((recipe, index) => ({ ...recipe, id: recipe.id || 'recipe-' + (index + 1), ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [] }));
 const floor = [
   { id: 'hall', name: 'Зал', tables: Array.from({ length: 12 }, (_, i) => {
     const n = i + 1;
@@ -74,12 +81,14 @@ const floor = [
     { id: 'vip-room-2', name: 'VIP-комната 2', status: 'free', capacity: 6, minimumOrderTotal: 2500, layout: {} }
   ] }
 ];
+floor.length = 0;
 const orders = [];
 const discountRequests = [];
 const staff = [
   { id: 'u-owner', name: 'Владелец', role: 'owner', active: true, avatarUrl: null, telegram: '', phoneNumbers: [], passportData: null, permissionScopes: [] },
   { id: 'u-maria', name: 'Мария', role: 'bartender', active: true, avatarUrl: null, telegram: '', phoneNumbers: [], passportData: null, permissionScopes: [] }
 ];
+staff.splice(1);
 const inventory = [
   { id: 'ing-redbull', name: 'Red Bull', category: 'Холодильник', unit: 'шт', onHand: 24, minLevel: 10 },
   { id: 'ing-coco', name: 'Уголь Coco Nara', category: 'Кальянная зона', unit: 'уп', onHand: 8, minLevel: 5 },
@@ -87,6 +96,7 @@ const inventory = [
   { id: 'ing-lime', name: 'Лайм', category: 'Бар', unit: 'кг', onHand: 3.2, minLevel: 1 },
   { id: 'ing-bowl', name: 'Чаша глиняная', category: 'Кальянная зона', unit: 'шт', onHand: 14, minLevel: 4 }
 ];
+inventory.length = 0;
 const stockMovements = [];
 const reservations = [];
 const deliveries = [];
@@ -97,12 +107,20 @@ const financeCategories = [
   { id: 'finance-stock', name: 'Склад', kind: 'expense', active: true },
   { id: 'finance-delivery', name: 'Доставка', kind: 'expense', active: true }
 ];
+financeCategories.length = 0;
 const auditEvents = [];
 const staffNotifications = [];
-const clients = [
-  { id: 'client-anna', name: 'Анна Смирнова', phoneNumbers: [{ label: 'Основной', number: '+79991112233', primary: true }], telegram: '@anna_sm', tobaccoPreferences: ['Darkside', 'Мята'], bowlPreferences: ['Кальянная чаша'], barPreferences: ['Лимонад маракуйя', 'Red Bull'], allergies: '', notes: 'Предпочитает среднюю крепость', loyaltyPoints: 420, visits: 6, totalSpent: 18400, lastVisitAt: '2026-09-18T21:30:00.000Z' },
-  { id: 'client-igor', name: 'Игорь Волков', phoneNumbers: [{ label: 'Основной', number: '+79994445566', primary: true }, { label: 'Рабочий', number: '+79997778899', primary: false }], telegram: '', tobaccoPreferences: ['Tangiers', 'Ягодные миксы'], bowlPreferences: ['Калауд'], barPreferences: ['Кола', 'Виски'], allergies: 'Орехи', notes: '', loyaltyPoints: 180, visits: 3, totalSpent: 9200, lastVisitAt: '2026-09-12T20:10:00.000Z' }
+const discountGroups = [
+  { id: 'none', name: 'Без скидки', discountPercent: 0, bonusPercent: 0, depositMin: 0, active: true },
+  { id: 'regular', name: 'Постоянный гость', discountPercent: 5, bonusPercent: 1, depositMin: 0, active: true },
+  { id: 'vip', name: 'VIP', discountPercent: 10, bonusPercent: 2, depositMin: 3000, active: true }
 ];
+discountGroups.length = 0;
+const clients = [
+  { id: 'client-anna', name: 'Анна Смирнова', phoneNumbers: [{ label: 'Основной', number: '+79991112233', primary: true }], telegram: '@anna_sm', tobaccoPreferences: ['Darkside', 'Мята'], bowlPreferences: ['Кальянная чаша'], barPreferences: ['Лимонад маракуйя', 'Red Bull'], allergies: '', notes: 'Предпочитает среднюю крепость', loyaltyPoints: 420, bonusBalance: 420, depositBalance: 0, discountGroupId: 'regular', visits: 6, totalSpent: 18400, lastVisitAt: '2026-09-18T21:30:00.000Z' },
+  { id: 'client-igor', name: 'Игорь Волков', phoneNumbers: [{ label: 'Основной', number: '+79994445566', primary: true }, { label: 'Рабочий', number: '+79997778899', primary: false }], telegram: '', tobaccoPreferences: ['Tangiers', 'Ягодные миксы'], bowlPreferences: ['Калауд'], barPreferences: ['Кола', 'Виски'], allergies: 'Орехи', notes: '', loyaltyPoints: 180, bonusBalance: 180, depositBalance: 3000, discountGroupId: 'vip', visits: 3, totalSpent: 9200, lastVisitAt: '2026-09-12T20:10:00.000Z' }
+];
+clients.length = 0;
 const sessions = new Map();
 const loginAttempts = new Map();
 const shifts = [];
@@ -142,12 +160,17 @@ const staffPassportCipher = {
 };const rolePermissions = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
   admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
+  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'settings'],
   senior_bartender: ['floor', 'orders', 'bar_tasks'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
   hookah_master: ['floor', 'orders', 'hookah_tasks'],
   developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations', 'delivery'],
-  platform_owner: ['platform', 'diagnostics', 'settings']
+  platform_owner: ['platform', 'diagnostics', 'settings'],
+  cleaner: [],
+  security: [],
+  technician: [],
+  other_staff: []
 };
 const staffPinCipher = {
   encrypt(pin) { const wrapped = staffPassportCipher.encrypt({ pin: String(pin) }); return wrapped; },
@@ -232,6 +255,7 @@ const recordAudit = (req, action, entityType, entityId, beforeData, afterData) =
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 2_000_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && effectivePermissions(req.user).includes(permission));
 const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (['admin', 'developer'].includes(req.user?.role) && !['owner', 'admin', 'developer'].includes(role));
+const canManageVenueIdentity = (req) => process.env.AUTH_REQUIRED !== 'true' || ['owner', 'admin', 'developer'].includes(req.user?.role);
 const canSeeSensitiveStaff = (req) => Boolean(req.user && effectivePermissions(req.user).includes('staff_sensitive'));
 const denyUnless = (req, res, permission) => { if (hasPermission(req, permission)) return false; json(res, 403, { error: 'forbidden', permission }); return true; };
 const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };
@@ -303,7 +327,7 @@ async function api(req, res) {
     return json(res, 200, { ok: true });
   }
   if (pathname === '/api/session/preferences' && (req.method === 'GET' || req.method === 'PATCH')) {
-    const allowed = new Set(['lockTimeoutMinutes', 'dashboardModules', 'dashboardRevenueStyle', 'insights']);
+    const allowed = new Set(['lockTimeoutMinutes', 'dashboardModules', 'dashboardRevenueStyle', 'insights', 'deliveryEnabled', 'integrationsEnabled', 'navigationVisibility', 'financeMetrics']);
     const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
     const memorySession = sessions.get(token);
     if (req.method === 'GET') {
@@ -316,7 +340,7 @@ async function api(req, res) {
     const patch = {}; for (const [key, value] of Object.entries(incoming)) if (allowed.has(key)) patch[key] = value;
     if (Object.prototype.hasOwnProperty.call(patch, 'lockTimeoutMinutes') && ![0, 1, 5, 10, 15, 30].includes(Number(patch.lockTimeoutMinutes))) return json(res, 400, { error: 'invalid_lock_timeout' });
     if (Object.prototype.hasOwnProperty.call(patch, 'dashboardRevenueStyle') && !['hero', 'split', 'minimal'].includes(String(patch.dashboardRevenueStyle))) return json(res, 400, { error: 'invalid_dashboard_revenue_style' });
-    for (const key of ['dashboardModules', 'insights']) if (Object.prototype.hasOwnProperty.call(patch, key) && (!patch[key] || typeof patch[key] !== 'object' || Array.isArray(patch[key]))) return json(res, 400, { error: `invalid_${key}_preferences` });
+    for (const key of ['dashboardModules', 'insights', 'financeMetrics']) if (Object.prototype.hasOwnProperty.call(patch, key) && (!patch[key] || typeof patch[key] !== 'object' || Array.isArray(patch[key]))) return json(res, 400, { error: `invalid_${key}_preferences` });
     const current = memorySession?.user?.preferences || {};
     const next = { ...current, ...patch };
     if (memorySession) memorySession.user.preferences = next;
@@ -488,6 +512,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/venue' && (req.method === 'PATCH' || req.method === 'PUT')) {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     const input = await body(req); const before = { ...venue };
     if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'venue_name_required' });
     if (input.city !== undefined && (!String(input.city).trim() || String(input.city).length > 80)) return json(res, 400, { error: 'venue_city_required' });
@@ -510,11 +535,13 @@ async function api(req, res) {
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
   if (pathname === '/api/network/venues' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,format,city,address,phone,timezone,is_current AS "isCurrent" FROM venues WHERE is_active=true ORDER BY name'); const hasMarkedCurrent = rows.some((row) => Boolean(row.isCurrent)); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: hasMarkedCurrent ? Boolean(row.isCurrent) : row.id === venueDbId })) }); } catch (_) {} }
     return json(res, 200, { items: networkVenues.filter((item) => item.status !== 'archived').map((item) => ({ ...item, isCurrent: item.id === currentVenueId })) });
   }
   if (pathname === '/api/network/venues' && req.method === 'POST') {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     const input = await body(req); const name = String(input.name || '').trim(); const city = String(input.city || '').trim(); const address = String(input.address || '').trim();
     if (!name || name.length > 120 || !city || city.length > 80 || !address || address.length > 240) return json(res, 400, { error: 'venue_name_city_address_required' });
     const item = { id: `venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, format: String(input.format || 'кальян-бар').trim().slice(0, 80), city, address, phone: String(input.phone || '').trim().slice(0, 32), timezone: String(input.timezone || venue.timezone).trim().slice(0, 64), status: 'active', isCurrent: false };
@@ -529,6 +556,7 @@ async function api(req, res) {
   const networkVenuePath = pathname.match(/^\/api\/network\/venues\/([^/]+)$/);
   if (networkVenuePath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenuePath[1])) {
       const input = await body(req);
       const fields = []; const values = [networkVenuePath[1]];
@@ -545,6 +573,7 @@ async function api(req, res) {
   }
   if (networkVenuePath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenuePath[1])) {
       if (networkVenuePath[1] === venueDbId) return json(res, 409, { error: 'current_venue_cannot_be_archived' });
       try { const { rows } = await repositories.pool.query('UPDATE venues SET is_active=false WHERE id=$1 AND is_active=true RETURNING id,name,format,city,address,phone,timezone', [networkVenuePath[1]]); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const archived = { ...rows[0], status: 'archived', isCurrent: false }; recordAudit(req, 'venue.archived', 'venue', archived.id, { status: 'active' }, archived); return json(res, 200, archived); } catch (error) { return json(res, 409, { error: 'venue_archive_failed', detail: error.message }); }
@@ -612,16 +641,18 @@ async function api(req, res) {
     const end = new Date(); const start = new Date(end); start.setDate(start.getDate() - 6); const startDate = start.toISOString().slice(0, 10); const endDate = end.toISOString().slice(0, 10);
     if (repositories?.pool) {
       try {
-        const [daily, products, hall] = await Promise.all([
+        const [daily, products, hall, staffRows, stationRows] = await Promise.all([
           repositories.pool.query(`SELECT d::date AS date, COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM generate_series($2::date,$3::date,'1 day') d LEFT JOIN orders o ON o.venue_id=$1 AND o.status='closed' AND o.closed_at::date=d::date LEFT JOIN payments p ON p.order_id=o.id AND p.status IN ('paid','partially_paid') GROUP BY d::date ORDER BY d::date`, [venueDbId, startDate, endDate]),
           repositories.pool.query(`SELECT COALESCE(p.name,'Позиция') AS name, SUM(oi.quantity)::numeric AS quantity FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($3::date + INTERVAL '1 day') GROUP BY p.name ORDER BY quantity DESC LIMIT 5`, [venueDbId, startDate, endDate]),
-          repositories.pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status IN ('occupied','reserved'))::int AS busy FROM tables WHERE venue_id=$1`, [venueDbId])
+          repositories.pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status IN ('occupied','reserved'))::int AS busy FROM tables WHERE venue_id=$1`, [venueDbId]),
+          repositories.pool.query(`SELECT COALESCE(u.full_name,u.login,'Не указан') AS name, COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM orders o LEFT JOIN payments p ON p.order_id=o.id AND p.status IN ('paid','partially_paid') LEFT JOIN users u ON u.id=o.opened_by WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($3::date + INTERVAL '1 day') GROUP BY u.full_name,u.login ORDER BY revenue DESC`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT COALESCE(oi.station,'other') AS station, COALESCE(SUM(oi.quantity * oi.unit_price),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($3::date + INTERVAL '1 day') GROUP BY oi.station ORDER BY revenue DESC`, [venueDbId, startDate, endDate])
         ]);
-        const days = daily.rows.map((row) => ({ date: String(row.date).slice(0, 10), revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const hallRow = hall.rows[0] || {};
-        return json(res, 200, { days, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: products.rows.map((row) => ({ name: row.name, quantity: Number(row.quantity || 0) })), hallLoad: { busy: Number(hallRow.busy || 0), total: Number(hallRow.total || 0) } });
+        const days = daily.rows.map((row) => { const revenue = Number(row.revenue || 0); const orders = Number(row.orders || 0); return { date: String(row.date).slice(0, 10), revenue, expenses: 0, netProfit: revenue, orders, averageCheck: orders ? revenue / orders : 0, medianCheck: orders ? revenue / orders : 0, tables: 0 }; }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalExpenses = days.reduce((sum, row) => sum + row.expenses, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const hallRow = hall.rows[0] || {};
+        return json(res, 200, { days, totalRevenue, totalExpenses, netProfit: totalRevenue - totalExpenses, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: products.rows.map((row) => ({ name: row.name, quantity: Number(row.quantity || 0) })), staffDynamics: staffRows.rows.map((row) => ({ name: row.name, revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })), medianCheck: totalOrders ? totalRevenue / totalOrders : 0, avgTablesPerDay: 0, byStation: Object.fromEntries(stationRows.rows.map((row) => [row.station, { revenue: Number(row.revenue || 0), orders: Number(row.orders || 0), averageCheck: Number(row.orders || 0) ? Number(row.revenue || 0) / Number(row.orders || 0) : 0 }])), hallLoad: { busy: Number(hallRow.busy || 0), total: Number(hallRow.total || 0) } });
       } catch (error) { return json(res, 503, { error: 'analytics_unavailable', detail: error.message }); }
     }
-    const dayKey = (value) => businessDateKey(value); const dayDates = recentBusinessDates(7); const days = dayDates.map((date) => { const closed = orders.filter((order) => order.status === 'closed' && dayKey(order.closedAt || order.createdAt) === date); return { date, revenue: closed.reduce((sum, order) => sum + Number(order.finalTotal || orderTotal(order) || 0), 0), orders: closed.length }; }); const counts = new Map(); orders.filter((order) => order.status === 'closed' && dayDates.includes(dayKey(order.closedAt || order.createdAt))).flatMap((order) => order.items || []).forEach((item) => { const name = item.name || item.productName || item.productId || 'Позиция'; counts.set(name, (counts.get(name) || 0) + Number(item.quantity || 0)); }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const tables = floor.flatMap((zone) => zone.tables || []); return json(res, 200, { days, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, quantity]) => ({ name, quantity })), hallLoad: { busy: tables.filter((table) => ['occupied', 'reserved'].includes(table.status)).length, total: tables.length } });
+    const dayKey = (value) => businessDateKey(value); const dayDates = recentBusinessDates(7); const days = dayDates.map((date) => { const closed = orders.filter((order) => order.status === 'closed' && dayKey(order.closedAt || order.createdAt) === date); const checks = closed.map((order) => Number(order.finalTotal || orderTotal(order) || 0)).sort((a, b) => a - b); const revenue = checks.reduce((sum, value) => sum + value, 0); const medianCheck = checks.length ? (checks.length % 2 ? checks[(checks.length - 1) / 2] : (checks[checks.length / 2 - 1] + checks[checks.length / 2]) / 2) : 0; return { date, revenue, expenses: 0, netProfit: revenue, orders: closed.length, averageCheck: closed.length ? revenue / closed.length : 0, medianCheck, tables: new Set(closed.map((order) => order.tableId).filter(Boolean)).size }; }); const counts = new Map(); orders.filter((order) => order.status === 'closed' && dayDates.includes(dayKey(order.closedAt || order.createdAt))).flatMap((order) => order.items || []).forEach((item) => { const name = item.name || item.productName || item.productId || 'Позиция'; counts.set(name, (counts.get(name) || 0) + Number(item.quantity || 0)); }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalExpenses = days.reduce((sum, row) => sum + row.expenses, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const staffMap = new Map(); orders.filter((order) => order.status === 'closed' && dayDates.includes(dayKey(order.closedAt || order.createdAt))).forEach((order) => { const name = order.createdByName || order.waiterName || 'Не указан'; const row = staffMap.get(name) || { name, revenue: 0, orders: 0 }; row.revenue += Number(order.finalTotal || orderTotal(order) || 0); row.orders += 1; staffMap.set(name, row); }); const tables = floor.flatMap((zone) => zone.tables || []); return json(res, 200, { days, totalRevenue, totalExpenses, netProfit: totalRevenue - totalExpenses, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, quantity]) => ({ name, quantity })), staffDynamics: [...staffMap.values()].sort((a, b) => b.revenue - a.revenue), medianCheck: days.length ? days.reduce((sum, row) => sum + row.medianCheck, 0) / days.length : 0, avgTablesPerDay: days.length ? days.reduce((sum, row) => sum + row.tables, 0) / days.length : 0, byStation: {}, hallLoad: { busy: tables.filter((table) => ['occupied', 'reserved'].includes(table.status)).length, total: tables.length } });
   }
   if (pathname === '/api/audit' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'diagnostics') && !hasPermission(req, 'settings')) return json(res, 403, { error: 'forbidden', permission: 'diagnostics' });
@@ -691,36 +722,36 @@ async function api(req, res) {
   if (pathname === '/api/floor') {
     if (denyUnless(req, res, 'floor')) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,CASE WHEN t.status='blocked' THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' ELSE t.status END AS status,t.capacity,t.min_order_total,t.layout FROM zones z JOIN tables t ON t.zone_id=z.id WHERE z.venue_id=$1 ORDER BY z.sort_order,t.name`, [venueDbId]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {} }); } return json(res, 200, { zones }); } catch (_) {} }
-    const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.map((table) => ({ ...table, status: table.status === 'blocked' ? 'blocked' : (orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)) ? 'occupied' : table.status) })) }));
+    const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.map((table) => { const reservation = reservations.find((entry) => entry.tableId === table.id && entry.status === 'confirmed' && entry.date === today()); const occupied = orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)); return { ...table, status: table.status === 'blocked' ? 'blocked' : (occupied ? 'occupied' : reservation ? 'reserved' : table.status), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, date: reservation.date, time: reservation.time, createdByName: reservation.createdByName || 'Сотрудник', createdByRole: reservation.createdByRole || 'Сотрудник' } : null }; }) }));
     return json(res, 200, { zones: derivedFloor });
   }
   if (pathname === '/api/product-categories' && req.method === 'GET') {
     if (denyUnless(req, res, 'inventory_read')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,is_active AS active FROM product_categories WHERE venue_id=$1 AND is_active=true ORDER BY name', [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,department,is_active AS active FROM product_categories WHERE venue_id=$1 AND is_active=true ORDER BY name', [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
     return json(res, 200, { items: productCategories.filter((item) => item.active) });
   }
   if (pathname === '/api/product-categories' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO product_categories (venue_id,name) VALUES ($1,$2) RETURNING id,name,is_active AS active', [venueDbId, name]); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { return json(res, error.code === '23505' ? 409 : 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO product_categories (venue_id,name,department) VALUES ($1,$2,$3) RETURNING id,name,department,is_active AS active', [venueDbId, name, ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory']); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { return json(res, error.code === '23505' ? 409 : 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); } }
     if (productCategories.some((item) => item.active && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
-    const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, active: true };
+    const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, department: ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory', active: true };
     productCategories.push(category); recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category);
   }
   const productCategoryPath = pathname.match(/^\/api\/product-categories\/([^/]+)$/);
   if (productCategoryPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { const input = await body(req); const name = String(input.name || '').trim(); if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' }); try { const { rows } = await repositories.pool.query('UPDATE product_categories SET name=$1 WHERE id=$2 AND venue_id=$3 AND is_active=true RETURNING id,name,is_active AS active', [name, productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.updated', 'product_category', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_update_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { const input = await body(req); const name = String(input.name || '').trim(); if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' }); try { const { rows } = await repositories.pool.query('UPDATE product_categories SET name=$1,department=$2 WHERE id=$3 AND venue_id=$3 AND is_active=true RETURNING id,name,department,is_active AS active', [name, ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory', productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.updated', 'product_category', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_update_failed', detail: error.message }); } }
     const category = productCategories.find((item) => item.id === productCategoryPath[1]); if (!category) return json(res, 404, { error: 'product_category_not_found' });
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
     if (productCategories.some((item) => item.active && item.id !== category.id && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
-    const before = { ...category }; category.name = name; recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
+    const before = { ...category }; category.name = name; if (['kitchen','bar','hookah','inventory'].includes(input.department)) category.department = input.department; recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
   if (productCategoryPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { try { const { rows } = await repositories.pool.query('UPDATE product_categories SET is_active=false WHERE id=$1 AND venue_id=$2 AND is_active=true RETURNING id,name,is_active AS active', [productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.deactivated', 'product_category', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'product_category_delete_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { try { const { rows } = await repositories.pool.query('UPDATE product_categories SET is_active=false WHERE id=$1 AND venue_id=$2 AND is_active=true RETURNING id,name,department,is_active AS active', [productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.deactivated', 'product_category', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'product_category_delete_failed', detail: error.message }); } }
     const category = productCategories.find((item) => item.id === productCategoryPath[1]); if (!category) return json(res, 404, { error: 'product_category_not_found' });
     const before = { ...category }; category.active = false; recordAudit(req, 'product_category.deactivated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
@@ -731,7 +762,31 @@ async function api(req, res) {
   }
   if (pathname === '/api/recipes' && req.method === 'GET') {
     if (denyUnless(req, res, 'inventory_read')) return;
-    return json(res, 200, { items: catalogSeed.recipes || [] });
+    return json(res, 200, { items: recipes });
+  }
+  if (pathname === '/api/recipes' && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const name = String(input.name || '').trim();
+    const ingredients = Array.isArray(input.ingredients) ? input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), quantity: String(item?.quantity || '').trim() }).filter((item) => item.name) : [];
+    const technology = String(input.technology || '').trim(); const serve = String(input.serve || '').trim();
+    if (!name || name.length > 120 || technology.length > 4000 || serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' });
+    const recipe = { id: 'recipe-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name, ingredients, technology, serve }; recipes.push(recipe); recordAudit(req, 'recipe.created', 'recipe', recipe.id, null, recipe); return json(res, 201, recipe);
+  }
+  const recipeProfile = pathname.match(/^\/api\/recipes\/([^/]+)$/);
+  if (recipeProfile && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const recipe = recipes.find((item) => item.id === recipeProfile[1]); if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
+    const input = await body(req); const before = { ...recipe };
+    if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'invalid_recipe' }); recipe.name = name; }
+    if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); recipe.ingredients = input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), quantity: String(item?.quantity || '').trim() }).filter((item) => item.name); }
+    if (input.technology !== undefined) { recipe.technology = String(input.technology || '').trim(); if (recipe.technology.length > 4000) return json(res, 400, { error: 'invalid_recipe' }); }
+    if (input.serve !== undefined) { recipe.serve = String(input.serve || '').trim(); if (recipe.serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' }); }
+    recordAudit(req, 'recipe.updated', 'recipe', recipe.id, before, recipe); return json(res, 200, recipe);
+  }
+  if (recipeProfile && req.method === 'DELETE') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const index = recipes.findIndex((item) => item.id === recipeProfile[1]); if (index < 0) return json(res, 404, { error: 'recipe_not_found' });
+    const recipe = recipes.splice(index, 1)[0]; recordAudit(req, 'recipe.deleted', 'recipe', recipe.id, recipe, null); return json(res, 200, recipe);
   }
   if (pathname === '/api/products' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -758,11 +813,14 @@ async function api(req, res) {
     if (repositories?.products) { try { const product = await repositories.products.deactivate(venueDbId, productProfile[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); recordAudit(req, 'product.deactivated', 'product', product.id, { active: true }, { active: false }); return json(res, 200, { ...product, active: false }); } catch (error) { return json(res, 409, { error: 'product_delete_failed', detail: error.message }); } }
     const index = products.findIndex((entry) => entry.id === productProfile[1]); if (index < 0) return json(res, 404, { error: 'product_not_found' }); const [product] = products.splice(index, 1); recordAudit(req, 'product.deactivated', 'product', product.id, { active: true }, { active: false }); return json(res, 200, { ...product, active: false });
   }
+  if (pathname === '/api/discount-groups' && req.method === 'GET') return json(res, 200, { items: discountGroups.filter((group) => group.active !== false) });
+  if (pathname === '/api/discount-groups' && req.method === 'POST') { if (denyUnlessAny(req, res, ['staff_manage', 'finance'])) return; const input = await body(req); const name = String(input.name || '').trim(); const discountPercent = Number(input.discountPercent || 0); const bonusPercent = Number(input.bonusPercent || 0); const depositMin = Number(input.depositMin || 0); if (!name || name.length > 80 || ![discountPercent, bonusPercent, depositMin].every(Number.isFinite) || discountPercent < 0 || discountPercent > 100 || bonusPercent < 0 || bonusPercent > 100 || depositMin < 0) return json(res, 400, { error: 'invalid_discount_group' }); const group = { id: `discount-group-${Date.now()}`, name, discountPercent, bonusPercent, depositMin, active: true }; discountGroups.push(group); return json(res, 201, group); }
+  const discountGroupProfile = pathname.match(/^\/api\/discount-groups\/([^/]+)$/); if (discountGroupProfile && req.method === 'PATCH') { if (denyUnlessAny(req, res, ['staff_manage', 'finance'])) return; const group = discountGroups.find((entry) => entry.id === discountGroupProfile[1]); if (!group) return json(res, 404, { error: 'discount_group_not_found' }); const input = await body(req); if (input.name !== undefined) group.name = String(input.name || '').trim(); if (input.discountPercent !== undefined) group.discountPercent = Number(input.discountPercent); if (input.bonusPercent !== undefined) group.bonusPercent = Number(input.bonusPercent); if (input.depositMin !== undefined) group.depositMin = Number(input.depositMin); return json(res, 200, group); }
   if (pathname === '/api/clients' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'staff_view') && !hasPermission(req, 'orders')) return json(res, 403, { error: 'forbidden', permission: 'clients' });
     const query = String(url.searchParams.get('q') || '').trim().toLowerCase();
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT g.id,g.full_name AS name,g.phone,g.email,g.avatar_url AS "avatarUrl",g.guest_status AS "guestStatus",g.archived_at AS "archivedAt",g.phone_numbers AS "phoneNumbers",g.telegram,g.tobacco_preferences AS "tobaccoPreferences",g.bowl_preferences AS "bowlPreferences",g.bar_preferences AS "barPreferences",g.allergies,g.loyalty_points AS "loyaltyPoints",g.notes,COUNT(DISTINCT o.id)::int AS visits,COALESCE(SUM(p.amount),0)::numeric AS "totalSpent",MAX(o.closed_at) AS "lastVisitAt" FROM guests g LEFT JOIN orders o ON o.guest_id=g.id AND o.status='closed' LEFT JOIN payments p ON p.order_id=o.id AND p.status IN ('paid','partially_paid') WHERE g.venue_id=$1 AND g.archived_at IS NULL AND ($2='' OR LOWER(CONCAT_WS(' ',g.full_name,g.phone,g.telegram,g.phone_numbers::text,ARRAY_TO_STRING(COALESCE(g.tobacco_preferences,'{}'),' '),ARRAY_TO_STRING(COALESCE(g.bowl_preferences,'{}'),' '),ARRAY_TO_STRING(COALESCE(g.bar_preferences,'{}'),' '),g.allergies,g.notes)) LIKE '%'||LOWER($2)||'%') GROUP BY g.id ORDER BY COALESCE(MAX(o.closed_at),g.created_at) DESC`, [venueDbId, query]); return json(res, 200, { items: rows.map((row) => ({ ...row, phoneNumbers: row.phoneNumbers || (row.phone ? [{ label: 'Основной', number: row.phone, primary: true }] : []), tobaccoPreferences: row.tobaccoPreferences || [], bowlPreferences: row.bowlPreferences || [], barPreferences: row.barPreferences || [], loyaltyPoints: Number(row.loyaltyPoints || 0), visits: Number(row.visits || 0), totalSpent: Number(row.totalSpent || 0) })) }); } catch (_) {} }
-    const items = clients.filter((client) => !query || `${client.name} ${client.telegram} ${(client.phoneNumbers || []).map((phone) => phone.number).join(' ')} ${client.tobaccoPreferences.join(' ')} ${client.barPreferences.join(' ')}`.toLowerCase().includes(query));
+    const items = clients.filter((client) => !query || `${client.name} ${client.nickname || ''} ${client.telegram} ${(client.phoneNumbers || []).map((phone) => phone.number).join(' ')} ${client.tobaccoPreferences.join(' ')} ${client.barPreferences.join(' ')}`.toLowerCase().includes(query));
     return json(res, 200, { items });
   }
   const clientArchive = pathname.match(/^\/api\/clients\/([^/]+)\/archive$/);
@@ -781,7 +839,7 @@ async function api(req, res) {
     const guestStatus = String(input.guestStatus || 'new');
     if (!['new', 'regular', 'vip', 'blocked'].includes(guestStatus)) return json(res, 400, { error: 'invalid_guest_status' });
     if (avatarUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatarUrl) || avatarUrl.length > 2000000)) return json(res, 400, { error: 'invalid_avatar' });
-    const client = { id: `client-${Date.now()}`, name, avatarUrl, guestStatus, phoneNumbers, telegram: String(input.telegram || '').trim(), tobaccoPreferences: Array.isArray(input.tobaccoPreferences) ? input.tobaccoPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [], bowlPreferences: Array.isArray(input.bowlPreferences) ? input.bowlPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 20) : [], barPreferences: Array.isArray(input.barPreferences) ? input.barPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [], allergies: String(input.allergies || '').trim().slice(0, 500), notes: String(input.notes || '').trim().slice(0, 2000), loyaltyPoints: 0, visits: 0, totalSpent: 0, lastVisitAt: null };
+    const client = { id: `client-${Date.now()}`, name, nickname: String(input.nickname || '').trim().slice(0, 80), avatarUrl, guestStatus, phoneNumbers, telegram: String(input.telegram || '').trim(), tobaccoPreferences: Array.isArray(input.tobaccoPreferences) ? input.tobaccoPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [], bowlPreferences: Array.isArray(input.bowlPreferences) ? input.bowlPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 20) : [], barPreferences: Array.isArray(input.barPreferences) ? input.barPreferences.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [], allergies: String(input.allergies || '').trim().slice(0, 500), notes: String(input.notes || '').trim().slice(0, 2000), loyaltyPoints: Math.max(0, Number(input.loyaltyPoints || input.bonusBalance || 0)), bonusBalance: Math.max(0, Number(input.bonusBalance || input.loyaltyPoints || 0)), depositBalance: Math.max(0, Number(input.depositBalance || 0)), discountGroupId: discountGroups.some((group) => group.id === input.discountGroupId) ? input.discountGroupId : 'none', visits: 0, totalSpent: 0, lastVisitAt: null };
     if (repositories?.pool) { try { const primary = phoneNumbers.find((phone) => phone.primary)?.number || null; const { rows } = await repositories.pool.query(`INSERT INTO guests (venue_id,phone,full_name,avatar_url,guest_status,phone_numbers,telegram,tobacco_preferences,bowl_preferences,bar_preferences,allergies,notes) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12) RETURNING id,full_name AS name,phone,avatar_url AS "avatarUrl",guest_status AS "guestStatus",phone_numbers AS "phoneNumbers",telegram,tobacco_preferences AS "tobaccoPreferences",bowl_preferences AS "bowlPreferences",bar_preferences AS "barPreferences",allergies,notes,loyalty_points AS "loyaltyPoints"`, [venueDbId, primary, name, client.avatarUrl || null, client.guestStatus, JSON.stringify(phoneNumbers), client.telegram || null, client.tobaccoPreferences, client.bowlPreferences, client.barPreferences, client.allergies || null, client.notes || null]); if (rows[0]) return json(res, 201, { ...client, ...rows[0] }); } catch (error) { return json(res, 503, { error: 'client_create_failed', detail: error.message }); } }
     clients.push(client); recordAudit(req, 'client.created', 'client', client.id, null, client); return json(res, 201, client);
   }
@@ -797,6 +855,7 @@ async function api(req, res) {
     }
     if (!client) return json(res, 404, { error: 'client_not_found' });
     const input = await body(req); const before = JSON.parse(JSON.stringify(client));
+    if (input.nickname !== undefined) client.nickname = String(input.nickname || '').trim().slice(0, 80);
     if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' }); client.name = name; }
     if (input.phoneNumbers !== undefined) { if (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+7[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim()))) return json(res, 400, { error: 'invalid_phone_numbers' }); const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers); if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' }); client.phoneNumbers = phoneNumbers; }
     if (input.avatarUrl !== undefined) { const avatarUrl = String(input.avatarUrl || ''); if (avatarUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatarUrl) || avatarUrl.length > 2000000)) return json(res, 400, { error: 'invalid_avatar' }); client.avatarUrl = avatarUrl || null; }
@@ -805,6 +864,9 @@ async function api(req, res) {
     for (const key of ['tobaccoPreferences', 'bowlPreferences', 'barPreferences']) if (input[key] !== undefined) client[key] = Array.isArray(input[key]) ? input[key].map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [];
     if (input.allergies !== undefined) client.allergies = String(input.allergies || '').trim().slice(0, 500);
     if (input.notes !== undefined) client.notes = String(input.notes || '').trim().slice(0, 2000);
+    if (input.discountGroupId !== undefined && discountGroups.some((group) => group.id === input.discountGroupId)) client.discountGroupId = input.discountGroupId;
+    if (input.bonusBalance !== undefined || input.loyaltyPoints !== undefined) client.bonusBalance = client.loyaltyPoints = Math.max(0, Number(input.bonusBalance ?? input.loyaltyPoints ?? 0));
+    if (input.depositBalance !== undefined) client.depositBalance = Math.max(0, Number(input.depositBalance || 0));
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(client.id)) { try { const primary = client.phoneNumbers.find((phone) => phone.primary)?.number || null; const { rows } = await repositories.pool.query(`UPDATE guests SET phone=$1,full_name=$2,avatar_url=$3,guest_status=$4,phone_numbers=$5::jsonb,telegram=$6,tobacco_preferences=$7,bowl_preferences=$8,bar_preferences=$9,allergies=$10,notes=$11 WHERE id=$12 AND venue_id=$13 RETURNING id,full_name AS name,phone,avatar_url AS "avatarUrl",guest_status AS "guestStatus",phone_numbers AS "phoneNumbers",telegram,tobacco_preferences AS "tobaccoPreferences",bowl_preferences AS "bowlPreferences",bar_preferences AS "barPreferences",allergies,notes,loyalty_points AS "loyaltyPoints"`, [primary, client.name, client.avatarUrl || null, client.guestStatus, JSON.stringify(client.phoneNumbers), client.telegram || null, client.tobaccoPreferences, client.bowlPreferences, client.barPreferences, client.allergies || null, client.notes || null, client.id, venueDbId]); if (rows[0]) return json(res, 200, { ...client, ...rows[0] }); } catch (error) { Object.assign(client, before); return json(res, 503, { error: 'client_update_failed', detail: error.message }); } }
     recordAudit(req, 'client.updated', 'client', client.id, before, client); return json(res, 200, client);
   }
@@ -865,8 +927,9 @@ async function api(req, res) {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req);
     if (!input.name || !rolePermissions[input.role] || input.role === 'owner') return json(res, 400, { error: 'name_and_valid_role_required' });
-    if (!input.password) return json(res, 400, { error: 'password_required' });
-    if (input.password !== undefined && String(input.password).length < 6) return json(res, 400, { error: 'password_too_short' });
+    const nonCrmRole = ['cleaner','security','technician','other_staff'].includes(input.role);
+    if (!nonCrmRole && !input.password) return json(res, 400, { error: 'password_required' });
+    if (!nonCrmRole && input.password !== undefined && String(input.password).length < 6) return json(res, 400, { error: 'password_too_short' });
         if (!canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
     const requestedScopes = normalizePermissionScopes(input.permissionScopes);
     if (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || requestedScopes.length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
@@ -882,8 +945,8 @@ async function api(req, res) {
     const createdPassport = input.passportData !== undefined ? staffPassportCipher.encrypt(input.passportData) : null;
     if (input.passportData !== undefined && !canSeeSensitiveStaff(req)) return json(res, 403, { error: 'sensitive_staff_permission_required' });
     if (input.passportData !== undefined && !createdPassport) return json(res, 503, { error: 'staff_passport_key_required' });
-    if (repositories?.pool) { try { const login = input.login || `user_${Date.now()}`; const passwordHash = await hashPassword(input.password); let rows; try { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,permission_scopes,avatar_url,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::jsonb,$10,$11,$12,$13,$14) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } catch (_) { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,avatar_url,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) }; recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result); } catch (error) { return json(res, 409, { error: 'staff_create_failed', detail: error.message }); } }
-    const person = { id: `u-${Date.now()}`, name: input.name, login: input.login || `user_${Date.now()}`, passwordHash: await hashPassword(input.password), role: input.role, active: true, avatarUrl: input.avatarUrl || null, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: null, pinConfigured: false, pinUpdatedAt: null };
+    if (repositories?.pool) { try { const login = nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`); const passwordHash = nonCrmRole ? null : await hashPassword(input.password); let rows; try { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,permission_scopes,avatar_url,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9::jsonb,$10,$11,$12,$13,$14) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } catch (_) { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,pin_hash,role,avatar_url,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) }; recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result); } catch (error) { return json(res, 409, { error: 'staff_create_failed', detail: error.message }); } }
+    const person = { id: `u-${Date.now()}`, name: input.name, login: nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`), passwordHash: nonCrmRole ? null : await hashPassword(input.password), role: input.role, active: true, avatarUrl: input.avatarUrl || null, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: null, pinConfigured: false, pinUpdatedAt: null };
     staff.push(person);
     const { passwordHash, ...publicPerson } = person;
     recordAudit(req, 'staff.created', 'staff', person.id, null, publicPerson);
@@ -1216,7 +1279,7 @@ if (staffProfile && req.method === 'PATCH') {
       return json(res, 409, { error: 'table_already_reserved' });
     }
     if (repositories?.pool) { try { const reservation = await repositories.reservations.create({ ...input, tableName, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
-    const reservation = { id: `res-${Date.now()}`, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName, guests: Number(input.guests || 1), status: 'confirmed', deposit, notes: input.notes || '' };
+    const reservation = { id: `res-${Date.now()}`, clientId: input.clientId || null, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName, guests: Number(input.guests || 1), status: 'confirmed', deposit, notes: input.notes || '', createdBy: req.user?.id || null, createdByName: String(input.createdByName || req.user?.name || 'Сотрудник').slice(0, 120), createdByRole: String(input.createdByRole || (req.user?.role === 'owner' ? 'Владелец' : req.user?.role === 'admin' ? 'Администратор' : 'Сотрудник')).slice(0, 40), createdAt: new Date().toISOString() };
     reservations.push(reservation);
     table.status = 'reserved';
     recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation);

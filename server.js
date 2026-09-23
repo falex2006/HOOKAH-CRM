@@ -160,6 +160,7 @@ const staffPassportCipher = {
 };const rolePermissions = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
   admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
+  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'settings'],
   senior_bartender: ['floor', 'orders', 'bar_tasks'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
   bartender: ['floor', 'orders', 'bar_tasks'],
@@ -254,6 +255,7 @@ const recordAudit = (req, action, entityType, entityId, beforeData, afterData) =
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 2_000_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && effectivePermissions(req.user).includes(permission));
 const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (['admin', 'developer'].includes(req.user?.role) && !['owner', 'admin', 'developer'].includes(role));
+const canManageVenueIdentity = (req) => process.env.AUTH_REQUIRED !== 'true' || ['owner', 'admin', 'developer'].includes(req.user?.role);
 const canSeeSensitiveStaff = (req) => Boolean(req.user && effectivePermissions(req.user).includes('staff_sensitive'));
 const denyUnless = (req, res, permission) => { if (hasPermission(req, permission)) return false; json(res, 403, { error: 'forbidden', permission }); return true; };
 const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };
@@ -510,6 +512,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/venue' && (req.method === 'PATCH' || req.method === 'PUT')) {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     const input = await body(req); const before = { ...venue };
     if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'venue_name_required' });
     if (input.city !== undefined && (!String(input.city).trim() || String(input.city).length > 80)) return json(res, 400, { error: 'venue_city_required' });
@@ -532,11 +535,13 @@ async function api(req, res) {
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
   if (pathname === '/api/network/venues' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,format,city,address,phone,timezone,is_current AS "isCurrent" FROM venues WHERE is_active=true ORDER BY name'); const hasMarkedCurrent = rows.some((row) => Boolean(row.isCurrent)); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: hasMarkedCurrent ? Boolean(row.isCurrent) : row.id === venueDbId })) }); } catch (_) {} }
     return json(res, 200, { items: networkVenues.filter((item) => item.status !== 'archived').map((item) => ({ ...item, isCurrent: item.id === currentVenueId })) });
   }
   if (pathname === '/api/network/venues' && req.method === 'POST') {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     const input = await body(req); const name = String(input.name || '').trim(); const city = String(input.city || '').trim(); const address = String(input.address || '').trim();
     if (!name || name.length > 120 || !city || city.length > 80 || !address || address.length > 240) return json(res, 400, { error: 'venue_name_city_address_required' });
     const item = { id: `venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, format: String(input.format || 'кальян-бар').trim().slice(0, 80), city, address, phone: String(input.phone || '').trim().slice(0, 32), timezone: String(input.timezone || venue.timezone).trim().slice(0, 64), status: 'active', isCurrent: false };
@@ -551,6 +556,7 @@ async function api(req, res) {
   const networkVenuePath = pathname.match(/^\/api\/network\/venues\/([^/]+)$/);
   if (networkVenuePath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenuePath[1])) {
       const input = await body(req);
       const fields = []; const values = [networkVenuePath[1]];
@@ -567,6 +573,7 @@ async function api(req, res) {
   }
   if (networkVenuePath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'settings')) return;
+    if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenuePath[1])) {
       if (networkVenuePath[1] === venueDbId) return json(res, 409, { error: 'current_venue_cannot_be_archived' });
       try { const { rows } = await repositories.pool.query('UPDATE venues SET is_active=false WHERE id=$1 AND is_active=true RETURNING id,name,format,city,address,phone,timezone', [networkVenuePath[1]]); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const archived = { ...rows[0], status: 'archived', isCurrent: false }; recordAudit(req, 'venue.archived', 'venue', archived.id, { status: 'active' }, archived); return json(res, 200, archived); } catch (error) { return json(res, 409, { error: 'venue_archive_failed', detail: error.message }); }
@@ -1580,4 +1587,3 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
-

@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TYPE user_role AS ENUM ('owner','admin','senior_bartender','senior_hookah_master','bartender','hookah_master','developer','platform_owner');
+CREATE TYPE user_role AS ENUM ('owner','admin','manager','senior_bartender','senior_hookah_master','bartender','hookah_master','developer','platform_owner','cleaner','security','technician','other_staff');
 CREATE TYPE table_status AS ENUM ('free','occupied','reserved','awaiting_payment','blocked');
 CREATE TYPE order_status AS ENUM ('open','in_progress','ready','closed','cancelled');
 CREATE TYPE payment_status AS ENUM ('pending','paid','refunded','partially_paid');
