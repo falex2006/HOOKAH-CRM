@@ -1069,7 +1069,7 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .velora-theme .staff-row .staff-edit:hover .icon{color:#fff}
 
 /* Russian phone rule: aligned controls and a stable +7 prefix in every staff phone row. */
-.velora-theme .staff-admin-phone-row,.velora-theme .staff-phone-row{grid-template-columns:128px minmax(0,1fr) 88px 34px;gap:8px;align-items:center}
+.velora-theme .staff-admin-phone-row,.velora-theme .staff-phone-row{grid-template-columns:150px minmax(0,1fr) 88px 34px;gap:8px;align-items:center}
 .velora-theme .staff-admin-phone-row input,.velora-theme .staff-admin-phone-row select,.velora-theme .staff-phone-row input,.velora-theme .staff-phone-row select{height:42px;box-sizing:border-box;padding:0 11px;line-height:42px}
 .velora-theme .staff-admin-phone-row label,.velora-theme .staff-phone-row label{display:flex;align-items:center;justify-content:flex-start;gap:6px;height:42px;margin:0;color:#9fa7b1;font-size:11px;line-height:1;white-space:nowrap}
 .velora-theme .staff-admin-phone-row label input,.velora-theme .staff-phone-row label input{width:15px;height:15px;margin:0;accent-color:#ff6379}

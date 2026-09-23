@@ -1,5 +1,5 @@
 (function mountRussianPhoneFormat(){
-  const isPhone=(input)=>input instanceof HTMLInputElement && !input.disabled && (input.type==='tel'||/phone|òåëåôîí|mobile|ìîáèëü/i.test(`${input.id} ${input.name}`)||/^\s*\+?7(?:\s|\(|$)/.test(input.placeholder||''));;
+  const isPhone=(input)=>input instanceof HTMLInputElement && !input.disabled && (input.type==='tel'||/phone|Ñ‚ÐµÐ»ÐµÑ„Ð¾Ð½|mobile|Ð¼Ð¾Ð±Ð¸Ð»ÑŒ/i.test(`${input.id} ${input.name}`)||/^\s*\+?7(?:\s|\(|$)/.test(input.placeholder||''));;
   const format=(value)=>{
     const raw=String(value||'');
     let digits=raw.replace(/\D/g,'');
@@ -21,7 +21,7 @@
     const apply=()=>{const before=input.value;const next=format(before);if(next!==before){const end=input.selectionStart===before.length;input.value=next;if(end)input.setSelectionRange(next.length,next.length);}};
     input.addEventListener('focus',()=>{if(!input.value.trim()) input.value='+7 ';});
     input.addEventListener('input',apply); input.addEventListener('paste',()=>setTimeout(apply,0));
-    input.addEventListener('blur',()=>{apply();if(input.value.trim()==='+7')input.value='';});
+    input.addEventListener('blur',()=>{apply();if(input.value.trim()==='+7')input.value='';}); apply();
   });
   mount(); new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});
 })();
