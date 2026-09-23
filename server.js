@@ -123,6 +123,9 @@ const clients = [
 clients.length = 0;
 const sessions = new Map();
 const loginAttempts = new Map();
+const requestBuckets = new Map();
+const API_RATE_LIMIT = 180;
+const API_RATE_WINDOW_MS = 60_000;
 const shifts = [];
 const provisionedAccounts = [];
 const demoAccounts = [
@@ -197,7 +200,7 @@ const effectivePermissions = (user) => {
 };
 
 const json = (res, status, data) => {
-  const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+  const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" };
   if (process.env.CORS_ORIGIN) headers['Access-Control-Allow-Origin'] = process.env.CORS_ORIGIN;
   res.writeHead(status, headers);
   res.end(JSON.stringify(data));
@@ -281,7 +284,11 @@ const requireOpenShift = async (req, res) => {
 async function api(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
-  if (req.method === 'OPTIONS') { const headers = { 'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' }; if (process.env.CORS_ORIGIN) headers['Access-Control-Allow-Origin'] = process.env.CORS_ORIGIN; res.writeHead(204, headers); return res.end(); }
+  if (req.method === 'OPTIONS') { const headers = { 'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Content-Security-Policy': "default-src 'self'; frame-ancestors 'none'" }; if (process.env.CORS_ORIGIN) headers['Access-Control-Allow-Origin'] = process.env.CORS_ORIGIN; res.writeHead(204, headers); return res.end(); }
+  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  const now = Date.now(); const bucket = requestBuckets.get(clientIp); const activeBucket = bucket && now - bucket.startedAt < API_RATE_WINDOW_MS ? bucket : { startedAt: now, count: 0 }; activeBucket.count += 1; requestBuckets.set(clientIp, activeBucket);
+  if (activeBucket.count > API_RATE_LIMIT) { res.setHeader('Retry-After', '60'); return json(res, 429, { error: 'rate_limited', retryAfter: 60 }); }
+  if (Number(req.headers['content-length'] || 0) > 2 * 1024 * 1024) return json(res, 413, { error: 'payload_too_large', maxBytes: 2 * 1024 * 1024 });
   if (pathname === '/api/setup/status' && req.method === 'GET') {
     if (repositories?.pool) {
       try { const { rows } = await repositories.pool.query('SELECT COUNT(*)::int AS count FROM users WHERE is_active=true AND deleted_at IS NULL'); return json(res, 200, { required: Number(rows[0]?.count || 0) === 0 }); } catch (_) {}
