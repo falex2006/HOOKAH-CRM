@@ -64,6 +64,7 @@ const normalizeManagementSidebar = () => {
   // Older static pages used `/` for the work panel. Remove that stale entry so
   // the sidebar cannot show two work-panel links with different modes.
   operations.querySelectorAll('a[href="/"]').forEach((link) => link.remove());
+  operations.querySelectorAll('a[href^="/?mode=staff"]').forEach((link) => link.remove());
   const operationLinks = [
     { href: '/orders', permission: 'orders', label: 'Журнал заказов', iconName: 'clipboard-list' },
     { href: '/clients', permission: 'orders', label: 'Гости', iconName: 'users' },
