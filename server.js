@@ -1361,7 +1361,8 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/finance/report' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
     const date = url.searchParams.get('date') || today();
-    const type = url.searchParams.get('type') === 'waiter' ? 'waiter' : 'x';
+    const requestedReportType = String(url.searchParams.get('type') || 'x');
+    const type = ['x', 'z', 'waiter'].includes(requestedReportType) ? requestedReportType : 'x';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'invalid_finance_date' });
     const reportNumber = `R-${date.replace(/-/g, '')}-${type.toUpperCase()}-${String(Date.now()).slice(-6)}`;
     const byPaymentMethod = {}; const byStation = {}; const byStaff = {}; let revenue = 0; let paymentCount = 0; let closedOrders = [];
@@ -1380,7 +1381,8 @@ if (staffProfile && req.method === 'PATCH') {
         const itemsByOrder = new Map(); itemRows.rows.forEach((item) => { if (!itemsByOrder.has(item.orderId)) itemsByOrder.set(item.orderId, []); itemsByOrder.get(item.orderId).push(item); }); closedOrders.forEach((order) => { order.items = itemsByOrder.get(order.id) || []; addOrder(order); });
       } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
     } else { closedOrders = orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date); closedOrders.forEach(addOrder); }
-    const report = { type, date, generatedAt: new Date().toISOString(), reportNumber, cashier: req.user?.name || 'Кассир', checksCount: closedOrders.length, closedOrders: closedOrders.length, paymentCount, revenue: Math.round(revenue * 100) / 100, cash: Math.round(Number(byPaymentMethod.cash || 0) * 100) / 100, card: Math.round(Number(byPaymentMethod.card || 0) * 100) / 100, qr: Math.round(Number(byPaymentMethod.qr || 0) * 100) / 100, byPaymentMethod, byStation, byStaff: type === 'waiter' ? byStaff : undefined };
+    const activeShift = repositories?.pool ? null : shifts.find((shift) => !shift.closedAt);
+    const report = { type, date, generatedAt: new Date().toISOString(), reportNumber, cashier: req.user?.name || 'Кассир', checksCount: closedOrders.length, closedOrders: closedOrders.length, paymentCount, revenue: Math.round(revenue * 100) / 100, cash: Math.round(Number(byPaymentMethod.cash || 0) * 100) / 100, card: Math.round(Number(byPaymentMethod.card || 0) * 100) / 100, qr: Math.round(Number(byPaymentMethod.qr || 0) * 100) / 100, byPaymentMethod, byStation, byStaff: type === 'waiter' ? byStaff : undefined, shift: { id: activeShift?.id || null, status: activeShift ? 'open' : 'closed', isFinal: type === 'z' } };
     recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type, date, checksCount: report.checksCount, revenue: report.revenue });
     return json(res, 200, report);
   }
