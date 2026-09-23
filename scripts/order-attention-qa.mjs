@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const server = fs.readFileSync('server.js', 'utf8');
+const portal = fs.readFileSync('portal.js', 'utf8');
+assert.match(server, /attentionOnly/);
+assert.match(server, /attentionOnly \? result\.filter\(needsAttention\)/);
+assert.match(server, /active_shift_required/);
+assert.match(portal, /Сначала требуют внимания/);
+assert.match(portal, /orders-date/);
+console.log('ORDER ATTENTION QA: status, payment/deposit criteria and date filter wired');

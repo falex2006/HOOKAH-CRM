@@ -29,6 +29,7 @@ $checks = @(
   # Keep the default acceptance run lightweight; use local-100-orders.ps1 -Count 100 for an explicit load pass.
   @{ file = 'local-100-orders.ps1'; args = @('-BaseUrl', $BaseUrl, '-Count', '10') },
   @{ file = 'payroll-qa.mjs'; node = $true },
+  @{ file = 'order-attention-qa.mjs'; node = $true },
   @{ file = '..\smoke-test.ps1'; args = @('-BaseUrl', $BaseUrl) }
 )
 foreach ($check in $checks) {
