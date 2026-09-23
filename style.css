@@ -1517,3 +1517,48 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .velora-theme .staff-admin-nav-label{
   margin-top:18px;
 }
+
+/* Galaxy Z Fold8 Ultra unfolded (Samsung main display: 2,504 × 2,256, ~10:9).
+   Use the logical CSS viewport/aspect ratio so this also scales across DPR settings. */
+@media (min-width:760px) and (max-width:1200px) and (min-aspect-ratio:9/10) and (max-aspect-ratio:11/9){
+  .velora-theme .portal-sidebar{width:220px;padding:24px 14px}
+  .velora-theme .brand{padding-left:8px;padding-right:8px;padding-bottom:28px}
+  .velora-theme .portal-nav a{padding:11px 12px}
+  .velora-theme .portal-header{padding-inline:28px;height:72px}
+  .velora-theme .portal-content{padding:28px 28px 36px;max-width:none}
+  .velora-theme .page-title{margin-bottom:20px}
+  .velora-theme .page-title h1{font-size:31px}
+  .velora-theme .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .velora-theme .content-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  .velora-theme .orders-view .panel-head{align-items:flex-start;flex-wrap:wrap;gap:10px}
+  .velora-theme .orders-view .toolbar-row{width:100%;display:grid;grid-template-columns:minmax(180px,1fr) repeat(2,minmax(150px,1fr));gap:8px}
+  .velora-theme .orders-view #orders-search,
+  .velora-theme .orders-view #orders-sort,
+  .velora-theme .orders-view #orders-status{width:100%;min-width:0;max-width:none;flex:initial}
+  .velora-theme .clients-toolbar{max-width:none;grid-template-columns:minmax(180px,1.2fr) repeat(2,minmax(140px,1fr))}
+  .velora-theme .staff-list-tools{max-width:none;grid-template-columns:repeat(3,minmax(0,1fr))}
+  .velora-theme .panel{padding:18px}
+}
+@media (min-width:760px) and (max-width:900px) and (min-aspect-ratio:9/10) and (max-aspect-ratio:11/9){
+  .velora-theme .content-grid{grid-template-columns:1fr}
+  .velora-theme .orders-view .toolbar-row{grid-template-columns:1fr 1fr}
+  .velora-theme .orders-view #orders-search{grid-column:1/-1}
+  .velora-theme .clients-toolbar{grid-template-columns:1fr 1fr}
+  .velora-theme .clients-toolbar .table-search{grid-column:1/-1}
+  .velora-theme .staff-list-tools{grid-template-columns:1fr 1fr}
+  .velora-theme .staff-list-tools input{grid-column:1/-1}
+}
+/* Staff workspace on the unfolded screen: preserve a usable order panel and table grid. */
+@media (min-width:760px) and (max-width:1200px) and (min-aspect-ratio:9/10) and (max-aspect-ratio:11/9){
+  .staff-theme aside{width:220px;padding:24px 14px}
+  .staff-theme header{padding-inline:28px}
+  .staff-theme .tabs,.staff-theme .queue{padding-inline:28px}
+  .staff-theme .workspace{padding-inline:28px;gap:16px;grid-template-columns:minmax(0,1fr) 340px}
+  .staff-theme .tables{gap:10px;padding:18px;padding-top:50px;min-height:500px}
+  .staff-theme .table{min-height:92px}
+}
+@media (min-width:760px) and (max-width:900px) and (min-aspect-ratio:9/10) and (max-aspect-ratio:11/9){
+  .staff-theme .workspace{grid-template-columns:1fr}
+  .staff-theme .tables{grid-template-columns:repeat(3,minmax(0,1fr));min-height:0}
+  .staff-theme .order{width:100%;max-width:none}
+}
