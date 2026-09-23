@@ -708,7 +708,7 @@ if (page === 'reservations') renderReservations();
 if(!window.__staffPhoneFieldsLoaded){window.__staffPhoneFieldsLoaded=true;const script=document.createElement('script');script.src='/staff-phone-fields.js?rev=4';document.head.append(script);}
 if(!window.__staffAuditLoaded){window.__staffAuditLoaded=true;const script=document.createElement('script');script.src='/staff-audit.js?rev=1';document.head.append(script);}
 if(!window.__staffSensitiveLoaded){window.__staffSensitiveLoaded=true;const script=document.createElement('script');script.src='/staff-sensitive-fields.js?rev=5';document.head.append(script);}
-if(!window.__staffAdminCardLoaded){const script=document.createElement('script');script.src='/staff-admin-card.js?rev=8';document.head.append(script);}
+if(!window.__staffAdminCardLoaded){const script=document.createElement('script');script.src='/staff-admin-card.js?rev=9';document.head.append(script);}
 
 
 
