@@ -1240,6 +1240,8 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   box-sizing:border-box;
   display:grid;
   place-items:center;
+  justify-content:center;
+  align-content:center;
   padding:24px;
   overflow:hidden;
 }
