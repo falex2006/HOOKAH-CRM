@@ -286,7 +286,7 @@ CREATE INDEX idx_audit_entity_time ON audit_events(entity_type, entity_id, creat
 
 -- Операционные индексы для CRM
 CREATE INDEX IF NOT EXISTS idx_orders_venue_status ON orders (venue_id, status);
-CREATE INDEX IF NOT EXISTS idx_orders_table_open ON orders (table_id, status) WHERE status IN ('open','pending');
+CREATE INDEX IF NOT EXISTS idx_orders_table_open ON orders (table_id, status) WHERE status IN ('open');
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items (order_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_ingredient_time ON stock_movements (ingredient_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_events_venue_time ON audit_events (venue_id, created_at DESC);
