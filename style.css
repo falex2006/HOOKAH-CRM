@@ -1431,3 +1431,25 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 @media(max-width:760px){
   .velora-theme .clients-toolbar{grid-template-columns:1fr;max-width:100%}
 }
+/* Shift status markers use a fixed optical box so warning icons stay centered. */
+.velora-theme .check{
+  width:32px;
+  height:32px;
+  flex:0 0 32px;
+  display:grid;
+  place-items:center;
+  line-height:0;
+  border-radius:50%;
+}
+.velora-theme .check .icon{
+  width:17px;
+  height:17px;
+  display:block;
+  flex:0 0 17px;
+  stroke-width:1.9;
+}
+.velora-theme .check.warn{
+  background:#4b3518;
+  color:#ffc65d;
+  box-shadow:inset 0 0 0 1px #8a6224;
+}
