@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="900" viewBox="0 0 420 900">
+<defs>
+ <linearGradient id="active" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#ff4164"/><stop offset="1" stop-color="#ff963d"/></linearGradient>
+ <linearGradient id="logo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff4f65"/><stop offset="1" stop-color="#ff9b3d"/></linearGradient>
+</defs>
+<rect width="420" height="900" rx="22" fill="#17191d"/>
+<rect x="0" y="0" width="1" height="900" fill="#2a2d33"/>
+<rect x="26" y="25" width="44" height="44" rx="14" fill="url(#logo)"/><text x="48" y="56" font-family="Arial" font-size="27" font-weight="700" text-anchor="middle" fill="white">T</text>
+<text x="86" y="45" font-family="Arial" font-size="20" font-weight="700" fill="#f7f8fa">Территория</text><text x="86" y="65" font-family="Arial" font-size="13" fill="#777e89">CRM заведения</text>
+<text x="32" y="111" font-family="Arial" font-size="11" letter-spacing="2" fill="#6d737e">ГЛАВНОЕ</text>
+<rect x="18" y="125" width="384" height="50" rx="13" fill="url(#active)"/><text x="43" y="157" font-family="Arial" font-size="17" font-weight="700" fill="white">▦</text><text x="77" y="157" font-family="Arial" font-size="16" font-weight="700" fill="white">Главная</text>
+<text x="32" y="213" font-family="Arial" font-size="11" letter-spacing="2" fill="#6d737e">ОПЕРАЦИИ</text>
+<g font-family="Arial" font-size="16" fill="#aeb4bd">
+ <text x="43" y="258">⌂</text><text x="77" y="258">Рабочая панель</text>
+ <text x="43" y="304">▣</text><text x="77" y="304">Заказы</text>
+ <text x="43" y="350">♙</text><text x="77" y="350">Гости</text>
+ <text x="43" y="396">▣</text><text x="77" y="396">Бронирования</text>
+ <text x="43" y="442">▰</text><text x="77" y="442">Доставка</text>
+</g>
+<text x="32" y="494" font-family="Arial" font-size="11" letter-spacing="2" fill="#6d737e">КОНТРОЛЬ</text>
+<g font-family="Arial" font-size="16" fill="#aeb4bd"><text x="43" y="539">◇</text><text x="77" y="539">Склад</text><text x="43" y="585">▣</text><text x="77" y="585">Финансы</text></g>
+<text x="32" y="637" font-family="Arial" font-size="11" letter-spacing="2" fill="#6d737e">АДМИНИСТРИРОВАНИЕ</text>
+<g font-family="Arial" font-size="16" fill="#aeb4bd"><text x="43" y="680">♙</text><text x="77" y="680">Персонал</text><text x="43" y="726">✦</text><text x="77" y="726">Система лояльности</text><text x="43" y="772">⚙</text><text x="77" y="772">Настройки</text><text x="43" y="818">↗</text><text x="77" y="818">Интеграции</text></g>
+<line x1="28" y1="846" x2="392" y2="846" stroke="#2b2e35"/>
+<circle cx="51" cy="872" r="17" fill="#2a3040"/><text x="51" y="878" font-family="Arial" font-size="16" font-weight="700" text-anchor="middle" fill="#ff9d78">А</text><text x="78" y="870" font-family="Arial" font-size="14" font-weight="700" fill="#dfe2e6">Александр</text><text x="78" y="888" font-family="Arial" font-size="11" fill="#7e8792">Администратор системы</text>
+</svg>
