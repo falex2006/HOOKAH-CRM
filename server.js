@@ -1563,10 +1563,12 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     const requestedDate = url.searchParams.get('date');
     const validDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : null;
+    const attentionOnly = url.searchParams.get('attention') === '1';
+    const needsAttention = (order) => ['open','in_progress','ready'].includes(order.status) || Number(order.depositBalance || 0) > 0 || Number(order.paidAmount || 0) < Number(order.total || order.finalTotal || 0);
     if (orderRepository) {
-      try { const result = await orderRepository.listOpen(venueDbId, url.searchParams.get('scope') === 'all'); const items = validDate ? result.filter((order) => String(order.createdAt || '').slice(0, 10) === validDate) : result; return json(res, 200, { items }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
+      try { const result = await orderRepository.listOpen(venueDbId, url.searchParams.get('scope') === 'all'); const items = (attentionOnly ? result.filter(needsAttention) : result).filter((order) => !validDate || String(order.createdAt || '').slice(0, 10) === validDate); return json(res, 200, { items }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
     }
-    return json(res, 200, { items: validDate ? orders.filter((order) => String(order.createdAt || '').slice(0, 10) === validDate) : orders });
+    return json(res, 200, { items: (attentionOnly ? orders.filter(needsAttention) : orders).filter((order) => !validDate || String(order.createdAt || '').slice(0, 10) === validDate) });
   }
   if (pathname === '/api/orders' && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
