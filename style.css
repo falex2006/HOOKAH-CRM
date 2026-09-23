@@ -1600,6 +1600,14 @@ html{min-width:0;overflow-x:hidden}
 .staff-theme .app{height:100vh;overflow:hidden}
 .staff-theme aside{position:relative;top:auto;align-self:stretch;flex:0 0 auto;height:100%;box-sizing:border-box;overflow-y:auto;overflow-x:hidden}
 .staff-theme main{height:100%;overflow-y:auto;overflow-x:hidden}
+/* Warehouse is organized as focused workspaces instead of one long feed. */
+.velora-theme .inventory-view-hidden{display:none!important}
+.velora-theme .inventory-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px;padding:5px;border:1px solid #2b3038;border-radius:14px;background:#15181d}
+.velora-theme .inventory-tabs button{min-height:38px;padding:8px 14px;border:1px solid transparent;border-radius:10px;background:transparent;color:#969faa;font:inherit;font-size:13px;cursor:pointer}
+.velora-theme .inventory-tabs button:hover{border-color:#3d444e;color:#f4f6f8;background:#20242a}
+.velora-theme .inventory-tabs button.is-active{border-color:#ff6a76;background:linear-gradient(100deg,#5c2936,#33252b);color:#fff;box-shadow:0 5px 16px #ff5b4c18}
+.velora-theme .inventory-item-editor-panel[hidden]{display:none!important}
+@media(max-width:650px){.velora-theme .inventory-tabs{overflow-x:auto;flex-wrap:nowrap}.velora-theme .inventory-tabs button{white-space:nowrap;flex:0 0 auto}}
 body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 .portal-content{padding-bottom:max(42px,env(safe-area-inset-bottom))}
 .staff-theme main{min-width:0;padding-bottom:env(safe-area-inset-bottom)}
