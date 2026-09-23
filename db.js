@@ -36,8 +36,8 @@ class InventoryRepository {
     return { items: rows.map((row) => ({ ...row, onHand: Number(row.onHand), minLevel: Number(row.minLevel), cost: Number(row.cost || 0), packMultiplier: Number(row.packMultiplier || 1) })), movements: movements.rows };
   }
   async create(venueId, input) {
-    const { rows } = await this.pool.query(`INSERT INTO ingredients (venue_id,name,short_name,category,department,item_type,unit,purchase_unit,pack_multiplier,cost,min_stock,supplier,barcode,note)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+    const { rows } = await this.pool.query(`INSERT INTO ingredients (venue_id,name,short_name,category,department,item_type,unit,purchase_unit,pack_multiplier,cost,min_stock,supplier,barcode,note,is_marked)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true)
       RETURNING id,name,short_name AS "shortName",category,department,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, [venueId, input.name, input.shortName || null, input.category || 'Без категории', input.department || 'inventory', input.itemType || 'ingredient', input.unit, input.purchaseUnit || null, input.packMultiplier || 1, input.cost || 0, input.minLevel || 0, input.supplier || null, input.barcode || null, input.note || null]);
     return rows[0];
   }
