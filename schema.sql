@@ -45,6 +45,8 @@ CREATE TABLE users (
   login text NOT NULL UNIQUE,
   pin_hash text,
   avatar_url text,
+  photo_url text,
+  birth_date date,
   role user_role NOT NULL,
   permission_scopes jsonb NOT NULL DEFAULT '[]'::jsonb,
   is_active boolean NOT NULL DEFAULT true,
@@ -53,6 +55,8 @@ CREATE TABLE users (
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_id uuid REFERENCES organizations(id);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS birth_date date;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS permission_scopes jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_encrypted text;
