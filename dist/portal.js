@@ -116,6 +116,14 @@ document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
   if (!portalPermissions.has(link.dataset.permission)) link.hidden = true;
 });
 if (portalUser.role === 'manager') document.querySelectorAll('.portal-nav a[href="/network"]').forEach((link) => { link.hidden = true; });
+// Do not leave empty headings or navigation blocks after role filtering.
+const refreshSidebarGroups = () => document.querySelectorAll('.portal-sidebar > .portal-nav').forEach((nav) => {
+  const hasVisibleLink = [...nav.querySelectorAll('a')].some((link) => !link.hidden);
+  nav.hidden = !hasVisibleLink;
+  const label = nav.previousElementSibling;
+  if (label?.classList.contains('side-label')) label.hidden = !hasVisibleLink;
+});
+refreshSidebarGroups();
 document.querySelectorAll('[data-owner-only]').forEach((node) => { if (!['owner', 'developer'].includes(portalUser.role)) node.hidden = true; });
 document.querySelectorAll('[data-staff-nav]').forEach((node) => { if (!portalPermissions.has('staff_view')) node.hidden = true; });
 document.querySelectorAll('[data-admin-mode-switch]').forEach((node) => { node.hidden = !adminModeSwitchAllowed; if (!adminModeSwitchAllowed) return; const menu = document.createElement('details'); menu.className = 'mode-switch-menu'; menu.innerHTML = '<summary>Сменить рабочий режим</summary><div class="mode-switch-menu-list"><b>Выберите рабочий контур</b><a href="/admin">Администратор</a><a href="/?mode=staff">Управляющий</a><a href="/?mode=bartender">Бармен</a><a href="/?mode=hookah_master">Кальянщик</a></div>'; node.parentElement?.insertBefore(menu, node); node.remove(); });
@@ -402,7 +410,7 @@ function setupInterfacePreferences() {
   let navigation = { ...defaults };
   try { const saved = JSON.parse(localStorage.getItem(key) || '{}'); navigation = { ...defaults, ...(saved.navigationVisibility || {}), ...(saved.deliveryEnabled === false ? { delivery: false } : {}), ...(saved.integrationsEnabled === false ? { integrations: false } : {}) }; } catch (_) {}
   const hrefs = { orders: '/orders', clients: '/clients', reservations: '/reservations', floor: '/?mode=staff', delivery: '/delivery', inventory: '/inventory', finance: '/finance', discounts: '/finance#discounts', loyalty: '/admin#loyalty', staff: '/admin#staff', integrations: '/integrations', network: '/network' };
-  const apply = () => Object.entries(hrefs).forEach(([name, href]) => document.querySelectorAll(`a[href="${href}"]`).forEach((link) => { link.hidden = navigation[name] === false; }));
+  const apply = () => { Object.entries(hrefs).forEach(([name, href]) => document.querySelectorAll(`a[href="${href}"]`).forEach((link) => { link.hidden = navigation[name] === false; })); refreshSidebarGroups(); };
   const save = () => { try { localStorage.setItem(key, JSON.stringify({ navigationVisibility: navigation, deliveryEnabled: navigation.delivery, integrationsEnabled: navigation.integrations })); } catch (_) {} api('/api/session/preferences', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ navigationVisibility: navigation, deliveryEnabled: navigation.delivery, integrationsEnabled: navigation.integrations }) }).catch(() => {}); };
   document.querySelectorAll('[data-interface-toggle]').forEach((toggle) => { const name = toggle.dataset.interfaceToggle; if (!(name in navigation)) return; toggle.checked = navigation[name] !== false; toggle.addEventListener('change', () => { navigation[name] = toggle.checked; save(); apply(); }); });
   apply();
