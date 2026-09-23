@@ -1185,3 +1185,9 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 
 /* Authentication screen stays still while the user signs in. */
 .login, .login *, .login *::before, .login *::after { animation: none !important; }
+
+/* Password action stays anchored inside the field and follows the login palette. */
+.login-password-wrap{position:relative;display:block;min-height:48px}
+.login-password-wrap input{display:block;width:100%;margin-top:0!important;padding-right:92px!important;box-sizing:border-box}
+.login-password-toggle{position:absolute;right:8px;top:50%;display:inline-flex;align-items:center;justify-content:center;height:34px;min-width:74px;margin:0;padding:0 10px;border:1px solid #3b424d;border-radius:8px;background:#20252c;color:#aeb6c0;font:inherit;font-size:12px;line-height:1;transform:translateY(-50%);cursor:pointer}
+.login-password-toggle:hover{border-color:#ff6372;background:#292f38;color:#fff}
