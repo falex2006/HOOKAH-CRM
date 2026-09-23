@@ -918,3 +918,6 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .velora-theme .finance-kpi-grid .finance-revenue-card .dashboard-revenue-main strong{font-size:clamp(30px,4vw,38px)}
 @media(max-width:950px){.velora-theme .finance-kpi-grid .finance-revenue-card{grid-column:span 2}}
 @media(max-width:650px){.velora-theme .finance-kpi-grid .finance-revenue-card{grid-column:auto}}
+
+/* Dashboard hash views must reliably hide unrelated modules. */
+.velora-theme [hidden]{display:none!important}
