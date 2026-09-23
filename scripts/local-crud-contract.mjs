@@ -34,7 +34,7 @@ await request(`/api/products/${product.id}`, { method: 'PATCH', body: body({ pri
 await request(`/api/products/${product.id}/image`, { method: 'POST', body: body({ imageData: 'data:image/png;base64,AA==' }) });
 
 const inventory = await request('/api/inventory');
-const inventoryItem = inventory.items?.[0];
+const inventoryItem = inventory.items?.[0] || await request('/api/inventory/items', { method: 'POST', body: body({ name: `Локальный ингредиент ${suffix}`, unit: 'шт', itemType: 'ingredient', cost: 10 }) });
 if (!inventoryItem) throw new Error('Inventory contract has no test item');
 await request('/api/inventory/movements', { method: 'POST', body: body({ itemId: inventoryItem.id, delta: 1, reason: 'Локальная проверка' }) });
 
