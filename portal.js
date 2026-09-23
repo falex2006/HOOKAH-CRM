@@ -347,9 +347,10 @@ document.querySelectorAll('[data-route]').forEach((link) => {
 
 Promise.allSettled([api('/api/venue'), api('/api/metrics')]).then(([venueResult, metricsResult]) => {
   if (venueResult.status === 'fulfilled') {
-    document.querySelectorAll('[data-venue-name]').forEach((el) => { el.textContent = venueResult.value.name; });
-    document.querySelectorAll('[data-venue-address]').forEach((el) => { el.textContent = `${venueResult.value.city}, ${venueResult.value.address}`; });
-    if (venueResult.value.logoUrl) document.querySelectorAll('[data-admin-avatar]').forEach((el) => { el.innerHTML = `<img src="${venueResult.value.logoUrl}" alt="Логотип">`; }); const vip = venueResult.value.vipRoomMinimums || {}; const summary = document.querySelector('#vip-minimum-summary'); if (summary) summary.textContent = `Комната 1 — ${money(vip.vip_room_1 ?? 1500)} · Комната 2 — ${money(vip.vip_room_2 ?? 2500)}`;
+    const venue = venueResult.value || {};
+    document.querySelectorAll('[data-venue-name]').forEach((el) => { el.textContent = venue.name || 'Территория'; });
+    document.querySelectorAll('[data-venue-address]').forEach((el) => { el.textContent = [venue.city, venue.address].filter(Boolean).join(', ') || 'Адрес не указан'; });
+    if (venue.logoUrl) document.querySelectorAll('[data-admin-avatar]').forEach((el) => { el.innerHTML = `<img src="${venue.logoUrl}" alt="Логотип">`; }); const vip = venue.vipRoomMinimums || {}; const summary = document.querySelector('#vip-minimum-summary'); if (summary) summary.textContent = `Комната 1 — ${money(vip.vip_room_1 ?? 1500)} · Комната 2 — ${money(vip.vip_room_2 ?? 2500)}`;
   }
   if (metricsResult.status === 'fulfilled') {
     const metrics = metricsResult.value;
