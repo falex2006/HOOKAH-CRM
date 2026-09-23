@@ -9,7 +9,7 @@ const portalScopedPermissionMap = { loyalty: ['loyalty'], orders: ['orders'], re
 const portalBasePermissions = {
   owner: new Set(['dashboard', 'floor', 'loyalty', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery']),
   admin: new Set(['dashboard', 'floor', 'loyalty', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery']),
-  manager: new Set(['dashboard', 'floor', 'orders', 'staff_view']),
+  manager: new Set(['dashboard', 'floor', 'orders', 'staff_view', 'loyalty']),
   bartender: new Set(['dashboard', 'floor', 'orders', 'staff_view']),
   hookah_master: new Set(['dashboard', 'floor', 'orders', 'staff_view']),
   staff: new Set(['dashboard', 'floor', 'orders', 'staff_view']),
@@ -42,7 +42,7 @@ if (administrationNav && !administrationNav.querySelector('a[href="/integrations
   link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#plug-connected"></use></svg><span>Интеграции</span>';
   administrationNav.append(link);
 }
-const adminModeSwitchAllowed = ['owner', 'admin', 'developer'].includes(portalUser.role);
+const adminModeSwitchAllowed = ['owner', 'admin', 'developer', 'manager'].includes(portalUser.role);
 // Keep the sidebar structure identical on every management page.
 const normalizeManagementSidebar = () => {
   const sidebar = document.querySelector('.portal-sidebar');
