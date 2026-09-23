@@ -789,7 +789,7 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 /* Mode control: make the active context and the next action immediately obvious. */
 .velora-theme .portal-sidebar{overflow-y:auto;overflow-x:hidden}
 .velora-theme .sidebar-profile{display:none}
-.velora-theme .sidebar-address{border-top:0;padding-top:0;margin-top:12px}
+.velora-theme .sidebar-address{display:none}
 .velora-theme .current-mode{position:relative;flex:0 0 auto;min-height:74px;gap:5px;margin:16px 8px 0;padding:13px 13px 13px 16px;border:1px solid #343b46;border-radius:14px;background:linear-gradient(145deg,#1d2229,#171a1f);box-shadow:0 8px 20px #00000024;overflow:hidden}
 .velora-theme .current-mode::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:linear-gradient(180deg,#63e2ad,#4eb5ff);border-radius:3px}
 .velora-theme .current-mode-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
