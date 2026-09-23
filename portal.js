@@ -264,6 +264,14 @@ function setupDashboardModules() {
   const applyRevenueStyle = () => { if (revenueCard) revenueCard.dataset.revenueStyle = selectedRevenueStyle; if (revenueStyle) revenueStyle.value = selectedRevenueStyle; };
   revenueStyle?.addEventListener('change', () => { selectedRevenueStyle = revenueStyle.value; localStorage.setItem(revenueStyleKey, selectedRevenueStyle); api('/api/session/preferences', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dashboardRevenueStyle: selectedRevenueStyle }) }).catch(() => {}); applyRevenueStyle(); });
   applyRevenueStyle();
+  const pendingSummary = revenueCard?.querySelector('[data-pending-summary]');
+  const pendingToggle = pendingSummary?.querySelector('.dashboard-revenue-pending-toggle');
+  pendingToggle?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const expanded = pendingToggle.getAttribute('aria-expanded') === 'true';
+    pendingToggle.setAttribute('aria-expanded', String(!expanded));
+    pendingSummary.classList.toggle('is-expanded', !expanded);
+  });
   apply();
   api('/api/session/preferences').then((data) => { const preferences = data?.preferences || {}; if (preferences.dashboardModules && typeof preferences.dashboardModules === 'object') { visible = { ...defaults, ...preferences.dashboardModules }; localStorage.setItem(storageKey, JSON.stringify(visible)); controls.querySelectorAll('[data-dashboard-module-toggle]').forEach((input) => { input.checked = visible[input.dataset.dashboardModuleToggle] !== false; }); apply(); } if (['hero', 'split', 'minimal'].includes(preferences.dashboardRevenueStyle)) { selectedRevenueStyle = preferences.dashboardRevenueStyle; localStorage.setItem(revenueStyleKey, selectedRevenueStyle); applyRevenueStyle(); } }).catch(() => {});
 }
@@ -342,7 +350,7 @@ function renderDashboard() {
   target.innerHTML = `
     <div class="page-title"><div><p class="eyebrow">ОБЗОР ЗАВЕДЕНИЯ</p><h1>Добрый вечер, ${esc(portalUser.name || portalRole[0].toLowerCase())}</h1><p class="muted">Финансы, смена и рабочие задачи в одном окне.</p></div><div class="dashboard-page-actions"><a class="button small" href="/admin#settings">Настроить главную</a></div></div>
     <div class="kpi-grid dashboard-kpi-grid" data-dashboard-module="kpi">
-      <article class="kpi dashboard-revenue-card" data-dashboard-revenue data-revenue-style="hero" data-kpi-route="/finance" aria-label="Открыть финансы"><div class="dashboard-revenue-main"><span>Выручка сегодня</span><strong id="dash-revenue">${money(3000)}</strong><small class="positive">Данные обновляются из оплат ↗</small></div><div class="dashboard-revenue-pending"><span>Ожидается</span><strong id="dash-pending-revenue">—</strong><small id="dash-pending-detail">за открытые заказы</small></div><div class="dashboard-revenue-spark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
+      <article class="kpi dashboard-revenue-card" data-dashboard-revenue data-revenue-style="hero" data-kpi-route="/finance" aria-label="Открыть финансы"><div class="dashboard-revenue-main"><span>Выручка сегодня</span><strong id="dash-revenue">${money(3000)}</strong><small class="positive">Данные обновляются из оплат ↗</small></div><div class="dashboard-revenue-pending" data-pending-summary><button class="dashboard-revenue-pending-toggle" type="button" aria-expanded="false" aria-controls="dash-pending-detail"><span>Ожидается</span><strong id="dash-pending-revenue">—</strong><b aria-hidden="true">+</b></button><div class="dashboard-revenue-pending-details"><small id="dash-pending-detail">за открытые заказы</small></div></div><div class="dashboard-revenue-spark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div></article>
       <article class="kpi" data-kpi-route="/" aria-label="Открыть рабочую панель с заказами"><span>Открытые заказы</span><strong data-metric="openOrders">4</strong><small>На обслуживании сейчас</small></article>
       <article class="kpi" data-kpi-route="/reservations" aria-label="Открыть бронирования"><span>Бронирования сегодня</span><strong data-metric="reservationsToday">0</strong><small>Подтверждённые гости</small></article>
       <article class="kpi" data-kpi-route="/inventory" aria-label="Открыть склад с низкими остатками"><span>Низкие остатки</span><strong data-metric="lowStock">1</strong><small>Нужна проверка склада</small></article>
