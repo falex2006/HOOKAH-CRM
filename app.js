@@ -175,7 +175,7 @@ if(!window.__staffTelegramLinkLoaded){window.__staffTelegramLinkLoaded=true;cons
 
 /* Global Russian phone formatting */
 (function mountRussianPhoneFormat(){
-  const isPhone=(input)=>input instanceof HTMLInputElement && !input.disabled && (input.type==='tel'||/phone|телефон|mobile|мобиль/i.test(`${input.id} ${input.name} ${input.placeholder}`));
+  const isPhone=(input)=>input instanceof HTMLInputElement && !input.disabled && (input.type==='tel'||/phone|телефон|mobile|мобиль/i.test(`${input.id} ${input.name}`)||/^\s*\+?7(?:\s|\(|$)/.test(input.placeholder||''));
   const format=(value)=>{
     const raw=String(value||'');
     let digits=raw.replace(/\D/g,'');
