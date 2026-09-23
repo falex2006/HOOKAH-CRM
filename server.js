@@ -100,6 +100,7 @@ inventory.length = 0;
 const stockMovements = [];
 const reservations = [];
 const deliveries = [];
+const tasks = [];
 const financeCategories = [
   { id: 'finance-kitchen', name: 'Кухня', kind: 'income', active: true },
   { id: 'finance-bar', name: 'Бар', kind: 'income', active: true },
@@ -1397,6 +1398,25 @@ if (staffProfile && req.method === 'PATCH') {
   if (deliveryPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'delivery')) return;
     const delivery = deliveries.find((entry) => entry.id === deliveryPath[1]); if (!delivery) return json(res, 404, { error: 'delivery_not_found' }); const input = await body(req); const allowed = ['new', 'confirmed', 'in_delivery', 'delivered', 'cancelled']; if (input.status !== undefined && !allowed.includes(input.status)) return json(res, 400, { error: 'invalid_delivery_status' }); const before = { ...delivery }; if (input.status !== undefined) delivery.status = input.status; if (input.courier !== undefined) delivery.courier = String(input.courier || '').trim().slice(0, 120); recordAudit(req, 'delivery.updated', 'delivery', delivery.id, before, delivery); return json(res, 200, delivery);
+  }
+  if (pathname === '/api/tasks' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['orders', 'staff_view'])) return;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",created_at AS "createdAt",updated_at AS "updatedAt" FROM tasks WHERE venue_id=$1 ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,due_at NULLS LAST,created_at DESC`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); } }
+    return json(res, 200, { items: tasks });
+  }
+  if (pathname === '/api/tasks' && req.method === 'POST') {
+    if (denyUnlessAny(req, res, ['orders', 'staff_manage'])) return;
+    const input = await body(req); const title = String(input.title || '').trim(); const description = String(input.description || '').trim(); const status = String(input.status || 'open'); const priority = String(input.priority || 'normal');
+    if (!title || title.length > 160 || description.length > 2000 || !['open','in_progress','done','cancelled'].includes(status) || !['low','normal','high','urgent'].includes(priority)) return json(res, 400, { error: 'invalid_task' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO tasks (venue_id,title,description,status,priority,assignee_id,due_at,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",created_at AS "createdAt",updated_at AS "updatedAt"', [venueDbId,title,description,status,priority,input.assigneeId || null,input.dueAt || null,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); recordAudit(req, 'task.created', 'task', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'task_create_failed', detail: error.message }); } }
+    const task = { id: `task-${Date.now()}`, title, description, status, priority, assigneeId: input.assigneeId || null, dueAt: input.dueAt || null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; tasks.push(task); recordAudit(req, 'task.created', 'task', task.id, null, task); return json(res, 201, task);
+  }
+  const taskPath = pathname.match(/^\/api\/tasks\/([^/]+)$/);
+  if (taskPath && req.method === 'PATCH') {
+    if (denyUnlessAny(req, res, ['orders', 'staff_manage'])) return;
+    const input = await body(req); const allowed = ['title','description','status','priority','assigneeId','dueAt'];
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(taskPath[1])) { try { const fields = []; const values = [taskPath[1], venueDbId]; for (const key of allowed) if (input[key] !== undefined) { if (key === 'status' && !['open','in_progress','done','cancelled'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_status' }); if (key === 'priority' && !['low','normal','high','urgent'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_priority' }); fields.push(`${key === 'assigneeId' ? 'assignee_id' : key === 'dueAt' ? 'due_at' : key}=$${values.length + 1}`); values.push(key === 'title' || key === 'description' ? String(input[key] || '').trim() : input[key]); } if (!fields.length) return json(res, 400, { error: 'task_fields_required' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE tasks SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 RETURNING id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'task_not_found' }); recordAudit(req, 'task.updated', 'task', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'task_update_failed', detail: error.message }); } }
+    const task = tasks.find((entry) => entry.id === taskPath[1]); if (!task) return json(res, 404, { error: 'task_not_found' }); Object.assign(task, input, { updatedAt: new Date().toISOString() }); return json(res, 200, task);
   }
   if (pathname === '/api/reservations' && req.method === 'GET') {
     if (denyUnless(req, res, 'reservations')) return;
