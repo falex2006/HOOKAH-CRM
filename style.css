@@ -1020,3 +1020,10 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 
 /* Central settings layout */
 .settings-dashboard-panel{margin-top:20px}.settings-dashboard-grid{display:grid;grid-template-columns:1fr minmax(220px,.65fr);gap:18px;padding-top:14px;border-top:1px solid #2b3038}.settings-dashboard-grid>div,.settings-dashboard-insights{display:grid;gap:8px;align-content:start}.settings-dashboard-grid>div>b,.settings-dashboard-insights>b{color:#e8edf0;font-size:13px}.settings-dashboard-grid label,.settings-dashboard-insights label{display:flex;align-items:center;gap:8px;color:#aeb6c0;font-size:12px;line-height:1.35}.settings-dashboard-grid input,.settings-dashboard-insights input{accent-color:#ff6678}.settings-dashboard-select{display:grid!important;gap:7px!important;color:#aeb6c0!important;font-size:12px!important}.settings-dashboard-select select{min-height:38px;padding:8px 10px;border:1px solid #3b424d;border-radius:9px;background:#111419;color:#eef1f4;font:inherit}.settings-dashboard-select small{color:#7f8994;font-size:10px;line-height:1.35}.settings-dashboard-insights{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px;padding-top:16px;border-top:1px solid #2b3038}.settings-dashboard-insights>b{grid-column:1/-1}.dashboard-settings-link{color:#8edfff;font-size:11px;text-decoration:none}.dashboard-settings-link:hover{color:#fff}@media(max-width:700px){.settings-dashboard-grid{grid-template-columns:1fr}.settings-dashboard-insights{grid-template-columns:1fr 1fr}}
+
+/* Finance KPI cards keep a compact, even four-column rhythm. */
+.velora-theme .finance-kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch}
+.velora-theme .finance-kpi-grid .finance-revenue-card{grid-column:auto;min-width:0}
+.velora-theme .finance-kpi-grid .finance-revenue-card .dashboard-revenue-main strong{font-size:clamp(28px,3vw,38px)}
+@media(max-width:1100px){.velora-theme .finance-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.velora-theme .finance-kpi-grid{grid-template-columns:1fr}.velora-theme .finance-kpi-grid .finance-revenue-card{grid-column:auto}}
