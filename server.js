@@ -266,6 +266,17 @@ const canSeeStaffPhoto = (req) => Boolean(req.user && ['owner', 'admin', 'manage
 const validBirthDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 const denyUnless = (req, res, permission) => { if (hasPermission(req, permission)) return false; json(res, 403, { error: 'forbidden', permission }); return true; };
 const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };
+const employeeNeedsShift = (req) => process.env.AUTH_REQUIRED === 'true' && ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'staff', 'manager'].includes(req.user?.role);
+const requireOpenShift = async (req, res) => {
+  if (!employeeNeedsShift(req)) return false;
+  try {
+    if (repositories?.pool) {
+      const result = await repositories.pool.query('SELECT 1 FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1', [venueDbId]);
+      if (result.rows[0]) return false;
+    } else if (shifts.some((entry) => !entry.closedAt)) return false;
+  } catch (_) { json(res, 503, { error: 'shift_status_unavailable' }); return true; }
+  json(res, 409, { error: 'active_shift_required', message: 'Откройте смену перед началом работы' }); return true;
+};
 
 async function api(req, res) {
   const url = new URL(req.url, 'http://localhost');
@@ -1456,6 +1467,7 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (pathname === '/api/orders' && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
+    if (await requireOpenShift(req, res)) return;
     const input = await body(req);
     if (!input.tableId || typeof input.tableId !== 'string' || input.tableId.length > 80) return json(res, 400, { error: 'table_id_required' });
     const minimumOrderTotal = Number(input.minimumOrderTotal || 0);
@@ -1591,6 +1603,7 @@ if (staffProfile && req.method === 'PATCH') {
   const paymentPath = pathname.match(/^\/api\/orders\/([^/]+)\/payments$/);
   if (paymentPath && (req.method === 'GET' || req.method === 'POST')) {
     if (denyUnless(req, res, 'orders')) return;
+    if (req.method === 'POST' && await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(paymentPath[1])) {
       try {
         const { rows: orderRows } = await repositories.pool.query('SELECT id,status,table_id AS "tableId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [paymentPath[1], venueDbId]);
