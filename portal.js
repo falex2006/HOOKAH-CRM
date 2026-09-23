@@ -419,6 +419,7 @@ function renderDashboard() {
   if (!['owner', 'admin', 'developer'].includes(portalUser.role)) { document.querySelector('#staff-form')?.remove(); document.querySelectorAll('.staff-delete').forEach((node) => node.remove()); }
   const dashboardFocus = window.location.hash.slice(1);
   const setDashboardPanelVisibility = (selector, visible) => target.querySelectorAll(selector).forEach((node) => { node.hidden = !visible; });
+  setDashboardPanelVisibility('.dashboard-page-actions', !dashboardFocus);
   if (!dashboardFocus) {
     setDashboardPanelVisibility('#staff, .floor-editor-panel, #audit, #company', false);
   } else if (dashboardFocus === 'staff') {
