@@ -474,7 +474,6 @@ function renderDashboard() {
   bindKpiNavigation();
   setupDashboardModules();
   setupFinancePreferences();
-  setupThemePreference();
   const renderShift = (shift) => {
   const title = document.querySelector('#shift-title'); const detail = document.querySelector('#shift-detail'); const date = document.querySelector('#shift-date'); const iconNode = document.querySelector('#shift-icon'); const actions = document.querySelector('#shift-actions');
   if (!title || !detail || !actions) return;
@@ -776,6 +775,7 @@ if (page === 'finance_categories') renderFinanceCategories();
 if (page === 'finance_report') renderFinanceReport();
 if (page === 'reservations') renderReservations();
 setupInterfacePreferences();
+setupThemePreference();
 
 
 if(!window.__staffPhoneFieldsLoaded){window.__staffPhoneFieldsLoaded=true;const script=document.createElement('script');script.src='/staff-phone-fields.js?rev=4';document.head.append(script);}
