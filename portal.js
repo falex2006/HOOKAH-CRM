@@ -38,6 +38,7 @@ if (administrationNav && !administrationNav.querySelector('a[href="/integrations
   link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#plug-connected"></use></svg><span>Интеграции</span>';
   administrationNav.append(link);
 }
+const adminModeSwitchAllowed = ['owner', 'admin', 'developer'].includes(portalUser.role);
 // Keep the sidebar structure identical on every management page.
 const normalizeManagementSidebar = () => {
   const sidebar = document.querySelector('.portal-sidebar');
@@ -100,7 +101,7 @@ document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
 });
 document.querySelectorAll('[data-owner-only]').forEach((node) => { if (!['owner', 'developer'].includes(portalUser.role)) node.hidden = true; });
 document.querySelectorAll('[data-staff-nav]').forEach((node) => { if (!portalPermissions.has('staff_view')) node.hidden = true; });
-const adminModeSwitchAllowed = ['owner', 'admin', 'developer'].includes(portalUser.role); document.querySelectorAll('[data-admin-mode-switch]').forEach((node) => { node.hidden = !adminModeSwitchAllowed; if (!adminModeSwitchAllowed) return; const menu = document.createElement('details'); menu.className = 'mode-switch-menu'; menu.innerHTML = '<summary>Сменить рабочий режим</summary><div class="mode-switch-menu-list"><b>Выберите рабочий контур</b><a href="/admin">Администратор</a><a href="/?mode=staff">Управляющий</a><a href="/?mode=bartender">Бармен</a><a href="/?mode=hookah_master">Кальянщик</a></div>'; node.parentElement?.insertBefore(menu, node); node.remove(); });
+document.querySelectorAll('[data-admin-mode-switch]').forEach((node) => { node.hidden = !adminModeSwitchAllowed; if (!adminModeSwitchAllowed) return; const menu = document.createElement('details'); menu.className = 'mode-switch-menu'; menu.innerHTML = '<summary>Сменить рабочий режим</summary><div class="mode-switch-menu-list"><b>Выберите рабочий контур</b><a href="/admin">Администратор</a><a href="/?mode=staff">Управляющий</a><a href="/?mode=bartender">Бармен</a><a href="/?mode=hookah_master">Кальянщик</a></div>'; node.parentElement?.insertBefore(menu, node); node.remove(); });
 
 const portalFooterRole = document.querySelector('.sidebar-footer b');
 const portalFooterAccess = document.querySelector('.sidebar-footer small');
