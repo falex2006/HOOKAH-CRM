@@ -45,6 +45,10 @@ const showSetupIfNeeded = async () => {
       form.hidden = true;
       setupForm.hidden = false;
       setupForm.querySelector('#setup-venue')?.focus();
+    } else if (status && !status.required && form && setupForm) {
+      setupForm.hidden = true;
+      form.hidden = false;
+      form.querySelector('#login-username')?.focus();
     }
   } catch (_) {}
 };
