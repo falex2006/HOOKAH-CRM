@@ -18,7 +18,7 @@
 - `POST /api/products/:id/image` — загрузка изображения товара (PNG/JPG/WebP до 1.5 МБ).
 
 ## Планируемые маршруты
-- `POST /api/auth/login` — вход по логину и PIN/паролю; для сотрудника можно передать `pin` из 4 цифр. Ответ содержит `user.organizationId` для tenant-контекста SaaS.
+- `POST /api/auth/login` — вход по логину и паролю. PIN не участвует в авторизации и используется только для разблокировки экрана. Ответ содержит `user.organizationId` для tenant-контекста SaaS.
 - `GET /api/floor?zone_id=` — зоны и столы со статусами.
 - `GET /api/orders?status=open` — открытые заказы.
 - `POST /api/orders` — открыть заказ на стол или свободный чек.

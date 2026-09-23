@@ -2,13 +2,6 @@ const form = document.querySelector('#login-form');
 fetch('/api/public/venue-brand').then((response) => response.ok ? response.json() : null).then((brand) => { const node = document.querySelector('[data-login-brand]'); if (!node || !brand?.logoUrl) return; node.innerHTML = `<img src="${brand.logoUrl}" alt="Логотип заведения">`; node.classList.add('has-logo'); }).catch(() => {});
 const passwordInput = document.querySelector('#login-password');
 const passwordToggle = document.querySelector('#login-password-toggle');
-const pinInput = document.querySelector('#login-pin');
-const pinConfirmInput = document.querySelector('#login-pin-confirm');
-const authModeButtons = [...document.querySelectorAll('[data-auth-mode]')];
-const authPanels = [...document.querySelectorAll('[data-auth-panel]')];
-let authMode = 'password';
-const setAuthMode = (mode) => { authMode = mode === 'pin' ? 'pin' : 'password'; authModeButtons.forEach((button) => { const active = button.dataset.authMode === authMode; button.classList.toggle('is-active', active); button.setAttribute('aria-selected', String(active)); }); authPanels.forEach((panel) => { panel.hidden = panel.dataset.authPanel !== authMode; }); passwordInput.required = authMode === 'password'; pinInput.required = authMode === 'pin'; pinConfirmInput.required = authMode === 'pin'; if (authMode === 'pin') { passwordInput.value = ''; pinInput.value = ''; pinConfirmInput.value = ''; pinInput.focus(); } else { pinInput.value = ''; pinConfirmInput.value = ''; passwordInput.focus(); } };
-authModeButtons.forEach((button) => button.addEventListener('click', () => setAuthMode(button.dataset.authMode)));
 passwordToggle?.addEventListener('click', () => { const visible = passwordInput.type === 'text'; passwordInput.type = visible ? 'password' : 'text'; passwordToggle.textContent = visible ? 'Показать' : 'Скрыть'; passwordToggle.setAttribute('aria-label', visible ? 'Показать пароль' : 'Скрыть пароль'); passwordToggle.setAttribute('aria-pressed', String(!visible)); passwordInput.focus(); });
 
 const demoUsers = {
@@ -43,10 +36,6 @@ form?.addEventListener('submit', async (event) => {
   const submit = form.querySelector('button[type="submit"]');
   const username = document.querySelector('#login-username').value.trim();
   const password = document.querySelector('#login-password').value;
-  const pin = String(pinInput?.value || '').trim();
-  const pinConfirm = String(pinConfirmInput?.value || '').trim();
-  if (authMode === 'pin' && !/^\d{4}$/.test(pin)) { message.textContent = 'Введите ровно 4 цифры PIN'; pinInput?.focus(); return; }
-  if (authMode === 'pin' && pin !== pinConfirm) { message.textContent = 'PIN-коды не совпадают'; pinConfirmInput?.focus(); return; }
   message.textContent = 'Проверяем доступ…';
   if (submit) { submit.disabled = true; submit.textContent = 'Проверяем…'; }
 
@@ -54,7 +43,7 @@ form?.addEventListener('submit', async (event) => {
     const response = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password: authMode === 'password' ? password : '', pin: authMode === 'pin' ? pin : '' }),
+      body: JSON.stringify({ username, password }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'login_failed');
@@ -62,10 +51,10 @@ form?.addEventListener('submit', async (event) => {
   } catch (error) {
     try {
       const state = JSON.parse(localStorage.getItem('territory_crm_demo_state') || '{}');
-      const person = (state.staff || []).find((entry) => entry.active !== false && entry.login === username && (entry.password === password || entry.pin === pin));
+      const person = (state.staff || []).find((entry) => entry.active !== false && entry.login === username && entry.password === password);
       if (person) { finishLogin({ token: `demo-static-${person.role}-${Date.now()}`, user: { id: person.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl || null } }); return; }
     } catch (_) {}
-    const user = authMode === 'pin' && username === 'staff' && pin === '1234' ? demoUsers['staff:demo'] : demoUsers[`${username}:${password}`];
+    const user = demoUsers[`${username}:${password}`];
     if (!user) {
       message.textContent = error?.message === 'too_many_login_attempts' ? 'Слишком много попыток. Повторите позже.' : 'Неверный логин или пароль';
       await showFailureAnimation();
