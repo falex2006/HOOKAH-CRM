@@ -53,11 +53,14 @@ const normalizeManagementSidebar = () => {
   if (!mainNav) return;
   let operations = navs.find((nav) => nav !== mainNav && [...nav.querySelectorAll('a')].some((a) => ['/orders','/clients','/reservations','/delivery','/'].includes(a.getAttribute('href'))));
   if (!operations) { operations = document.createElement('nav'); operations.className = 'portal-nav'; mainNav.after(operations); }
+  // Older static pages used `/` for the work panel. Remove that stale entry so
+  // the sidebar cannot show two work-panel links with different modes.
+  operations.querySelectorAll('a[href="/"]').forEach((link) => link.remove());
   const operationLinks = [
     { href: '/orders', permission: 'orders', label: 'Заказы', iconName: 'clipboard-list' },
     { href: '/clients', permission: 'orders', label: 'Гости', iconName: 'users' },
     { href: '/reservations', permission: 'reservations', label: 'Бронирования', iconName: 'calendar-event' },
-    { href: '/', permission: 'floor', label: 'Рабочая панель', iconName: 'home' },
+    { href: '/?mode=staff', permission: 'floor', label: 'Рабочая панель', iconName: 'home' },
     { href: '/delivery', permission: 'delivery', label: 'Доставка', iconName: 'truck-delivery' },
   ];
   operationLinks.forEach((item) => { if (!operations.querySelector(`a[href="${item.href}"]`)) operations.append(makeLink(item)); });
