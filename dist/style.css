@@ -1328,3 +1328,6 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .lock-timeout-options input:focus-visible+span{outline:2px solid #ff8796;outline-offset:2px}
 .lock-settings-save{min-height:48px;border-radius:11px;background:linear-gradient(110deg,#ff4569,#ff963e)!important;box-shadow:0 10px 22px #ff5a5425}
 @media(max-width:560px){.lock-settings-card{padding:26px 20px;border-radius:20px}.lock-settings-head h2{font-size:25px}.lock-timeout-options{grid-template-columns:repeat(2,1fr)}}
+
+
+.profile-trigger{cursor:pointer}.profile-trigger:focus-visible{outline:2px solid #ff7180;outline-offset:3px;border-radius:12px}
