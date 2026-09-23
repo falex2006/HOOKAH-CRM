@@ -355,7 +355,14 @@ async function api(req, res) {
   if ((process.env.AUTH_REQUIRED === 'true' || hasRequestCredential) && pathname !== '/api/health' && pathname !== '/api/login' && pathname !== '/api/public/venue-brand') {
     const session = await sessionFromRequest(req);
     if (!session) { if (process.env.AUTH_REQUIRED === 'true') return json(res, 401, { error: 'authentication_required' }); }
-    else { req.user = session.user; if (req.user?.venueId && /^[0-9a-f-]{36}$/i.test(req.user.venueId)) venueDbId = req.user.venueId; }
+    else {
+      req.user = session.user;
+      if (req.user?.venueId && /^[0-9a-f-]{36}$/i.test(req.user.venueId)) venueDbId = req.user.venueId;
+      // Refresh cookies issued before the longer session policy so an active
+      // browser is not logged out simply because its old cookie reached 8 hours.
+      const cookieToken = requestCookies(req).crm_session;
+      if (cookieToken && !(req.headers.authorization || '').startsWith('Bearer ')) res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(cookieToken)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
+    }
   }
   if (pathname === '/api/health') {
     if (repositories?.pool) {
