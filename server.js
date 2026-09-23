@@ -56,6 +56,9 @@ const products = [
 ];
 products.forEach((product) => { product.category = product.category || (product.station === 'bar' ? 'Бар' : 'Кальянная зона'); });
 products.push(...catalogSeed.products);
+// The hosted demo starts with an empty business workspace. Technology cards
+// remain seeded below, while menu items are created by the customer.
+products.length = 0;
 const productCategories = [
   { id: 'product-category-soft', name: 'Безалкогольные напитки', department: 'bar', active: true },
   { id: 'product-category-alcohol', name: 'Алкогольные напитки', department: 'bar', active: true },
@@ -66,6 +69,7 @@ const productCategories = [
 ];
 const importedProductCategoryNames = [...new Set(catalogSeed.products.map((item) => String(item.category || '').trim()).filter(Boolean))];
 for (const name of importedProductCategoryNames) if (!productCategories.some((item) => item.name === name)) productCategories.push({ id: 'seed-category-' + name.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '-').slice(0, 32), name, active: true });
+productCategories.length = 0;
 const recipes = (catalogSeed.recipes || []).map((recipe, index) => ({ ...recipe, id: recipe.id || 'recipe-' + (index + 1), ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [] }));
 const floor = [
   { id: 'hall', name: 'Зал', tables: Array.from({ length: 12 }, (_, i) => {
@@ -77,12 +81,14 @@ const floor = [
     { id: 'vip-room-2', name: 'VIP-комната 2', status: 'free', capacity: 6, minimumOrderTotal: 2500, layout: {} }
   ] }
 ];
+floor.length = 0;
 const orders = [];
 const discountRequests = [];
 const staff = [
   { id: 'u-owner', name: 'Владелец', role: 'owner', active: true, avatarUrl: null, telegram: '', phoneNumbers: [], passportData: null, permissionScopes: [] },
   { id: 'u-maria', name: 'Мария', role: 'bartender', active: true, avatarUrl: null, telegram: '', phoneNumbers: [], passportData: null, permissionScopes: [] }
 ];
+staff.splice(1);
 const inventory = [
   { id: 'ing-redbull', name: 'Red Bull', category: 'Холодильник', unit: 'шт', onHand: 24, minLevel: 10 },
   { id: 'ing-coco', name: 'Уголь Coco Nara', category: 'Кальянная зона', unit: 'уп', onHand: 8, minLevel: 5 },
@@ -90,6 +96,7 @@ const inventory = [
   { id: 'ing-lime', name: 'Лайм', category: 'Бар', unit: 'кг', onHand: 3.2, minLevel: 1 },
   { id: 'ing-bowl', name: 'Чаша глиняная', category: 'Кальянная зона', unit: 'шт', onHand: 14, minLevel: 4 }
 ];
+inventory.length = 0;
 const stockMovements = [];
 const reservations = [];
 const deliveries = [];
@@ -100,6 +107,7 @@ const financeCategories = [
   { id: 'finance-stock', name: 'Склад', kind: 'expense', active: true },
   { id: 'finance-delivery', name: 'Доставка', kind: 'expense', active: true }
 ];
+financeCategories.length = 0;
 const auditEvents = [];
 const staffNotifications = [];
 const discountGroups = [
@@ -107,10 +115,12 @@ const discountGroups = [
   { id: 'regular', name: 'Постоянный гость', discountPercent: 5, bonusPercent: 1, depositMin: 0, active: true },
   { id: 'vip', name: 'VIP', discountPercent: 10, bonusPercent: 2, depositMin: 3000, active: true }
 ];
+discountGroups.length = 0;
 const clients = [
   { id: 'client-anna', name: 'Анна Смирнова', phoneNumbers: [{ label: 'Основной', number: '+79991112233', primary: true }], telegram: '@anna_sm', tobaccoPreferences: ['Darkside', 'Мята'], bowlPreferences: ['Кальянная чаша'], barPreferences: ['Лимонад маракуйя', 'Red Bull'], allergies: '', notes: 'Предпочитает среднюю крепость', loyaltyPoints: 420, bonusBalance: 420, depositBalance: 0, discountGroupId: 'regular', visits: 6, totalSpent: 18400, lastVisitAt: '2026-09-18T21:30:00.000Z' },
   { id: 'client-igor', name: 'Игорь Волков', phoneNumbers: [{ label: 'Основной', number: '+79994445566', primary: true }, { label: 'Рабочий', number: '+79997778899', primary: false }], telegram: '', tobaccoPreferences: ['Tangiers', 'Ягодные миксы'], bowlPreferences: ['Калауд'], barPreferences: ['Кола', 'Виски'], allergies: 'Орехи', notes: '', loyaltyPoints: 180, bonusBalance: 180, depositBalance: 3000, discountGroupId: 'vip', visits: 3, totalSpent: 9200, lastVisitAt: '2026-09-12T20:10:00.000Z' }
 ];
+clients.length = 0;
 const sessions = new Map();
 const loginAttempts = new Map();
 const shifts = [];
