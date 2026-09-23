@@ -1398,3 +1398,33 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 @media(max-width:760px){
   .velora-theme .orders-view .table-wrap{overflow-x:auto}
 }
+/* Guest filters: equal dropdown controls and aligned toolbar. */
+.velora-theme .clients-toolbar{
+  display:grid;
+  grid-template-columns:minmax(230px,1.2fr) repeat(2,minmax(190px,1fr));
+  gap:10px;
+  align-items:stretch;
+  width:100%;
+  max-width:760px;
+}
+.velora-theme .clients-toolbar .table-search,
+.velora-theme .clients-toolbar select,
+.velora-theme .clients-toolbar .custom-select,
+.velora-theme .clients-toolbar .custom-select-trigger{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  height:48px;
+  min-height:48px;
+  box-sizing:border-box;
+}
+.velora-theme .clients-toolbar .custom-select-trigger{
+  display:flex;
+  align-items:center;
+}
+@media(max-width:1100px){
+  .velora-theme .clients-toolbar{max-width:100%;grid-template-columns:minmax(180px,1fr) repeat(2,minmax(150px,1fr))}
+}
+@media(max-width:760px){
+  .velora-theme .clients-toolbar{grid-template-columns:1fr;max-width:100%}
+}
