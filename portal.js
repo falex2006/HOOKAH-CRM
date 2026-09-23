@@ -43,7 +43,7 @@ document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
 });
 document.querySelectorAll('[data-owner-only]').forEach((node) => { if (!['owner', 'developer'].includes(portalUser.role)) node.hidden = true; });
 document.querySelectorAll('[data-staff-nav]').forEach((node) => { if (!portalPermissions.has('staff_view')) node.hidden = true; });
-const adminModeSwitchAllowed = ['owner', 'admin', 'developer'].includes(portalUser.role); document.querySelectorAll('[data-admin-mode-switch]').forEach((node) => { node.hidden = !adminModeSwitchAllowed; if (!adminModeSwitchAllowed) return; const menu = document.createElement('details'); menu.className = 'mode-switch-menu'; menu.innerHTML = '<summary>Сменить рабочий режим</summary><div class="mode-switch-menu-list"><b>Выберите рабочий контур</b><a href="/admin">Управление CRM</a><a href="/?mode=staff">Рабочая панель</a><a href="/?mode=bartender">Режим бармена</a><a href="/?mode=hookah_master">Режим кальянщика</a></div>'; node.parentElement?.insertBefore(menu, node); node.remove(); });
+const adminModeSwitchAllowed = ['owner', 'admin', 'developer'].includes(portalUser.role); document.querySelectorAll('[data-admin-mode-switch]').forEach((node) => { node.hidden = !adminModeSwitchAllowed; if (!adminModeSwitchAllowed) return; const menu = document.createElement('details'); menu.className = 'mode-switch-menu'; menu.innerHTML = '<summary>Сменить рабочий режим</summary><div class="mode-switch-menu-list"><b>Выберите рабочий контур</b><a href="/admin">Администратор</a><a href="/?mode=staff">Управляющий</a><a href="/?mode=bartender">Бармен</a><a href="/?mode=hookah_master">Кальянщик</a></div>'; node.parentElement?.insertBefore(menu, node); node.remove(); });
 
 const portalFooterRole = document.querySelector('.sidebar-footer b');
 const portalFooterAccess = document.querySelector('.sidebar-footer small');
@@ -379,7 +379,7 @@ function renderDashboard() {
   const staffList = document.querySelector('#staff-list');
   if (staffPanel && staffHead && staffList) {
     const staffTools = document.createElement('div'); staffTools.className = 'staff-list-tools';
-    staffTools.innerHTML = '<input id="staff-search" class="table-search" type="search" placeholder="Поиск сотрудника" aria-label="Поиск сотрудника"><select id="staff-role-filter" aria-label="Фильтр по роли"><option value="">Все роли</option><option value="admin">Управляющий</option><option value="senior_bartender">Старший бармен</option><option value="bartender">Бармен</option><option value="senior_hookah_master">Старший кальянщик</option><option value="hookah_master">Кальянщик</option></select><select id="staff-status-filter" aria-label="Фильтр по статусу"><option value="">Все статусы</option><option value="active">Активные</option><option value="inactive">Заблокированные</option></select>';
+    staffTools.innerHTML = '<input id="staff-search" class="table-search" type="search" placeholder="Поиск сотрудника" aria-label="Поиск сотрудника"><select id="staff-role-filter" aria-label="Фильтр по роли"><option value="">Все роли</option><option value="admin">Администратор</option><option value="senior_bartender">Старший бармен</option><option value="bartender">Бармен</option><option value="senior_hookah_master">Старший кальянщик</option><option value="hookah_master">Кальянщик</option></select><select id="staff-status-filter" aria-label="Фильтр по статусу"><option value="">Все статусы</option><option value="active">Активные</option><option value="inactive">Заблокированные</option></select>';
     staffPanel.insertBefore(staffTools, staffPanel.querySelector('.staff-layout'));
     if (canManageStaff) {
       const addButton = document.createElement('button'); addButton.type = 'button'; addButton.className = 'button primary staff-add-button'; addButton.textContent = '＋ Добавить сотрудника'; staffHead.append(addButton);
@@ -609,3 +609,5 @@ if(!window.__staffPhoneFieldsLoaded){window.__staffPhoneFieldsLoaded=true;const 
 if(!window.__staffAuditLoaded){window.__staffAuditLoaded=true;const script=document.createElement('script');script.src='/staff-audit.js?rev=1';document.head.append(script);}
 if(!window.__staffSensitiveLoaded){window.__staffSensitiveLoaded=true;const script=document.createElement('script');script.src='/staff-sensitive-fields.js?rev=5';document.head.append(script);}
 if(!window.__staffAdminCardLoaded){const script=document.createElement('script');script.src='/staff-admin-card.js?rev=6';document.head.append(script);}
+
+
