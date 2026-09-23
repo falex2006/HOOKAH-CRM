@@ -1030,3 +1030,20 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 
 /* Revenue trend: dark Pinterest-inspired line chart with a soft Territory gradient. */
 .velora-theme .finance-chart-visual{position:relative;margin-top:18px;padding:12px 8px 2px;border:1px solid #2b333d;border-radius:16px;background:linear-gradient(160deg,#171b21,#121519);overflow:hidden}.velora-theme .finance-chart-visual:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 15%,#ff637718,transparent 38%),radial-gradient(circle at 15% 90%,#4ec7ff0d,transparent 34%);pointer-events:none}.velora-theme .finance-line-chart{position:relative;display:block;width:100%;height:auto;min-height:220px;overflow:visible}.velora-theme .finance-chart-grid-lines line{stroke:#303740;stroke-width:1;stroke-dasharray:3 8}.velora-theme .finance-chart-area{fill:url(#finance-area-gradient)}.velora-theme .finance-chart-line{fill:none;stroke:#ff6d7d;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 4px 8px #ff637744)}.velora-theme .finance-chart-point circle{fill:#171b21;stroke:#ff8994;stroke-width:3;transition:r .15s ease,fill .15s ease}.velora-theme .finance-chart-point:hover circle{r:7;fill:#ff6377}.velora-theme .finance-chart-point text{fill:#89939f;font:500 12px Manrope, sans-serif}.velora-theme .finance-chart-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:4px}.velora-theme .finance-chart-summary>div{padding:12px 14px;border:1px solid #2b333d;border-radius:12px;background:#15191e}.velora-theme .finance-chart-summary span{display:block;color:#8d96a1;font-size:11px}.velora-theme .finance-chart-summary strong{display:block;margin-top:4px;color:#f3f5f7;font-size:17px}@media(max-width:600px){.velora-theme .finance-chart-summary{grid-template-columns:1fr}.velora-theme .finance-line-chart{min-height:190px}}
+/* Pinterest-inspired finance chart polish: smooth warm area, compact summaries and a clear current point. */
+.velora-theme .finance-chart-summary>div{position:relative;overflow:hidden;background:linear-gradient(145deg,#191e24,#15181d);box-shadow:inset 0 1px #ffffff08}
+.velora-theme .finance-chart-summary>div.is-primary{border-color:#5a3541;background:linear-gradient(145deg,#251d25,#17191e)}
+.velora-theme .finance-chart-summary>div.is-primary span{color:#b9979f}
+.velora-theme .finance-chart-summary>div i{position:absolute;right:-14px;bottom:-20px;width:70px;height:54px;border-radius:50%;background:#ff7a5928;filter:blur(14px);pointer-events:none}
+.velora-theme .finance-chart-summary>div:not(.is-primary) i{background:#4f9ebc20}
+.velora-theme .finance-chart-visual{margin-top:12px;padding:10px 12px 2px;border-color:#303944;background:linear-gradient(155deg,#171c22,#121519 72%);box-shadow:inset 0 1px #ffffff08}
+.velora-theme .finance-chart-visual:before{background:radial-gradient(circle at 82% 8%,#ff8e5c20,transparent 34%),radial-gradient(circle at 18% 100%,#3eaecb0c,transparent 36%)}
+.velora-theme .finance-chart-visual-head{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;padding:0 4px 3px;color:#aeb7c1;font-size:11px}
+.velora-theme .finance-chart-visual-head small{color:#707b87;font-size:10px}
+.velora-theme .finance-line-chart{min-height:205px}
+.velora-theme .finance-chart-line{stroke:url(#finance-line-gradient);stroke-width:4.5;filter:url(#finance-line-glow);}
+.velora-theme .finance-chart-area{fill:url(#finance-area-gradient)}
+.velora-theme .finance-chart-point circle{stroke:#ffad78;stroke-width:2.5}
+.velora-theme .finance-chart-point.is-current circle{fill:#ff7180;stroke:#ffd09b;stroke-width:3;filter:drop-shadow(0 0 7px #ff776f)}
+.velora-theme .finance-chart-point.is-current text{fill:#d9e0e6;font-weight:700}
+@media(max-width:700px){.velora-theme .finance-chart-visual{padding-inline:7px}.velora-theme .finance-chart-visual-head{padding-inline:2px}.velora-theme .finance-line-chart{min-height:180px}}
