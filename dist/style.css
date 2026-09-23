@@ -1353,3 +1353,7 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .velora-theme .finance-data-table td:not(:first-child){font-weight:700;color:#ffb36b}
 .velora-theme .finance-chart-median{stroke:#ffb36b!important}
 @media(max-width:700px){.velora-theme .finance-chart-controls{display:grid;grid-template-columns:1fr 1fr;align-items:end}.velora-theme .finance-chart-view{grid-column:1/-1;justify-self:start}.velora-theme .finance-bars-view{gap:5px;padding-inline:4px}.velora-theme .finance-bars-value{font-size:9px}.velora-theme .finance-data-table-wrap{padding-inline:0}}
+
+/* Sites visual QA: keep auth and first-run cards centered on wide screens. */
+.login{justify-content:center!important;padding-left:0!important}
+
