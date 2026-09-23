@@ -90,7 +90,7 @@ const normalizeManagementSidebar = () => {
   sidebar.querySelectorAll('.portal-nav a').forEach((link) => {
     const href = link.getAttribute('href') || '';
     const [path, hash] = href.split('#');
-    const active = path === currentPath && (!hash || `#${hash}` === currentHash || (currentPath === '/admin' && hash === ''));
+    const active = path === currentPath && (hash ? `#${hash}` === currentHash : !currentHash);
     link.classList.toggle('active', active);
     if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
   });
