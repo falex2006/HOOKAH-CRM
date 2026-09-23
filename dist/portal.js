@@ -11,7 +11,7 @@ const portalBasePermissions = {
   admin: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery']),
   developer: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations', 'delivery'])
 }[portalUser.role] || new Set();
-const portalPermissions = new Set(portalBasePermissions);
+const portalPermissions = new Set(portalBasePermissions); window.portalPermissions = portalPermissions;
 const portalScopes = Array.isArray(portalUser.permissionScopes) ? [...new Set(portalUser.permissionScopes.filter((scope) => portalPermissionScopes.includes(scope)))] : [];
 if (portalUser.role === 'admin' && portalScopes.length) { const restricted = new Set(Object.values(portalScopedPermissionMap).flat()); [...portalPermissions].filter((permission) => restricted.has(permission)).forEach((permission) => portalPermissions.delete(permission)); portalScopes.flatMap((scope) => portalScopedPermissionMap[scope] || []).forEach((permission) => portalPermissions.add(permission)); }
 const operationsNav = document.querySelectorAll('.portal-nav')[1];
