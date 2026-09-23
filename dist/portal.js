@@ -50,6 +50,7 @@ const normalizeManagementSidebar = () => {
   const sidebar = document.querySelector('.portal-sidebar');
   if (!sidebar) return;
   sidebar.querySelectorAll('a[href="/network"]').forEach((link) => link.remove());
+  sidebar.querySelectorAll('.portal-nav:not(.staff-nav) a[href="/integrations"]').forEach((link) => link.remove());
   const iconMarkup = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${name}"></use></svg>`;
   const makeLink = ({ href, permission, label, iconName }) => {
     const link = document.createElement('a'); link.href = href; link.dataset.permission = permission; link.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`; return link;
