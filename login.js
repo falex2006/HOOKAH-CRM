@@ -10,7 +10,7 @@ passwordToggle?.addEventListener('click', () => { const visible = passwordInput.
 
 const demoUsers = {
   'admin:admin': { id: 'demo-admin', name: 'Александр', role: 'admin' },
-  'owner:demo': { id: 'demo-owner', name: 'Владелец', role: 'owner' },
+  'owner:demo': { id: 'demo-owner', name: 'Администратор', role: 'owner' },
   'staff:demo': { id: 'demo-bartender', name: 'Мария', role: 'bartender' },
   'developer:developer': { id: 'demo-developer', name: 'Главный разработчик', role: 'developer' },
 };
