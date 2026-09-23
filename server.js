@@ -1294,6 +1294,20 @@ if (staffProfile && req.method === 'PATCH') {
     if (!name || !['hourly','monthly','percent_revenue','per_shift'].includes(ruleType) || !Number.isFinite(rate) || rate < 0) return json(res, 400, { error: 'invalid_payroll_rule' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO payroll_rules (venue_id,name,rule_type,rate) VALUES ($1,$2,$3,$4) RETURNING *', [venueDbId,name,ruleType,rate]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'payroll_rule_save_failed', detail: error.message }); } }
   }
+  if (pathname === '/api/payroll/entries' && req.method === 'POST') {
+    if (denyUnless(req, res, 'finance')) return;
+    const input = await body(req); const userId = String(input.userId || '').trim(); const periodFrom = String(input.periodFrom || '').trim(); const periodTo = String(input.periodTo || '').trim(); const ruleId = String(input.ruleId || '').trim();
+    if (!userId || !ruleId || !/^\d{4}-\d{2}-\d{2}$/.test(periodFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(periodTo) || periodTo < periodFrom) return json(res, 400, { error: 'invalid_payroll_period' });
+    if (repositories?.pool) { try {
+      const ruleResult = await repositories.pool.query('SELECT * FROM payroll_rules WHERE id=$1 AND venue_id=$2 AND active=true LIMIT 1', [ruleId, venueDbId]);
+      const rule = ruleResult.rows[0]; if (!rule) return json(res, 404, { error: 'payroll_rule_not_found' });
+      const timeResult = await repositories.pool.query('SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at,now())-started_at))/3600),0) AS hours FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at < ($4::date + INTERVAL \'1 day\') AND COALESCE(ended_at,now()) >= $3::date', [venueDbId,userId,periodFrom,periodTo]);
+      const hours = Number(timeResult.rows[0]?.hours || 0); const amount = rule.rule_type === 'hourly' ? hours * Number(rule.rate) : Number(input.amount || 0);
+      if (!Number.isFinite(amount) || amount < 0) return json(res, 400, { error: 'invalid_payroll_amount' });
+      const { rows } = await repositories.pool.query('INSERT INTO payroll_entries (venue_id,user_id,rule_id,period_from,period_to,amount,status) VALUES ($1,$2,$3,$4,$5,$6,\'draft\') ON CONFLICT (venue_id,user_id,period_from,period_to,rule_id) DO UPDATE SET amount=EXCLUDED.amount RETURNING *', [venueDbId,userId,ruleId,periodFrom,periodTo,Math.round(amount*100)/100]);
+      return json(res, 201, { ...rows[0], hours: Number(hours.toFixed(2)), amount: Number(rows[0].amount) });
+    } catch (error) { return json(res, 409, { error: 'payroll_entry_save_failed', detail: error.message }); } }
+  }
   const inventoryItemPath = pathname.match(/^\/api\/inventory\/items\/([^/]+)$/);
   if (pathname === '/api/inventory/items' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
