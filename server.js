@@ -1288,6 +1288,18 @@ if (staffProfile && req.method === 'PATCH') {
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT * FROM payroll_rules WHERE venue_id=$1 ORDER BY active DESC,name', [venueDbId]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'payroll_rules_unavailable', detail: error.message }); } }
     return json(res, 200, { items: [] });
   }
+  if (pathname === '/api/expenses' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['finance_read', 'finance'])) return;
+    const from = url.searchParams.get('from') || '1900-01-01'; const to = url.searchParams.get('to') || '2999-12-31';
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT * FROM expenses WHERE venue_id=$1 AND expense_date BETWEEN $2::date AND $3::date ORDER BY expense_date DESC,created_at DESC', [venueDbId,from,to]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'expenses_unavailable', detail: error.message }); } }
+    return json(res, 200, { items: [] });
+  }
+  if (pathname === '/api/expenses' && req.method === 'POST') {
+    if (denyUnless(req, res, 'finance')) return;
+    const input = await body(req); const category = String(input.category || '').trim(); const amount = Number(input.amount); const expenseDate = String(input.expenseDate || today());
+    if (!category || category.length > 80 || !Number.isFinite(amount) || amount < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(expenseDate)) return json(res, 400, { error: 'invalid_expense' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,document_url,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *', [venueDbId,category,amount,expenseDate,String(input.description || '').slice(0,1000) || null,['manual','payroll','purchase','other'].includes(input.source) ? input.source : 'manual',String(input.documentUrl || '').slice(0,500) || null,req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'expense_save_failed', detail: error.message }); } }
+  }
   if (pathname === '/api/payroll/rules' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
     const input = await body(req); const name = String(input.name || '').trim(); const ruleType = String(input.ruleType || 'hourly'); const rate = Number(input.rate);
@@ -1305,7 +1317,9 @@ if (staffProfile && req.method === 'PATCH') {
       const hours = Number(timeResult.rows[0]?.hours || 0); const amount = rule.rule_type === 'hourly' ? hours * Number(rule.rate) : Number(input.amount || 0);
       if (!Number.isFinite(amount) || amount < 0) return json(res, 400, { error: 'invalid_payroll_amount' });
       const { rows } = await repositories.pool.query('INSERT INTO payroll_entries (venue_id,user_id,rule_id,period_from,period_to,amount,status) VALUES ($1,$2,$3,$4,$5,$6,\'draft\') ON CONFLICT (venue_id,user_id,period_from,period_to,rule_id) DO UPDATE SET amount=EXCLUDED.amount RETURNING *', [venueDbId,userId,ruleId,periodFrom,periodTo,Math.round(amount*100)/100]);
-      return json(res, 201, { ...rows[0], hours: Number(hours.toFixed(2)), amount: Number(rows[0].amount) });
+      const expense = await repositories.pool.query('INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,created_by) VALUES ($1,\'Зарплата\',$2,$3,$4,\'payroll\',$5) RETURNING id', [venueDbId,Math.round(amount*100)/100,periodTo,`Начисление сотруднику за ${periodFrom} — ${periodTo}`,req.user?.id || null]);
+      const linked = await repositories.pool.query('UPDATE payroll_entries SET expense_id=$1 WHERE id=$2 RETURNING *', [expense.rows[0].id, rows[0].id]);
+      return json(res, 201, { ...linked.rows[0], hours: Number(hours.toFixed(2)), amount: Number(linked.rows[0].amount), expenseId: expense.rows[0].id });
     } catch (error) { return json(res, 409, { error: 'payroll_entry_save_failed', detail: error.message }); } }
   }
   const inventoryItemPath = pathname.match(/^\/api\/inventory\/items\/([^/]+)$/);
