@@ -706,6 +706,13 @@
 .velora-theme .orders-view .toolbar-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .velora-theme .orders-view #orders-sort{width:238px;min-width:238px;height:42px}
 @media(max-width:900px){.velora-theme .orders-view .toolbar-row{width:100%}.velora-theme .orders-view #orders-search,.velora-theme .orders-view #orders-sort,.velora-theme .orders-view #orders-status{flex:1 1 180px;width:auto;min-width:0;max-width:none}}
+.velora-theme .client-groups{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:0 0 14px;padding:4px;border:1px solid #2b3038;border-radius:12px;background:#15181d}
+.velora-theme .client-groups button{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:7px 11px;border:1px solid transparent;border-radius:9px;background:transparent;color:#9ca5b0;font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.velora-theme .client-groups button:hover{color:#f2f4f6;background:#20242a}
+.velora-theme .client-groups button.is-active{color:#fff;border-color:#ff6879;background:linear-gradient(100deg,#ff456922,#ff963d22);box-shadow:0 0 0 1px #ff637711}
+.velora-theme .client-groups button span{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#252b34;color:#c1cad4;font-size:10px;font-variant-numeric:tabular-nums}
+.velora-theme .client-groups button.is-active span{background:#ff637933;color:#ffb0aa}
+@media(max-width:700px){.velora-theme .client-groups{overflow-x:auto;flex-wrap:nowrap;margin-inline:-2px}.velora-theme .client-groups button{flex:0 0 auto}}
 
 .velora-theme .client-insights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
 .velora-theme .client-insights article{display:grid;gap:5px;padding:14px 16px;border:1px solid #2b3038;border-radius:14px;background:linear-gradient(145deg,#1c1f24,#17191d)}
