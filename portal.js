@@ -348,7 +348,7 @@ Promise.allSettled([api('/api/venue'), api('/api/metrics')]).then(([venueResult,
     document.querySelectorAll('[data-metric]').forEach((el) => { const key = el.dataset.metric; if (metrics[key] !== undefined) el.textContent = metrics[key]; });
   }
 });
-api('/api/shifts').then((data) => { document.querySelectorAll('.live-dot').forEach((node) => { node.textContent = data.current ? '● Смена открыта' : '● Смена закрыта'; node.classList.toggle('offline', !data.current); }); }).catch(() => {});
+const shiftStatusNode = document.querySelector('.portal-header .live-dot'); const shiftStatusVisible = ['/finance', '/finance/report', '/orders', '/reservations', '/delivery'].includes(location.pathname) || (location.pathname === '/admin' && (!location.hash || location.hash === '#shift-control')); if (shiftStatusNode) shiftStatusNode.hidden = !shiftStatusVisible; if (shiftStatusNode && shiftStatusVisible) api('/api/shifts').then((data) => { shiftStatusNode.textContent = data.current ? '● Смена открыта' : '● Смена закрыта'; shiftStatusNode.classList.toggle('offline', !data.current); }).catch(() => {});
 
 function setupFinancePreferences() {
   const identity = String(portalUser.id || portalUser.login || portalUser.name || portalUser.role || 'user').toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '_');
