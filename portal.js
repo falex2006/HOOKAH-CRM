@@ -285,7 +285,7 @@ refreshLeaderNotifications(); refreshStaffPinNotifications(); setInterval(refres
 document.addEventListener('submit', (event) => { const form = event.target; const button = form?.querySelector('button[type=submit],button:not([type])'); if (!button || button.disabled) return; button.disabled = true; button.dataset.submitLabel = button.textContent; button.textContent = 'Сохранение…'; window.setTimeout(() => { if (button.isConnected) { button.disabled = false; button.textContent = button.dataset.submitLabel || 'Сохранить'; } }, 6000); }, true);
 
 document.querySelectorAll('[data-route]').forEach((link) => {
-  if (link.dataset.route === page) link.classList.add('active');
+  if (link.dataset.route === page && !location.hash) link.classList.add('active');
   link.addEventListener('click', () => { window.location.href = link.href; });
 });
 
