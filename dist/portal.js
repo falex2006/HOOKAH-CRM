@@ -38,6 +38,63 @@ if (administrationNav && !administrationNav.querySelector('a[href="/integrations
   link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#plug-connected"></use></svg><span>Интеграции</span>';
   administrationNav.append(link);
 }
+// Keep the sidebar structure identical on every management page.
+const normalizeManagementSidebar = () => {
+  const sidebar = document.querySelector('.portal-sidebar');
+  if (!sidebar) return;
+  const iconMarkup = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${name}"></use></svg>`;
+  const makeLink = ({ href, permission, label, iconName }) => {
+    const link = document.createElement('a'); link.href = href; link.dataset.permission = permission; link.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`; return link;
+  };
+  const navs = [...sidebar.querySelectorAll(':scope > .portal-nav')];
+  const mainNav = navs.find((nav) => nav.querySelector('a[href="/admin"]')) || navs[0];
+  if (!mainNav) return;
+  let operations = navs.find((nav) => nav !== mainNav && [...nav.querySelectorAll('a')].some((a) => ['/orders','/clients','/reservations','/delivery','/'].includes(a.getAttribute('href'))));
+  if (!operations) { operations = document.createElement('nav'); operations.className = 'portal-nav'; mainNav.after(operations); }
+  const operationLinks = [
+    { href: '/orders', permission: 'orders', label: 'Заказы', iconName: 'clipboard-list' },
+    { href: '/clients', permission: 'orders', label: 'Гости', iconName: 'users' },
+    { href: '/reservations', permission: 'reservations', label: 'Бронирования', iconName: 'calendar-event' },
+    { href: '/', permission: 'floor', label: 'Рабочая панель', iconName: 'home' },
+    { href: '/delivery', permission: 'delivery', label: 'Доставка', iconName: 'truck-delivery' },
+  ];
+  operationLinks.forEach((item) => { if (!operations.querySelector(`a[href="${item.href}"]`)) operations.append(makeLink(item)); });
+  operationLinks.forEach((item) => { const link = operations.querySelector(`a[href="${item.href}"]`); if (link) operations.append(link); });
+  let control = navs.find((nav) => nav !== mainNav && nav !== operations && [...nav.querySelectorAll('a')].some((a) => ['/inventory','/finance','/finance#discounts'].includes(a.getAttribute('href'))));
+  if (!control) { control = document.createElement('nav'); control.className = 'portal-nav'; operations.after(control); }
+  const controlLinks = [
+    { href: '/inventory', permission: 'inventory_read', label: 'Склад', iconName: 'package' },
+    { href: '/finance', permission: 'finance_read', label: 'Финансы', iconName: 'cash' },
+    { href: '/finance#discounts', permission: 'finance_read', label: 'Согласование скидок', iconName: 'cash' },
+  ];
+  controlLinks.forEach((item) => { if (!control.querySelector(`a[href="${item.href}"]`)) control.append(makeLink(item)); });
+  controlLinks.forEach((item) => { const link = control.querySelector(`a[href="${item.href}"]`); if (link) control.append(link); });
+  if (adminModeSwitchAllowed) {
+    let adminLabel = sidebar.querySelector(':scope > .side-label.staff-nav');
+    let adminNav = sidebar.querySelector(':scope > .portal-nav.staff-nav');
+    if (!adminLabel) { adminLabel = document.createElement('div'); adminLabel.className = 'side-label staff-nav'; adminLabel.dataset.staffNav = ''; adminLabel.textContent = 'АДМИНИСТРИРОВАНИЕ'; sidebar.querySelector('.sidebar-footer')?.before(adminLabel); }
+    if (!adminNav) { adminNav = document.createElement('nav'); adminNav.className = 'portal-nav staff-nav'; adminNav.dataset.staffNav = ''; adminLabel.after(adminNav); }
+    const adminLinks = [
+      { href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'users' },
+      { href: '/admin#settings', permission: 'settings', label: 'Настройки', iconName: 'settings' },
+      { href: '/integrations', permission: 'integrations', label: 'Интеграции', iconName: 'plug-connected' },
+      { href: '/network', permission: 'settings', label: 'Сеть', iconName: 'plug-connected' },
+      { href: '/admin#diagnostics', permission: 'diagnostics', label: 'Диагностика', iconName: 'settings' },
+    ];
+    adminLinks.forEach((item) => { if (!adminNav.querySelector(`a[href="${item.href}"]`)) adminNav.append(makeLink(item)); });
+    adminLinks.forEach((item) => { const link = adminNav.querySelector(`a[href="${item.href}"]`); if (link) adminNav.append(link); });
+  }
+  const currentPath = location.pathname;
+  const currentHash = location.hash;
+  sidebar.querySelectorAll('.portal-nav a').forEach((link) => {
+    const href = link.getAttribute('href') || '';
+    const [path, hash] = href.split('#');
+    const active = path === currentPath && (!hash || `#${hash}` === currentHash || (currentPath === '/admin' && hash === ''));
+    link.classList.toggle('active', active);
+    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  });
+};
+normalizeManagementSidebar();
 document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
   if (!portalPermissions.has(link.dataset.permission)) link.hidden = true;
 });
