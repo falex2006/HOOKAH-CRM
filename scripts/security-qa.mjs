@@ -10,5 +10,7 @@ try {
   assert.equal(bot.status, 400); assert.equal((await bot.json()).error, 'bot_detected');
   const oversized = await raw('/api/login', JSON.stringify({ username: 'x', password: 'x', padding: 'x'.repeat(2 * 1024 * 1024) }));
   assert.equal(oversized.status, 413);
-  console.log('SECURITY QA: honeypot and payload limit passed');
+  let lastStatus = 200; for (let index = 0; index < 181; index += 1) lastStatus = (await fetch(`http://127.0.0.1:${port}/api/health`)).status;
+  assert.equal(lastStatus, 429);
+  console.log('SECURITY QA: honeypot, payload limit and rate limit passed');
 } finally { child.kill('SIGTERM'); }
