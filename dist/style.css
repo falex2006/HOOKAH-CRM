@@ -1289,3 +1289,42 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 }
 .login-card .brand-mark{border-radius:50%!important}
 .screen-lock-mark{display:grid;place-items:center}
+
+
+/* Personal screen-lock settings match the login and PIN screens. */
+.lock-settings-dialog{
+  width:min(460px,calc(100vw - 32px));
+  max-height:calc(100dvh - 32px);
+  margin:auto;
+  overflow:visible;
+  background:transparent;
+  color:#f7f8fa;
+}
+.lock-settings-card{
+  box-sizing:border-box;
+  max-height:calc(100dvh - 32px);
+  overflow:auto;
+  padding:32px;
+  border:1px solid #39424d;
+  border-radius:24px;
+  background:linear-gradient(145deg,#1b1e23f5,#121417f5);
+  box-shadow:0 26px 90px #000c;
+}
+.lock-settings-card::before{display:none}
+.lock-settings-head h2{color:#f7f8fa;font-size:28px;letter-spacing:-.035em;line-height:1.1}
+.lock-settings-head p:first-child{color:#ff8d76!important;font-size:11px!important;font-weight:800;letter-spacing:.18em;text-transform:uppercase}
+.lock-settings-head p:last-child{color:#8d949e;font-size:13px;line-height:1.4}
+.lock-settings-close{width:36px;height:36px;border-color:#46515d;border-radius:10px;background:#171a1f;color:#cbd3dc}
+.lock-settings-close:hover,.lock-settings-close:focus-visible{border-color:#ff6372;color:#fff;outline:none}
+.lock-pin-settings{margin-top:24px;padding:18px;border:1px solid #39424d;border-radius:16px;background:#111317}
+.lock-settings-section-head{color:#eef1f4}
+.lock-settings-section-head span{color:#57dfa8}
+.lock-settings-note{color:#8d949e}
+.lock-pin-fields input{min-height:48px;box-sizing:border-box;border:1px solid #363b44;border-radius:11px;background:#171a1f;color:#f7f8fa;caret-color:#ff8796;text-align:center;letter-spacing:.35em}
+.lock-pin-fields input:focus{border-color:#ff6372;outline:2px solid #ff63721c}
+.lock-timeout-options{margin:22px 0 14px;gap:10px}
+.lock-timeout-options span{min-height:48px;border-color:#3b4652;border-radius:12px;background:#171a1f;color:#aeb6c0;font-size:13px}
+.lock-timeout-options input:checked+span{border-color:#ff7180;background:linear-gradient(110deg,#ff4569,#ff963e);color:#fff;box-shadow:0 8px 18px #ff5a5425}
+.lock-timeout-options input:focus-visible+span{outline:2px solid #ff8796;outline-offset:2px}
+.lock-settings-save{min-height:48px;border-radius:11px;background:linear-gradient(110deg,#ff4569,#ff963e)!important;box-shadow:0 10px 22px #ff5a5425}
+@media(max-width:560px){.lock-settings-card{padding:26px 20px;border-radius:20px}.lock-settings-head h2{font-size:25px}.lock-timeout-options{grid-template-columns:repeat(2,1fr)}}
