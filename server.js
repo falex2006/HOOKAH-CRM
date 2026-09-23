@@ -311,7 +311,7 @@ async function api(req, res) {
     return json(res, 200, { ok: true });
   }
   if (pathname === '/api/session/preferences' && (req.method === 'GET' || req.method === 'PATCH')) {
-    const allowed = new Set(['lockTimeoutMinutes', 'dashboardModules', 'dashboardRevenueStyle', 'insights', 'deliveryEnabled', 'integrationsEnabled', 'navigationVisibility']);
+    const allowed = new Set(['lockTimeoutMinutes', 'dashboardModules', 'dashboardRevenueStyle', 'insights', 'deliveryEnabled', 'integrationsEnabled', 'navigationVisibility', 'financeMetrics']);
     const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
     const memorySession = sessions.get(token);
     if (req.method === 'GET') {
@@ -324,7 +324,7 @@ async function api(req, res) {
     const patch = {}; for (const [key, value] of Object.entries(incoming)) if (allowed.has(key)) patch[key] = value;
     if (Object.prototype.hasOwnProperty.call(patch, 'lockTimeoutMinutes') && ![0, 1, 5, 10, 15, 30].includes(Number(patch.lockTimeoutMinutes))) return json(res, 400, { error: 'invalid_lock_timeout' });
     if (Object.prototype.hasOwnProperty.call(patch, 'dashboardRevenueStyle') && !['hero', 'split', 'minimal'].includes(String(patch.dashboardRevenueStyle))) return json(res, 400, { error: 'invalid_dashboard_revenue_style' });
-    for (const key of ['dashboardModules', 'insights']) if (Object.prototype.hasOwnProperty.call(patch, key) && (!patch[key] || typeof patch[key] !== 'object' || Array.isArray(patch[key]))) return json(res, 400, { error: `invalid_${key}_preferences` });
+    for (const key of ['dashboardModules', 'insights', 'financeMetrics']) if (Object.prototype.hasOwnProperty.call(patch, key) && (!patch[key] || typeof patch[key] !== 'object' || Array.isArray(patch[key]))) return json(res, 400, { error: `invalid_${key}_preferences` });
     const current = memorySession?.user?.preferences || {};
     const next = { ...current, ...patch };
     if (memorySession) memorySession.user.preferences = next;
