@@ -14,4 +14,5 @@ const accountResponse = await fetch(new URL('/api/saas/account', base), { header
 const account = await accountResponse.json();
 assert.equal(accountResponse.status, 200, JSON.stringify(account));
 assert.equal(account.id, created.id); assert.equal(account.activeSeats, 1); assert.equal(account.activeVenues, 1);
+await fetch(new URL('/api/logout', base), { method: 'POST', headers: { Authorization: `Bearer ${session.token}` } });
 console.log(`LOCAL SaaS ONBOARDING CONTRACT: PASS (org=${created.slug}, owner=${ownerLogin})`);
