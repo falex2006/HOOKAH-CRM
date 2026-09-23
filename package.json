@@ -8,6 +8,9 @@
   "scripts": {
     "start": "node server.js",
     "db:migrate": "node scripts/migrate.js",
+    "qa:tasks": "node scripts/tasks-qa.mjs",
+    "qa:security": "node scripts/security-qa.mjs",
+    "qa:warehouse": "node scripts/warehouse-qa.mjs",
     "db:seed-menu": "node scripts/seed-menu-catalog.js"
   },
   "engines": {
