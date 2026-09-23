@@ -380,7 +380,7 @@ function renderDashboard() {
   if (staffPanel && staffHead && staffList) {
     const staffTools = document.createElement('div'); staffTools.className = 'staff-list-tools';
     staffTools.innerHTML = '<input id="staff-search" class="table-search" type="search" placeholder="Поиск сотрудника" aria-label="Поиск сотрудника"><select id="staff-role-filter" aria-label="Фильтр по роли"><option value="">Все роли</option><option value="admin">Управляющий</option><option value="senior_bartender">Старший бармен</option><option value="bartender">Бармен</option><option value="senior_hookah_master">Старший кальянщик</option><option value="hookah_master">Кальянщик</option></select><select id="staff-status-filter" aria-label="Фильтр по статусу"><option value="">Все статусы</option><option value="active">Активные</option><option value="inactive">Заблокированные</option></select>';
-    const heading = staffHead.querySelector(':scope > div'); heading?.append(staffTools);
+    staffPanel.insertBefore(staffTools, staffPanel.querySelector('.staff-layout'));
     if (canManageStaff) {
       const addButton = document.createElement('button'); addButton.type = 'button'; addButton.className = 'button primary staff-add-button'; addButton.textContent = '＋ Добавить сотрудника'; staffHead.append(addButton);
       const form = document.querySelector('#staff-form');
