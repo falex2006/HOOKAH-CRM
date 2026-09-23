@@ -43,6 +43,7 @@ CREATE TABLE users (
   venue_id uuid REFERENCES venues(id),
   full_name text NOT NULL,
   login text NOT NULL UNIQUE,
+  password_hash text,
   pin_hash text,
   avatar_url text,
   photo_url text,
