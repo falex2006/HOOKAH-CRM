@@ -128,7 +128,7 @@ form?.addEventListener('submit', async (event) => {
     } catch (_) {}
     const user = demoUsers[`${username}:${password}`];
     if (!user) {
-      message.textContent = error?.message === 'too_many_login_attempts' ? 'Слишком много попыток. Повторите позже.' : 'Неверный логин или пароль';
+      message.textContent = error?.message === 'too_many_login_attempts' ? 'Слишком много попыток. Повторите позже.' : error?.message === 'session_limit_reached' ? 'Учетная запись уже открыта на двух устройствах. Выйдите на одном из них и повторите вход.' : 'Неверный логин или пароль';
       await showFailureAnimation();
       if (submit) { submit.disabled = false; submit.textContent = 'Войти в систему'; }
       return;

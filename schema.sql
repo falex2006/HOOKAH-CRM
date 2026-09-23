@@ -86,11 +86,13 @@ CREATE TABLE IF NOT EXISTS organization_subscriptions (
 CREATE TABLE IF NOT EXISTS auth_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  device_id text NOT NULL DEFAULT gen_random_uuid()::text,
   token_hash text NOT NULL UNIQUE,
   expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions (expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_sessions_user_device ON auth_sessions (user_id, device_id);
 
 CREATE TABLE zones (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

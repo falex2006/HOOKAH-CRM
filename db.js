@@ -123,7 +123,16 @@ class AuditRepository {
 class SessionRepository {
   constructor(pool) { this.pool = pool; }
   async create(input) {
-    await this.pool.query('INSERT INTO auth_sessions (user_id,token_hash,expires_at) VALUES ($1,$2,$3)', [input.userId, input.tokenHash, input.expiresAt]);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`INSERT INTO auth_sessions (user_id,device_id,token_hash,expires_at) VALUES ($1,$2,$3,$4)
+        ON CONFLICT (user_id,device_id) DO UPDATE SET token_hash=EXCLUDED.token_hash,expires_at=EXCLUDED.expires_at,created_at=now()`, [input.userId, input.deviceId, input.tokenHash, input.expiresAt]);
+      await client.query(`WITH ranked AS (SELECT token_hash,row_number() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS position FROM auth_sessions WHERE user_id=$1 AND expires_at>now()) DELETE FROM auth_sessions WHERE token_hash IN (SELECT token_hash FROM ranked WHERE position>2)`, [input.userId]);
+      await client.query('COMMIT');
+      return true;
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+    finally { client.release(); }
   }
   async get(tokenHash) {
     const { rows } = await this.pool.query(`SELECT s.id,u.id AS "userId",u.organization_id AS "organizationId",u.venue_id AS "venueId",u.full_name AS name,u.role,u.avatar_url AS "avatarUrl",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes"

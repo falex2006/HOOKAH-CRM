@@ -237,6 +237,7 @@ const setMemoryTableStatus = (tableId, status) => { const table = floor.flatMap(
 const releaseMemoryTableIfIdle = (tableId) => { const hasActiveOrder = orders.some((order) => order.tableId === tableId && ['open', 'in_progress', 'ready'].includes(order.status)); const hasReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === today()); if (!hasActiveOrder) setMemoryTableStatus(tableId, hasReservation ? 'reserved' : 'free'); };
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
+const requestCookies = (req) => Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2));
 const sessionFromRequest = async (req) => {
   const header = req.headers.authorization || '';
   const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2));
@@ -324,14 +325,23 @@ async function api(req, res) {
     }
     if (!account) { const current = loginAttempts.get(loginKey) || { count: 0, firstAt: Date.now() }; const withinWindow = Date.now() - current.firstAt < 60_000; const next = withinWindow ? { count: current.count + 1, firstAt: current.firstAt } : { count: 1, firstAt: Date.now() }; if (next.count >= 5) next.blockedUntil = Date.now() + 60_000; loginAttempts.set(loginKey, next); return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_login_attempts' : 'invalid_credentials', ...(next.blockedUntil ? { retryAfter: 60 } : {}) }); }
     loginAttempts.delete(loginKey);
-    const token = crypto.randomBytes(32).toString('hex');
-    if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
     const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
     const organizationId = account.organizationId === undefined ? '00000000-0000-0000-0000-000000000010' : account.organizationId;
     const userVenueId = account.venueId || null;
-    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: account.preferences || {}, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, unlockHash: account.pinHash || null, createdAt: Date.now() });
-    if (sessionRepository) { try { await sessionRepository.create({ userId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 28_800_000).toISOString() }); } catch (_) {} }
-    res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
+    const token = crypto.randomBytes(32).toString('hex');
+    const cookies = requestCookies(req);
+    const deviceId = cookies.crm_device_id || crypto.randomUUID();
+    const sameDeviceTokens = [...sessions.entries()].filter(([, session]) => session.user?.id === userId && session.deviceId === deviceId).map(([sessionToken]) => sessionToken);
+    sameDeviceTokens.forEach((sessionToken) => sessions.delete(sessionToken));
+    if (!sessionRepository) {
+      const activeUserSessions = [...sessions.values()].filter((session) => session.user?.id === userId && Date.now() - session.createdAt <= 28_800_000);
+      if (activeUserSessions.length >= 2) return json(res, 409, { error: 'session_limit_reached', limit: 2 });
+    }
+    if (sessionRepository) { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + 28_800_000).toISOString() }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) {} }
+    if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
+    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: account.preferences || {}, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now() });
+    [...sessions.entries()].filter(([, session]) => session.user?.id === userId).sort(([, left], [, right]) => right.createdAt - left.createdAt).slice(2).forEach(([sessionToken]) => sessions.delete(sessionToken));
+    res.setHeader('Set-Cookie', [`crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`, `crm_device_id=${encodeURIComponent(deviceId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`]);
     return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: account.preferences || {}, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: 28800 });
   }
   if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
