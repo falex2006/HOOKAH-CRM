@@ -1562,3 +1562,47 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   .staff-theme .tables{grid-template-columns:repeat(3,minmax(0,1fr));min-height:0}
   .staff-theme .order{width:100%;max-width:none}
 }
+
+/* Device coverage: safe areas and tablet/large-phone logical viewports. */
+html{min-width:0;overflow-x:hidden}
+body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+.portal-content{padding-bottom:max(42px,env(safe-area-inset-bottom))}
+.staff-theme main{min-width:0;padding-bottom:env(safe-area-inset-bottom)}
+.login{padding-left:max(14px,env(safe-area-inset-left))!important;padding-right:max(14px,env(safe-area-inset-right))!important;padding-bottom:max(20px,env(safe-area-inset-bottom))}
+@media (max-width:600px){
+  .velora-theme .portal-content{padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+  .velora-theme .portal-header{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  .staff-theme header,.staff-theme .tabs,.staff-theme .queue{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  .staff-theme .workspace{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+  .velora-theme .panel{overflow-wrap:anywhere}
+  .velora-theme .toolbar-row,.velora-theme .panel-head{min-width:0}
+  .velora-theme input,.velora-theme select,.velora-theme textarea,.staff-theme input,.staff-theme select,.staff-theme textarea{max-width:100%;font-size:16px}
+}
+@media (max-width:380px){
+  .login-card{padding:28px 22px!important;border-radius:22px}
+  .login-card h1{font-size:34px!important;line-height:1.08}
+  .velora-theme .portal-content{padding-top:16px}
+  .velora-theme .page-title h1{font-size:27px}
+  .velora-theme .kpi{padding:14px}
+  .velora-theme .kpi strong{font-size:24px}
+  .staff-theme .tables{grid-template-columns:1fr}
+  .staff-theme .actions{grid-template-columns:1fr}
+}
+/* 7–10 inch tablets in portrait: keep controls readable while using the compact navigation. */
+@media (min-width:601px) and (max-width:900px) and (orientation:portrait){
+  .velora-theme .portal-content{padding:26px 24px 38px}
+  .velora-theme .kpi-grid,.velora-theme .kpi-grid.compact{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .velora-theme .content-grid{grid-template-columns:1fr;gap:16px}
+  .velora-theme .panel{padding:20px}
+  .staff-theme .workspace{grid-template-columns:1fr;padding-inline:24px}
+  .staff-theme .tables{grid-template-columns:repeat(3,minmax(110px,1fr))}
+  .staff-theme .order{width:100%;max-width:none}
+}
+/* 10–13 inch tablets and small laptops: prevent cards and toolbars from becoming too dense. */
+@media (min-width:901px) and (max-width:1366px){
+  .velora-theme .portal-content{padding-inline:32px}
+  .velora-theme .kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .velora-theme .content-grid{gap:16px}
+  .velora-theme .orders-view .table-wrap{overflow-x:auto}
+  .staff-theme .workspace{padding-inline:32px}
+}
