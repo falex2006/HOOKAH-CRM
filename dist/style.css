@@ -1383,3 +1383,18 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 @media(max-width:720px){
   .velora-theme .staff-list-tools{grid-template-columns:1fr;max-width:100%}
 }
+/* Orders journal fits the card on desktop; horizontal scrolling stays mobile-only. */
+.velora-theme .orders-view .table-wrap{
+  width:100%;
+  max-width:100%;
+  overflow-x:hidden;
+  overflow-y:auto;
+}
+.velora-theme .orders-view .orders-table{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+@media(max-width:760px){
+  .velora-theme .orders-view .table-wrap{overflow-x:auto}
+}
