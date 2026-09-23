@@ -932,3 +932,25 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .velora-theme .lock-screen-button span,.staff-theme .lock-screen-button span{display:block;width:100%;line-height:1.2;text-align:center}
 .velora-theme .lock-screen-button .icon,.staff-theme .lock-screen-button .icon{position:absolute;left:15px;top:50%;margin:0;transform:translateY(-50%)}
 @media(max-width:600px){.velora-theme .lock-screen-button,.staff-theme .lock-screen-button{min-width:42px;width:42px;padding:0}.velora-theme .lock-screen-button .icon,.staff-theme .lock-screen-button .icon{left:50%;transform:translate(-50%,-50%)}}
+
+/* Sidebar navigation rhythm: keep section labels and links on a steady vertical grid. */
+.velora-theme .portal-sidebar > .side-label{
+  min-height:28px;
+  margin:0;
+  padding:0 13px 9px;
+  line-height:1.2;
+}
+.velora-theme .portal-sidebar > .portal-nav{
+  flex:0 0 auto;
+  gap:6px;
+  margin:0;
+}
+.velora-theme .portal-sidebar > .portal-nav a{
+  min-height:46px;
+  box-sizing:border-box;
+  padding:0 13px;
+  line-height:1.25;
+}
+.velora-theme .portal-sidebar > .portal-nav + .side-label{
+  margin-top:18px;
+}
