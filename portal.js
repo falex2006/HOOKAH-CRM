@@ -819,7 +819,7 @@ function renderReservations() {
 }
 
 if (page === 'admin' && location.hash === '#loyalty') renderLoyalty();
-if (page === 'dashboard') { try { renderDashboard(); } catch (error) { const target = document.querySelector('#page-content'); if (target) target.innerHTML = '<div class="panel"><h2>Не удалось загрузить главную страницу</h2><p class="muted">Попробуйте обновить страницу.</p></div>'; } }
+if (page === 'dashboard' && location.hash !== '#loyalty') { try { renderDashboard(); } catch (error) { const target = document.querySelector('#page-content'); if (target) target.innerHTML = '<div class="panel"><h2>Не удалось загрузить главную страницу</h2><p class="muted">Попробуйте обновить страницу.</p></div>'; } }
 if (page === 'orders') renderOrders();
 if (page === 'integrations') renderIntegrations();
 if (page === 'network') renderNetwork();
