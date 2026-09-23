@@ -967,6 +967,14 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .velora-theme .staff-row[hidden]{display:none}
 @media(max-width:720px){.velora-theme .staff-panel .panel-head{display:grid}.velora-theme .staff-list-tools{grid-template-columns:1fr;max-width:100%}.velora-theme .staff-list-tools input{min-width:0}.velora-theme .staff-add-button{justify-self:start}.velora-theme .staff-drawer-panel{padding:20px}.staff-drawer-form{grid-template-columns:1fr}}
 
+/* Shift payment split sits beside the metrics without competing with the main KPIs. */
+.velora-theme .insight-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(290px,360px);gap:18px;align-items:start}
+.velora-theme .insight-chart{min-width:0}
+.velora-theme .insight-payments{min-width:0;padding:18px;border:1px solid #30343c;border-radius:14px;background:linear-gradient(145deg,#171b20,#14171a)}
+.velora-theme .insight-payments-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:1px solid #2b3038}
+.velora-theme .insight-payments-head b,.velora-theme .insight-payments-head span{display:block}.velora-theme .insight-payments-head b{color:#eef1f4;font-size:14px}.velora-theme .insight-payments-head span{margin-top:4px;font-size:11px}.velora-theme .insight-payments-head>strong{color:#f4f6f8;font-size:17px;white-space:nowrap}
+.velora-theme .insight-payment-list{display:grid;gap:2px;margin-top:8px}.velora-theme .insight-payment-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:9px;padding:10px 0;color:#b8c0c9;font-size:13px}.velora-theme .insight-payment-row strong{color:#eef1f4;font-size:14px}.velora-theme .insight-payment-icon{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:800}.velora-theme .insight-payment-icon.cash{background:#163c31;color:#63e2ad}.velora-theme .insight-payment-icon.card{background:#202f46;color:#8edfff}.velora-theme .insight-payment-icon.qr{background:#382a4b;color:#d5a1ff}
+@media(max-width:900px){.velora-theme .insight-layout{grid-template-columns:1fr}.velora-theme .insight-payments{order:2}.velora-theme .insight-note{order:3}}
 /* Sidebar navigation rhythm: keep section labels and links on a steady vertical grid. */
 .velora-theme .portal-sidebar > .side-label{
   min-height:28px;
