@@ -41,7 +41,7 @@ if (operationsNav) {
 const administrationNav = document.querySelector('.portal-nav.staff-nav');
 if (administrationNav && !administrationNav.querySelector('a[href="/integrations"]')) {
   const link = document.createElement('a'); link.href = '/integrations'; link.dataset.permission = 'integrations';
-  link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#plug-connected"></use></svg><span>Интеграции</span>';
+  link.innerHTML = '<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#plug"></use></svg><span>Интеграции</span>';
   administrationNav.append(link);
 }
 const adminModeSwitchAllowed = ['owner', 'admin', 'developer', 'manager'].includes(portalUser.role);
@@ -91,7 +91,7 @@ const normalizeManagementSidebar = () => {
       { href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'users' },
       { href: '/admin#loyalty', permission: 'loyalty', label: 'Система лояльности', iconName: 'cash' },
       { href: '/admin#settings', permission: 'settings', label: 'Настройки', iconName: 'settings' },
-      { href: '/integrations', permission: 'integrations', label: 'Интеграции', iconName: 'plug-connected' },
+      { href: '/integrations', permission: 'integrations', label: 'Интеграции', iconName: 'plug' },
     ];
     adminLinks.forEach((item) => {
       let link = adminNav.querySelector(`a[href="${item.href}"]`);
