@@ -1259,6 +1259,41 @@ if (staffProfile && req.method === 'PATCH') {
   recordAudit(req, 'staff.profile_updated', 'staff', before.id, auditBefore, publicPerson);
   return json(res, 200, publicPerson);
 }
+  if (pathname === '/api/staff/schedule' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;
+    const from = url.searchParams.get('from') || today(); const to = url.searchParams.get('to') || from;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT s.*,u.full_name AS "userName" FROM staff_schedules s JOIN users u ON u.id=s.user_id WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date ORDER BY s.work_date,s.planned_start', [venueDbId, from, to]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'schedule_unavailable', detail: error.message }); } }
+    return json(res, 200, { items: [] });
+  }
+  if (pathname === '/api/staff/schedule' && req.method === 'POST') {
+    if (denyUnless(req, res, 'staff_manage')) return;
+    const input = await body(req); const userId = String(input.userId || '').trim(); const workDate = String(input.workDate || '').trim();
+    if (!userId || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return json(res, 400, { error: 'invalid_schedule_entry' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO staff_schedules (venue_id,user_id,work_date,planned_start,planned_end,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (venue_id,user_id,work_date) DO UPDATE SET planned_start=EXCLUDED.planned_start,planned_end=EXCLUDED.planned_end,note=EXCLUDED.note RETURNING *', [venueDbId, userId, workDate, input.plannedStart || null, input.plannedEnd || null, String(input.note || '').slice(0,500) || null, req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'schedule_save_failed', detail: error.message }); } }
+  }
+  if (pathname === '/api/staff/time' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;
+    const from = url.searchParams.get('from') || today(); const to = url.searchParams.get('to') || from;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT w.*,u.full_name AS "userName",EXTRACT(EPOCH FROM (COALESCE(w.ended_at,now())-w.started_at))/3600 AS hours FROM staff_work_logs w JOIN users u ON u.id=w.user_id WHERE w.venue_id=$1 AND w.started_at < ($3::date + INTERVAL \'1 day\') AND COALESCE(w.ended_at,now()) >= $2::date ORDER BY w.started_at DESC', [venueDbId, from, to]); return json(res, 200, { items: rows.map((row) => ({ ...row, hours: Number(Number(row.hours || 0).toFixed(2)) })) }); } catch (error) { return json(res, 503, { error: 'work_time_unavailable', detail: error.message }); } }
+    return json(res, 200, { items: [] });
+  }
+  if (pathname === '/api/staff/time' && req.method === 'POST') {
+    if (denyUnless(req, res, 'staff_manage')) return;
+    const input = await body(req); const userId = String(input.userId || '').trim(); const startedAt = new Date(input.startedAt || ''); const endedAt = input.endedAt ? new Date(input.endedAt) : null;
+    if (!userId || Number.isNaN(startedAt.getTime()) || (endedAt && Number.isNaN(endedAt.getTime())) || (endedAt && endedAt <= startedAt)) return json(res, 400, { error: 'invalid_work_log' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source,note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null, String(input.source || 'manual'), String(input.note || '').slice(0,500) || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'work_log_save_failed', detail: error.message }); } }
+  }
+  if (pathname === '/api/payroll/rules' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['finance_read', 'staff_view'])) return;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT * FROM payroll_rules WHERE venue_id=$1 ORDER BY active DESC,name', [venueDbId]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'payroll_rules_unavailable', detail: error.message }); } }
+    return json(res, 200, { items: [] });
+  }
+  if (pathname === '/api/payroll/rules' && req.method === 'POST') {
+    if (denyUnless(req, res, 'finance')) return;
+    const input = await body(req); const name = String(input.name || '').trim(); const ruleType = String(input.ruleType || 'hourly'); const rate = Number(input.rate);
+    if (!name || !['hourly','monthly','percent_revenue','per_shift'].includes(ruleType) || !Number.isFinite(rate) || rate < 0) return json(res, 400, { error: 'invalid_payroll_rule' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO payroll_rules (venue_id,name,rule_type,rate) VALUES ($1,$2,$3,$4) RETURNING *', [venueDbId,name,ruleType,rate]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'payroll_rule_save_failed', detail: error.message }); } }
+  }
   const inventoryItemPath = pathname.match(/^\/api\/inventory\/items\/([^/]+)$/);
   if (pathname === '/api/inventory/items' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
