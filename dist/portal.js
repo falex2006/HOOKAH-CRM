@@ -79,7 +79,7 @@ const normalizeManagementSidebar = () => {
       { href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'users' },
       { href: '/admin#settings', permission: 'settings', label: 'Настройки', iconName: 'settings' },
       { href: '/integrations', permission: 'integrations', label: 'Интеграции', iconName: 'plug-connected' },
-      { href: '/network', permission: 'settings', label: 'Сеть', iconName: 'plug-connected' },
+      { href: '/network', permission: 'settings', label: 'Мои заведения', iconName: 'building' },
       { href: '/admin#diagnostics', permission: 'diagnostics', label: 'Диагностика', iconName: 'settings' },
     ];
     adminLinks.forEach((item) => { if (!adminNav.querySelector(`a[href="${item.href}"]`)) adminNav.append(makeLink(item)); });
