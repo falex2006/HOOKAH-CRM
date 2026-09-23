@@ -23,16 +23,20 @@
     location.replace('/login');
   };
   const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${name}"></use></svg>`;
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  const displayName = String(user.name || 'Сотрудник').trim() || 'Сотрудник';
+  const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || 'С';
+  const avatarMarkup = user.avatarUrl ? `<img src="${escapeHtml(user.avatarUrl)}" alt="">` : `<span>${escapeHtml(initials)}</span>`;
 
   const overlay = document.createElement('div');
   overlay.className = 'screen-lock-overlay';
   overlay.setAttribute('aria-hidden', 'true');
   overlay.innerHTML = `<section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
-    <div class="screen-lock-mark" aria-hidden="true">T</div>
+    <div class="screen-lock-mark" aria-label="Аватар сотрудника">${avatarMarkup}</div>
     <p class="screen-lock-kicker">TERRITORY CRM</p>
     <p class="screen-lock-eyebrow">РАБОЧЕЕ МЕСТО ЗАБЛОКИРОВАНО</p>
     <h2 id="screen-lock-title">Вернитесь к работе</h2>
-    <p class="screen-lock-user">${String(user.name || 'Сотрудник').replaceAll('<', '&lt;')}</p>
+    <p class="screen-lock-user">${escapeHtml(displayName)}</p>
     <p class="screen-lock-hint" id="screen-lock-hint">Введите свой 4-значный PIN, чтобы продолжить.</p>
     <input class="screen-lock-pin" id="screen-lock-pin" type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="••••" aria-label="PIN сотрудника">
     <div class="screen-lock-keypad" aria-label="Цифровая клавиатура">${['1','2','3','4','5','6','7','8','9','⌫','0','Очистить'].map((key) => `<button type="button" data-lock-key="${key}" ${key === 'Очистить' ? 'class="wide"' : ''}>${key}</button>`).join('')}</div>
