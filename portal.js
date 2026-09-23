@@ -143,7 +143,7 @@ if (pagePermissions[page] && !portalPermissions.has(pagePermissions[page])) {
   window.location.replace('/finance');
   throw new Error('portal_route_forbidden');
 }
-const formatRuDate = (value, withTime = false) => { if (!value) return '—'; const raw = String(value); if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) { const [year, month, day] = raw.split('-'); return `${day}.${month}.${year}`; } const date = value instanceof Date ? value : new Date(value); if (Number.isNaN(date.getTime())) return raw; return new Intl.DateTimeFormat('ru-RU', withTime ? { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date); }; const pluralRu=(value,one,few,many)=>{const n=Math.abs(Number(value)||0),last10=n%10,last100=n%100;return last10===1&&last100!==11?one:last10>=2&&last10<=4&&(last100<12||last100>14)?few:many;};
+const formatRuDate = (value, withTime = false) => { if (!value) return '—'; const raw = String(value); if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) { const [year, month, day] = raw.split('-'); return `${day}.${month}.${year}`; } const date = value instanceof Date ? value : new Date(value); if (Number.isNaN(date.getTime())) return raw; return new Intl.DateTimeFormat('ru-RU', withTime ? { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' } : { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date); }; const pluralRu=(value,one,few,many)=>{const n=Math.abs(Number(value)||0),last10=n%10,last100=n%100;return last10===1&&last100!==11?one:last10>=2&&last10<=4&&(last100<12||last100>14)?few:many;}; const money=(value)=>`${Number(value||0).toLocaleString('ru-RU',{maximumFractionDigits:2})} ₽`;
 const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${name}"></use></svg>`;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
 const enhancePortalSelect = (select) => {
@@ -817,7 +817,7 @@ function renderReservations() {
 }
 
 if (page === 'admin' && location.hash === '#loyalty') renderLoyalty();
-if (page === 'dashboard') renderDashboard();
+if (page === 'dashboard') { try { renderDashboard(); } catch (error) { const target = document.querySelector('#page-content'); if (target) target.innerHTML = '<div class="panel"><h2>Не удалось загрузить главную страницу</h2><p class="muted">Попробуйте обновить страницу.</p></div>'; } }
 if (page === 'orders') renderOrders();
 if (page === 'integrations') renderIntegrations();
 if (page === 'network') renderNetwork();
