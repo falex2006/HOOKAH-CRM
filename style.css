@@ -911,3 +911,10 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .staff-theme .user .mode-switch-menu-list a::before{content:"";width:5px;height:5px;border-radius:50%;background:#6f7885;flex:0 0 auto}
 .staff-theme .user .mode-switch-menu-list a:hover{background:#292e36;color:#fff}
 .staff-theme .user .staff-logout{margin-top:10px}
+
+/* Finance revenue follows the dashboard's split hero treatment. */
+.velora-theme .finance-kpi-grid{align-items:stretch}
+.velora-theme .finance-kpi-grid .finance-revenue-card{grid-column:span 2;min-height:148px}
+.velora-theme .finance-kpi-grid .finance-revenue-card .dashboard-revenue-main strong{font-size:clamp(30px,4vw,38px)}
+@media(max-width:950px){.velora-theme .finance-kpi-grid .finance-revenue-card{grid-column:span 2}}
+@media(max-width:650px){.velora-theme .finance-kpi-grid .finance-revenue-card{grid-column:auto}}
