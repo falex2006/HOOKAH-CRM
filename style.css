@@ -921,3 +921,8 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 
 /* Dashboard hash views must reliably hide unrelated modules. */
 .velora-theme [hidden]{display:none!important}
+
+/* Manual lock is a primary security action: stable sizing and centered label. */
+.velora-theme .lock-screen-button,.staff-theme .lock-screen-button{height:42px;min-width:164px;padding:0 15px;justify-content:center;line-height:1;white-space:nowrap;border-color:#4a3b43;background:linear-gradient(145deg,#211d24,#171a1f);box-shadow:0 6px 16px #00000022}
+.velora-theme .lock-screen-button:hover,.velora-theme .lock-screen-button:focus-visible,.staff-theme .lock-screen-button:hover,.staff-theme .lock-screen-button:focus-visible{border-color:#ff6a7b;background:linear-gradient(145deg,#30222b,#211a20);box-shadow:0 8px 20px #ff5a5425}
+.velora-theme .lock-screen-button .icon,.staff-theme .lock-screen-button .icon{width:16px;height:16px;flex:0 0 auto}
