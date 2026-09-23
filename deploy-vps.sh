@@ -5,7 +5,14 @@ set -euo pipefail
 # Do not put real passwords in this file; create .env before running it.
 command -v docker >/dev/null || { echo 'Docker is required'; exit 1; }
 
-docker compose version >/dev/null 2>&1 || { echo 'Docker Compose plugin is required' >&2; exit 1; }
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE='docker compose'
+elif docker-compose version >/dev/null 2>&1; then
+  COMPOSE='docker-compose'
+else
+  echo 'Docker Compose is required' >&2
+  exit 1
+fi
 test -f .env || { echo 'Create .env from .env.example first'; exit 1; }
 set -a
 . ./.env
@@ -20,23 +27,23 @@ done
 [ -n "${SAAS_OWNER_EMAIL:-}" ] || { echo 'SAAS_OWNER_EMAIL is required' >&2; exit 1; }
 case "${SAAS_OWNER_EMAIL}" in platform-owner@example.com|change_*|replace-*|replace_*|*@example.com) echo 'Replace placeholder in SAAS_OWNER_EMAIL' >&2; exit 1;; esac
 
-docker compose config --quiet
-docker compose pull
-docker compose build --pull
-docker compose up -d
+$COMPOSE config --quiet
+$COMPOSE pull
+$COMPOSE build --pull
+$COMPOSE up -d
 ./migrate-vps.sh
-docker compose exec -T crm npm run db:seed-menu
-docker compose restart crm
+$COMPOSE exec -T crm npm run db:seed-menu
+$COMPOSE restart crm
 
 for attempt in $(seq 1 30); do
-  if docker compose exec -T crm wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"'; then
+  if $COMPOSE exec -T crm wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"'; then
     echo 'CRM is healthy'
     exit 0
   fi
   sleep 2
 done
 
-docker compose ps
-docker compose logs --tail=100 crm
+$COMPOSE ps
+$COMPOSE logs --tail=100 crm
 echo 'CRM did not become healthy' >&2
 exit 1
