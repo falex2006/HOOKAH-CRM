@@ -158,8 +158,8 @@ const staffPassportCipher = {
     } catch (_) { return null; }
   }
 };const rolePermissions = {
-  owner: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'finance', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
+  owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
   manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'settings'],
   senior_bartender: ['floor', 'orders', 'bar_tasks'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
@@ -780,7 +780,7 @@ async function api(req, res) {
   const productCategoryPath = pathname.match(/^\/api\/product-categories\/([^/]+)$/);
   if (productCategoryPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { const input = await body(req); const name = String(input.name || '').trim(); if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' }); try { const { rows } = await repositories.pool.query('UPDATE product_categories SET name=$1,department=$2 WHERE id=$3 AND venue_id=$3 AND is_active=true RETURNING id,name,department,is_active AS active', [name, ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory', productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.updated', 'product_category', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_update_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { const input = await body(req); const name = String(input.name || '').trim(); if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' }); try { const { rows } = await repositories.pool.query('UPDATE product_categories SET name=$1,department=$2 WHERE id=$3 AND venue_id=$4 AND is_active=true RETURNING id,name,department,is_active AS active', [name, ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory', productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.updated', 'product_category', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_update_failed', detail: error.message }); } }
     const category = productCategories.find((item) => item.id === productCategoryPath[1]); if (!category) return json(res, 404, { error: 'product_category_not_found' });
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
