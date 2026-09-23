@@ -1231,7 +1231,37 @@ if (staffProfile && req.method === 'PATCH') {
   if (!canSeeStaffPhoto(req)) delete publicPerson.photoUrl;
   recordAudit(req, 'staff.profile_updated', 'staff', before.id, auditBefore, publicPerson);
   return json(res, 200, publicPerson);
-}if (pathname === '/api/inventory' && req.method === 'GET') {
+}
+  const inventoryItemPath = pathname.match(/^\/api\/inventory\/items\/([^/]+)$/);
+  if (pathname === '/api/inventory/items' && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req);
+    const name = String(input.name || '').trim();
+    const allowedUnits = ['шт', 'г', 'кг', 'мл', 'л', 'порция', 'уп', 'упаковка'];
+    const itemType = String(input.itemType || 'ingredient');
+    const department = String(input.department || 'inventory').trim();
+    const unit = String(input.unit || '').trim();
+    const cost = Number(input.cost || 0); const minLevel = Number(input.minLevel || 0); const packMultiplier = Number(input.packMultiplier || 1);
+    if (!name || name.length > 120) return json(res, 400, { error: 'invalid_inventory_item_name' });
+    if (!allowedUnits.includes(unit) || !['ingredient', 'product', 'consumable', 'equipment'].includes(itemType)) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
+    if (!Number.isFinite(cost) || cost < 0 || !Number.isFinite(minLevel) || minLevel < 0 || !Number.isFinite(packMultiplier) || packMultiplier <= 0) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
+    if (String(input.category || '').length > 80 || String(input.supplier || '').length > 160 || String(input.barcode || '').length > 64 || String(input.note || '').length > 500) return json(res, 400, { error: 'inventory_item_field_too_long' });
+    const clean = { name, shortName: String(input.shortName || '').trim().slice(0, 80) || null, category: String(input.category || 'Без категории').trim().slice(0, 80) || 'Без категории', department, itemType, unit, purchaseUnit: String(input.purchaseUnit || '').trim().slice(0, 30) || null, packMultiplier, cost, minLevel, supplier: String(input.supplier || '').trim().slice(0, 160) || null, barcode: String(input.barcode || '').trim().slice(0, 64) || null, note: String(input.note || '').trim().slice(0, 500) || null };
+    if (repositories?.inventory) { try { const item = await repositories.inventory.create(venueDbId, clean); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, { ...item, onHand: 0 }); } catch (error) { return json(res, 409, { error: 'inventory_item_create_failed', detail: error.message }); } }
+    const item = { id: `ing-${Date.now()}`, ...clean, onHand: 0, active: true }; inventory.push(item); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, item);
+  }
+  if (inventoryItemPath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'invalid_inventory_item_name' });
+    if (repositories?.inventory) { try { const item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], input); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item); } catch (error) { return json(res, 409, { error: 'inventory_item_update_failed', detail: error.message }); } }
+    const item = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); Object.assign(item, input); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item);
+  }
+  if (inventoryItemPath && req.method === 'DELETE') {
+    if (denyUnless(req, res, 'inventory')) return;
+    if (repositories?.inventory) { try { const item = await repositories.inventory.archive(venueDbId, inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); recordAudit(req, 'inventory.item_archived', 'inventory', item.id, item, null); return json(res, 200, item); } catch (error) { return json(res, 409, { error: 'inventory_item_archive_failed', detail: error.message }); } }
+    const index = inventory.findIndex((entry) => entry.id === inventoryItemPath[1]); if (index < 0) return json(res, 404, { error: 'inventory_item_not_found' }); const [item] = inventory.splice(index, 1); recordAudit(req, 'inventory.item_archived', 'inventory', item.id, item, null); return json(res, 200, item);
+  }
+  if (pathname === '/api/inventory' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'inventory') && !hasPermission(req, 'inventory_read')) return json(res, 403, { error: 'forbidden', permission: 'inventory' });
     if (repositories?.inventory) { try { const data = await repositories.inventory.list(venueDbId); return json(res, 200, { ...data, lowStock: data.items.filter((item) => item.onHand <= item.minLevel) }); } catch (_) {} }
     return json(res, 200, { items: inventory, lowStock: inventory.filter((item) => item.onHand <= item.minLevel), movements: stockMovements.slice(-20).reverse() });
