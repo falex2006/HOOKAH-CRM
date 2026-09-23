@@ -8,6 +8,7 @@ const compose = read('docker-compose.yml');
 const envExample = read('.env.example');
 const https = read('nginx/https.conf.example');
 const server = read('server.js');
+const postDeploy = read('post-deploy-acceptance.sh');
 
 for (const script of [deploy, migrate]) {
   assert.match(script, /docker compose version/, 'deployment scripts must require Compose plugin');
@@ -30,6 +31,7 @@ assert.match(envExample, /STAFF_PASSPORT_KEY=replace-/);
 assert.match(envExample, /SAAS_OWNER_EMAIL=platform-owner@example\.com/);
 assert.match(server, /platform-owner@example\.com/);
 assert.doesNotMatch(server, /alphasat72@gmail\.com/);
+assert.match(postDeploy, /jq -n --arg username/);
 assert.equal(existsSync(new URL('../.env', import.meta.url)), false, 'real .env must stay out of the repository');
 
 console.log('LOCAL DEPLOY CONTRACT: PASS (preflight, secrets, healthcheck and HTTPS template)');

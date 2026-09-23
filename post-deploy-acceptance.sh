@@ -20,6 +20,10 @@ if ! command -v curl >/dev/null 2>&1; then
   echo 'curl is required.' >&2
   exit 2
 fi
+if ! command -v jq >/dev/null 2>&1; then
+  echo 'jq is required to safely encode login credentials.' >&2
+  exit 2
+fi
 
 cookie_file="$(mktemp)"
 response_file="$(mktemp)"
@@ -28,7 +32,7 @@ trap 'rm -f "$cookie_file" "$response_file"' EXIT
 health="$(curl --fail --silent --show-error --max-time 15 "$BASE_URL/api/health")"
 grep -q '"status":"ok"' <<<"$health" || { echo 'Healthcheck did not return status=ok.' >&2; exit 1; }
 
-login_payload="$(printf '{"username":"%s","password":"%s"}' "$CRM_USERNAME" "$CRM_PASSWORD")"
+login_payload="$(jq -n --arg username "$CRM_USERNAME" --arg password "$CRM_PASSWORD" '{username:$username,password:$password}')"
 curl --fail --silent --show-error --max-time 15 \
   -c "$cookie_file" -H 'Content-Type: application/json' \
   -d "$login_payload" "$BASE_URL/api/login" >"$response_file"
