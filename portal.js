@@ -818,7 +818,7 @@ function renderReservations() {
   api('/api/clients').then((data) => { const list=document.querySelector('#reservation-guests-list'); const clients=data.items||[]; if(list) list.innerHTML=clients.map((client)=>`<option value=\"${esc(client.name)}${client.nickname?` — ${esc(client.nickname)}`:''}\" label=\"${esc((client.phoneNumbers||[]).map((item)=>item.number).join(', ')||'Телефон не указан')}\" data-client-id=\"${esc(client.id)}\"></option>`).join(''); const guest=document.querySelector('#reservation-guest'); const phone=document.querySelector('#reservation-phone'); guest?.addEventListener('input',()=>{ const value=guest.value; const client=clients.find((entry)=>value===entry.name || value===`${entry.name} — ${entry.nickname||''}` || value===entry.nickname); if(client){ document.querySelector('#reservation-client-id').value=client.id; phone.value=(client.phoneNumbers||[]).map((item)=>item.number).join(',').split(',')[0]||''; } else document.querySelector('#reservation-client-id').value=''; }); }).catch(()=>{}); loadTables(); load();
 }
 
-if (page === 'admin' && location.hash === '#loyalty') renderLoyalty();
+if (page === 'dashboard' && location.hash === '#loyalty') renderLoyalty();
 if (page === 'dashboard' && location.hash !== '#loyalty') { try { renderDashboard(); } catch (error) { const target = document.querySelector('#page-content'); if (target) target.innerHTML = '<div class="panel"><h2>Не удалось загрузить главную страницу</h2><p class="muted">Попробуйте обновить страницу.</p></div>'; } }
 if (page === 'orders') renderOrders();
 if (page === 'integrations') renderIntegrations();
