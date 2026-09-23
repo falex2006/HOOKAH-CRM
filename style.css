@@ -1165,3 +1165,5 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .velora-theme .loyalty-program-list{display:grid;gap:10px}.velora-theme .loyalty-program{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border:1px solid #2b3038;border-radius:12px;background:#15181d}.velora-theme .loyalty-program h3{margin:0 0 5px}.velora-theme .loyalty-program small{color:#9ca5b0}.velora-theme .loyalty-summary article strong{font-variant-numeric:tabular-nums}
 
 .velora-theme .client-nickname{font-size:12px;color:#8fdcff;font-weight:500}
+
+.velora-theme .navigation-preferences{display:grid;grid-template-columns:repeat(2,minmax(180px,1fr));gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #2b3038}.velora-theme .navigation-preferences>b{grid-column:1/-1;color:#aab3bd}.velora-theme .navigation-preferences label{display:flex;align-items:center;gap:8px}@media(max-width:700px){.velora-theme .navigation-preferences{grid-template-columns:1fr}}
