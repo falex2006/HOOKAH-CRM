@@ -439,6 +439,7 @@
 
 /* Floor plan canvas: the same table data can later carry coordinates from the venue plan. */
 .staff-theme .tables{position:relative;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:52px;grid-auto-flow:row;gap:12px;align-content:start;min-height:548px;padding:22px;border:1px solid #2a3039;border-radius:20px;background:linear-gradient(145deg,#16191e,#111317);box-shadow:inset 0 1px #ffffff08,0 18px 42px #00000028;overflow:hidden}
+.staff-theme .tables>.queue-empty{grid-column:1 / -1;justify-self:stretch;align-self:center;width:100%;box-sizing:border-box;text-align:center;padding:28px 18px}
 .staff-theme .tables:before{content:'СХЕМА ЗАЛА';position:absolute;top:15px;left:20px;color:#636b76;font-size:10px;font-weight:800;letter-spacing:.18em;pointer-events:none}
 .staff-theme .tables:after{content:'';position:absolute;inset:0;pointer-events:none;opacity:.22;background-image:linear-gradient(#ffffff0a 1px,transparent 1px),linear-gradient(90deg,#ffffff0a 1px,transparent 1px);background-size:calc((100% - 44px)/12) 64px;background-position:22px 22px;mask-image:linear-gradient(to bottom,transparent 0,black 56px,black 100%)}
 .staff-theme .table{position:relative;z-index:1;grid-column:var(--table-x)/span var(--table-w);grid-row:var(--table-y)/span var(--table-h);height:auto;min-height:104px;display:flex;flex-direction:column;justify-content:center}
