@@ -1252,7 +1252,11 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (inventoryItemPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    const input = await body(req); if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'invalid_inventory_item_name' });
+    const input = await body(req); const allowedUnits = ['шт', 'г', 'кг', 'мл', 'л', 'порция', 'уп', 'упаковка'];
+    if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'invalid_inventory_item_name' });
+    if (input.unit !== undefined && !allowedUnits.includes(String(input.unit))) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
+    if (input.itemType !== undefined && !['ingredient', 'product', 'consumable', 'equipment'].includes(String(input.itemType))) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
+    for (const key of ['cost', 'minLevel', 'packMultiplier']) if (input[key] !== undefined && (!Number.isFinite(Number(input[key])) || Number(input[key]) < (key === 'packMultiplier' ? 0.01 : 0))) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
     if (repositories?.inventory) { try { const item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], input); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item); } catch (error) { return json(res, 409, { error: 'inventory_item_update_failed', detail: error.message }); } }
     const item = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); Object.assign(item, input); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item);
   }
