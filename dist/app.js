@@ -166,7 +166,7 @@ document.querySelectorAll('.order-tabs button').forEach((tab)=>tab.addEventListe
 document.querySelectorAll('.chips button').forEach((chip)=>chip.addEventListener('click',()=>{drawQueue(chip.dataset.filter||'all');notice(`Фильтр «${chip.textContent.trim().replace(/\s+\d+$/,'')}» применён`);}));
 document.querySelector('#queue-list')?.addEventListener('click',(event)=>{const card=event.target.closest('[data-queue-table]');if(!card)return;const order=openOrders.find((item)=>item.id===card.dataset.queueOrder);const table=document.querySelector(`.table[data-table="${card.dataset.queueTable}"]`);if(table)table.click();if(order)drawOrder(order);document.querySelector('.workspace')?.scrollIntoView({behavior:'smooth',block:'start'});});
 
-if(!window.__staffProfileLoaded){window.__staffProfileLoaded=true;const script=document.createElement('script');script.src='/staff-profile.js?rev=3';document.head.append(script);}
+if(!window.__staffProfileLoaded){window.__staffProfileLoaded=true;const script=document.createElement('script');script.src='/staff-profile.js?rev=4';document.head.append(script);}
 if(!window.__staffAuditLoaded){window.__staffAuditLoaded=true;const script=document.createElement('script');script.src='/staff-audit.js?rev=1';document.head.append(script);}
 if(!window.__vipDepositLoaded){window.__vipDepositLoaded=true;const script=document.createElement('script');script.src='/vip-deposit.js?rev=1';document.head.append(script);}
 if(!window.__vipDepositUiLoaded){window.__vipDepositUiLoaded=true;const script=document.createElement('script');script.src='/vip-deposit-ui.js?rev=2';document.head.append(script);}

@@ -1276,3 +1276,16 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   .login-card>p:not(.login-kicker){white-space:normal}
   .screen-lock-card h2{font-size:28px;white-space:nowrap}
 }
+
+
+/* Avatars and venue marks use a compact Telegram-style circular frame. */
+:where(.avatar,.brand-icon,.screen-lock-mark,.staff-header-avatar,.sidebar-profile-avatar,.staff-profile-avatar,.staff-profile-dialog__avatar,.staff-admin-avatar,.client-avatar,[data-admin-avatar]){
+  border-radius:50%!important;
+  overflow:hidden;
+  flex:none;
+}
+:where(.avatar img,.brand-icon img,.screen-lock-mark img,.staff-header-avatar img,.sidebar-profile-avatar img,.staff-profile-avatar img,.staff-profile-dialog__avatar img,.staff-admin-avatar img,.client-avatar img,[data-admin-avatar] img){
+  width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit;
+}
+.login-card .brand-mark{border-radius:50%!important}
+.screen-lock-mark{display:grid;place-items:center}
