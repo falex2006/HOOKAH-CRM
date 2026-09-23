@@ -1362,4 +1362,27 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 
 
 .login-card.setup-card>p:not(.login-kicker){white-space:normal;max-width:100%;}
-
+/* Staff filters: one consistent control rhythm and equal widths. */
+.velora-theme .staff-list-tools{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  max-width:720px;
+  align-items:stretch;
+}
+.velora-theme .staff-list-tools input,
+.velora-theme .staff-list-tools select,
+.velora-theme .staff-list-tools .custom-select,
+.velora-theme .staff-list-tools .custom-select-trigger{
+  width:100%;
+  min-width:0;
+  height:48px;
+  min-height:48px;
+  box-sizing:border-box;
+}
+.velora-theme .staff-list-tools .custom-select-trigger{
+  display:flex;
+  align-items:center;
+}
+@media(max-width:720px){
+  .velora-theme .staff-list-tools{grid-template-columns:1fr;max-width:100%}
+}
