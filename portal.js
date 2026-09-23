@@ -423,6 +423,8 @@ function renderDashboard() {
   if (!dashboardFocus) {
     setDashboardPanelVisibility('#staff, .floor-editor-panel, #audit, #company', false);
   } else if (dashboardFocus === 'staff') {
+    const staffTitle = target.querySelector('.page-title h1'); const staffEyebrow = target.querySelector('.page-title .eyebrow'); const staffSubtitle = target.querySelector('.page-title .muted');
+    if (staffTitle) staffTitle.textContent = 'Сотрудники'; if (staffEyebrow) staffEyebrow.textContent = 'КОМАНДА'; if (staffSubtitle) staffSubtitle.textContent = 'Роли, доступы и рабочие панели сотрудников заведения.';
     setDashboardPanelVisibility('#staff', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], .floor-editor-panel, #audit, #company', false);
   } else if (dashboardFocus === 'company') {
