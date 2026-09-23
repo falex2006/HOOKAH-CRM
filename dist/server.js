@@ -494,7 +494,7 @@ async function api(req, res) {
     if (input.address !== undefined && (!String(input.address).trim() || String(input.address).length > 240)) return json(res, 400, { error: 'venue_address_required' });
     if (input.format !== undefined && String(input.format).length > 80) return json(res, 400, { error: 'venue_format_too_long' });
     if (input.timezone !== undefined && String(input.timezone).length > 64) return json(res, 400, { error: 'venue_timezone_too_long' });
-    if (input.phone !== undefined && !/^\+?[0-9 ()-]{7,24}$/.test(String(input.phone))) return json(res, 400, { error: 'invalid_phone' });
+    if (input.phone !== undefined && !/^\+7[0-9 ()-]{7,24}$/.test(String(input.phone))) return json(res, 400, { error: 'invalid_phone' });
     if (input.logoUrl !== undefined && input.logoUrl !== null && !validImageData(input.logoUrl)) return json(res, 400, { error: 'invalid_logo' });
     if (input.vipRoomMinimums !== undefined) {
       const values = input.vipRoomMinimums || {};
@@ -773,7 +773,7 @@ async function api(req, res) {
     if (denyUnlessAny(req, res, ['staff_manage', 'orders'])) return;
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' });
-    if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+?[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
+    if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+7[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
     const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers);
     if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' });
     if (input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
@@ -798,7 +798,7 @@ async function api(req, res) {
     if (!client) return json(res, 404, { error: 'client_not_found' });
     const input = await body(req); const before = JSON.parse(JSON.stringify(client));
     if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' }); client.name = name; }
-    if (input.phoneNumbers !== undefined) { if (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+?[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim()))) return json(res, 400, { error: 'invalid_phone_numbers' }); const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers); if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' }); client.phoneNumbers = phoneNumbers; }
+    if (input.phoneNumbers !== undefined) { if (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+7[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim()))) return json(res, 400, { error: 'invalid_phone_numbers' }); const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers); if (phoneNumbers.length && phoneNumbers.filter((phone) => phone.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' }); client.phoneNumbers = phoneNumbers; }
     if (input.avatarUrl !== undefined) { const avatarUrl = String(input.avatarUrl || ''); if (avatarUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatarUrl) || avatarUrl.length > 2000000)) return json(res, 400, { error: 'invalid_avatar' }); client.avatarUrl = avatarUrl || null; }
     if (input.guestStatus !== undefined) { const guestStatus = String(input.guestStatus || 'new'); if (!['new', 'regular', 'vip', 'blocked'].includes(guestStatus)) return json(res, 400, { error: 'invalid_guest_status' }); client.guestStatus = guestStatus; }
     if (input.telegram !== undefined) { const telegram = String(input.telegram || '').trim(); if (telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(telegram)) return json(res, 400, { error: 'invalid_telegram' }); client.telegram = telegram; }
@@ -876,7 +876,7 @@ async function api(req, res) {
     if (!validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
     if (input.workNotes !== undefined && String(input.workNotes).length > 4000) return json(res, 400, { error: 'work_notes_too_long' });
     if (input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
-    if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+?[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
+    if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+7[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
     const contactNumbers = normalizePhoneNumbers(input.phoneNumbers);
     if (contactNumbers.length && contactNumbers.filter((entry) => entry.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' });
     const createdPassport = input.passportData !== undefined ? staffPassportCipher.encrypt(input.passportData) : null;
@@ -1030,7 +1030,7 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.employmentStartedAt !== undefined && !validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
   if (input.workNotes !== undefined && String(input.workNotes).length > 4000) return json(res, 400, { error: 'work_notes_too_long' });
   if (input.telegram !== undefined && input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
-  if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+?[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
+  if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+7[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
   if (input.passportData !== undefined && !canManageSensitive) return json(res, 403, { error: 'sensitive_staff_permission_required' });
   if (input.avatarUrl !== undefined) {
     if (input.avatarUrl && !validImageData(input.avatarUrl)) return json(res, 400, { error: 'invalid_avatar' });
@@ -1162,7 +1162,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'delivery')) return;
     const input = await body(req); const customerName = String(input.customerName || '').trim(); const phone = String(input.phone || '').trim(); const address = String(input.address || '').trim(); const total = Number(input.total || 0);
     if (!customerName || customerName.length > 120 || !address || address.length > 500) return json(res, 400, { error: 'delivery_contact_required' });
-    if (phone && !/^\+?[0-9 ()-]{7,24}$/.test(phone)) return json(res, 400, { error: 'invalid_guest_phone' });
+    if (phone && !/^\+7[0-9 ()-]{7,24}$/.test(phone)) return json(res, 400, { error: 'invalid_guest_phone' });
     if (!Number.isFinite(total) || total < 0) return json(res, 400, { error: 'invalid_delivery_total' });
     const delivery = { id: `delivery-${Date.now()}`, customerName, phone, address, comment: String(input.comment || '').trim().slice(0, 500), total, paymentMethod: ['cash', 'card', 'qr'].includes(input.paymentMethod) ? input.paymentMethod : 'cash', status: 'new', courier: '', createdAt: new Date().toISOString() };
     deliveries.push(delivery); recordAudit(req, 'delivery.created', 'delivery', delivery.id, null, delivery); return json(res, 201, delivery);
@@ -1185,7 +1185,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
     if (input.notes !== undefined && String(input.notes).length > 2000) return json(res, 400, { error: 'reservation_notes_too_long' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)) || !/^\d{2}:\d{2}$/.test(String(input.time)) || Number.isNaN(Date.parse(`${input.date}T${input.time}:00`)) || Date.parse(`${input.date}T${input.time}:00`) <= Date.now()) return json(res, 400, { error: 'invalid_reservation_datetime' });
-    if (input.phone && !/^\+?[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
+    if (input.phone && !/^\+7[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
     if (!Number.isInteger(Number(input.guests || 1)) || Number(input.guests || 1) < 1 || Number(input.guests || 1) > 50) return json(res, 400, { error: 'invalid_guest_count' });
     let tableMinimum = 0;
     let tableName = input.tableId;
@@ -1275,7 +1275,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     const input = await body(req); if (input.notes === undefined && input.guestName === undefined && input.phone === undefined && input.clientId === undefined) return json(res, 400, { error: 'supported_fields_required' });
     if (input.clientId !== undefined && input.clientId !== null && String(input.clientId).length > 120) return json(res, 400, { error: 'invalid_client_id' });
-    if (input.phone !== undefined && input.phone && !/^\+?[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
+    if (input.phone !== undefined && input.phone && !/^\+7[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
     if (input.guestName !== undefined && String(input.guestName).trim().length > 120) return json(res, 400, { error: 'guest_name_too_long' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderEdit[1])) {
       try {
@@ -1498,6 +1498,7 @@ function staticFile(req, res) {
   requestPath = aliases[routePath] || requestPath;
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
+    '/phone-format.js',
     ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
