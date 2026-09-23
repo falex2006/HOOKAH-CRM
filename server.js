@@ -57,10 +57,12 @@ const products = [
 products.forEach((product) => { product.category = product.category || (product.station === 'bar' ? 'Бар' : 'Кальянная зона'); });
 products.push(...catalogSeed.products);
 const productCategories = [
-  { id: 'product-category-bar', name: 'Бар', active: true },
-  { id: 'product-category-hookah', name: 'Кальянная зона', active: true },
-  { id: 'product-category-kitchen', name: 'Кухня', active: true },
-  { id: 'product-category-fridge', name: 'Холодильник', active: true }
+  { id: 'product-category-soft', name: 'Безалкогольные напитки', department: 'bar', active: true },
+  { id: 'product-category-alcohol', name: 'Алкогольные напитки', department: 'bar', active: true },
+  { id: 'product-category-tea', name: 'Чай и кофе', department: 'bar', active: true },
+  { id: 'product-category-kitchen', name: 'Продукты и заготовки', department: 'kitchen', active: true },
+  { id: 'product-category-hookah', name: 'Табак и смеси', department: 'hookah', active: true },
+  { id: 'product-category-inventory', name: 'Расходники и инвентарь', department: 'inventory', active: true }
 ];
 const importedProductCategoryNames = [...new Set(catalogSeed.products.map((item) => String(item.category || '').trim()).filter(Boolean))];
 for (const name of importedProductCategoryNames) if (!productCategories.some((item) => item.name === name)) productCategories.push({ id: 'seed-category-' + name.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '-').slice(0, 32), name, active: true });
@@ -710,7 +712,7 @@ async function api(req, res) {
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO product_categories (venue_id,name) VALUES ($1,$2) RETURNING id,name,is_active AS active', [venueDbId, name]); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { return json(res, error.code === '23505' ? 409 : 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); } }
     if (productCategories.some((item) => item.active && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
-    const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, active: true };
+    const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, department: ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory', active: true };
     productCategories.push(category); recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category);
   }
   const productCategoryPath = pathname.match(/^\/api\/product-categories\/([^/]+)$/);
@@ -721,7 +723,7 @@ async function api(req, res) {
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
     if (productCategories.some((item) => item.active && item.id !== category.id && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
-    const before = { ...category }; category.name = name; recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
+    const before = { ...category }; category.name = name; if (['kitchen','bar','hookah','inventory'].includes(input.department)) category.department = input.department; recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
   if (productCategoryPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
