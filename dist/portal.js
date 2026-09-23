@@ -81,7 +81,7 @@ const normalizeManagementSidebar = () => {
     if (!adminNav) { adminNav = document.createElement('nav'); adminNav.className = 'portal-nav staff-nav'; adminNav.dataset.staffNav = ''; adminLabel.after(adminNav); }
     const adminLinks = [
       { href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'users' },
-      { href: '/admin#loyalty', permission: 'loyalty', label: 'Система лояльности', iconName: 'heart' },
+      { href: '/admin#loyalty', permission: 'loyalty', label: 'Система лояльности', iconName: 'cash' },
       { href: '/admin#settings', permission: 'settings', label: 'Настройки', iconName: 'settings' },
       { href: '/integrations', permission: 'integrations', label: 'Интеграции', iconName: 'plug-connected' },
       { href: '/network', permission: 'settings', label: 'Мои заведения', iconName: 'building' },
@@ -769,4 +769,5 @@ if(!window.__staffAdminCardLoaded){const script=document.createElement('script')
   });
   mount(); new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});
 })();
+
 
