@@ -512,7 +512,7 @@ function renderDashboard() {
     document.querySelector('#shift-close')?.addEventListener('click', async () => {
       const values = await portalAction({ title: 'Закрыть смену', description: 'Сверьте фактический остаток наличных перед закрытием.', submitLabel: 'Закрыть смену', fields: [{ name: 'closingCash', label: 'Фактическая сумма в кассе, ₽', type: 'number', min: 0, step: 0.01, value: String(shift.openingCash || 0) }], danger: true });
       if (!values) return;
-      api(`/api/shifts/${encodeURIComponent(shift.id)}/close`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ closingCash: Number(values.closingCash) }) }).then(() => { portalNotice('Смена закрыта', 'success'); loadShift(); }).catch(() => portalNotice('Не удалось закрыть смену', 'error'));
+      api(`/api/shifts/${encodeURIComponent(shift.id)}/close`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ closingCash: Number(values.closingCash) }) }).then((closed) => { const variance = Number(closed.cashVariance || 0); portalNotice(`Смена закрыта · ${variance === 0 ? 'касса сошлась' : `расхождение ${money(variance)}`}`, variance === 0 ? 'success' : 'error'); loadShift(); }).catch(() => portalNotice('Не удалось закрыть смену', 'error'));
     });
   } else {
     title.textContent = 'Касса не открыта'; detail.textContent = 'Откройте новую смену перед началом работы'; date.textContent = 'Нет активной смены'; iconNode.className = 'check warn'; iconNode.innerHTML = icon('alert-triangle'); actions.innerHTML = portalPermissions.has('floor') ? '<button class="button small primary" id="shift-open" type="button">Открыть смену</button>' : '';
