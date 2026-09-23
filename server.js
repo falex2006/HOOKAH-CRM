@@ -297,6 +297,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/setup/owner' && req.method === 'POST') {
     const input = await body(req);
+    if (String(input.website || '').trim()) return json(res, 400, { error: 'bot_detected' });
     const venueName = String(input.venueName || '').trim();
     const ownerName = String(input.ownerName || '').trim();
     const ownerLogin = String(input.ownerLogin || '').trim().toLowerCase();
@@ -329,6 +330,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
+    if (String(input.website || '').trim()) return json(res, 400, { error: 'bot_detected' });
     const loginKey = String(input.username || '').trim().toLowerCase() || 'anonymous';
     const requestedPin = ''; // PIN используется только для разблокировки экрана, не для входа
     const attempt = loginAttempts.get(loginKey);
