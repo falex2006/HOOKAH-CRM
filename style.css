@@ -1631,3 +1631,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
   .velora-theme .orders-view .table-wrap{overflow-x:auto}
   .staff-theme .workspace{padding-inline:32px}
 }
+
+/* Screen lock is a compact lock icon; the tooltip carries the action label. */
+.lock-screen-button{width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;padding:0!important;justify-content:center!important;gap:0!important;border-radius:11px!important}
+.lock-screen-button .icon{position:static!important;width:18px!important;height:18px!important;transform:none!important}
+.lock-screen-button span{display:none!important}
