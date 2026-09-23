@@ -1360,3 +1360,6 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 /* Sites visual QA: keep auth and first-run cards centered on wide screens. */
 .login{justify-content:center!important;padding-left:0!important}
 
+
+.login-card.setup-card>p:not(.login-kicker){white-space:normal;max-width:100%;}
+
