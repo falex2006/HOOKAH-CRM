@@ -949,6 +949,23 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .staff-theme .portal-sidebar .user{margin-top:auto;color:#dfe2e6}
 @media(max-width:650px){.staff-theme .portal-sidebar{width:68px;padding:20px 10px}.staff-theme .portal-sidebar .brand{padding:0 0 26px;justify-content:center}.staff-theme .portal-sidebar .brand div,.staff-theme .portal-sidebar .side-label,.staff-theme .portal-sidebar .portal-nav span{display:none}.staff-theme .portal-sidebar .portal-nav{gap:10px}.staff-theme .portal-sidebar .portal-nav button{width:46px;height:42px;min-height:42px;margin:0 auto;padding:0;justify-content:center;font-size:0}.staff-theme .portal-sidebar .portal-nav button .icon{width:20px;height:20px;flex-basis:20px}.staff-theme .portal-sidebar .user{width:46px;margin:18px auto 0;font-size:0}.staff-theme .portal-sidebar .user .current-mode,.staff-theme .portal-sidebar .user .mode-switch-menu,.staff-theme .portal-sidebar .user .staff-logout{font-size:0}}
 
+/* Staff directory controls and the add-employee drawer. */
+.velora-theme .staff-panel .panel-head{align-items:flex-start;gap:16px}
+.velora-theme .staff-panel .panel-head>div:first-child{min-width:0;flex:1}
+.velora-theme .staff-list-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.velora-theme .staff-list-tools input,.velora-theme .staff-list-tools select{height:38px;min-width:150px;box-sizing:border-box;border:1px solid #363b44;border-radius:9px;background:#111317;color:#eef1f3;padding:0 10px;font:inherit;font-size:12px}
+.velora-theme .staff-list-tools input{min-width:220px}
+.velora-theme .staff-add-button{flex:0 0 auto;white-space:nowrap}
+.staff-drawer{position:fixed;z-index:1100;inset:0;display:none;pointer-events:none}
+.staff-drawer.open{display:block;pointer-events:auto}
+.staff-drawer-scrim{position:absolute;inset:0;background:#05070acc;backdrop-filter:blur(4px)}
+.staff-drawer-panel{position:absolute;top:0;right:0;bottom:0;width:min(520px,100%);overflow:auto;padding:26px;background:linear-gradient(145deg,#1b1e23,#15171b);border-left:1px solid #3a414b;box-shadow:-20px 0 60px #0009;color:#eef1f4}
+.staff-drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid #2b3038}
+.staff-drawer-head h2{margin:0;color:#f7f8fa;font-size:22px}.staff-drawer-head p{margin:6px 0 0;color:#8d96a1;font-size:12px}.staff-drawer-close{flex:0 0 auto}
+.staff-drawer-body{padding-top:20px}.staff-drawer-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;border:0;padding:0}.staff-drawer-form>b{display:none}.staff-drawer-form .staff-form-field,.staff-drawer-form .staff-sensitive-fields,.staff-drawer-form .permission-scope-fields,.staff-drawer-form>button,.staff-drawer-form>#staff-message{grid-column:1/-1}.staff-drawer-form .staff-form-contact-row{display:contents}.staff-drawer-form .staff-form-field{min-width:0}.staff-drawer-form input,.staff-drawer-form select,.staff-drawer-form textarea{box-sizing:border-box;width:100%;min-width:0}.staff-drawer-form .staff-sensitive-fields{margin-top:2px}.staff-drawer-form>button{margin-top:4px}.staff-drawer-form>#staff-message{margin-top:0}
+.velora-theme .staff-row[hidden]{display:none}
+@media(max-width:720px){.velora-theme .staff-panel .panel-head{display:grid}.velora-theme .staff-add-button{justify-self:start}.velora-theme .staff-drawer-panel{padding:20px}.staff-drawer-form{grid-template-columns:1fr}}
+
 /* Sidebar navigation rhythm: keep section labels and links on a steady vertical grid. */
 .velora-theme .portal-sidebar > .side-label{
   min-height:28px;
