@@ -1,6 +1,10 @@
 const form = document.querySelector('#login-form');
 fetch('/api/public/venue-brand').then((response) => response.ok ? response.json() : null).then((brand) => { const node = document.querySelector('[data-login-brand]'); if (!node || !brand?.logoUrl) return; node.innerHTML = `<img src="${brand.logoUrl}" alt="Логотип заведения">`; node.classList.add('has-logo'); }).catch(() => {});
 const passwordInput = document.querySelector('#login-password');
+const usernameInput = document.querySelector('#login-username');
+const clearRememberedCredentials = () => { if (usernameInput) usernameInput.value = ''; if (passwordInput) passwordInput.value = ''; };
+window.addEventListener('pageshow', clearRememberedCredentials);
+window.setTimeout(clearRememberedCredentials, 0);
 const passwordToggle = document.querySelector('#login-password-toggle');
 passwordToggle?.addEventListener('click', () => { const visible = passwordInput.type === 'text'; passwordInput.type = visible ? 'password' : 'text'; passwordToggle.textContent = visible ? 'Показать' : 'Скрыть'; passwordToggle.setAttribute('aria-label', visible ? 'Показать пароль' : 'Скрыть пароль'); passwordToggle.setAttribute('aria-pressed', String(!visible)); passwordInput.focus(); });
 
@@ -31,8 +35,9 @@ form?.addEventListener('submit', async (event) => {
   event.preventDefault();
   const message = document.querySelector('#login-message');
   const submit = form.querySelector('button[type="submit"]');
-  const username = document.querySelector('#login-username').value.trim();
+  const username = usernameInput.value.trim();
   const password = document.querySelector('#login-password').value;
+  clearRememberedCredentials();
   message.textContent = 'Проверяем доступ…';
   if (submit) { submit.disabled = true; submit.textContent = 'Проверяем…'; }
 
