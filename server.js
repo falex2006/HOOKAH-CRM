@@ -1461,10 +1461,12 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (pathname === '/api/orders' && req.method === 'GET') {
     if (denyUnless(req, res, 'orders')) return;
+    const requestedDate = url.searchParams.get('date');
+    const validDate = requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : null;
     if (orderRepository) {
-      try { return json(res, 200, { items: await orderRepository.listOpen(venueDbId, url.searchParams.get('scope') === 'all') }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
+      try { const result = await orderRepository.listOpen(venueDbId, url.searchParams.get('scope') === 'all'); const items = validDate ? result.filter((order) => String(order.createdAt || '').slice(0, 10) === validDate) : result; return json(res, 200, { items }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
     }
-    return json(res, 200, { items: orders });
+    return json(res, 200, { items: validDate ? orders.filter((order) => String(order.createdAt || '').slice(0, 10) === validDate) : orders });
   }
   if (pathname === '/api/orders' && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
