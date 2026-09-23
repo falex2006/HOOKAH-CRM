@@ -264,6 +264,44 @@ async function api(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
   if (req.method === 'OPTIONS') { const headers = { 'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' }; if (process.env.CORS_ORIGIN) headers['Access-Control-Allow-Origin'] = process.env.CORS_ORIGIN; res.writeHead(204, headers); return res.end(); }
+  if (pathname === '/api/setup/status' && req.method === 'GET') {
+    if (repositories?.pool) {
+      try { const { rows } = await repositories.pool.query('SELECT COUNT(*)::int AS count FROM users WHERE is_active=true AND deleted_at IS NULL'); return json(res, 200, { required: Number(rows[0]?.count || 0) === 0 }); } catch (_) {}
+    }
+    return json(res, 200, { required: !provisionedAccounts.some((account) => account.role === 'owner') });
+  }
+  if (pathname === '/api/setup/owner' && req.method === 'POST') {
+    const input = await body(req);
+    const venueName = String(input.venueName || '').trim();
+    const ownerName = String(input.ownerName || '').trim();
+    const ownerLogin = String(input.ownerLogin || '').trim().toLowerCase();
+    const ownerPassword = String(input.ownerPassword || '');
+    const city = String(input.city || '').trim();
+    const timezone = String(input.timezone || 'Europe/Moscow');
+    if (!venueName || venueName.length > 120 || !ownerName || ownerName.length > 120 || !/^[^\s@]+@[^\s@]+$/.test(ownerLogin) || ownerPassword.length < 8 || !/^[-A-Za-z_\/]+$/.test(timezone)) return json(res, 400, { error: 'valid_setup_data_required' });
+    if (repositories?.pool) {
+      const client = await repositories.pool.connect();
+      try {
+        const existing = await client.query('SELECT 1 FROM users WHERE login=$1 AND is_active=true LIMIT 1', [ownerLogin]);
+        if (existing.rows[0]) return json(res, 409, { error: 'owner_login_already_exists' });
+        await client.query('BEGIN');
+        const orgResult = await client.query('INSERT INTO organizations (name,slug,plan,timezone) VALUES ($1,$2,$3,$4) RETURNING id', [venueName, `venue-${Date.now()}`, 'starter', timezone]);
+        const organizationId = orgResult.rows[0].id;
+        await client.query(`INSERT INTO organization_subscriptions (organization_id,plan,status,seats_limit,venues_limit) VALUES ($1,'starter','trialing',$2,$3)`, [organizationId, saasPlans.starter.seatsLimit, saasPlans.starter.venuesLimit]);
+        const venueResult = await client.query('INSERT INTO venues (organization_id,name,city,format,timezone,is_current) VALUES ($1,$2,$3,$4,$5,true) RETURNING id', [organizationId, venueName, city, 'кальян-бар', timezone]);
+        const passwordHash = await hashPassword(ownerPassword);
+        const ownerResult = await client.query(`INSERT INTO users (venue_id,organization_id,full_name,login,pin_hash,role) VALUES ($1,$2,$3,$4,$5,'owner') RETURNING id,full_name AS name,login,role`, [venueResult.rows[0].id, organizationId, ownerName, ownerLogin, passwordHash]);
+        await client.query('INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,\'owner\',\'active\')', [organizationId, ownerResult.rows[0].id]);
+        await client.query('COMMIT');
+        return json(res, 201, { ok: true, owner: ownerResult.rows[0] });
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'setup_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
+    if (provisionedAccounts.some((account) => account.username === ownerLogin)) return json(res, 409, { error: 'owner_login_already_exists' });
+    const organizationId = `org-${Date.now()}`;
+    provisionedAccounts.push({ username: ownerLogin, password: ownerPassword, name: ownerName, role: 'owner', organizationId, venueId: `venue-${Date.now()}` });
+    return json(res, 201, { ok: true, owner: { name: ownerName, login: ownerLogin, role: 'owner' } });
+  }
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
     const loginKey = String(input.username || '').trim().toLowerCase() || 'anonymous';

@@ -1,4 +1,6 @@
 const form = document.querySelector('#login-form');
+const setupForm = document.querySelector('#setup-form');
+const setupMessage = document.querySelector('#setup-message');
 fetch('/api/public/venue-brand').then((response) => response.ok ? response.json() : null).then((brand) => { const node = document.querySelector('[data-login-brand]'); if (!node || !brand?.logoUrl) return; node.innerHTML = `<img src="${brand.logoUrl}" alt="Логотип заведения">`; node.classList.add('has-logo'); }).catch(() => {});
 const passwordInput = document.querySelector('#login-password');
 const usernameInput = document.querySelector('#login-username');
@@ -21,6 +23,54 @@ setLoginState('idle');
 
 const showLoginTransition = () => new Promise((resolve) => {
   resolve();
+});
+
+const setupPassword = document.querySelector('#setup-password');
+document.querySelector('#setup-password-toggle')?.addEventListener('click', (event) => {
+  const visible = setupPassword.type === 'text';
+  setupPassword.type = visible ? 'password' : 'text';
+  event.currentTarget.textContent = visible ? 'Показать' : 'Скрыть';
+  setupPassword.focus();
+});
+
+const showSetupIfNeeded = async () => {
+  try {
+    const response = await fetch('/api/setup/status', { cache: 'no-store' });
+    const status = response.ok ? await response.json() : null;
+    if (status?.required && form && setupForm) {
+      form.hidden = true;
+      setupForm.hidden = false;
+      setupForm.querySelector('#setup-venue')?.focus();
+    }
+  } catch (_) {}
+};
+showSetupIfNeeded();
+
+setupForm?.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const submit = setupForm.querySelector('button[type="submit"]');
+  const payload = {
+    venueName: document.querySelector('#setup-venue').value.trim(),
+    ownerName: document.querySelector('#setup-name').value.trim(),
+    city: document.querySelector('#setup-city').value.trim(),
+    ownerLogin: document.querySelector('#setup-login').value.trim().toLowerCase(),
+    ownerPassword: document.querySelector('#setup-password').value,
+    timezone: document.querySelector('#setup-timezone').value,
+  };
+  setupMessage.textContent = 'Создаём рабочее пространство…';
+  if (submit) { submit.disabled = true; submit.textContent = 'Создаём…'; }
+  try {
+    const response = await fetch('/api/setup/owner', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'setup_failed');
+    const loginResponse = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: payload.ownerLogin, password: payload.ownerPassword }) });
+    const loginData = await loginResponse.json().catch(() => ({}));
+    if (!loginResponse.ok) throw new Error(loginData.error || 'login_failed');
+    await finishLogin(loginData);
+  } catch (error) {
+    setupMessage.textContent = error.message === 'owner_login_already_exists' ? 'Этот логин уже занят' : 'Не удалось создать рабочее пространство';
+    if (submit) { submit.disabled = false; submit.textContent = 'Создать и войти'; }
+  }
 });
 
 const finishLogin = async (data) => {
