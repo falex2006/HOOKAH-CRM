@@ -5,10 +5,10 @@
     if(!allowed())return;
     document.querySelectorAll('form').forEach((form)=>{
       if(form.dataset.sensitiveStaffReady==='1')return;
-      const signature=(form.textContent+' '+form.innerHTML).toLowerCase();
-      if(!/(сотруд|staff|employee|роль|role)/.test(signature))return;
+      if(!form.matches('.staff-form,.staff-editor-form'))return;
+      if(form.querySelector('.staff-sensitive-fields')){form.dataset.sensitiveStaffReady='1';return;}
       const block=document.createElement('details'); block.className='staff-sensitive-fields'; block.innerHTML='<summary>Кадровые данные — ограниченный доступ</summary><div class="staff-sensitive-fields__grid"><label>Серия и номер<input name="passport_number" autocomplete="off" inputmode="numeric"></label><label>Дата выдачи<input type="date" name="passport_issued_at"></label><label class="staff-sensitive-fields__wide">Кем выдан<input name="passport_issuer" autocomplete="off"></label><label>Дата начала работы<input type="date" name="employment_started_at"></label><label class="staff-sensitive-fields__wide">Рабочие заметки<textarea name="work_notes" maxlength="4000" rows="3" placeholder="Внутренние заметки"></textarea></label></div><small>Паспорт виден владельцу и управляющему. Кадровые изменения записываются в аудит.</small>';
-      const anchor=form.querySelector('.staff-phone-list, input[name*="telegram" i], input[type="tel"]'); (anchor?.parentElement||form).after(block); form.dataset.sensitiveStaffReady='1';
+      const anchor=form.querySelector('.staff-phone-list')||form.querySelector('.staff-form-contact-row')||form.querySelector('input[name*="telegram" i], input[type="tel"]')?.closest('label')||form.lastElementChild; anchor?.after(block); form.dataset.sensitiveStaffReady='1';
     });
   };
   mount(); new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});

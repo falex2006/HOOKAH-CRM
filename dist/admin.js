@@ -1,0 +1,1 @@
+fetch('/api/metrics').then(r=>r.json()).then(m=>{const map={'Открытые заказы':m.openOrders,'Заявки на скидку':m.discountRequests};document.querySelectorAll('.items div').forEach(row=>{const key=row.firstChild?.textContent?.trim();if(map[key]!==undefined)row.querySelector('b').textContent=map[key];});}).catch(()=>{});

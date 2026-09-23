@@ -4,14 +4,21 @@
     inputs.forEach((input)=>{
       const form=input.closest('form')||input.parentElement;
       if(!form||form.dataset.staffPhonesReady==='1') return;
-      const signature=(form.textContent+' '+form.innerHTML).toLowerCase();
-      if(!/(сотруд|staff|employee|роль|role)/.test(signature)) return;
+      if(!form.matches('.staff-form,.staff-editor-form')) return;
       form.dataset.staffPhonesReady='1';
       const rows=document.createElement('div');
       rows.className='staff-phone-list';
       rows.innerHTML='<div class="staff-phone-list__header"><strong>Телефоны</strong><button type="button" class="staff-phone-list__add">Добавить номер</button></div><div class="staff-phone-list__rows"></div><input type="hidden" name="phones_json" class="staff-phone-list__value">';
-      input.parentElement?.after(rows);
-      input.style.display='none';
+      const contactRow=input.closest('.staff-form-contact-row');
+      const secondaryInput=contactRow?.querySelector('input[name="phone_secondary"]');
+      const secondaryValue=secondaryInput?.value?.trim()||'';
+      if(contactRow){
+        contactRow.hidden=true;
+        contactRow.after(rows);
+      }else{
+        input.parentElement?.after(rows);
+        input.style.display='none';
+      }
       const list=rows.querySelector('.staff-phone-list__rows');
       const hidden=rows.querySelector('.staff-phone-list__value');
       const initial=input.value?{label:'Рабочий',number:input.value,primary:true}:{label:'Рабочий',number:'',primary:true};
@@ -20,7 +27,7 @@
       const add=(item={label:'Дополнительный',number:'',primary:false})=>{
         const row=document.createElement('div');
         row.className='staff-phone-row';
-        row.innerHTML='<select aria-label="Тип телефона"><option>Рабочий</option><option>Личный</option><option>Резервный</option><option>Дополнительный</option></select><input type="tel" placeholder="+7 (___) ___-__-__" aria-label="Номер телефона"><label><input type="radio" name="staff_primary_phone" aria-label="Основной"> основной</label><button type="button" class="staff-phone-row__remove" aria-label="Удалить номер">×</button>';
+        row.innerHTML='<select aria-label="Тип телефона"><option>Рабочий</option><option>Личный</option><option>Резервный</option><option>Дополнительный</option></select><input type="tel" placeholder="+7 (___) ___-__-__" aria-label="Номер телефона"><label><input type="radio" name="staff_primary_phone" aria-label="Основной"> основной</label><button type="button" class="staff-phone-row__remove" aria-label="Удалить номер" title="Удалить номер"><svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#x"></use></svg></button>';
         row.querySelector('select').value=item.label||'Дополнительный';
         row.querySelector('input[type="tel"]').value=item.number||'';
         row.querySelector('input[type="radio"]').checked=!!item.primary;
@@ -29,6 +36,7 @@
         list.append(row);
       };
       add(initial);
+      if(secondaryValue) add({label:'Дополнительный',number:secondaryValue,primary:false});
       rows.querySelector('.staff-phone-list__add').addEventListener('click',()=>add());
       form.addEventListener('submit',sync); sync();
     });
@@ -40,8 +48,7 @@
   const mount=()=>{
     document.querySelectorAll('form').forEach((form)=>{
       if(form.dataset.staffTelegramReady==='1') return;
-      const signature=(form.textContent+' '+form.innerHTML).toLowerCase();
-      if(!/(сотруд|staff|employee|роль|role)/.test(signature)) return;
+      if(!form.matches('.staff-form,.staff-editor-form')) return;
       if(form.querySelector('input[name*="telegram" i]')){form.dataset.staffTelegramReady='1';return;}
       const field=document.createElement('label'); field.className='staff-profile-field staff-telegram-field'; field.textContent='Telegram';
       const input=document.createElement('input'); input.type='text'; input.name='telegram'; input.placeholder='@username или https://t.me/username'; input.autocomplete='off';
