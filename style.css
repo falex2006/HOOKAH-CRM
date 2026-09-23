@@ -1191,3 +1191,13 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .login-password-wrap input{display:block;width:100%;margin-top:0!important;padding-right:92px!important;box-sizing:border-box}
 .login-password-toggle{position:absolute;right:8px;top:50%;display:inline-flex;align-items:center;justify-content:center;height:34px;min-width:74px;margin:0;padding:0 10px;border:1px solid #3b424d;border-radius:8px;background:#20252c;color:#aeb6c0;font:inherit;font-size:12px;line-height:1;transform:translateY(-50%);cursor:pointer}
 .login-password-toggle:hover{border-color:#ff6372;background:#292f38;color:#fff}
+
+
+/* Form text rhythm and native caret: labels never sit on top of their control, and editable fields keep a visible blinking cursor. */
+:where(input:not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]){caret-color:#ff7180}
+:where(input:not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]):disabled{caret-color:transparent}
+.velora-theme :where(input:not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]){caret-color:#ff8796}
+.staff-theme :where(input:not([type="checkbox"]):not([type="radio"]), textarea, [contenteditable="true"]){caret-color:#ff8796}
+.login-card label{display:grid;gap:8px;margin:18px 0 0;line-height:1.35}
+.login-card input{margin-top:0}
+.login-password-wrap{margin-top:0}
