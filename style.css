@@ -1487,3 +1487,33 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 @media(max-width:760px){
   .velora-theme .reservation-panel .date-input{width:100%;min-width:0;flex-basis:100%}
 }
+/* Clear return anchor from staff workspace to administration. */
+.velora-theme .staff-admin-nav-link{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-height:54px;
+  padding:12px 13px!important;
+  border:1px solid #ff637255;
+  border-radius:12px!important;
+  background:linear-gradient(135deg,#472832,#302027);
+  color:#fff!important;
+  font-weight:800;
+  letter-spacing:-.01em;
+  box-shadow:0 8px 20px #ff53631c,inset 0 1px #ffb0a022;
+}
+.velora-theme .staff-admin-nav-link:hover{
+  border-color:#ff7180;
+  background:linear-gradient(135deg,#5b2c39,#39232b);
+  transform:translateY(-1px);
+  box-shadow:0 10px 24px #ff53632a;
+}
+.velora-theme .staff-admin-nav-link .icon{
+  width:20px;
+  height:20px;
+  flex:0 0 20px;
+  color:#ffb08f;
+}
+.velora-theme .staff-admin-nav-label{
+  margin-top:18px;
+}
