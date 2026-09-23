@@ -12,20 +12,17 @@ const demoUsers = {
 };
 
 const setLoginState = (state) => { document.body.dataset.loginState = state; form?.setAttribute('data-login-state', state); };
-const showFailureAnimation = () => new Promise((resolve) => { setLoginState('failure-animation'); window.setTimeout(() => { setLoginState('error-reset'); window.setTimeout(() => { setLoginState('idle'); resolve(); }, 260); }, 1500); });
+const showFailureAnimation = () => { setLoginState('idle'); return Promise.resolve(); };
 setLoginState('idle');
 
 const showLoginTransition = () => new Promise((resolve) => {
-  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { resolve(); return; }
-  const layer = document.createElement('div'); layer.className = 'login-transition'; layer.setAttribute('role', 'status'); layer.setAttribute('aria-label', 'Открываем рабочее пространство');
-  layer.innerHTML = '<div class="login-transition__live-scene" role="img" aria-label="Короткая реалистичная съёмка приготовления кальяна: чаша, табак, калауд, угли и дым"><div class="login-transition__live-photo live-photo-base"></div><div class="login-transition__live-photo live-photo-bowl"></div><div class="login-transition__live-photo live-photo-tobacco"></div><div class="login-transition__live-photo live-photo-metal"></div><div class="login-transition__live-photo live-photo-coals"></div><div class="login-transition__live-haze haze-a"></div><div class="login-transition__live-haze haze-b"></div><div class="login-transition__live-glint"></div></div><p class="login-transition__title">Готовим рабочее пространство</p><button class="login-transition__skip" type="button">Пропустить</button>';
-  document.body.append(layer); document.body.classList.add('login-transition-active'); let done = false; const finish = () => { if (done) return; done = true; layer.remove(); document.body.classList.remove('login-transition-active'); resolve(); }; layer.querySelector('.login-transition__skip')?.addEventListener('click', finish); window.setTimeout(finish, 5000);
+  resolve();
 });
 
 const finishLogin = async (data) => {
   localStorage.setItem('crm_session_token', data.token);
   localStorage.setItem('crm_session_user', JSON.stringify(data.user));
-  setLoginState('success-animation');
+  setLoginState('idle');
   await showLoginTransition();
   window.location.replace(data.user.role === 'platform_owner' ? '/platform' : ['owner', 'admin', 'developer'].includes(data.user.role) ? '/admin' : '/' );
 };
