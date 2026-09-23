@@ -553,14 +553,16 @@ async function api(req, res) {
   if (pathname === '/api/shifts' && req.method === 'POST') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
     const input = await body(req);
+    if (!Object.prototype.hasOwnProperty.call(input, 'openingCash') || input.openingCash === '' || !Number.isFinite(Number(input.openingCash)) || Number(input.openingCash) < 0 || Number(input.openingCash) > 100000000) return json(res, 400, { error: 'opening_cash_required' });
     if (repositories?.pool) { try { const open = await repositories.pool.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1', [venueDbId]); if (open.rows[0]) return json(res, 409, { error: 'shift_already_open' }); const openedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001'; const { rows } = await repositories.pool.query('INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,$3) RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash"', [venueDbId, openedBy, Number(input.openingCash || 0)]); recordAudit(req, 'shift.opened', 'shift', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'shift_open_failed', detail: error.message }); } }
     if (shifts.some((entry) => !entry.closedAt)) return json(res, 409, { error: 'shift_already_open' });
-    const shift = { id: `shift-${Date.now()}`, openedAt: new Date().toISOString(), closedAt: null, openingCash: Number(input.openingCash || 0), closingCash: null, openedBy: req.user?.name || 'сотрудник' }; shifts.push(shift); recordAudit(req, 'shift.opened', 'shift', shift.id, null, shift); return json(res, 201, shift);
+    const shift = { id: `shift-${Date.now()}`, openedAt: new Date().toISOString(), closedAt: null, openingCash: Number(input.openingCash), closingCash: null, openedBy: req.user?.name || 'сотрудник' }; shifts.push(shift); recordAudit(req, 'shift.opened', 'shift', shift.id, null, shift); return json(res, 201, shift);
   }
   const shiftClose = pathname.match(/^\/api\/shifts\/([^/]+)\/close$/);
   if (shiftClose && req.method === 'POST') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
     const input = await body(req);
+    if (!Object.prototype.hasOwnProperty.call(input, 'closingCash') || input.closingCash === '' || !Number.isFinite(Number(input.closingCash)) || Number(input.closingCash) < 0 || Number(input.closingCash) > 100000000) return json(res, 400, { error: 'closing_cash_required' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(shiftClose[1])) { try { const { rows } = await repositories.pool.query('UPDATE shifts SET closed_at=now(),closing_cash=$1 WHERE id=$2 AND venue_id=$3 AND closed_at IS NULL RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash"', [Number(input.closingCash || 0), shiftClose[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'shift_not_found_or_closed' }); recordAudit(req, 'shift.closed', 'shift', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'shift_close_failed', detail: error.message }); } }
     const shift = shifts.find((entry) => entry.id === shiftClose[1]); if (!shift || shift.closedAt) return json(res, 404, { error: 'shift_not_found_or_closed' }); shift.closedAt = new Date().toISOString(); shift.closingCash = Number(input.closingCash || 0); recordAudit(req, 'shift.closed', 'shift', shift.id, null, shift); return json(res, 200, shift);
   }
@@ -864,13 +866,13 @@ async function api(req, res) {
   const recipeProfile = pathname.match(/^\/api\/recipes\/([^/]+)$/);
   if (recipeProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    const recipe = recipes.find((item) => item.id === recipeProfile[1]); if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
+    const storedRecipe = recipes.find((item) => item.id === recipeProfile[1]); const recipe = storedRecipe && { ...storedRecipe }; if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
     const input = await body(req); const before = { ...recipe };
     if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'invalid_recipe' }); recipe.name = name; }
     if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); recipe.ingredients = input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), quantity: String(item?.quantity || '').trim() }).filter((item) => item.name); }
     if (input.technology !== undefined) { recipe.technology = String(input.technology || '').trim(); if (recipe.technology.length > 4000) return json(res, 400, { error: 'invalid_recipe' }); }
     if (input.serve !== undefined) { recipe.serve = String(input.serve || '').trim(); if (recipe.serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' }); }
-    recordAudit(req, 'recipe.updated', 'recipe', recipe.id, before, recipe); return json(res, 200, recipe);
+    Object.assign(storedRecipe, recipe); recordAudit(req, 'recipe.updated', 'recipe', recipe.id, before, recipe); return json(res, 200, recipe);
   }
   if (recipeProfile && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -1241,7 +1243,7 @@ if (staffProfile && req.method === 'PATCH') {
     const itemType = String(input.itemType || 'ingredient');
     const department = String(input.department || 'inventory').trim();
     const unit = String(input.unit || '').trim();
-    const cost = Number(input.cost || 0); const minLevel = Number(input.minLevel || 0); const packMultiplier = Number(input.packMultiplier || 1);
+    const cost = Number(input.cost || 0); const minLevel = Number(input.minLevel || 0); const packMultiplier = Number(input.packMultiplier ?? 1);
     if (!name || name.length > 120) return json(res, 400, { error: 'invalid_inventory_item_name' });
     if (!allowedUnits.includes(unit) || !['ingredient', 'product', 'consumable', 'equipment'].includes(itemType)) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
     if (!Number.isFinite(cost) || cost < 0 || !Number.isFinite(minLevel) || minLevel < 0 || !Number.isFinite(packMultiplier) || packMultiplier <= 0) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
@@ -1252,22 +1254,25 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (inventoryItemPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    const input = await body(req); const allowedUnits = ['шт', 'г', 'кг', 'мл', 'л', 'порция', 'уп', 'упаковка'];
+    const input = await body(req);
+    const editableFields = ['name','shortName','category','department','itemType','unit','purchaseUnit','packMultiplier','cost','minLevel','supplier','barcode','note'];
+    if (!Object.keys(input).length || Object.keys(input).some((key) => !editableFields.includes(key))) return json(res, 400, { error: 'invalid_inventory_item_fields' });
+    const allowedUnits = ['шт', 'г', 'кг', 'мл', 'л', 'порция', 'уп', 'упаковка'];
     if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'invalid_inventory_item_name' });
     if (input.unit !== undefined && !allowedUnits.includes(String(input.unit))) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
     if (input.itemType !== undefined && !['ingredient', 'product', 'consumable', 'equipment'].includes(String(input.itemType))) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
     for (const key of ['cost', 'minLevel', 'packMultiplier']) if (input[key] !== undefined && (!Number.isFinite(Number(input[key])) || Number(input[key]) < (key === 'packMultiplier' ? 0.01 : 0))) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
     if (repositories?.inventory) { try { const item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], input); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item); } catch (error) { return json(res, 409, { error: 'inventory_item_update_failed', detail: error.message }); } }
-    const item = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); Object.assign(item, input); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item);
+    const item = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); if (input.unit !== undefined && input.unit !== item.unit && stockMovements.some((movement) => movement.itemId === item.id)) return json(res, 409, { error: 'inventory_unit_has_movements' }); Object.assign(item, input); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item);
   }
   if (inventoryItemPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
     if (repositories?.inventory) { try { const item = await repositories.inventory.archive(venueDbId, inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); recordAudit(req, 'inventory.item_archived', 'inventory', item.id, item, null); return json(res, 200, item); } catch (error) { return json(res, 409, { error: 'inventory_item_archive_failed', detail: error.message }); } }
-    const index = inventory.findIndex((entry) => entry.id === inventoryItemPath[1]); if (index < 0) return json(res, 404, { error: 'inventory_item_not_found' }); const [item] = inventory.splice(index, 1); recordAudit(req, 'inventory.item_archived', 'inventory', item.id, item, null); return json(res, 200, item);
+    const index = inventory.findIndex((entry) => entry.id === inventoryItemPath[1]); if (index < 0) return json(res, 404, { error: 'inventory_item_not_found' }); if (inventory[index].onHand !== 0) return json(res, 409, { error: 'inventory_item_has_stock' }); const [item] = inventory.splice(index, 1); recordAudit(req, 'inventory.item_archived', 'inventory', item.id, item, null); return json(res, 200, item);
   }
   if (pathname === '/api/inventory' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'inventory') && !hasPermission(req, 'inventory_read')) return json(res, 403, { error: 'forbidden', permission: 'inventory' });
-    if (repositories?.inventory) { try { const data = await repositories.inventory.list(venueDbId); return json(res, 200, { ...data, lowStock: data.items.filter((item) => item.onHand <= item.minLevel) }); } catch (_) {} }
+    if (repositories?.inventory) { try { const data = await repositories.inventory.list(venueDbId); return json(res, 200, { ...data, lowStock: data.items.filter((item) => item.onHand <= item.minLevel) }); } catch (_) { return json(res, 503, { error: 'inventory_unavailable' }); } }
     return json(res, 200, { items: inventory, lowStock: inventory.filter((item) => item.onHand <= item.minLevel), movements: stockMovements.slice(-20).reverse() });
   }
   if (pathname === '/api/inventory/movements' && req.method === 'POST') {

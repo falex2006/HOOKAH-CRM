@@ -42,6 +42,13 @@ class InventoryRepository {
     return rows[0];
   }
   async update(venueId, id, input) {
+    if (input.unit !== undefined) {
+      const existing = await this.pool.query('SELECT unit FROM ingredients WHERE id=$1 AND venue_id=$2', [id, venueId]);
+      if (existing.rows[0] && existing.rows[0].unit !== input.unit) {
+        const history = await this.pool.query('SELECT 1 FROM stock_movements WHERE ingredient_id=$1 AND venue_id=$2 LIMIT 1', [id, venueId]);
+        if (history.rowCount) throw new Error('inventory_unit_has_movements');
+      }
+    }
     const fields = []; const values = [id, venueId]; const allowed = [['name','name'],['shortName','short_name'],['category','category'],['department','department'],['itemType','item_type'],['unit','unit'],['purchaseUnit','purchase_unit'],['packMultiplier','pack_multiplier'],['cost','cost'],['minLevel','min_stock'],['supplier','supplier'],['barcode','barcode'],['note','note']];
     for (const [key, column] of allowed) if (input[key] !== undefined) { values.push(input[key]); fields.push(`${column}=$${values.length}`); }
     if (!fields.length) return null;
