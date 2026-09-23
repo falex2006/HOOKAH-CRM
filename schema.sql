@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS organizations (
 );
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS organization_id uuid REFERENCES organizations(id);
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE venues ADD COLUMN IF NOT EXISTS phone_numbers jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS address text;
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS logo_url text;
 ALTER TABLE venues ADD COLUMN IF NOT EXISTS format text NOT NULL DEFAULT 'кальян-бар';
