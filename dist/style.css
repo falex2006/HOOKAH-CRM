@@ -1596,7 +1596,7 @@ html{min-width:0;overflow-x:hidden}
    never move away while a long page is being reviewed. */
 .portal{height:100vh;overflow:hidden}
 .portal .portal-app{height:100%;min-height:0;overflow:hidden}
-.portal.velora-theme .portal-sidebar{position:relative;top:auto;align-self:stretch;flex:0 0 auto;height:100%;max-height:none;overflow-y:auto;overflow-x:hidden}
+.portal.velora-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;flex:0 0 auto;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden}
 .portal.velora-theme .portal-main{height:100%;overflow-y:auto;overflow-x:hidden}
 .staff-theme .app{height:100vh;overflow:hidden}
 .staff-theme aside{position:relative;top:auto;align-self:stretch;flex:0 0 auto;height:100%;box-sizing:border-box;overflow-y:auto;overflow-x:hidden}
