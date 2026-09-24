@@ -501,7 +501,8 @@ async function api(req, res) {
   }
   if (pathname === '/api/notifications' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['staff_view', 'settings'])) return;
-    const items = staffNotifications.filter((item) => !item.notificationRecipients?.length || process.env.AUTH_REQUIRED !== 'true' || item.notificationRecipients.includes(req.user?.role));
+    let items = staffNotifications.filter((item) => !item.notificationRecipients?.length || process.env.AUTH_REQUIRED !== 'true' || item.notificationRecipients.includes(req.user?.role));
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,status,created_at AS "createdAt",total_estimate AS "totalEstimate" FROM inventory_auto_orders WHERE venue_id=$1 AND status='sent' ORDER BY created_at DESC LIMIT 20`, [venueDbId]); items = items.concat(rows.map((row) => ({ id: `auto-order-${row.id}`, type: 'inventory_auto_order', autoOrderId: row.id, status: row.status, totalEstimate: Number(row.totalEstimate || 0), createdAt: row.createdAt, notificationRecipients: ['owner', 'admin', 'manager'] }))); } catch (_) {} }
     return json(res, 200, { items });
   }
   if (pathname === '/api/saas/account' && req.method === 'GET') {
