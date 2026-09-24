@@ -662,6 +662,12 @@
 
 /* Notification control uses a stable vector icon instead of a platform emoji */
 .velora-theme .notification-bell{display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;padding:0}.velora-theme .notification-bell .icon{display:block;width:18px;height:18px;stroke:currentColor;stroke-width:1.8}.velora-theme .notification-bell #notification-count{display:grid;place-items:center}
+.velora-theme .header-right .notification-bell,
+.velora-theme .header-right .lock-settings-button,
+.velora-theme .header-right #lock-screen-button{width:44px;height:44px;min-width:44px;padding:0;border:0;border-radius:12px;background:transparent;box-shadow:none;display:inline-flex;align-items:center;justify-content:center}
+.velora-theme .header-right .notification-bell:hover,
+.velora-theme .header-right .lock-settings-button:hover,
+.velora-theme .header-right #lock-screen-button:hover{background:#24272d;color:#fff}
 
 /* Reserve a clear header lane inside the floor plan so zone labels never sit under cards */
 .staff-theme .tables{padding-top:54px}.staff-theme .tables.vip-floor{padding-top:54px}@media(max-width:760px){.staff-theme .tables,.staff-theme .tables.vip-floor{padding-top:43px}}
@@ -1761,4 +1767,3 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 
 @media (min-width: 761px){.velora-theme .orders-view .table-wrap{overflow-x:hidden !important}.velora-theme .orders-view .orders-table{width:100% !important;min-width:0 !important}}
-
