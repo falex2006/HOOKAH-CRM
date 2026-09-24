@@ -10,3 +10,5 @@ ttk-extracted.txt
 ._batch_patch.py
 node_modules/
 *.log
+
+qa-fold/
