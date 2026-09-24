@@ -1,0 +1,147 @@
+{
+  "name": "Territory CRM Engineering Team",
+  "version": 1,
+  "repository": "falex2006/HOOKAH-CRM",
+  "branch": "main",
+  "roles": [
+    {
+      "id": "product_analyst",
+      "name": "Продуктовый аналитик",
+      "mission": "Формирует цель, пользовательские сценарии, acceptance criteria и проверяет, что изменение решает бизнес-задачу.",
+      "read": "read:all",
+      "write": "write:docs/requirements,docs/audit"
+    },
+    {
+      "id": "system_architect",
+      "name": "Системный архитектор",
+      "mission": "Отвечает за дерево страниц, границы модулей, контракты, зависимости и безопасный план изменений.",
+      "read": "read:all",
+      "write": "write:docs/architecture,docs/decisions"
+    },
+    {
+      "id": "design_lead",
+      "name": "Ведущий UX/UI дизайнер",
+      "mission": "Устанавливает визуальные правила, иерархию, плотность, состояния, формы и единый премиальный язык CRM.",
+      "read": "read:all",
+      "write": "write:portal.js,style.css,*.html,docs/design"
+    },
+    {
+      "id": "responsive_specialist",
+      "name": "Специалист responsive/Fold",
+      "mission": "Проверяет Fold, iPhone, Android и планшеты; исправляет переполнение, высоту, touch targets и ориентации.",
+      "read": "read:all",
+      "write": "write:style.css,qa-fold,docs/visual"
+    },
+    {
+      "id": "frontend_engineer",
+      "name": "Frontend инженер",
+      "mission": "Реализует клиентские экраны, состояния, навигацию, доступность и связывает UI с API.",
+      "read": "read:all",
+      "write": "write:portal.js,app.js,admin.js,*.html,*.js"
+    },
+    {
+      "id": "backend_engineer",
+      "name": "Backend/API инженер",
+      "mission": "Реализует серверные маршруты, валидацию, права, ошибки, идемпотентность и обратную совместимость API.",
+      "read": "read:all",
+      "write": "write:server.js,API.md"
+    },
+    {
+      "id": "data_engineer",
+      "name": "Инженер данных и миграций",
+      "mission": "Проектирует таблицы, миграции, индексы, перенос данных и проверку отката.",
+      "read": "read:all",
+      "write": "write:schema.sql,migrations,db.js,scripts"
+    },
+    {
+      "id": "warehouse_domain",
+      "name": "Эксперт склада и производства",
+      "mission": "Проверяет цеха, позиции, единицы, поставки, техкарты, списание, себестоимость и автозаказ как единую цепочку.",
+      "read": "read:all",
+      "write": "write:warehouse docs,server.js,portal.js,migrations"
+    },
+    {
+      "id": "finance_domain",
+      "name": "Эксперт финансов и кассы",
+      "mission": "Проверяет выручку, расходы, зарплату, кассу, X/Z, себестоимость и отсутствие двойного учёта.",
+      "read": "read:all",
+      "write": "write:finance docs,server.js,portal.js,migrations"
+    },
+    {
+      "id": "qa_engineer",
+      "name": "QA инженер",
+      "mission": "Составляет матрицу сценариев, запускает smoke/API/role tests, подтверждает пустые, успешные и ошибочные состояния.",
+      "read": "read:all",
+      "write": "write:scripts,docs/qa,reports"
+    },
+    {
+      "id": "visual_auditor",
+      "name": "Визуальный аудитор",
+      "mission": "Проверяет каждый экран по скриншотам: сетку, отступы, типографику, контраст, кнопки, таблицы, модалки и пустые состояния.",
+      "read": "read:all",
+      "write": "write:docs/visual,reports"
+    },
+    {
+      "id": "security_reviewer",
+      "name": "Аудитор безопасности и приватности",
+      "mission": "Проверяет auth, RBAC, tenant isolation, чувствительные данные, логи, секреты и опасные действия.",
+      "read": "read:all",
+      "write": "write:SECURITY.md,docs/security,reports"
+    },
+    {
+      "id": "performance_engineer",
+      "name": "Инженер производительности",
+      "mission": "Ищет лишние запросы, тяжёлые рендеры, медленные списки, кэширование и проблемы на слабых устройствах.",
+      "read": "read:all",
+      "write": "write:docs/performance,scripts,client code"
+    },
+    {
+      "id": "debugger",
+      "name": "Дебаггер и специалист по дефектам",
+      "mission": "Воспроизводит дефект, устанавливает первопричину, делает минимальное исправление и добавляет регрессионную проверку.",
+      "read": "read:all",
+      "write": "write:scoped files only"
+    },
+    {
+      "id": "release_manager",
+      "name": "Координатор релиза и GitHub",
+      "mission": "Сводит результаты, проверяет diff, коммиты, CI, миграции, deployment manifest и публикует только согласованный пакет.",
+      "read": "read:all",
+      "write": "write:.github,docs/release,release scripts"
+    }
+  ],
+  "execution": {
+    "logical_agents": 15,
+    "max_parallel_runtime_agents": 3,
+    "coordinator": "release_manager",
+    "default_order": [
+      "product_analyst",
+      "system_architect",
+      "design_lead",
+      "responsive_specialist",
+      "frontend_engineer",
+      "backend_engineer",
+      "data_engineer",
+      "warehouse_domain",
+      "finance_domain",
+      "qa_engineer",
+      "visual_auditor",
+      "security_reviewer",
+      "performance_engineer",
+      "debugger",
+      "release_manager"
+    ]
+  },
+  "approval_policy": {
+    "ordinary_reversible_changes": "role owner plus QA",
+    "architecture_or_schema": "system_architect and data_engineer plus affected domain owner",
+    "security_or_sensitive_data": "security_reviewer required",
+    "production_deploy": "qa_engineer and release_manager; user approval for irreversible/destructive actions"
+  },
+  "artifacts": {
+    "decision_log": "docs/ai-team/DECISIONS.md",
+    "work_log": "docs/ai-team/WORK_LOG.md",
+    "audit_report": "docs/AI_TEAM_AUDIT_REPORT.md",
+    "tree": "SITE_TREE.md"
+  }
+}

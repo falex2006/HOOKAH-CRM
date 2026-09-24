@@ -1476,7 +1476,7 @@ if (staffProfile && req.method === 'PATCH') {
   }
   const autoOrderPath = pathname.match(/^\/api\/inventory\/auto-orders\/([^/]+)$/);
   if (autoOrderPath && req.method === 'PATCH') {
-    if (denyUnlessAny(req, res, ['inventory', 'inventory_read'])) return;
+    if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const status = String(input.status || ''); if (!['sent', 'partially_received', 'received', 'cancelled'].includes(status)) return json(res, 400, { error: 'invalid_auto_order_status' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(autoOrderPath[1])) {
       try { const { rows } = await repositories.pool.query(`UPDATE inventory_auto_orders SET status=$1,updated_at=now() WHERE id=$2 AND venue_id=$3 RETURNING id,status,lines,note,total_estimate AS "totalEstimate",created_at AS "createdAt",sent_at AS "sentAt",updated_at AS "updatedAt"`, [status, autoOrderPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'auto_order_not_found' }); recordAudit(req, `inventory.auto_order_${status}`, 'inventory_auto_order', rows[0].id, null, rows[0]); return json(res, 200, { ...rows[0], totalEstimate: Number(rows[0].totalEstimate || 0), lines: rows[0].lines || [] }); } catch (error) { return json(res, 409, { error: 'auto_order_status_save_failed', detail: error.message }); }
