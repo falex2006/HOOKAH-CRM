@@ -1839,3 +1839,12 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 .panel.wide + .integration-requirements{margin-top:18px}
 
+
+/* Clear setup flows for floor plans and warehouse departments. */
+.velora-theme .venue-layout-guide{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0;padding:14px 16px;border:1px solid #303640;border-radius:12px;background:#14171b}
+.velora-theme .venue-layout-guide__step{display:flex;align-items:center;gap:9px;min-width:190px}
+.velora-theme .venue-layout-guide__step>b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#2a313a;color:#ff8a7d;font-size:13px}
+.velora-theme .venue-layout-guide__step strong{display:block;color:#edf1f4;font-size:12px}.velora-theme .venue-layout-guide__step small{display:block;color:#7f8994;font-size:11px;margin-top:2px}.velora-theme .venue-layout-guide__arrow{color:#67717c}
+.velora-theme .venue-layout-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;color:#7f8994;font-size:12px}.velora-theme .venue-layout-empty--large{display:grid;justify-items:center;gap:8px;padding:28px 16px;text-align:center;border:1px dashed #3a414c;border-radius:12px}.velora-theme .venue-layout-empty--large strong{color:#e9edf0;font-size:15px}.velora-theme .venue-layout-settings .panel-head h3{margin:0;color:#edf1f4;font-size:16px}
+.velora-theme .inventory-departments-panel>.panel-head .toolbar-row{flex-wrap:wrap}.velora-theme .inventory-departments-panel>.panel-head .button{white-space:nowrap}.velora-theme .inventory-departments-panel .section-title-row{align-items:center}.velora-theme #open-departments{white-space:nowrap}
+@media(max-width:720px){.velora-theme .venue-layout-guide{display:grid}.velora-theme .venue-layout-guide__arrow{display:none}.velora-theme .venue-layout-guide__step{min-width:0}.velora-theme .venue-layout-empty{align-items:flex-start;flex-direction:column}.velora-theme .inventory-departments-panel>.panel-head{align-items:flex-start}.velora-theme .inventory-departments-panel>.panel-head .toolbar-row{width:100%}.velora-theme .inventory-departments-panel>.panel-head .button{flex:1}}
