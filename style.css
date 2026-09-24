@@ -1471,6 +1471,10 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 @media(max-width:1100px){
   .velora-theme .clients-toolbar{max-width:100%;grid-template-columns:minmax(180px,1fr) repeat(2,minmax(150px,1fr))}
 }
+@media(min-width:761px) and (max-width:1250px){
+  .velora-theme .clients-toolbar{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .velora-theme .clients-toolbar .table-search{grid-column:1/-1;}
+}
 @media(max-width:760px){
   .velora-theme .clients-toolbar{grid-template-columns:1fr;max-width:100%}
 }
