@@ -1885,9 +1885,20 @@ if (staffProfile && req.method === 'PATCH') {
 }
 
 function staticFile(req, res) {
-  let requestPath = new URL(req.url, 'http://localhost').pathname;
+  const requestUrl = new URL(req.url, 'http://localhost');
+  let requestPath = requestUrl.pathname;
   const routePath = requestPath.length > 1 ? requestPath.replace(/\/+$/, '') : requestPath;
   const aliases = { '/': '/index.html', '/admin': '/admin.html', '/login': '/login.html', '/inventory': '/inventory.html', '/finance': '/finance.html', '/finance/categories': '/finance-categories.html', '/finance/report': '/finance-report.html', '/reservations': '/reservations.html', '/clients': '/clients.html', '/orders': '/orders.html', '/integrations': '/integrations.html', '/network': '/network.html', '/delivery': '/delivery.html', '/platform': '/platform.html' };
+  const canonicalByFile = Object.fromEntries(Object.entries(aliases).map(([canonical, file]) => [file, canonical]));
+  // Keep one public URL per page. Direct HTML filenames are implementation
+  // details and redirect to the canonical tree so links, history and analytics
+  // never split across duplicate addresses.
+  if (canonicalByFile[routePath] && routePath !== canonicalByFile[routePath]) {
+    const canonical = canonicalByFile[routePath];
+    const location = `${canonical}${requestUrl.search}`;
+    res.writeHead(308, { Location: location, 'Cache-Control': 'no-store' });
+    return res.end();
+  }
   requestPath = aliases[routePath] || requestPath;
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
