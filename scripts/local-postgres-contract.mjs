@@ -14,7 +14,7 @@ if (mode === 'create') {
   const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
   await client.connect();
   try {
-    const table = await client.query("SELECT id FROM tables WHERE venue_id='00000000-0000-0000-0000-000000000001' ORDER BY name LIMIT 1");
+    const table = await client.query("SELECT t.id FROM tables t JOIN zones z ON z.id=t.zone_id WHERE z.venue_id='00000000-0000-0000-0000-000000000001' ORDER BY t.name LIMIT 1");
     assert.ok(table.rows[0]?.id, 'seeded PostgreSQL floor must expose a table');
     const order = await client.query(
       "INSERT INTO orders (venue_id,table_id,opened_by,notes) VALUES ('00000000-0000-0000-0000-000000000001',$1,'20000000-0000-0000-0000-000000000001','postgres persistence contract') RETURNING id",
