@@ -802,15 +802,12 @@ function renderInventory() {
       if (!file) return;
       if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1_500_000) { portalNotice('Фото товара: PNG, JPG или WebP до 1,5 МБ', 'error'); input.value = ''; return; }
       const card = input.closest('.visual-product');
-      const reader = new FileReader();
-      reader.onload = () => {
+      input.disabled = true;
+      compressUploadedImage(file, 640).then((imageData) => {
         const preview = card?.querySelector('.visual-product-image');
-        if (preview) preview.innerHTML = `<img src="${esc(reader.result)}" alt="Предпросмотр">`;
-        input.disabled = true;
-        api(`/api/products/${encodeURIComponent(input.dataset.product)}/image`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageData: reader.result }) }).then(() => api('/api/products')).then((data) => { drawProducts(data.items); portalNotice('Фото товара сохранено', 'success'); }).catch(() => { input.disabled = false; portalNotice('Не удалось сохранить фото товара', 'error'); });
-      };
-      reader.onerror = () => { input.disabled = false; portalNotice('Не удалось прочитать фото товара', 'error'); };
-      reader.readAsDataURL(file);
+        if (preview) preview.innerHTML = `<img src="${esc(imageData)}" alt="Предпросмотр">`;
+        return api(`/api/products/${encodeURIComponent(input.dataset.product)}/image`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageData }) });
+      }).then(() => api('/api/products')).then((data) => { drawProducts(data.items); portalNotice('Фото товара сохранено', 'success'); }).catch(() => { input.disabled = false; portalNotice('Не удалось обработать или сохранить фото товара', 'error'); });
     }));
     grid.querySelectorAll('.product-edit').forEach((button) => button.addEventListener('click', () => {
       const item = productItems.find((entry) => entry.id === button.dataset.product);
@@ -899,10 +896,7 @@ function renderInventory() {
       const file = input.files?.[0];
       if (!file) return;
       if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 1_500_000) { portalNotice('Фото товара: PNG, JPG или WebP до 1,5 МБ', 'error'); input.value = ''; return; }
-      const reader = new FileReader();
-      reader.onload = () => { pendingProductImage = reader.result; productImageChanged = true; syncProductPreview(); };
-      reader.onerror = () => portalNotice('Не удалось прочитать фото товара', 'error');
-      reader.readAsDataURL(file);
+      compressUploadedImage(file, 640).then((imageData) => { pendingProductImage = imageData; productImageChanged = true; syncProductPreview(); }).catch(() => portalNotice('Не удалось обработать фото товара', 'error'));
     });
     form.addEventListener('submit', (event) => {
       event.preventDefault();
