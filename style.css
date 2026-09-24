@@ -1720,3 +1720,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .dashboard-revenue-pending-static strong { font-size:18px;line-height:1.2;margin:0; }
 .velora-theme .dashboard-revenue-pending .dashboard-revenue-pending-details { grid-template-rows:1fr;opacity:1;margin-top:8px;transition:none; }
 .velora-theme .dashboard-revenue-pending .dashboard-revenue-pending-details small { font-size:11px;line-height:1.4; }
+
+.velora-theme .finance-staff-panel .empty{padding:18px 20px}
+.velora-theme .finance-payments-grid{grid-template-columns:1fr}
+@media(max-width:720px){.velora-theme .staff-drawer-panel{top:0;left:0;right:0;bottom:0;transform:none;width:100%;max-height:none;height:100%;border-radius:0;padding:18px}.velora-theme .staff-drawer-head{position:sticky;top:-18px;z-index:2;padding-top:4px;background:#1b1e23}}
+
