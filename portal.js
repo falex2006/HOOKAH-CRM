@@ -140,7 +140,10 @@ const normalizeManagementSidebar = () => {
     const [path, hash] = href.split('#');
     const active = path === currentPath && (hash ? `#${hash}` === currentHash : !currentHash);
     link.classList.toggle('active', active);
-    if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+    if (active) {
+      link.setAttribute('aria-current', 'page');
+      requestAnimationFrame(() => link.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+    } else link.removeAttribute('aria-current');
   });
 };
 normalizeManagementSidebar();
