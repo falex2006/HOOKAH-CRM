@@ -1743,3 +1743,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
   .velora-theme .floor-editor-panel .empty{padding:24px 16px}
 }
 
+
+/* Integration cards keep service names intact on medium desktop widths. */
+@media (min-width: 761px) and (max-width: 1350px){.velora-theme .integration-grid{grid-template-columns:repeat(2,minmax(280px,1fr))}}
+.velora-theme .integration-card h3,.velora-theme .integration-card p{overflow-wrap:normal;word-break:normal;hyphens:none}
+
