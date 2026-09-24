@@ -243,12 +243,28 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId) {
   const { rows: requirements } = await pool.query(`SELECT ri.ingredient_id AS "ingredientId", i.name, i.unit, SUM(ri.quantity * oi.quantity)::numeric AS quantity
     FROM order_items oi JOIN recipes r ON r.product_id=oi.product_id JOIN recipe_items ri ON ri.product_id=r.product_id
     JOIN ingredients i ON i.id=ri.ingredient_id WHERE oi.order_id=$1 AND i.venue_id=$2 GROUP BY ri.ingredient_id,i.name,i.unit`, [orderId, venueId]);
+  const { rows: cards } = await pool.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", rc.ingredients
+    FROM order_items oi JOIN products p ON p.id=oi.product_id
+    JOIN inventory_recipe_cards rc ON rc.venue_id=$2 AND rc.active=true AND (rc.product_id=oi.product_id OR lower(rc.name)=lower(p.name))
+    WHERE oi.order_id=$1`, [orderId, venueId]);
+  const extra = [];
+  for (const card of cards) for (const item of (Array.isArray(card.ingredients) ? card.ingredients : [])) {
+    const name = String(item.name || '').trim(); const ingredientId = String(item.ingredientId || '').trim();
+    const quantity = Number(String(item.quantity || '').replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0] || 0) * Number(card.orderQuantity || 0);
+    if (quantity > 0 && (name || /^[0-9a-f-]{36}$/i.test(ingredientId))) extra.push({ ingredientId: /^[0-9a-f-]{36}$/i.test(ingredientId) ? ingredientId : null, name, unit: String(item.unit || ''), quantity, sourceUnit: String(item.unit || '') });
+  }
+  requirements.push(...extra);
   if (!requirements.length) return { lines: [], totalCost: 0 };
-  const { rows: stock } = await pool.query(`SELECT i.id, i.name, i.cost, i.unit, COALESCE(SUM(CASE WHEN sm.direction IN ('in','adjustment') THEN sm.quantity WHEN sm.direction='out' THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id WHERE i.venue_id=$1 AND i.id=ANY($2::uuid[]) GROUP BY i.id`, [venueId, requirements.map((item) => item.ingredientId)]);
-  const byId = new Map(stock.map((item) => [item.id, item])); const missing = requirements.filter((item) => Number(byId.get(item.ingredientId)?.on_hand || 0) < Number(item.quantity));
-  if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((item) => ({ ...item, onHand: Number(byId.get(item.ingredientId)?.on_hand || 0) })); throw error; }
-  for (const item of requirements) await pool.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,order_id,created_by) VALUES ($1,$2,'out',$3,$4,$5,$6)`, [venueId, item.ingredientId, item.quantity, `Списание по заказу ${orderId}`, orderId, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
-  return { lines: requirements, totalCost: requirements.reduce((sum, item) => sum + Number(item.quantity) * Number(byId.get(item.ingredientId)?.cost || 0), 0) };
+  const ids = requirements.map((item) => item.ingredientId).filter((item) => /^[0-9a-f-]{36}$/i.test(String(item || '')));
+  const names = requirements.map((item) => String(item.name || '').toLowerCase()).filter(Boolean);
+  const { rows: stock } = await pool.query(`SELECT i.id, i.name, i.cost, i.unit, COALESCE(SUM(CASE WHEN sm.direction IN ('in','adjustment') THEN sm.quantity WHEN sm.direction='out' THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id WHERE i.venue_id=$1 AND (i.id=ANY($2::uuid[]) OR lower(i.name)=ANY($3::text[])) GROUP BY i.id`, [venueId, ids.length ? ids : ['00000000-0000-0000-0000-000000000000'], names.length ? names : ['__none__']]);
+  const byId = new Map(stock.map((item) => [item.id, item])); const byName = new Map(stock.map((item) => [item.name.toLowerCase(), item]));
+  const grouped = new Map();
+  for (const item of requirements) { const found = (item.ingredientId && byId.get(item.ingredientId)) || byName.get(String(item.name || '').toLowerCase()); const key = found?.id || item.ingredientId || item.name.toLowerCase(); const previous = grouped.get(key); grouped.set(key, { ingredientId: found?.id, name: found?.name || item.name, unit: found?.unit || item.unit, quantity: (previous?.quantity || 0) + Number(item.quantity || 0), stock: found }); }
+  const finalRequirements = [...grouped.values()]; const missing = finalRequirements.filter((item) => !item.stock || Number(item.stock.on_hand || 0) < Number(item.quantity));
+  if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((item) => ({ ...item, onHand: Number(item.stock?.on_hand || 0) })); throw error; }
+  for (const item of finalRequirements) await pool.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,order_id,created_by) VALUES ($1,$2,'out',$3,$4,$5,$6)`, [venueId, item.ingredientId, item.quantity, `Списание по заказу ${orderId}`, orderId, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
+  return { lines: finalRequirements, totalCost: finalRequirements.reduce((sum, item) => sum + Number(item.quantity) * Number(item.stock?.cost || 0), 0) };
 }
 const approvedDiscountTotal = (orderId, subtotal) => discountRequests.filter((request) => request.orderId === orderId && request.status === 'approved' && request.type === 'percent').reduce((sum, request) => sum + subtotal * Math.min(100, Math.max(0, Number(request.value || 0))) / 100, 0);
 const orderNetTotal = (order) => Math.max(0, orderTotal(order) - approvedDiscountTotal(order.id, orderTotal(order)));
@@ -1958,3 +1974,4 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
+
