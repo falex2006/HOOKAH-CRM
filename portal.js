@@ -684,16 +684,26 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
     setDashboardPanelVisibility(dashboardFocus === 'audit' ? '#audit' : '#diagnostics', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #company', false);
   }
+  const animateRouteContent = () => {
+    const content = document.querySelector('#page-content');
+    if (!content) return;
+    content.classList.remove('crm-route-enter');
+    void content.offsetWidth;
+    content.classList.add('crm-route-enter');
+    window.setTimeout(() => content.classList.remove('crm-route-enter'), 260);
+  };
   window.addEventListener('hashchange', () => {
     normalizeManagementSidebar();
     if (page === 'dashboard') {
       if (window.location.hash === '#tasks') renderTasks();
       else if (window.location.hash === '#loyalty') renderLoyalty();
       else renderDashboard();
+      animateRouteContent();
       return;
     }
     const nextTarget = window.location.hash ? document.querySelector(window.location.hash) : null;
     nextTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    animateRouteContent();
   });
   const hashTarget = window.location.hash ? document.querySelector(window.location.hash) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -1004,6 +1014,10 @@ if (page === 'finance_categories') renderFinanceCategories();
 if (page === 'finance_report') renderFinanceReport();
 if (page === 'reservations') renderReservations();
 if (page === 'dashboard' && location.hash === '#tasks') renderTasks();
+
+// The first render should enter with the same motion as hash navigation, so
+// a freshly opened section never flashes from an empty container to content.
+requestAnimationFrame(() => document.querySelector('#page-content')?.classList.add('crm-route-enter'));
 setupInterfacePreferences();
 setupThemePreference();
 
