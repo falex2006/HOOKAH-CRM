@@ -1693,6 +1693,7 @@ if (staffProfile && req.method === 'PATCH') {
   const orderAction = pathname.match(/^\/api\/orders\/([^/]+)\/(status|transfer)$/);
   if (orderAction && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
+    if (await requireOpenShift(req, res)) return;
     const input = await body(req);
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderAction[1])) {
       try {
@@ -1732,6 +1733,7 @@ if (staffProfile && req.method === 'PATCH') {
   const itemMatch = pathname.match(/^\/api\/orders\/([^/]+)\/items$/);
   if (itemMatch && req.method === 'POST') {
     if (denyUnless(req, res, 'orders')) return;
+    if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemMatch[1])) {
       const { rows: orderStateRows } = await repositories.pool.query('SELECT status FROM orders WHERE id=$1 AND venue_id=$2', [itemMatch[1], venueDbId]);
       if (!orderStateRows[0]) return json(res, 404, { error: 'order_not_found' });
@@ -1756,6 +1758,7 @@ if (staffProfile && req.method === 'PATCH') {
   const itemAction = pathname.match(/^\/api\/orders\/([^/]+)\/items\/([^/]+)$/);
   if (itemAction && (req.method === 'PATCH' || req.method === 'DELETE')) {
     if (denyUnless(req, res, 'orders')) return;
+    if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemAction[1]) && /^[0-9a-f-]{36}$/i.test(itemAction[2])) {
       try {
         const { rows: orderStateRows } = await repositories.pool.query('SELECT status FROM orders WHERE id=$1 AND venue_id=$2', [itemAction[1], venueDbId]);
@@ -1807,6 +1810,7 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'close') {
     if (denyUnless(req, res, 'orders')) return;
+    if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
       const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
       try { const { rows: orderRows } = await repositories.pool.query('SELECT id,status,table_id AS "tableId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [orderPath[1], venueDbId]); const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' }); if (['closed', 'cancelled'].includes(persisted.status)) return json(res, 409, { error: 'order_already_final' }); const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderPath[1]]); const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const { rows: discountRows } = await repositories.pool.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [orderPath[1]]); const discount = discountRows.reduce((sum, item) => sum + (item.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(item.value || 0))) / 100 : Math.max(0, Number(item.value || 0))), 0); const minimum = Number(persisted.minimumOrderTotal || 0); const finalTotal = Math.max(subtotal - discount, minimum); const { rows: paidRows } = await repositories.pool.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [orderPath[1]]); const paid = Number(paidRows[0]?.paid || 0); const remaining = Math.max(0, finalTotal - paid); let depletion = { totalCost: 0 }; try { depletion = await depleteRecipeForOrder(repositories.pool, orderPath[1], venueDbId, req.user?.id); } catch (depletionError) { if (depletionError.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: depletionError.missing }); throw depletionError; } const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=now() WHERE id=$2 AND venue_id=$3 AND status NOT IN (\'closed\',\'cancelled\') RETURNING *', ['closed', orderPath[1], venueDbId]); if (!rows[0]) return json(res, 409, { error: 'order_already_final' }); if (depletion.totalCost > 0) await repositories.pool.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]); if (remaining > 0) await repositories.pool.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,$4)', [orderPath[1], paymentMethod, remaining, 'paid']); if (persisted.tableId) await repositories.pool.query(`UPDATE tables SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\' ELSE \'free\' END WHERE id=$1 AND venue_id=$2 AND status <> \'blocked\' AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]); const result = { ...rows[0], subtotal, discountTotal: discount, finalTotal, paid: paid + remaining, remaining: 0, minimumAdjustment: Math.max(0, minimum - (subtotal - discount)), paymentMethod }; recordAudit(req, 'order.closed', 'order', orderPath[1], { status: persisted.status }, result); return json(res, 200, result); } catch (error) { return json(res, 409, { error: 'order_close_failed', detail: error.message }); }
@@ -1822,6 +1826,7 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'split') {
     if (denyUnless(req, res, 'orders')) return;
+    if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
       const input = await body(req); const ids = Array.isArray(input.itemIds) ? input.itemIds.filter((id) => /^[0-9a-f-]{36}$/i.test(id)) : [];
       if (!ids.length) return json(res, 400, { error: 'item_ids_required' });
