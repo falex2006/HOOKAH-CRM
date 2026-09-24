@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "canonicalRoot": "/",
+  "adminRoot": "/admin",
+  "entries": [
+    {"path":"/","file":"index.html","mode":"staff-workspace","title":"Рабочая панель"},
+    {"path":"/login","file":"login.html","mode":"auth","title":"Авторизация"},
+    {"path":"/admin","file":"admin.html","mode":"admin","title":"Панель администратора"},
+    {"path":"/orders","file":"orders.html","mode":"admin","title":"Заказы"},
+    {"path":"/clients","file":"clients.html","mode":"admin","title":"Гости"},
+    {"path":"/reservations","file":"reservations.html","mode":"admin","title":"Бронирования"},
+    {"path":"/delivery","file":"delivery.html","mode":"admin","title":"Доставка"},
+    {"path":"/inventory","file":"inventory.html","mode":"admin","title":"Склад"},
+    {"path":"/finance","file":"finance.html","mode":"admin","title":"Финансы"},
+    {"path":"/finance/categories","file":"finance-categories.html","mode":"admin","title":"Категории расходов"},
+    {"path":"/finance/report","file":"finance-report.html","mode":"admin","title":"Финансовые отчёты"},
+    {"path":"/integrations","file":"integrations.html","mode":"admin","title":"Интеграции"},
+    {"path":"/network","file":"network.html","mode":"admin","title":"Моя сеть"},
+    {"path":"/platform","file":"platform.html","mode":"platform","title":"Платформа"}
+  ],
+  "adminSubroutes": ["staff","tasks","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics"]
+}
