@@ -1361,15 +1361,15 @@ if (staffProfile && req.method === 'PATCH') {
     if (!name || name.length > 120) return json(res, 400, { error: 'invalid_inventory_item_name' });
     if (!allowedUnits.includes(unit) || !['ingredient', 'product', 'consumable', 'equipment'].includes(itemType)) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
     if (!Number.isFinite(cost) || cost < 0 || !Number.isFinite(minLevel) || minLevel < 0 || !Number.isFinite(packMultiplier) || packMultiplier <= 0) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
-    if (String(input.category || '').length > 80 || String(input.supplier || '').length > 160 || String(input.barcode || '').length > 64 || String(input.note || '').length > 500) return json(res, 400, { error: 'inventory_item_field_too_long' });
-    const clean = { name, shortName: String(input.shortName || '').trim().slice(0, 80) || null, category: String(input.category || 'Без категории').trim().slice(0, 80) || 'Без категории', department, itemType, unit, purchaseUnit: String(input.purchaseUnit || '').trim().slice(0, 30) || null, packMultiplier, cost, minLevel, supplier: String(input.supplier || '').trim().slice(0, 160) || null, barcode: String(input.barcode || '').trim().slice(0, 64) || null, note: String(input.note || '').trim().slice(0, 500) || null };
+    if (String(input.subdepartment || '').length > 80 || String(input.category || '').length > 80 || String(input.supplier || '').length > 160 || String(input.barcode || '').length > 64 || String(input.note || '').length > 500) return json(res, 400, { error: 'inventory_item_field_too_long' });
+    const clean = { name, shortName: String(input.shortName || '').trim().slice(0, 80) || null, department, subdepartment: String(input.subdepartment || '').trim().slice(0, 80), category: String(input.category || 'Без категории').trim().slice(0, 80) || 'Без категории', itemType, unit, purchaseUnit: String(input.purchaseUnit || '').trim().slice(0, 30) || null, packMultiplier, cost, minLevel, supplier: String(input.supplier || '').trim().slice(0, 160) || null, barcode: String(input.barcode || '').trim().slice(0, 64) || null, note: String(input.note || '').trim().slice(0, 500) || null };
     if (repositories?.inventory) { try { const item = await repositories.inventory.create(venueDbId, clean); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, { ...item, onHand: 0 }); } catch (error) { return json(res, 409, { error: 'inventory_item_create_failed', detail: error.message }); } }
     const item = { id: `ing-${Date.now()}`, ...clean, onHand: 0, active: true }; inventory.push(item); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, item);
   }
   if (inventoryItemPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req);
-    const editableFields = ['name','shortName','category','department','itemType','unit','purchaseUnit','packMultiplier','cost','minLevel','supplier','barcode','note'];
+    const editableFields = ['name','shortName','department','subdepartment','category','itemType','unit','purchaseUnit','packMultiplier','cost','minLevel','supplier','barcode','note'];
     if (!Object.keys(input).length || Object.keys(input).some((key) => !editableFields.includes(key))) return json(res, 400, { error: 'invalid_inventory_item_fields' });
     const allowedUnits = ['шт', 'г', 'кг', 'мл', 'л', 'порция', 'уп', 'упаковка'];
     if (input.name !== undefined && (!String(input.name).trim() || String(input.name).length > 120)) return json(res, 400, { error: 'invalid_inventory_item_name' });

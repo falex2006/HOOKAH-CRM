@@ -27,7 +27,7 @@ class OrderRepository {
 class InventoryRepository {
   constructor(pool) { this.pool = pool; }
   async list(venueId) {
-    const { rows } = await this.pool.query(`SELECT i.id, i.name, i.short_name AS "shortName", i.category, i.department, i.item_type AS "itemType", i.unit, i.purchase_unit AS "purchaseUnit", i.pack_multiplier AS "packMultiplier", i.cost, i.supplier, i.barcode, i.note, i.min_stock AS "minLevel",
+    const { rows } = await this.pool.query(`SELECT i.id, i.name, i.short_name AS "shortName", i.department, i.subdepartment, i.category, i.item_type AS "itemType", i.unit, i.purchase_unit AS "purchaseUnit", i.pack_multiplier AS "packMultiplier", i.cost, i.supplier, i.barcode, i.note, i.min_stock AS "minLevel",
       COALESCE(SUM(CASE WHEN sm.direction IN ('in','transfer','adjustment') THEN sm.quantity WHEN sm.direction IN ('out','waste') THEN -sm.quantity ELSE 0 END),0) AS "onHand"
       FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id
       WHERE i.venue_id=$1 AND i.is_marked=true GROUP BY i.id ORDER BY i.department,i.name`, [venueId]);
@@ -36,9 +36,9 @@ class InventoryRepository {
     return { items: rows.map((row) => ({ ...row, onHand: Number(row.onHand), minLevel: Number(row.minLevel), cost: Number(row.cost || 0), packMultiplier: Number(row.packMultiplier || 1) })), movements: movements.rows };
   }
   async create(venueId, input) {
-    const { rows } = await this.pool.query(`INSERT INTO ingredients (venue_id,name,short_name,category,department,item_type,unit,purchase_unit,pack_multiplier,cost,min_stock,supplier,barcode,note,is_marked)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true)
-      RETURNING id,name,short_name AS "shortName",category,department,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, [venueId, input.name, input.shortName || null, input.category || 'Без категории', input.department || 'inventory', input.itemType || 'ingredient', input.unit, input.purchaseUnit || null, input.packMultiplier || 1, input.cost || 0, input.minLevel || 0, input.supplier || null, input.barcode || null, input.note || null]);
+    const { rows } = await this.pool.query(`INSERT INTO ingredients (venue_id,name,short_name,department,subdepartment,category,item_type,unit,purchase_unit,pack_multiplier,cost,min_stock,supplier,barcode,note,is_marked)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,true)
+      RETURNING id,name,short_name AS "shortName",department,subdepartment,category,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, [venueId, input.name, input.shortName || null, input.department || 'inventory', input.subdepartment || '', input.category || 'Без категории', input.itemType || 'ingredient', input.unit, input.purchaseUnit || null, input.packMultiplier || 1, input.cost || 0, input.minLevel || 0, input.supplier || null, input.barcode || null, input.note || null]);
     return rows[0];
   }
   async update(venueId, id, input) {
@@ -49,10 +49,10 @@ class InventoryRepository {
         if (history.rowCount) throw new Error('inventory_unit_has_movements');
       }
     }
-    const fields = []; const values = [id, venueId]; const allowed = [['name','name'],['shortName','short_name'],['category','category'],['department','department'],['itemType','item_type'],['unit','unit'],['purchaseUnit','purchase_unit'],['packMultiplier','pack_multiplier'],['cost','cost'],['minLevel','min_stock'],['supplier','supplier'],['barcode','barcode'],['note','note']];
+    const fields = []; const values = [id, venueId]; const allowed = [['name','name'],['shortName','short_name'],['department','department'],['subdepartment','subdepartment'],['category','category'],['itemType','item_type'],['unit','unit'],['purchaseUnit','purchase_unit'],['packMultiplier','pack_multiplier'],['cost','cost'],['minLevel','min_stock'],['supplier','supplier'],['barcode','barcode'],['note','note']];
     for (const [key, column] of allowed) if (input[key] !== undefined) { values.push(input[key]); fields.push(`${column}=$${values.length}`); }
     if (!fields.length) return null;
-    const { rows } = await this.pool.query(`UPDATE ingredients SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name,short_name AS "shortName",category,department,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, values);
+    const { rows } = await this.pool.query(`UPDATE ingredients SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name,short_name AS "shortName",department,subdepartment,category,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, values);
     return rows[0] || null;
   }
   async archive(venueId, id) { const { rows } = await this.pool.query('UPDATE ingredients SET is_marked=false WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name', [id, venueId]); return rows[0] || null; }
