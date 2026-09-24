@@ -676,6 +676,13 @@ async function api(req, res) {
     if (repositories?.pool) { try { await repositories.pool.query('UPDATE venues SET name=$1,city=$2,format=$3,phone=$4,phone_numbers=$5::jsonb,address=$6,timezone=$7,logo_url=$8 WHERE id=$9', [venue.name, venue.city, venue.format, venue.phone, JSON.stringify(venue.phoneNumbers || []), venue.address, venue.timezone, venue.logoUrl, venueDbId]); } catch (error) { Object.assign(venue, before); return json(res, 503, { error: 'venue_save_failed', detail: error.message }); } }
     recordAudit(req, 'venue.updated', 'venue', venue.id, before, venue); return json(res, 200, venue);
   }
+  if (pathname.startsWith('/api/integrations/') && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return;
+    const key = pathname.split('/').pop(); const item = integrations[key];
+    if (!item) return json(res, 404, { error: 'integration_not_found' });
+    const requirements = { egais: ['ИНН организации', 'лицензия на алкоголь'], honestMark: ['ИНН организации', 'доступ к маркировке'], kkt: ['модель ККТ', 'регистрационный номер'], ofd: ['адрес ОФД', 'токен доступа'], payments: ['эквайринг', 'ключи СБП или QR'], telegram: ['токен бота', 'чат уведомлений'] };
+    return json(res, 200, { key, enabled: Boolean(item.enabled), status: item.status || 'planned', mode: item.mode || 'test', requirements: requirements[key] || ['Реквизиты сервиса'] });
+  }
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
   if (pathname === '/api/network/venues' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
