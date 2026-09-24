@@ -22,12 +22,13 @@ $client = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/clients" -ContentTyp
   barPreferences = @('Red Bull')
 } | ConvertTo-Json -Depth 8)
 if (-not $client.id -or $client.phoneNumbers.Count -ne 2) { throw 'Client profile was not created with multiple phones' }
+$product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Гостевой тест $suffix"; category = 'bar'; price = 100 } | ConvertTo-Json)
 
 $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{
   tableId = "local-guest-$suffix"
   orderType = 'regular'
 } | ConvertTo-Json)
-Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($order.id)/items" -ContentType 'application/json' -Body (@{ productId = 'redbull'; quantity = 1 } | ConvertTo-Json) | Out-Null
+Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($order.id)/items" -ContentType 'application/json' -Body (@{ productId = $product.id; quantity = 1 } | ConvertTo-Json) | Out-Null
 
 $bound = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($order.id)" -ContentType 'application/json' -Body (@{ clientId = $client.id } | ConvertTo-Json)
 if ($bound.guestName -ne $client.name -or $bound.guestPhone -ne $phone) { throw 'Client was not bound to order' }

@@ -13,6 +13,7 @@ if ($health.status -ne 'ok') { throw "Local CRM is not healthy: $BaseUrl" }
 $runId = (Get-Date).ToString('yyyyMMddHHmmss')
 $created = 0
 $closed = 0
+$product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Нагрузочный товар $runId"; category = 'bar'; price = 250 } | ConvertTo-Json)
 for ($i = 1; $i -le $Count; $i++) {
   $tableId = "local-load-$runId-$i"
   $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{
@@ -23,10 +24,10 @@ for ($i = 1; $i -le $Count; $i++) {
   $created++
 
   $item = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($order.id)/items" -ContentType 'application/json' -Body (@{
-    productId = 'redbull'
+    productId = $product.id
     quantity = 1
   } | ConvertTo-Json)
-  if ($item.quantity -ne 1 -or $item.productId -ne 'redbull') { throw "Order $i item failed" }
+  if ($item.quantity -ne 1 -or $item.productId -ne $product.id) { throw "Order $i item failed" }
 
   $closedOrder = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($order.id)/close" -ContentType 'application/json' -Body '{}'
   if ($closedOrder.status -ne 'closed' -or $closedOrder.finalTotal -ne 250) { throw "Order $i close invariant failed" }

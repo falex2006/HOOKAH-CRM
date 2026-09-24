@@ -41,16 +41,19 @@ await request('/api/inventory/movements', { method: 'POST', body: body({ itemId:
 const financeCategory = await request('/api/finance/categories', { method: 'POST', body: body({ name: `Локальная категория ${suffix}`, kind: 'expense' }) });
 await request(`/api/finance/categories/${financeCategory.id}`, { method: 'PATCH', body: body({ name: `Обновлённая категория ${suffix}` }) });
 
-const floor = await request('/api/floor');
-const table = floor.zones?.flatMap((zone) => zone.tables || []).find((entry) => !String(entry.id).includes('vip') && entry.status === 'free');
-if (!table) throw new Error('Floor contract has no regular table');
+let floor = await request('/api/floor');
+let table = floor.zones?.flatMap((zone) => zone.tables || []).find((entry) => !String(entry.id).includes('vip') && entry.status === 'free');
+if (!table) {
+  const emptyZone = await request('/api/floor/zones', { method: 'POST', body: body({ name: `Тестовый зал ${suffix}` }) });
+  table = await request('/api/floor/tables', { method: 'POST', body: body({ zoneId: emptyZone.id, name: `Стол тестовый ${suffix}`, capacity: 2 }) });
+}
 const tableLayout = await request(`/api/floor/tables/${table.id}`, { method: 'PATCH', body: body({ name: `Стол тест ${suffix}`, capacity: 4, layout: { x: 120, y: 80, width: 160, height: 90, rotation: 0, shape: 'rectangle' } }) });
 if (tableLayout.name !== `Стол тест ${suffix}` || Number(tableLayout.layout?.width) !== 160) throw new Error('Floor table layout contract returned incomplete data');
 const floorAfter = await request('/api/floor');
 const persistedTable = floorAfter.zones?.flatMap((zone) => zone.tables || []).find((entry) => entry.id === table.id);
 if (!persistedTable || persistedTable.name !== `Стол тест ${suffix}` || Number(persistedTable.layout?.x) !== 120 || Number(persistedTable.layout?.height) !== 90) throw new Error('Floor table layout was not persisted to floor view');
 const order = await request('/api/orders', { method: 'POST', body: body({ tableId: table.id, orderType: 'regular' }) });
-await request(`/api/orders/${order.id}/items`, { method: 'POST', body: body({ productId: 'redbull', quantity: 1 }) });
+await request(`/api/orders/${order.id}/items`, { method: 'POST', body: body({ productId: product.id, quantity: 1 }) });
 const fixedDiscount = await requestRaw(`/api/orders/${order.id}/discount-requests`, { method: 'POST', body: body({ type: 'fixed', value: 100, reason: 'Неверный формат' }) });
 if (fixedDiscount.status !== 400) throw new Error(`Fixed discount was accepted: ${fixedDiscount.status}`);
 const percentDiscount = await request(`/api/orders/${order.id}/discount-requests`, { method: 'POST', body: body({ type: 'percent', value: 10, reason: 'Локальная проверка' }) });
@@ -69,7 +72,7 @@ const venueAfter = await request('/api/venue', { method: 'PATCH', body: body({ n
 if (venueAfter.name !== `Территория тест ${suffix}` || venueAfter.city !== 'Тестовый город' || venueAfter.address !== 'Тестовый адрес заведения' || venueAfter.format !== 'тестовый кальян-бар' || venueAfter.timezone !== 'Europe/Moscow' || venueAfter.phone !== '+79990001125' || venueAfter.logoUrl !== 'data:image/png;base64,AA==' || venueAfter.vipRoomMinimums?.vip_room_1 !== 1500 || venueAfter.vipRoomMinimums?.vip_room_2 !== 2500) throw new Error('Venue settings contract returned incomplete data');
 await request('/api/venue', { method: 'PATCH', body: body({ name: venueBefore.name, city: venueBefore.city, address: venueBefore.address, format: venueBefore.format, timezone: venueBefore.timezone, phone: venueBefore.phone, logoUrl: venueBefore.logoUrl, vipRoomMinimums: venueBefore.vipRoomMinimums }) });
 
-const staff = await request('/api/staff', { method: 'POST', body: body({ name: `Тестовый бармен ${suffix}`, login: `local_staff_${suffix}`, password: 'local-test-password', role: 'bartender', phoneNumbers: [{ number: '+79990001124', primary: true }], telegram: '@local_staff_test' }) });
+const staff = await request('/api/staff', { method: 'POST', body: body({ name: `Тестовый бармен ${suffix}`, login: `local_staff_${suffix}`, password: 'local1234', birthDate: '1995-05-15', role: 'bartender', phoneNumbers: [{ number: '+79990001124', primary: true }], telegram: '@local_staff_test' }) });
 if (staff.role !== 'bartender' || !staff.phoneNumbers?.length) throw new Error('Staff create contract returned incomplete profile');
 const staffAvatar = await request(`/api/staff/${staff.id}/avatar`, { method: 'POST', body: body({ imageData: 'data:image/png;base64,AA==' }) });
 if (staffAvatar.avatarUrl !== 'data:image/png;base64,AA==') throw new Error('Staff avatar contract failed');
