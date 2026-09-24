@@ -906,7 +906,8 @@ async function api(req, res) {
   if (pathname === '/api/recipes' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = String(input.name || '').trim();
-    const ingredients = Array.isArray(input.ingredients) ? input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), quantity: String(item?.quantity || '').trim() }).filter((item) => item.name) : [];
+    const ingredients = Array.isArray(input.ingredients) ? input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), ingredientId: String(item?.ingredientId || item?.inventoryItemId || '').trim() || null, quantity: String(item?.quantity || '').trim() }).filter((item) => item.name || item.ingredientId) : [];
+    if (repositories?.inventory) { const inventoryItems = (await repositories.inventory.list(venueDbId)).items; if (ingredients.some((item) => item.ingredientId && !inventoryItems.some((stock) => stock.id === item.ingredientId))) return json(res, 400, { error: 'recipe_ingredient_not_found' }); }
     const technology = String(input.technology || '').trim(); const serve = String(input.serve || '').trim();
     if (!name || name.length > 120 || technology.length > 4000 || serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' });
     const recipe = { id: 'recipe-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), name, ingredients, technology, serve }; recipes.push(recipe); recordAudit(req, 'recipe.created', 'recipe', recipe.id, null, recipe); return json(res, 201, recipe);
@@ -917,7 +918,7 @@ async function api(req, res) {
     const storedRecipe = recipes.find((item) => item.id === recipeProfile[1]); const recipe = storedRecipe && { ...storedRecipe }; if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
     const input = await body(req); const before = { ...recipe };
     if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'invalid_recipe' }); recipe.name = name; }
-    if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); recipe.ingredients = input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), quantity: String(item?.quantity || '').trim() }).filter((item) => item.name); }
+    if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); recipe.ingredients = input.ingredients.slice(0, 50).map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), ingredientId: String(item?.ingredientId || item?.inventoryItemId || '').trim() || null, quantity: String(item?.quantity || '').trim() }).filter((item) => item.name || item.ingredientId); if (repositories?.inventory) { const inventoryItems = (await repositories.inventory.list(venueDbId)).items; if (recipe.ingredients.some((item) => item.ingredientId && !inventoryItems.some((stock) => stock.id === item.ingredientId))) return json(res, 400, { error: 'recipe_ingredient_not_found' }); } }
     if (input.technology !== undefined) { recipe.technology = String(input.technology || '').trim(); if (recipe.technology.length > 4000) return json(res, 400, { error: 'invalid_recipe' }); }
     if (input.serve !== undefined) { recipe.serve = String(input.serve || '').trim(); if (recipe.serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' }); }
     Object.assign(storedRecipe, recipe); recordAudit(req, 'recipe.updated', 'recipe', recipe.id, before, recipe); return json(res, 200, recipe);
@@ -1290,6 +1291,13 @@ if (staffProfile && req.method === 'PATCH') {
     const from = url.searchParams.get('from') || today(); const to = url.searchParams.get('to') || from;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT s.*,u.full_name AS "userName" FROM staff_schedules s JOIN users u ON u.id=s.user_id WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date ORDER BY s.work_date,s.planned_start', [venueDbId, from, to]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'schedule_unavailable', detail: error.message }); } }
     return json(res, 200, { items: [] });
+  }
+  const recipeCostPath = pathname.match(/^\/api\/recipes\/([^/]+)\/cost$/);
+  if (recipeCostPath && req.method === 'GET') {
+    const recipe = recipes.find((item) => item.id === recipeCostPath[1]); if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
+    const stock = repositories?.inventory ? (await repositories.inventory.list(venueDbId)).items : inventory;
+    const lines = (recipe.ingredients || []).map((item) => { const stockItem = item.ingredientId ? stock.find((entry) => entry.id === item.ingredientId) : stock.find((entry) => entry.name.toLowerCase() === String(item.name || '').toLowerCase()); const quantity = Number(String(item.quantity || '').replace(',', '.').match(/-?\d+(?:\.\d+)?/)?.[0] || 0); return { ...item, stockName: stockItem?.name || item.name, unit: stockItem?.unit || null, quantity, unitCost: Number(stockItem?.cost || 0), cost: Math.round(quantity * Number(stockItem?.cost || 0) * 100) / 100, linked: Boolean(stockItem) }; });
+    return json(res, 200, { recipeId: recipe.id, lines, totalCost: Math.round(lines.reduce((sum, line) => sum + line.cost, 0) * 100) / 100, missing: lines.filter((line) => !line.linked) });
   }
   if (pathname === '/api/staff/schedule' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff_manage')) return;
