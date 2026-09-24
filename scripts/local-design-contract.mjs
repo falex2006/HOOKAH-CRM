@@ -19,4 +19,4 @@ for (const file of ['admin.html', 'orders.html', 'inventory.html']) {
   assert.match(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), /assets\/tabler-icons\.svg/,
     `${file} must use Tabler Icons`);
 }
-console.log(`LOCAL DESIGN CONTRACT: PASS (routes=${htmlFiles.length}, CSS/portal rev=213, action links and Tabler Icons)`);
+console.log(`LOCAL DESIGN CONTRACT: PASS (routes=${htmlFiles.length}, CSS rev=213, portal rev=214, action links and Tabler Icons)`);
