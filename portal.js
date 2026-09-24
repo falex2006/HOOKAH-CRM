@@ -132,6 +132,11 @@ const normalizeManagementSidebar = () => {
       groupRoot.append(makeGroup('СИСТЕМА', ['/admin#loyalty', '/admin#settings', '/integrations'], Boolean(location.hash && !['#staff', '#tasks'].includes(location.hash))));
       adminLabel.replaceWith(groupRoot); adminNav.remove();
     }
+    // After the first grouping pass, subsequent hash navigation must not
+    // recreate the old flat administration menu beside the grouped menu.
+    sidebar.querySelectorAll(':scope > .side-label.staff-nav, :scope > .portal-nav.staff-nav').forEach((node) => {
+      if (!node.closest('.sidebar-nav-group')) node.remove();
+    });
   }
   const currentPath = location.pathname;
   const currentHash = location.hash;
