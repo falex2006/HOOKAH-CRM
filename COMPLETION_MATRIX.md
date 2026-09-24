@@ -24,7 +24,7 @@
 | Браузерный визуальный QA основных экранов | Подтверждено локально | `/admin?qa=visual-next`, `/orders?qa=visual-orders`, `/inventory?qa=visual-inventory` |
 | Зависимости | Подтверждено локально | `npm ci --ignore-scripts`, `npm audit --omit=dev --audit-level=high` — 0 уязвимостей |
 | Автоматическое продолжение после лимитов | Подтверждено в Codex | Активный heartbeat `crm`, описание в `HANDOFF.md` |
-| PostgreSQL-сохранность после перезапуска | Не подтверждено на этой машине | `scripts/local-postgres-contract.mjs` подготовлен для работающего PostgreSQL-контура; локального Docker-контура нет, нужен целевой VPS |
+| PostgreSQL-сохранность после перезапуска | Подтверждено на production VPS | Локальный Docker-контур не используется; 24.09.2026 production backup был восстановлен в `crm_restore_check_qa`, проверены `users/orders/order_items/payments`, временная БД удалена |
 | Ошибки сохранения профиля сотрудника | Подтверждено локально | Ошибка обновления `permissionScopes` больше не подавляется; API возвращает `staff_profile_save_failed`, acceptance проходит |
 | Управление залами, этажами и VIP-комнатами | Подтверждено локально и обновлено на VPS | `local-floor-management-contract.mjs`: создание, изменение депозита/вместимости, диапазон min/max вместимости через миграцию `024_table_capacity_range.sql`, защита непустой зоны и удаление |
 | Реальный backup restore | Подтверждено на VPS | 24.09.2026: создан `/tmp/territory-crm-backups/crm-20260924T044400Z.sql.gz`, `verify-backup.sh` восстановил его во временную БД `crm_restore_check_qa`, проверил таблицы users/orders/order_items/payments и удалил временную БД |
