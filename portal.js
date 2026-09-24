@@ -647,17 +647,34 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
       settingsPageTitle.querySelector('h1')?.replaceChildren(document.createTextNode('Настройки CRM'));
       settingsPageTitle.querySelector('.muted')?.replaceChildren(document.createTextNode('Управление заведением, интерфейсом, безопасностью и журналом изменений.'));
     }
-    const auditFocus = window.location.hash === '#audit';
-    setDashboardPanelVisibility('#company, .floor-editor-panel, #lock-security', !auditFocus);
-    setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff', false);
-    setDashboardPanelVisibility('#audit', auditFocus && ['owner', 'admin'].includes(portalUser.role));
-    target.querySelector('.settings-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const applySettingsView = (hash = window.location.hash, shouldScroll = true) => {
+      const settingsView = hash || '#settings';
+      const focusedView = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(settingsView) ? settingsView : '#settings';
+      const focusedCompanyChild = focusedView === '#company' ? '#company-form' : focusedView === '#settings-dashboard-modules' ? '#settings-dashboard-modules' : focusedView === '#venue-layout-settings' ? '#venue-layout-settings' : '';
+      const auditFocus = focusedView === '#audit';
+      setDashboardPanelVisibility('#company, .floor-editor-panel, #lock-security', !auditFocus && focusedView !== '#lock-security');
+      setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff', false);
+      setDashboardPanelVisibility('#audit', auditFocus && ['owner', 'admin'].includes(portalUser.role));
+      setDashboardPanelVisibility('#company-form, #settings-dashboard-modules, #venue-layout-settings', false);
+      if (focusedCompanyChild) setDashboardPanelVisibility(focusedCompanyChild, true);
+      if (focusedView === '#lock-security') setDashboardPanelVisibility('#lock-security', true);
+      if (shouldScroll) {
+        const scrollTarget = focusedView === '#settings' ? target.querySelector('.settings-hub') : document.querySelector(focusedView);
+        scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+    applySettingsView();
+    target._applySettingsView = applySettingsView;
   } else if (dashboardFocus === 'audit' || dashboardFocus === 'diagnostics') {
     setDashboardPanelVisibility(dashboardFocus === 'audit' ? '#audit' : '#diagnostics', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #company', false);
   }
   window.addEventListener('hashchange', () => {
     normalizeManagementSidebar();
+    if (dashboardFocus === 'settings' && typeof target._applySettingsView === 'function') {
+      target._applySettingsView(window.location.hash, true);
+      return;
+    }
     const nextTarget = window.location.hash ? document.querySelector(window.location.hash) : null;
     nextTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
