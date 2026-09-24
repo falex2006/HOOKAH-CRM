@@ -20,6 +20,9 @@ try {
  await req(`/api/inventory/items/${item.id}`,'PATCH',{unit:'кг'},409);
  await req(`/api/inventory/items/${item.id}`,'DELETE',undefined,409);
  await req('/api/inventory/movements','POST',{itemId:item.id,delta:-70,reason:'QA очистка'},201);
+ const supply=await req('/api/inventory/supplies','POST',{itemId:item.id,quantity:2,unit:'л',unitCost:100,supplier:'QA поставщик'},201);
+ assert.equal(supply.sourceUnit,'л'); assert.equal(supply.unit,'мл'); checks++;
+ await req('/api/inventory/movements','POST',{itemId:item.id,delta:-2000,reason:'QA очистка поставки'},201);
 } finally { await req(`/api/inventory/items/${item.id}`,'DELETE'); }
 const category=await req('/api/product-categories','POST',{name:'QA категория',department:'bar'},201);
 const product=await req('/api/products','POST',{name:'QA напиток',category:category.name,price:150},201);

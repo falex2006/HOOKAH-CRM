@@ -1389,6 +1389,26 @@ if (staffProfile && req.method === 'PATCH') {
     if (repositories?.inventory) { try { const data = await repositories.inventory.list(venueDbId); return json(res, 200, { ...data, lowStock: data.items.filter((item) => item.onHand <= item.minLevel) }); } catch (_) { return json(res, 503, { error: 'inventory_unavailable' }); } }
     return json(res, 200, { items: inventory, lowStock: inventory.filter((item) => item.onHand <= item.minLevel), movements: stockMovements.slice(-20).reverse() });
   }
+  if (pathname === '/api/inventory/supplies' && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const quantity = Number(input.quantity); const unitCost = Number(input.unitCost);
+    if (!input.itemId || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitCost) || unitCost < 0) return json(res, 400, { error: 'invalid_supply' });
+    const reason = String(input.reason || `Поставка${input.supplier ? ` · ${input.supplier}` : ''}`).trim().slice(0, 200);
+    const unitFactors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
+    if (repositories?.inventory) {
+      try {
+        const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const sourceUnit = String(input.unit || item?.unit || ''); const converted = item && unitFactors[sourceUnit]?.[item.unit] ? quantity * unitFactors[sourceUnit][item.unit] : quantity;
+        if (!item || !Number.isFinite(converted) || converted <= 0) return json(res, 400, { error: 'invalid_supply_unit' });
+        const previousValue = Number(item.onHand || 0) * Number(item.cost || 0); const nextCost = (previousValue + converted * unitCost) / (Number(item.onHand || 0) + converted);
+        await repositories.inventory.update(venueDbId, item.id, { cost: Math.round(nextCost * 100) / 100 });
+        const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: 'in', quantity: converted, reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
+        recordAudit(req, 'inventory.supply_received', 'inventory', item.id, { onHand: item.onHand, cost: item.cost }, { onHand: Number(item.onHand || 0) + converted, cost: nextCost, movement });
+        return json(res, 201, { ...movement, itemName: item.name, delta: converted, unit: item.unit, sourceUnit, unitCost, weightedCost: Math.round(nextCost * 100) / 100 });
+      } catch (error) { return json(res, 409, { error: 'supply_save_failed', detail: error.message }); }
+    }
+    const item = inventory.find((entry) => entry.id === input.itemId); const sourceUnit = String(input.unit || item?.unit || ''); const converted = item && unitFactors[sourceUnit]?.[item.unit] ? quantity * unitFactors[sourceUnit][item.unit] : quantity;
+    if (!item || !Number.isFinite(converted) || converted <= 0) return json(res, 400, { error: 'invalid_supply_unit' }); const previousValue = Number(item.onHand || 0) * Number(item.cost || 0); item.cost = Math.round(((previousValue + converted * unitCost) / (Number(item.onHand || 0) + converted)) * 100) / 100; item.onHand = Math.round((Number(item.onHand || 0) + converted) * 100) / 100; const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta: converted, unit: item.unit, sourceUnit, reason, createdAt: new Date().toISOString() }; stockMovements.push(movement); recordAudit(req, 'inventory.supply_received', 'inventory', item.id, null, { onHand: item.onHand, cost: item.cost, movement }); return json(res, 201, { ...movement, unitCost, weightedCost: item.cost });
+  }
   if (pathname === '/api/inventory/movements' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req);
