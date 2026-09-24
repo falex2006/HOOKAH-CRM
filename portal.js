@@ -647,9 +647,10 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
       settingsPageTitle.querySelector('h1')?.replaceChildren(document.createTextNode('Настройки CRM'));
       settingsPageTitle.querySelector('.muted')?.replaceChildren(document.createTextNode('Управление заведением, интерфейсом, безопасностью и журналом изменений.'));
     }
-    setDashboardPanelVisibility('#company, .floor-editor-panel, #lock-security', true);
+    const auditFocus = window.location.hash === '#audit';
+    setDashboardPanelVisibility('#company, .floor-editor-panel, #lock-security', !auditFocus);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff', false);
-    setDashboardPanelVisibility('#audit', ['owner', 'admin'].includes(portalUser.role));
+    setDashboardPanelVisibility('#audit', auditFocus && ['owner', 'admin'].includes(portalUser.role));
     target.querySelector('.settings-hub')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else if (dashboardFocus === 'audit' || dashboardFocus === 'diagnostics') {
     setDashboardPanelVisibility(dashboardFocus === 'audit' ? '#audit' : '#diagnostics', true);
