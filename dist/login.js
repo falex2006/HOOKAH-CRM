@@ -45,6 +45,10 @@ const showSetupIfNeeded = async () => {
       form.hidden = true;
       setupForm.hidden = false;
       setupForm.querySelector('#setup-venue')?.focus();
+    } else if (status && !status.required && form && setupForm) {
+      setupForm.hidden = true;
+      form.hidden = false;
+      form.querySelector('#login-username')?.focus();
     }
   } catch (_) {}
 };
@@ -84,6 +88,12 @@ setupForm?.addEventListener('submit', async (event) => {
 });
 
 const finishLogin = async (data) => {
+  // A real server session is the source of truth. Clear local demo orders and
+  // shift data so an old browser session can never leak fake tables/orders into
+  // the newly authenticated workspace.
+  if (data?.token && !String(data.token).startsWith('demo-static-')) {
+    ['territory_crm_staff_orders', 'territory_crm_shift', 'territory_crm_discount_requests', 'territory_crm_demo_audits', 'territory_crm_seen_discount_notifications', 'territory_crm_seen_staff_pin_notifications'].forEach((key) => localStorage.removeItem(key));
+  }
   localStorage.setItem('crm_session_token', data.token);
   localStorage.setItem('crm_session_user', JSON.stringify(data.user));
   setLoginState('idle');
@@ -118,7 +128,7 @@ form?.addEventListener('submit', async (event) => {
     } catch (_) {}
     const user = demoUsers[`${username}:${password}`];
     if (!user) {
-      message.textContent = error?.message === 'too_many_login_attempts' ? 'Слишком много попыток. Повторите позже.' : 'Неверный логин или пароль';
+      message.textContent = error?.message === 'too_many_login_attempts' ? 'Слишком много попыток. Повторите позже.' : error?.message === 'session_limit_reached' ? 'Учетная запись уже открыта на двух устройствах. Выйдите на одном из них и повторите вход.' : 'Неверный логин или пароль';
       await showFailureAnimation();
       if (submit) { submit.disabled = false; submit.textContent = 'Войти в систему'; }
       return;
