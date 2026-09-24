@@ -1823,3 +1823,5 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 /* Reserve the vertical scrollbar slot so route data loading cannot shift the
    entire layout horizontally while the page height changes. */
 .velora-theme .portal-main,.staff-theme main{scrollbar-gutter:stable;}
+
+.integration-group{margin-top:18px}.integration-group:first-child{margin-top:0}.integration-group-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #2a2e35}.integration-group-head h3{margin:0}.integration-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}@media(max-width:760px){.integration-group-grid{grid-template-columns:1fr}}
