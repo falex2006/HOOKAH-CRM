@@ -404,6 +404,12 @@ async function api(req, res) {
       } catch (_) {}
     }
     if (!account) { const current = loginAttempts.get(loginKey) || { count: 0, firstAt: Date.now() }; const withinWindow = Date.now() - current.firstAt < 60_000; const next = withinWindow ? { count: current.count + 1, firstAt: current.firstAt } : { count: 1, firstAt: Date.now() }; if (next.count >= 5) next.blockedUntil = Date.now() + 60_000; loginAttempts.set(loginKey, next); return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_login_attempts' : 'invalid_credentials', ...(next.blockedUntil ? { retryAfter: 60 } : {}) }); }
+    if (!account.id && repositories?.pool && account.venueId && /^[0-9a-f-]{36}$/i.test(String(account.venueId))) {
+      try {
+        const { rows } = await repositories.pool.query('SELECT id,organization_id AS "organizationId",venue_id AS "venueId" FROM users WHERE venue_id=$1 AND is_active=true ORDER BY CASE WHEN role IN (\'owner\',\'admin\',\'manager\') THEN 0 ELSE 1 END,created_at LIMIT 1', [account.venueId]);
+        if (rows[0]) Object.assign(account, { id: rows[0].id, organizationId: rows[0].organizationId || account.organizationId, venueId: rows[0].venueId || account.venueId });
+      } catch (_) {}
+    }
     loginAttempts.delete(loginKey);
     const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
     const organizationId = account.organizationId === undefined ? '00000000-0000-0000-0000-000000000010' : account.organizationId;
