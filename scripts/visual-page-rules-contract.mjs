@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 const root = new URL('../', import.meta.url);
 const rules = fs.readFileSync(new URL('VISUAL_PAGE_RULES.md', root), 'utf8');
+const warehousePrompt = fs.readFileSync(new URL('WAREHOUSE_PAGE_PROMPT.md', root), 'utf8');
 const tree = fs.readFileSync(new URL('SITE_TREE.md', root), 'utf8');
 const map = JSON.parse(fs.readFileSync(new URL('site-map.json', root), 'utf8'));
 const requiredGlobal = [
@@ -10,6 +11,10 @@ const requiredGlobal = [
   '44px', 'Канонические адреса', 'Не добавлять новые цвета', 'Склад', 'Финансы'
 ];
 for (const text of requiredGlobal) assert.ok(rules.includes(text), `visual rules missing global rule: ${text}`);
+for (const text of ['Остатки', 'Поступления и списания', 'Техкарты', 'Каталог и справочники', 'Понятны ли названия всех кнопок']) {
+  assert.ok(warehousePrompt.includes(text), `warehouse prompt missing rule: ${text}`);
+}
+assert.match(rules, /WAREHOUSE_PAGE_PROMPT\.md/);
 for (const entry of map.entries) {
   assert.ok(rules.includes('### `' + entry.path + '`'), `missing page rule ${entry.path}`);
   assert.ok(tree.includes('| `' + entry.path + '` |'), `page absent from site tree ${entry.path}`);
