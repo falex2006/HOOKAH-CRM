@@ -7,6 +7,7 @@ $baseUri = [Uri]$BaseUrl
 if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only acceptance refused non-local BaseUrl: $BaseUrl" }
 $root = Split-Path -Parent $PSScriptRoot
 $checks = @(
+  @{ file = 'site-structure-contract.mjs'; node = $true },
   @{ file = 'mode-navigation-contract.mjs'; node = $true },
   @{ file = 'local-static-boundary.mjs'; node = $true },
   @{ file = 'local-click-contract.mjs'; node = $true },
