@@ -641,6 +641,12 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
     setDashboardPanelVisibility('.floor-editor-panel, #company', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, #audit', false);
   } else if (dashboardFocus === 'settings') {
+    const settingsPageTitle = target.querySelector('.page-title');
+    if (settingsPageTitle) {
+      settingsPageTitle.querySelector('.eyebrow')?.replaceChildren(document.createTextNode('ЦЕНТР НАСТРОЕК'));
+      settingsPageTitle.querySelector('h1')?.replaceChildren(document.createTextNode('Настройки CRM'));
+      settingsPageTitle.querySelector('.muted')?.replaceChildren(document.createTextNode('Управление заведением, интерфейсом, безопасностью и журналом изменений.'));
+    }
     setDashboardPanelVisibility('#company, .floor-editor-panel, #lock-security', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff', false);
     setDashboardPanelVisibility('#audit', ['owner', 'admin'].includes(portalUser.role));
