@@ -18,5 +18,5 @@
     {"path":"/network","file":"network.html","mode":"admin","title":"Моя сеть"},
     {"path":"/platform","file":"platform.html","mode":"platform","title":"Платформа"}
   ],
-  "adminSubroutes": ["staff","tasks","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics"]
+  "adminSubroutes": ["staff","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics"]
 }
