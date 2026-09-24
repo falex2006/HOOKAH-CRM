@@ -1012,6 +1012,7 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
   .velora-theme .staff-row{grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"avatar identity status" "avatar card workspace";width:100%;min-width:0;gap:7px 10px;align-items:center}
   .velora-theme .staff-row .staff-avatar{grid-area:avatar}
   .velora-theme .staff-row>div{grid-area:identity;min-width:0}
+  .velora-theme .staff-row>div{overflow-wrap:normal;word-break:normal}
   .velora-theme .staff-row>.badge{grid-area:status;justify-self:end}
   .velora-theme .staff-row .staff-edit{grid-area:card;justify-self:start;width:auto;min-width:0}
   .velora-theme .staff-row .staff-workspace{grid-area:workspace;justify-self:end;width:auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
