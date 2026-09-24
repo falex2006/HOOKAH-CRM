@@ -649,7 +649,11 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
     setDashboardPanelVisibility(dashboardFocus === 'audit' ? '#audit' : '#diagnostics', true);
     setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #company', false);
   }
-  window.addEventListener('hashchange', () => window.location.reload(), { once: true });
+  window.addEventListener('hashchange', () => {
+    normalizeManagementSidebar();
+    const nextTarget = window.location.hash ? document.querySelector(window.location.hash) : null;
+    nextTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   const hashTarget = window.location.hash ? document.querySelector(window.location.hash) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
