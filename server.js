@@ -206,10 +206,35 @@ const json = (res, status, data) => {
   res.writeHead(status, headers);
   res.end(JSON.stringify(data));
 };
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const BODY_TIMEOUT_MS = 15_000;
 const body = (req) => new Promise((resolve, reject) => {
   let raw = '';
-  req.on('data', (chunk) => { raw += chunk; });
-  req.on('end', () => { try { resolve(raw ? JSON.parse(raw) : {}); } catch (error) { reject(error); } });
+  let bytes = 0;
+  let settled = false;
+  const finish = (error, value) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeout);
+    if (error) reject(error); else resolve(value);
+  };
+  const timeout = setTimeout(() => {
+    req.destroy();
+    finish(Object.assign(new Error('request_body_timeout'), { code: 'request_body_timeout' }));
+  }, BODY_TIMEOUT_MS);
+  req.on('data', (chunk) => {
+    bytes += Buffer.byteLength(chunk);
+    if (bytes > MAX_BODY_BYTES) {
+      req.destroy();
+      finish(Object.assign(new Error('payload_too_large'), { code: 'payload_too_large' }));
+      return;
+    }
+    raw += chunk;
+  });
+  req.on('end', () => {
+    try { finish(null, raw ? JSON.parse(raw) : {}); } catch (error) { finish(error); }
+  });
+  req.on('error', (error) => finish(error));
 });
 const normalizePhoneNumbers = (value) => { const seen = new Set(); const contacts = (Array.isArray(value) ? value : []).map((entry) => ({ label: String(entry?.label || 'Дополнительный').trim().slice(0, 32), number: String(entry?.number || '').trim(), primary: Boolean(entry?.primary) })).filter((entry) => { const key = entry.number.replace(/\D/g, ''); if (!key || seen.has(key)) return false; seen.add(key); return true; }); if (contacts.length) { const primaryIndex = contacts.findIndex((entry) => entry.primary); contacts.forEach((entry, index) => { entry.primary = primaryIndex < 0 ? index === 0 : index === primaryIndex; }); } return contacts; };
 const validEmploymentDate = (value) => !value || (/^\d{4}-\d{2}-\d{2}$/.test(String(value)) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)));
