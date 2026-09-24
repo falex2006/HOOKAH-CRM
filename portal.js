@@ -135,10 +135,12 @@ const normalizeManagementSidebar = () => {
   }
   const currentPath = location.pathname;
   const currentHash = location.hash;
+  const settingsHashes = new Set(['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit']);
   sidebar.querySelectorAll('.portal-nav a').forEach((link) => {
     const href = link.getAttribute('href') || '';
     const [path, hash] = href.split('#');
-    const active = path === currentPath && (hash ? `#${hash}` === currentHash : !currentHash);
+    const settingsLinkActive = path === '/admin' && hash === 'settings' && settingsHashes.has(currentHash);
+    const active = settingsLinkActive || (path === currentPath && (hash ? `#${hash}` === currentHash : !currentHash));
     link.classList.toggle('active', active);
     if (active) {
       link.setAttribute('aria-current', 'page');
