@@ -1515,9 +1515,9 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   filter:invert(70%) sepia(54%) saturate(680%) hue-rotate(306deg) brightness(1.12);
 }
 .velora-theme .reservation-panel .date-input{
-  flex:0 0 180px;
-  width:180px;
-  min-width:180px;
+  flex:0 0 180px !important;
+  width:180px !important;
+  min-width:180px !important;
   height:48px;
   box-sizing:border-box;
 }
