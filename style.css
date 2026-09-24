@@ -1009,11 +1009,11 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .velora-theme .staff-row[hidden]{display:none}
 @media(max-width:720px){.velora-theme .staff-panel .panel-head{display:grid}.velora-theme .staff-list-tools{grid-template-columns:1fr;max-width:100%}.velora-theme .staff-list-tools input{min-width:0}.velora-theme .staff-add-button{justify-self:start}.velora-theme .staff-drawer-panel{padding:20px}.staff-drawer-form{grid-template-columns:1fr}}
 @media(max-width:720px){
-  .velora-theme .staff-row{grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"avatar identity status" "avatar card workspace";width:100%;min-width:0;gap:7px 10px;align-items:center}
+  .velora-theme .staff-row{grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"avatar identity identity" "avatar status status" "avatar card workspace";width:100%;min-width:0;gap:7px 10px;align-items:center}
   .velora-theme .staff-row .staff-avatar{grid-area:avatar}
   .velora-theme .staff-row>div{grid-area:identity;min-width:0}
   .velora-theme .staff-row>div{overflow-wrap:normal;word-break:normal}
-  .velora-theme .staff-row>.badge{grid-area:status;justify-self:end}
+  .velora-theme .staff-row>.badge{grid-area:status;justify-self:start}
   .velora-theme .staff-row .staff-edit{grid-area:card;justify-self:start;width:auto;min-width:0}
   .velora-theme .staff-row .staff-workspace{grid-area:workspace;justify-self:end;width:auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
   .velora-theme .staff-row .staff-delete{grid-area:delete;justify-self:end}
