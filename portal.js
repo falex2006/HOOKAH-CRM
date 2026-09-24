@@ -120,7 +120,9 @@ const normalizeManagementSidebar = () => {
     if (!existingGroups) {
       const groupRoot = document.createElement('div'); groupRoot.className = 'sidebar-nav-groups';
       const makeGroup = (label, hrefs, open) => {
-        const details = document.createElement('details'); details.className = 'sidebar-nav-group'; details.open = open || window.matchMedia('(max-width:650px)').matches;
+        const details = document.createElement('details'); details.className = 'sidebar-nav-group';
+        // Keep submenu labels visible by default. Users may still collapse a group manually.
+        details.open = true;
         const summary = document.createElement('summary'); summary.textContent = label; details.append(summary);
         const nav = document.createElement('nav'); nav.className = 'portal-nav staff-nav'; nav.dataset.staffNav = '';
         hrefs.forEach((href) => { const link = adminNav.querySelector(`a[href="${href}"]`); if (link) nav.append(link); });

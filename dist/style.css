@@ -1727,6 +1727,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 /* On narrow screens the rail stays compact, but users can reveal labels when needed. */
 .sidebar-mobile-toggle{display:none}
+.velora-theme .portal-sidebar .portal-nav a[href="/admin"]{margin-top:8px;background:#3a252c;color:#fff;font-weight:800;border:1px solid #5b3940}
+.velora-theme .portal-sidebar .portal-nav a[href="/admin"].active{background:linear-gradient(100deg,#ff4164,#ff963d);border-color:transparent}
 @media(max-width:650px){
   .velora-theme .sidebar-mobile-toggle{display:grid;position:fixed;z-index:30;left:10px;top:10px;width:42px;height:38px;place-items:center;border:1px solid #363b44;border-radius:10px;background:#17191d;color:#ff9168;box-shadow:0 8px 20px #0005}
   .velora-theme .sidebar-mobile-toggle .icon{width:19px;height:19px}
