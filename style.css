@@ -1834,3 +1834,6 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 .integration-requirements + .content-grid{margin-top:18px}
 
+
+.panel.wide + .integration-requirements{margin-top:18px}
+
