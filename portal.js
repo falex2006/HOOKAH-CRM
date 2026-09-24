@@ -391,7 +391,7 @@ Promise.allSettled([api('/api/venue'), api('/api/metrics')]).then(([venueResult,
   }
   if (metricsResult.status === 'fulfilled') {
     const metrics = metricsResult.value;
-    document.querySelectorAll('[data-metric]').forEach((el) => { const key = el.dataset.metric; if (metrics[key] !== undefined) el.textContent = key === 'staffActive' ? ${metrics[key]}  : metrics[key]; });
+    document.querySelectorAll('[data-metric]').forEach((el) => { const key = el.dataset.metric; if (metrics[key] !== undefined) el.textContent = key === 'staffActive' ? String(metrics[key]) + ' ' + pluralRu(Number(metrics[key]), 'активный', 'активных', 'активных') : metrics[key]; });
   }
 });
 const shiftStatusNode = document.querySelector('.portal-header .live-dot'); const shiftStatusVisible = ['/finance', '/finance/report', '/orders', '/reservations', '/delivery'].includes(location.pathname) || (location.pathname === '/admin' && (!location.hash || location.hash === '#shift-control')); if (shiftStatusNode) shiftStatusNode.hidden = !shiftStatusVisible; if (shiftStatusNode && shiftStatusVisible) api('/api/shifts').then((data) => { shiftStatusNode.textContent = data.current ? '● Смена открыта' : '● Смена закрыта'; shiftStatusNode.classList.toggle('offline', !data.current); }).catch(() => {});
