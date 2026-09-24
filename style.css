@@ -1008,6 +1008,16 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .staff-drawer-body{padding-top:20px}.staff-drawer-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;border:0;padding:0}.staff-drawer-form>b{display:none}.staff-drawer-form .staff-form-field,.staff-drawer-form .staff-sensitive-fields,.staff-drawer-form .permission-scope-fields,.staff-drawer-form>button,.staff-drawer-form>#staff-message{grid-column:1/-1}.staff-drawer-form .staff-form-contact-row{display:contents}.staff-drawer-form .staff-form-field{min-width:0}.staff-drawer-form input,.staff-drawer-form select,.staff-drawer-form textarea{box-sizing:border-box;width:100%;min-width:0}.staff-drawer-form .staff-sensitive-fields{margin-top:2px}.staff-drawer-form>button{margin-top:4px}.staff-drawer-form>#staff-message{margin-top:0}
 .velora-theme .staff-row[hidden]{display:none}
 @media(max-width:720px){.velora-theme .staff-panel .panel-head{display:grid}.velora-theme .staff-list-tools{grid-template-columns:1fr;max-width:100%}.velora-theme .staff-list-tools input{min-width:0}.velora-theme .staff-add-button{justify-self:start}.velora-theme .staff-drawer-panel{padding:20px}.staff-drawer-form{grid-template-columns:1fr}}
+@media(max-width:720px){
+  .velora-theme .staff-row{grid-template-columns:34px minmax(0,1fr) auto;grid-template-areas:"avatar identity status" "avatar card workspace";width:100%;min-width:0;gap:7px 10px;align-items:center}
+  .velora-theme .staff-row .staff-avatar{grid-area:avatar}
+  .velora-theme .staff-row>div{grid-area:identity;min-width:0}
+  .velora-theme .staff-row>.badge{grid-area:status;justify-self:end}
+  .velora-theme .staff-row .staff-edit{grid-area:card;justify-self:start;width:auto;min-width:0}
+  .velora-theme .staff-row .staff-workspace{grid-area:workspace;justify-self:end;width:auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .velora-theme .staff-row .staff-delete{grid-area:delete;justify-self:end}
+  .velora-theme .staff-row .staff-workspace+.staff-delete{grid-area:delete}
+}
 
 /* Shift payment split sits beside the metrics without competing with the main KPIs. */
 .velora-theme .insight-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(290px,360px);gap:18px;align-items:start}
