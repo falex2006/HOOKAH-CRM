@@ -1573,9 +1573,8 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   margin-top:18px;
 }
 
-/* Galaxy Z Fold8 Ultra unfolded (Samsung main display: 2,504 × 2,256, ~10:9).
-   Use the logical CSS viewport/aspect ratio so this also scales across DPR settings. */
-@media (min-width:760px) and (max-width:1200px) and (min-aspect-ratio:9/10) and (max-aspect-ratio:11/9){
+/* Fold unfolded layouts: use logical CSS viewport proportions so DPR does not change the layout decision. */
+@media (min-width:760px) and (max-width:1200px) and (min-aspect-ratio:3/4) and (max-aspect-ratio:4/3){
   .velora-theme .portal-sidebar{width:220px;padding:24px 14px}
   .velora-theme .brand{padding-left:8px;padding-right:8px;padding-bottom:28px}
   .velora-theme .portal-nav a{padding:11px 12px}
@@ -1594,7 +1593,7 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   .velora-theme .staff-list-tools{max-width:none;grid-template-columns:repeat(3,minmax(0,1fr))}
   .velora-theme .panel{padding:18px}
 }
-@media (min-width:760px) and (max-width:900px) and (min-aspect-ratio:9/10) and (max-aspect-ratio:11/9){
+@media (min-width:760px) and (max-width:900px) and (min-aspect-ratio:3/4) and (max-aspect-ratio:4/3){
   .velora-theme .content-grid{grid-template-columns:1fr}
   .velora-theme .orders-view .toolbar-row{grid-template-columns:1fr 1fr}
   .velora-theme .orders-view #orders-search{grid-column:1/-1}
