@@ -29,7 +29,7 @@
 | Реальный backup restore | Не подтверждено на этой машине | `verify-backup.sh` готов, но нет production-архива и локального Docker-контура; проверка выполняется на целевом VPS |
 | VPS, домен, HTTPS и боевые секреты | VPS обновлён по HTTP; HTTPS ещё не настроен | 24.09.2026: SSH восстановлен, актуальный код передан в `/opt/territory-crm`, миграции `021–022` применены, каталог синхронизирован, внешний `/api/health` вернул `200` и `database=postgres`; домен/HTTPS требуют отдельной настройки |
 | Sites-тестовая публикация | Подтверждено | Owner-private deployment `appgdep_6ab2c00ad8b481919a106753a4faa824` succeeded; URL сохранён в `TRACEABILITY.md` |
-| Post-deploy smoke-проверка | HTTP healthcheck подтверждён; полный smoke ждёт HTTPS | `http://212.192.0.58/api/health` вернул `200`; `post-deploy-acceptance.sh` запускать после привязки домена и TLS |
+| Post-deploy smoke-проверка | Авторизованный HTTP smoke подтверждён; HTTPS ещё не настроен | 24.09.2026: `post-deploy-acceptance.sh` с `ALLOW_HTTP=1` прошёл health, login, session и `/admin`, `/orders`, `/inventory`, `/finance` на `127.0.0.1:8080`; после домена повторить без `ALLOW_HTTP` |
 | Блокировка рабочего места и PIN-разблокировка | Подтверждено локально и браузером | В рабочем месте открываются настройки интервала 1/5/10/15/30 минут или отключения; ручная блокировка показывает стеклянно-ледяной экран с клавиатурой, корректный PIN возвращает в рабочее место; `local-lock-contract.mjs` и полный acceptance |
 | Регрессии на GitHub | Подтверждено | `.github/workflows/crm-contracts.yml`; run `35651251737` для `f83adbb` завершён успешно, включая локальный API для role/insights/date-контрактов |
 
