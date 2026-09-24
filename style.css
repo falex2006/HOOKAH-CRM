@@ -1812,14 +1812,9 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 /* Unified route transitions: keep the old document visible while the next
    CRM screen is prepared, avoiding the flash between sections. */
-@view-transition { navigation: auto; }
-::view-transition-old(root) { animation: crm-route-out 140ms ease both; }
-::view-transition-new(root) { animation: crm-route-in 220ms cubic-bezier(.22,.7,.25,1) both; }
-@keyframes crm-route-out { from { opacity: 1; transform: translateY(0); } to { opacity: .82; transform: translateY(-4px); } }
-@keyframes crm-route-in { from { opacity: .82; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 .velora-theme #page-content.crm-route-enter { animation: crm-route-content-in 180ms cubic-bezier(.22,.7,.25,1) both; }
 @keyframes crm-route-content-in { from { opacity: .82; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { ::view-transition-old(root),::view-transition-new(root),.velora-theme #page-content.crm-route-enter { animation:none!important; } }
+@media (prefers-reduced-motion: reduce) { .velora-theme #page-content.crm-route-enter { animation:none!important; } }
 
 .integration-category{display:block;margin-bottom:6px;color:#ff9f87;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.integration-card h3{margin-bottom:4px}.integration-summary{margin-bottom:14px}
 
