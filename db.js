@@ -17,7 +17,7 @@ class OrderRepository {
       await client.query('BEGIN');
       if (input.tableId) { const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) throw new Error('table_has_active_order'); }
       const { rows } = await client.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, table_id AS "tableId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt"', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0, input.notes || null]);
-      if (input.tableId) await client.query(`UPDATE tables SET status='occupied' WHERE id=$1 AND venue_id=$2 AND status <> 'blocked'`, [input.tableId, input.venueId]);
+      if (input.tableId) await client.query(`UPDATE tables t SET status='occupied' FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [input.tableId, input.venueId]);
       await client.query('COMMIT');
       return rows[0];
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
@@ -115,7 +115,7 @@ class ReservationRepository {
       const guest = input.clientId ? await client.query('SELECT id FROM guests WHERE id=$1 AND venue_id=$2', [input.clientId, input.venueId]) : await client.query(`INSERT INTO guests (venue_id, phone, full_name) VALUES ($1,$2,$3) ON CONFLICT (venue_id, phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id`, [input.venueId, input.phone || null, input.guestName]); if (!guest.rows[0]) throw new Error('guest_not_found');
       const { rows } = await client.query(`INSERT INTO reservations (venue_id, table_id, guest_id, starts_at, guests_count, deposit_required, deposit_paid, status, notes)
         VALUES ($1,$2,$3,$4,$5,$6,$6,'confirmed',$7) RETURNING id`, [input.venueId, input.tableId, guest.rows[0].id, `${input.date}T${input.time}:00`, input.guests || 1, input.deposit || 0, input.notes || null]);
-      await client.query('UPDATE tables SET status=$1 WHERE id=$2 AND venue_id=$3', ['reserved', input.tableId, input.venueId]);
+      await client.query('UPDATE tables t SET status=$1 FROM zones z WHERE t.id=$2 AND t.zone_id=z.id AND z.venue_id=$3', ['reserved', input.tableId, input.venueId]);
       await client.query('COMMIT');
       return { ...input, id: rows[0].id, status: 'confirmed' };
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
