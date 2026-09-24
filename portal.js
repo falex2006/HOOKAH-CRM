@@ -652,12 +652,22 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
       const focusedView = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(settingsView) ? settingsView : '#settings';
       const focusedCompanyChild = focusedView === '#company' ? '#company-form' : focusedView === '#settings-dashboard-modules' ? '#settings-dashboard-modules' : focusedView === '#venue-layout-settings' ? '#venue-layout-settings' : '';
       const auditFocus = focusedView === '#audit';
-      setDashboardPanelVisibility('#company, .floor-editor-panel, #lock-security', !auditFocus && focusedView !== '#lock-security');
+      setDashboardPanelVisibility('#company, .floor-editor-panel, #lock-security', false);
       setDashboardPanelVisibility('.kpi-grid, #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff', false);
       setDashboardPanelVisibility('#audit', auditFocus && ['owner', 'admin'].includes(portalUser.role));
       setDashboardPanelVisibility('#company-form, #settings-dashboard-modules, #venue-layout-settings', false);
-      if (focusedCompanyChild) setDashboardPanelVisibility(focusedCompanyChild, true);
-      if (focusedView === '#lock-security') setDashboardPanelVisibility('#lock-security', true);
+      if (focusedView === '#company') {
+        setDashboardPanelVisibility('#company', true);
+        setDashboardPanelVisibility('#company-form', true);
+      } else if (focusedView === '#settings-dashboard-modules') {
+        setDashboardPanelVisibility('#company', true);
+        setDashboardPanelVisibility('#settings-dashboard-modules', true);
+      } else if (focusedView === '#venue-layout-settings') {
+        setDashboardPanelVisibility('#company, .floor-editor-panel', true);
+        setDashboardPanelVisibility('#venue-layout-settings', true);
+      } else if (focusedView === '#lock-security') {
+        setDashboardPanelVisibility('#lock-security', true);
+      }
       if (shouldScroll) {
         const scrollTarget = focusedView === '#settings' ? target.querySelector('.settings-hub') : document.querySelector(focusedView);
         scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
