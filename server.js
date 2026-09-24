@@ -98,6 +98,10 @@ const inventory = [
 ];
 inventory.length = 0;
 const stockMovements = [];
+// In the local/demo runtime auto-order requests live in memory. Production
+// requests are persisted in inventory_auto_orders below so a manager can
+// review the same request from another device.
+const autoOrderRequests = [];
 const reservations = [];
 const deliveries = [];
 const tasks = [];
@@ -1433,6 +1437,50 @@ if (staffProfile && req.method === 'PATCH') {
       const linked = await repositories.pool.query('UPDATE payroll_entries SET expense_id=$1 WHERE id=$2 RETURNING *', [expenseId, rows[0].id]);
       return json(res, 201, { ...linked.rows[0], hours: Number(hours.toFixed(2)), amount: Number(linked.rows[0].amount), expenseId });
     } catch (error) { return json(res, 409, { error: 'payroll_entry_save_failed', detail: error.message }); } }
+  }
+  if (pathname === '/api/inventory/auto-orders' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['inventory', 'inventory_read'])) return;
+    const buildSuggestions = (items) => items.filter((item) => Number(item.minLevel || 0) > 0 && Number(item.onHand || 0) <= Number(item.minLevel || 0)).map((item) => {
+      const onHand = Number(item.onHand || 0); const minLevel = Number(item.minLevel || 0); const packMultiplier = Math.max(0.01, Number(item.packMultiplier || 1));
+      const targetLevel = Math.max(minLevel * 2, minLevel + packMultiplier); const shortage = Math.max(0, targetLevel - onHand); const orderQuantity = Math.ceil(shortage / packMultiplier) * packMultiplier;
+      return { id: item.id, name: item.name, department: item.department, subdepartment: item.subdepartment, category: item.category, unit: item.unit, purchaseUnit: item.purchaseUnit || item.unit, packMultiplier, supplier: item.supplier || null, cost: Number(item.cost || 0), onHand, minLevel, targetLevel: Number(targetLevel.toFixed(3)), shortage: Number(shortage.toFixed(3)), orderQuantity: Number(orderQuantity.toFixed(3)), estimate: Number((orderQuantity * Number(item.cost || 0)).toFixed(2)) };
+    });
+    if (repositories?.inventory) {
+      try {
+        const data = await repositories.inventory.list(venueDbId);
+        const { rows } = await repositories.pool.query(`SELECT id,status,lines,note,total_estimate AS "totalEstimate",created_at AS "createdAt",sent_at AS "sentAt",updated_at AS "updatedAt" FROM inventory_auto_orders WHERE venue_id=$1 ORDER BY created_at DESC LIMIT 20`, [venueDbId]);
+        return json(res, 200, { items: buildSuggestions(data.items), requests: rows.map((row) => ({ ...row, totalEstimate: Number(row.totalEstimate || 0), lines: Array.isArray(row.lines) ? row.lines : [] })) });
+      } catch (error) { return json(res, 503, { error: 'auto_orders_unavailable', detail: error.message }); }
+    }
+    const suggestions = buildSuggestions(inventory); return json(res, 200, { items: suggestions, requests: autoOrderRequests.slice().reverse().slice(0, 20) });
+  }
+  if (pathname === '/api/inventory/auto-orders' && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const rawItems = Array.isArray(input.items) ? input.items.slice(0, 100) : [];
+    if (!rawItems.length) return json(res, 400, { error: 'auto_order_items_required' });
+    const requestedLines = rawItems.map((line) => ({ itemId: String(line.itemId || '').trim(), quantity: Number(line.quantity) })).filter((line) => line.itemId && Number.isFinite(line.quantity) && line.quantity > 0);
+    if (!requestedLines.length || requestedLines.length !== rawItems.length) return json(res, 400, { error: 'invalid_auto_order_lines' });
+    const current = repositories?.inventory ? (await repositories.inventory.list(venueDbId)).items : inventory;
+    const lines = requestedLines.map((line) => { const item = current.find((entry) => entry.id === line.itemId); if (!item) return null; const pack = Math.max(0.01, Number(item.packMultiplier || 1)); const quantity = Math.ceil(line.quantity / pack) * pack; return { itemId: item.id, name: item.name, quantity: Number(quantity.toFixed(3)), unit: item.unit, supplier: item.supplier || null, unitCost: Number(item.cost || 0), estimate: Number((quantity * Number(item.cost || 0)).toFixed(2)) }; });
+    if (lines.some((line) => !line)) return json(res, 400, { error: 'auto_order_item_not_found' });
+    const totalEstimate = Number(lines.reduce((sum, line) => sum + line.estimate, 0).toFixed(2)); const note = String(input.note || '').trim().slice(0, 500) || null;
+    if (repositories?.pool) {
+      try {
+        const requestedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
+        const { rows } = await repositories.pool.query(`INSERT INTO inventory_auto_orders (venue_id,status,lines,note,total_estimate,requested_by,sent_at) VALUES ($1,'sent',$2::jsonb,$3,$4,$5,now()) RETURNING id,status,lines,note,total_estimate AS "totalEstimate",created_at AS "createdAt",sent_at AS "sentAt",updated_at AS "updatedAt"`, [venueDbId, JSON.stringify(lines), note, totalEstimate, requestedBy]);
+        recordAudit(req, 'inventory.auto_order_sent', 'inventory_auto_order', rows[0].id, null, rows[0]); return json(res, 201, { ...rows[0], totalEstimate: Number(rows[0].totalEstimate || 0), lines: rows[0].lines || [] });
+      } catch (error) { return json(res, 409, { error: 'auto_order_save_failed', detail: error.message }); }
+    }
+    const request = { id: `auto-order-${Date.now()}`, status: 'sent', lines, note, totalEstimate, createdAt: new Date().toISOString(), sentAt: new Date().toISOString() }; autoOrderRequests.push(request); recordAudit(req, 'inventory.auto_order_sent', 'inventory_auto_order', request.id, null, request); return json(res, 201, request);
+  }
+  const autoOrderPath = pathname.match(/^\/api\/inventory\/auto-orders\/([^/]+)$/);
+  if (autoOrderPath && req.method === 'PATCH') {
+    if (denyUnlessAny(req, res, ['inventory', 'inventory_read'])) return;
+    const input = await body(req); const status = String(input.status || ''); if (!['sent', 'partially_received', 'received', 'cancelled'].includes(status)) return json(res, 400, { error: 'invalid_auto_order_status' });
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(autoOrderPath[1])) {
+      try { const { rows } = await repositories.pool.query(`UPDATE inventory_auto_orders SET status=$1,updated_at=now() WHERE id=$2 AND venue_id=$3 RETURNING id,status,lines,note,total_estimate AS "totalEstimate",created_at AS "createdAt",sent_at AS "sentAt",updated_at AS "updatedAt"`, [status, autoOrderPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'auto_order_not_found' }); recordAudit(req, `inventory.auto_order_${status}`, 'inventory_auto_order', rows[0].id, null, rows[0]); return json(res, 200, { ...rows[0], totalEstimate: Number(rows[0].totalEstimate || 0), lines: rows[0].lines || [] }); } catch (error) { return json(res, 409, { error: 'auto_order_status_save_failed', detail: error.message }); }
+    }
+    const request = autoOrderRequests.find((entry) => entry.id === autoOrderPath[1]); if (!request) return json(res, 404, { error: 'auto_order_not_found' }); request.status = status; request.updatedAt = new Date().toISOString(); recordAudit(req, `inventory.auto_order_${status}`, 'inventory_auto_order', request.id, null, request); return json(res, 200, request);
   }
   const inventoryItemPath = pathname.match(/^\/api\/inventory\/items\/([^/]+)$/);
   if (pathname === '/api/inventory/items' && req.method === 'POST') {

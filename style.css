@@ -1848,3 +1848,26 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .venue-layout-empty{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;color:#7f8994;font-size:12px}.velora-theme .venue-layout-empty--large{display:grid;justify-items:center;gap:8px;padding:28px 16px;text-align:center;border:1px dashed #3a414c;border-radius:12px}.velora-theme .venue-layout-empty--large strong{color:#e9edf0;font-size:15px}.velora-theme .venue-layout-settings .panel-head h3{margin:0;color:#edf1f4;font-size:16px}
 .velora-theme .inventory-departments-panel>.panel-head .toolbar-row{flex-wrap:wrap}.velora-theme .inventory-departments-panel>.panel-head .button{white-space:nowrap}.velora-theme .inventory-departments-panel .section-title-row{align-items:center}.velora-theme #open-departments{white-space:nowrap}
 @media(max-width:720px){.velora-theme .venue-layout-guide{display:grid}.velora-theme .venue-layout-guide__arrow{display:none}.velora-theme .venue-layout-guide__step{min-width:0}.velora-theme .venue-layout-empty{align-items:flex-start;flex-direction:column}.velora-theme .inventory-departments-panel>.panel-head{align-items:flex-start}.velora-theme .inventory-departments-panel>.panel-head .toolbar-row{width:100%}.velora-theme .inventory-departments-panel>.panel-head .button{flex:1}}
+/* Auto-order workspace: a compact, decision-ready view for managers. */
+.velora-theme .inventory-auto-order-panel{grid-column:1 / -1}
+.velora-theme .auto-order-explainer{display:flex;align-items:flex-start;gap:14px;padding:15px 16px;margin-bottom:18px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(255,255,255,.025)}
+.velora-theme .auto-order-explainer-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:11px;color:#ff9b62;background:rgba(255,106,116,.12)}
+.velora-theme .auto-order-explainer b{display:block;color:var(--text-strong,#f3f4f6);margin-bottom:4px}
+.velora-theme .auto-order-explainer p{margin:0;color:var(--text-muted,#9299a6);font-size:13px;line-height:1.5}
+.velora-theme .auto-order-table-wrap{margin-top:4px}
+.velora-theme .auto-order-table-wrap table{min-width:900px}
+.velora-theme .auto-order-check-col{width:42px;text-align:center}
+.velora-theme .auto-order-check-col input{width:17px;height:17px;accent-color:#ff5b70}
+.velora-theme .auto-order-table-wrap td small{display:block;margin-top:4px;color:var(--text-muted,#9299a6);font-size:12px}
+.velora-theme .auto-order-quantity{width:112px;min-height:36px;padding:7px 9px}
+.velora-theme .auto-order-note{margin:12px 0 0;font-size:12px}
+.velora-theme .auto-order-empty{padding:35px 20px}
+.velora-theme .auto-order-empty strong{display:block;color:var(--text-strong,#f3f4f6);margin-bottom:5px}
+.velora-theme .auto-order-empty small{display:block;max-width:520px;margin:0 auto;line-height:1.5}
+.velora-theme .auto-order-history{margin-top:26px;padding-top:20px;border-top:1px solid rgba(255,255,255,.08)}
+.velora-theme .auto-order-request-row{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.velora-theme .auto-order-request-row>div:first-child{flex:1;min-width:0}
+.velora-theme .auto-order-request-row b,.velora-theme .auto-order-request-row small{display:block}
+.velora-theme .auto-order-request-row small{margin-top:4px;color:var(--text-muted,#9299a6)}
+.velora-theme .text-danger{color:#ff7282}
+@media (max-width:760px){.velora-theme .auto-order-explainer{padding:13px}.velora-theme .auto-order-request-row{align-items:flex-start;flex-wrap:wrap}.velora-theme .auto-order-request-row .button{width:100%}.velora-theme .inventory-auto-order-panel .panel-head{align-items:flex-start;flex-direction:column}.velora-theme .inventory-auto-order-panel .panel-head .toolbar-row{width:100%}.velora-theme .inventory-auto-order-panel .panel-head .button{width:100%}}
