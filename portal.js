@@ -681,6 +681,10 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
   }
   window.addEventListener('hashchange', () => {
     normalizeManagementSidebar();
+    if (page === 'dashboard' && window.location.hash === '#tasks') {
+      renderTasks();
+      return;
+    }
     if (dashboardFocus === 'settings' && typeof target._applySettingsView === 'function') {
       target._applySettingsView(window.location.hash, true);
       return;
