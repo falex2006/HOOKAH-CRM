@@ -1779,3 +1779,10 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 
 @media (min-width: 761px){.velora-theme .orders-view .table-wrap{overflow-x:hidden !important}.velora-theme .orders-view .orders-table{width:100% !important;min-width:0 !important}}
+
+/* Header action icons share one optical size and hit area. */
+.velora-theme .portal-header .header-right > .notification-bell,.velora-theme .portal-header .header-right > .lock-settings-button,.velora-theme .portal-header .header-right > #lock-screen-button{box-sizing:border-box;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:0;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;line-height:0}
+.velora-theme .portal-header .header-right > .notification-bell .icon,.velora-theme .portal-header .header-right > .lock-settings-button .icon,.velora-theme .portal-header .header-right > #lock-screen-button .icon{display:block;width:18px;height:18px;min-width:18px;min-height:18px;stroke-width:2;flex:0 0 18px}
+.velora-theme .portal-header .header-right > .lock-settings-button{border:1px solid #3b424d;background:transparent;color:#aeb8c5}
+.velora-theme .portal-header .header-right > #lock-screen-button{border:1px solid transparent;background:transparent}
+.velora-theme .portal-header .header-right > .notification-bell:hover,.velora-theme .portal-header .header-right > .lock-settings-button:hover,.velora-theme .portal-header .header-right > #lock-screen-button:hover{background:#24272d}
