@@ -1303,6 +1303,24 @@ if (staffProfile && req.method === 'PATCH') {
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT s.*,u.full_name AS "userName" FROM staff_schedules s JOIN users u ON u.id=s.user_id WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date ORDER BY s.work_date,s.planned_start', [venueDbId, from, to]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'schedule_unavailable', detail: error.message }); } }
     return json(res, 200, { items: [] });
   }
+  if (pathname === '/api/inventory/subdepartments' && req.method === 'GET') {
+    if (denyUnless(req, res, 'inventory_read')) return;
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,department_code AS "departmentCode",name,is_active AS active FROM inventory_subdepartments WHERE venue_id=$1 AND is_active=true ORDER BY department_code,name', [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
+    return json(res, 200, { items: [] });
+  }
+  if (pathname === '/api/inventory/subdepartments' && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const name = String(input.name || '').trim(); const departmentCode = String(input.departmentCode || '').trim();
+    if (!name || name.length > 80 || !departmentCode) return json(res, 400, { error: 'invalid_inventory_subdepartment' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO inventory_subdepartments (venue_id,department_code,name) VALUES ($1,$2,$3) RETURNING id,department_code AS "departmentCode",name,is_active AS active', [venueDbId, departmentCode, name]); recordAudit(req, 'inventory.subdepartment_created', 'inventory_subdepartment', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'inventory_subdepartment_exists' : 'inventory_subdepartment_create_failed' }); } }
+    return json(res, 201, { id: `subdepartment-${Date.now()}`, departmentCode, name, active: true });
+  }
+  const inventorySubdepartmentPath = pathname.match(/^\/api\/inventory\/subdepartments\/([^/]+)$/);
+  if (inventorySubdepartmentPath && req.method === 'DELETE') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const id = decodeURIComponent(inventorySubdepartmentPath[1]); if (repositories?.pool) { try { const used = await repositories.pool.query('SELECT EXISTS(SELECT 1 FROM ingredients WHERE venue_id=$1 AND subdepartment=(SELECT name FROM inventory_subdepartments WHERE id=$2) AND is_marked=true) AS used', [venueDbId, id]); if (used.rows[0]?.used) return json(res, 409, { error: 'inventory_subdepartment_in_use' }); const { rows } = await repositories.pool.query('UPDATE inventory_subdepartments SET is_active=false WHERE venue_id=$1 AND id=$2 AND is_active=true RETURNING id,name,is_active AS active', [venueDbId, id]); if (!rows[0]) return json(res, 404, { error: 'inventory_subdepartment_not_found' }); recordAudit(req, 'inventory.subdepartment_archived', 'inventory_subdepartment', id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (_) { return json(res, 409, { error: 'inventory_subdepartment_archive_failed' }); } }
+    return json(res, 200, { id, active: false });
+  }
   const recipeCostPath = pathname.match(/^\/api\/recipes\/([^/]+)\/cost$/);
   if (recipeCostPath && req.method === 'GET') {
     const recipe = recipes.find((item) => item.id === recipeCostPath[1]); if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
