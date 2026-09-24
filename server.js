@@ -1316,6 +1316,13 @@ if (staffProfile && req.method === 'PATCH') {
     return json(res, 201, { id: `subdepartment-${Date.now()}`, departmentCode, name, active: true });
   }
   const inventorySubdepartmentPath = pathname.match(/^\/api\/inventory\/subdepartments\/([^/]+)$/);
+  if (inventorySubdepartmentPath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'inventory')) return;
+    const input = await body(req); const id = decodeURIComponent(inventorySubdepartmentPath[1]); const name = String(input.name || '').trim(); const departmentCode = String(input.departmentCode || '').trim();
+    if (!name || name.length > 80 || !departmentCode) return json(res, 400, { error: 'invalid_inventory_subdepartment' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('UPDATE inventory_subdepartments SET name=$1,department_code=$2 WHERE venue_id=$3 AND id=$4 AND is_active=true RETURNING id,department_code AS "departmentCode",name,is_active AS active', [name, departmentCode, venueDbId, id]); if (!rows[0]) return json(res, 404, { error: 'inventory_subdepartment_not_found' }); recordAudit(req, 'inventory.subdepartment_updated', 'inventory_subdepartment', id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'inventory_subdepartment_exists' : 'inventory_subdepartment_update_failed' }); } }
+    return json(res, 200, { id, departmentCode, name, active: true });
+  }
   if (inventorySubdepartmentPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
     const id = decodeURIComponent(inventorySubdepartmentPath[1]); if (repositories?.pool) { try { const used = await repositories.pool.query('SELECT EXISTS(SELECT 1 FROM ingredients WHERE venue_id=$1 AND subdepartment=(SELECT name FROM inventory_subdepartments WHERE id=$2) AND is_marked=true) AS used', [venueDbId, id]); if (used.rows[0]?.used) return json(res, 409, { error: 'inventory_subdepartment_in_use' }); const { rows } = await repositories.pool.query('UPDATE inventory_subdepartments SET is_active=false WHERE venue_id=$1 AND id=$2 AND is_active=true RETURNING id,name,is_active AS active', [venueDbId, id]); if (!rows[0]) return json(res, 404, { error: 'inventory_subdepartment_not_found' }); recordAudit(req, 'inventory.subdepartment_archived', 'inventory_subdepartment', id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (_) { return json(res, 409, { error: 'inventory_subdepartment_archive_failed' }); } }
