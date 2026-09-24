@@ -1725,3 +1725,18 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .finance-payments-grid{grid-template-columns:1fr}
 @media(max-width:720px){.velora-theme .staff-drawer-panel{top:0;left:0;right:0;bottom:0;transform:none;width:100%;max-height:none;height:100%;border-radius:0;padding:18px}.velora-theme .staff-drawer-head{position:sticky;top:-18px;z-index:2;padding-top:4px;background:#1b1e23}}
 
+/* On narrow screens the rail stays compact, but users can reveal labels when needed. */
+.sidebar-mobile-toggle{display:none}
+@media(max-width:650px){
+  .velora-theme .sidebar-mobile-toggle{display:grid;position:fixed;z-index:30;left:10px;top:10px;width:42px;height:38px;place-items:center;border:1px solid #363b44;border-radius:10px;background:#17191d;color:#ff9168;box-shadow:0 8px 20px #0005}
+  .velora-theme .sidebar-mobile-toggle .icon{width:19px;height:19px}
+  .velora-theme .sidebar-mobile-toggle span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .velora-theme .portal-sidebar{position:fixed;z-index:25;left:0;top:0;bottom:0;transform:translateX(-100%);transition:transform .18s ease;box-shadow:12px 0 30px #0008}
+  .velora-theme .portal-sidebar.is-expanded{transform:translateX(0);width:244px;padding:26px 16px}
+  .velora-theme .portal-sidebar.is-expanded .brand div,.velora-theme .portal-sidebar.is-expanded .side-label,.velora-theme .portal-sidebar.is-expanded .portal-nav span,.velora-theme .portal-sidebar.is-expanded .sidebar-footer{display:block}
+  .velora-theme .portal-sidebar.is-expanded .brand{justify-content:flex-start;padding-bottom:34px}
+  .velora-theme .portal-sidebar.is-expanded .portal-nav a{justify-content:flex-start;padding:12px 13px;font-size:inherit;width:auto;height:auto}
+  .velora-theme .portal-sidebar.is-expanded + .portal-main{margin-left:0}
+  .velora-theme .floor-editor-panel .empty{padding:24px 16px}
+}
+

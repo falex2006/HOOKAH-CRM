@@ -50,9 +50,23 @@ const normalizeManagementSidebar = () => {
   document.querySelectorAll('a[href="/finance#discounts"]').forEach((link) => link.remove());
   const sidebar = document.querySelector('.portal-sidebar');
   if (!sidebar) return;
+  const iconMarkup = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${name}"></use></svg>`;
+  if (!sidebar.querySelector('.sidebar-mobile-toggle')) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'sidebar-mobile-toggle';
+    toggle.setAttribute('aria-label', 'Открыть меню');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.innerHTML = `${iconMarkup('menu-2')}<span>Меню</span>`;
+    sidebar.parentElement?.insertBefore(toggle, sidebar);
+    toggle.addEventListener('click', () => {
+      const expanded = sidebar.classList.toggle('is-expanded');
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.setAttribute('aria-label', expanded ? 'Закрыть меню' : 'Открыть меню');
+    });
+  }
   sidebar.querySelectorAll('a[href="/network"]').forEach((link) => link.remove());
   sidebar.querySelectorAll('.portal-nav:not(.staff-nav) a[href="/integrations"]').forEach((link) => link.remove());
-  const iconMarkup = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg#${name}"></use></svg>`;
   const makeLink = ({ href, permission, label, iconName }) => {
     const link = document.createElement('a'); link.href = href; link.dataset.permission = permission; link.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`; return link;
   };
