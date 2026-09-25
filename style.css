@@ -1927,3 +1927,22 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
   .velora-theme .recipe-wizard-nav,.velora-theme .recipe-wizard>[data-recipe-stage="4"]+.recipe-wizard-nav+ .toolbar-row{gap:8px}
   .velora-theme .recipe-wizard-nav .button,.velora-theme .recipe-wizard>[data-recipe-stage="4"]~.toolbar-row .button{flex:1}
 }
+
+/* Recipe output metadata keeps yield and sale units visible in every card. */
+.velora-theme .recipe-output-fields{grid-template-columns:repeat(3,minmax(0,1fr));align-items:start;margin:0}
+.velora-theme .recipe-output-fields label{display:grid;gap:6px;min-width:0;color:var(--muted);font-size:12px;line-height:1.35}
+.velora-theme .recipe-output-fields .required-mark{color:#ff7180;font-weight:800}
+.velora-theme .recipe-output-hint{grid-column:1/-1;margin:-8px 0 0}
+.velora-theme .recipe-output-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 12px;padding:10px 12px;border:1px solid #303640;border-radius:10px;background:#171a1f}
+.velora-theme .recipe-output-meta div{display:grid;gap:3px;min-width:0}
+.velora-theme .recipe-output-meta span{color:#858f9b;font-size:11px}
+.velora-theme .recipe-output-meta b{color:#e9edf1;font-size:13px;overflow-wrap:anywhere}
+@media(max-width:760px){
+  .velora-theme .recipe-output-fields{grid-template-columns:1fr 1fr}
+  .velora-theme .recipe-output-fields label:last-child{grid-column:1/-1}
+}
+@media(max-width:560px){
+  .velora-theme .recipe-output-fields{grid-template-columns:1fr}
+  .velora-theme .recipe-output-fields label:last-child{grid-column:auto}
+  .velora-theme .recipe-output-meta{grid-template-columns:1fr}
+}
