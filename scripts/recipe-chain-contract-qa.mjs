@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const migration = fs.readFileSync(new URL('../migrations/029_inventory_recipe_outputs.sql', import.meta.url), 'utf8');
+const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 let checks = 0;
 
 assert.match(source, /const client = await pool\.connect\(\);/);
@@ -18,5 +19,8 @@ assert.match(migration, /yield_quantity/);
 assert.match(migration, /yield_unit/);
 assert.match(migration, /portion_count/);
 checks += 3;
+assert.ok(portal.includes('const hasUnit ='));
+assert.ok(portal.includes('(?=\\s|$)'));
+checks += 2;
 
 console.log(`RECIPE CHAIN CONTRACT QA: ${checks} checks passed`);
