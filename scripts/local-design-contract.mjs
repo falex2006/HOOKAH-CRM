@@ -5,7 +5,7 @@ const root = new URL('../', import.meta.url);
 const htmlFiles = readdirSync(root).filter(file => file.endsWith('.html'));
 assert.ok(htmlFiles.length >= 14, 'all application HTML routes should be present');
 const cssRevision = 227;
-const portalRevision = 231;
+const portalRevision = 232;
 for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, new RegExp(`style\\.css\\?rev=${cssRevision}`), `${file} must use current CSS cache version`);
