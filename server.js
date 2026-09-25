@@ -23,7 +23,7 @@ const sessionRepository = repositories?.sessions || null;
 // The selected network point is process-wide for the current local POS server.
 // It starts from VENUE_ID and is updated by the network selector so subsequent
 // floor, orders, inventory and reporting requests use the selected point.
-let venueDbId = process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001';
+let defaultVenueDbId = process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001';
 const venue = {
   id: 'venue-territory', name: 'Территория', format: 'кальян-бар', city: 'Тюмень',
   address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', logoUrl: null,
@@ -376,6 +376,7 @@ const hashToken = (token) => crypto.createHash('sha256').update(token).digest('h
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
 const requestCookies = (req) => Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2));
+const requestAuthToken = (req) => { const header = req.headers.authorization || ''; return header.startsWith('Bearer ') ? header.slice(7) : (requestCookies(req).crm_session || ''); };
 const sessionFromRequest = async (req) => {
   const header = req.headers.authorization || '';
   const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2));
@@ -389,7 +390,7 @@ const sessionFromRequest = async (req) => {
 const recordAudit = (req, action, entityType, entityId, beforeData, afterData) => {
   const event = { id: `audit-${Date.now()}-${auditEvents.length}`, action, entityType, entityId: entityId || null, actor: req.user?.name || 'demo', beforeData: beforeData || null, afterData: afterData || null, createdAt: new Date().toISOString() };
   auditEvents.push(event);
-  if (repositories?.audit) repositories.audit.record({ venueId: venueDbId, actorId: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, action, entityType, entityId: /^[0-9a-f-]{36}$/i.test(entityId || '') ? entityId : null, beforeData, afterData }).catch(() => {});
+  if (repositories?.audit) repositories.audit.record({ venueId: req.user?.venueId || defaultVenueDbId, actorId: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, action, entityType, entityId: /^[0-9a-f-]{36}$/i.test(entityId || '') ? entityId : null, beforeData, afterData }).catch(() => {});
 };
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 700_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && effectivePermissions(req.user).includes(permission));
@@ -413,7 +414,7 @@ const requireOpenShift = async (req, res) => {
   if (!employeeNeedsShift(req)) return false;
   try {
     if (repositories?.pool) {
-      const result = await repositories.pool.query('SELECT 1 FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1', [venueDbId]);
+      const result = await repositories.pool.query('SELECT 1 FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1', [req.user?.venueId || defaultVenueDbId]);
       if (result.rows[0]) return false;
     } else if (shifts.some((entry) => !entry.closedAt)) return false;
   } catch (_) { json(res, 503, { error: 'shift_status_unavailable' }); return true; }
@@ -421,6 +422,7 @@ const requireOpenShift = async (req, res) => {
 };
 
 async function api(req, res) {
+  let venueDbId = defaultVenueDbId;
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
   if (req.method === 'OPTIONS') { const headers = { 'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Content-Security-Policy': "default-src 'self'; frame-ancestors 'none'" }; if (process.env.CORS_ORIGIN) headers['Access-Control-Allow-Origin'] = process.env.CORS_ORIGIN; res.writeHead(204, headers); return res.end(); }
@@ -508,7 +510,7 @@ async function api(req, res) {
       const activeUserSessions = [...sessions.values()].filter((session) => session.user?.id === userId && Date.now() - session.createdAt <= SESSION_TTL_MS);
       if (activeUserSessions.length >= 2) return json(res, 409, { error: 'session_limit_reached', limit: 2 });
     }
-    if (sessionRepository) { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString() }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) {} }
+    if (sessionRepository) { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) {} }
     if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
     sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: account.preferences || {}, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now() });
     [...sessions.entries()].filter(([, session]) => session.user?.id === userId).sort(([, left], [, right]) => right.createdAt - left.createdAt).slice(2).forEach(([sessionToken]) => sessions.delete(sessionToken));
@@ -834,7 +836,7 @@ async function api(req, res) {
     if (denyUnless(req, res, 'settings')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenueSelect[1])) {
       if (requireOrganizationContext(req, res)) return;
-      try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const { rows } = await client.query('SELECT id,name,format,city,address,phone,timezone FROM venues WHERE id=$1 AND organization_id=$2 AND is_active=true FOR UPDATE', [networkVenueSelect[1], requestOrganizationId(req)]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'venue_not_found' }); } await client.query('UPDATE venues SET is_current=false WHERE is_active=true AND organization_id=$1', [requestOrganizationId(req)]); await client.query('UPDATE venues SET is_current=true WHERE id=$1 AND organization_id=$2', [networkVenueSelect[1], requestOrganizationId(req)]); await client.query('COMMIT'); const previousVenueId = venueDbId; const selected = { ...rows[0], status: 'active', isCurrent: true }; venueDbId = selected.id; recordAudit(req, 'venue.selected', 'venue', selected.id, { currentVenueId: previousVenueId }, { currentVenueId: selected.id }); return json(res, 200, selected); } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); } } catch (error) { return json(res, 409, { error: 'venue_select_failed', detail: error.message }); }
+      try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const { rows } = await client.query('SELECT id,name,format,city,address,phone,timezone FROM venues WHERE id=$1 AND organization_id=$2 AND is_active=true FOR UPDATE', [networkVenueSelect[1], requestOrganizationId(req)]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'venue_not_found' }); } await client.query('UPDATE venues SET is_current=false WHERE is_active=true AND organization_id=$1', [requestOrganizationId(req)]); await client.query('UPDATE venues SET is_current=true WHERE id=$1 AND organization_id=$2', [networkVenueSelect[1], requestOrganizationId(req)]); await client.query('COMMIT'); const previousVenueId = venueDbId; const selected = { ...rows[0], status: 'active', isCurrent: true }; venueDbId = selected.id; if (req.user) req.user.venueId = selected.id; const token = requestAuthToken(req); if (token && sessionRepository) await sessionRepository.setActiveVenue(hashToken(token), selected.id); recordAudit(req, 'venue.selected', 'venue', selected.id, { currentVenueId: previousVenueId }, { currentVenueId: selected.id }); return json(res, 200, selected); } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); } } catch (error) { return json(res, 409, { error: 'venue_select_failed', detail: error.message }); }
     }
     const item = networkVenues.find((entry) => entry.id === networkVenueSelect[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     const before = networkVenues.find((entry) => entry.id === currentVenueId); currentVenueId = item.id; Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, timezone: item.timezone, format: item.format });
