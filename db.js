@@ -116,8 +116,38 @@ class PurchaseDocumentRepository {
   constructor(pool) { this.pool = pool; }
   static async assertSourceAutoOrder(client, venueId, sourceAutoOrderId) {
     if (!sourceAutoOrderId) return;
-    const { rows } = await client.query('SELECT id FROM inventory_auto_orders WHERE id=$1 AND venue_id=$2', [sourceAutoOrderId, venueId]);
+    const { rows } = await client.query('SELECT id,status,lines FROM inventory_auto_orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [sourceAutoOrderId, venueId]);
     if (!rows[0]) throw new Error('invalid_source_auto_order');
+    if (!['sent', 'partially_received'].includes(rows[0].status)) throw new Error('source_auto_order_not_open');
+    return rows[0];
+  }
+  static async assertAutoOrderAllocation(client, order, venueId, documentId, lines) {
+    if (!order) return;
+    const orderLines = Array.isArray(order.lines) ? order.lines : [];
+    const orderedByItem = new Map(orderLines.map((line) => [String(line.itemId), line]));
+    const requested = new Map();
+    for (const line of lines) {
+      const itemId = String(line.ingredientId);
+      const ordered = orderedByItem.get(itemId);
+      if (!ordered) throw new Error('purchase_item_not_in_auto_order');
+      if (String(line.stockUnit) !== String(ordered.unit)) throw new Error('auto_order_unit_mismatch');
+      requested.set(itemId, (requested.get(itemId) || 0) + Number(line.stockQuantity || 0));
+    }
+    const { rows } = await client.query(`SELECT l.ingredient_id AS "ingredientId",COALESCE(SUM(l.stock_quantity),0)::numeric AS reserved
+      FROM inventory_purchase_documents d JOIN inventory_purchase_document_lines l ON l.document_id=d.id
+      WHERE d.source_auto_order_id=$1 AND d.venue_id=$2 AND d.status='draft' AND d.id<>COALESCE($3::uuid,'00000000-0000-0000-0000-000000000000'::uuid)
+      GROUP BY l.ingredient_id`, [order.id, venueId, documentId || null]);
+    const reservedByItem = new Map(rows.map((row) => [String(row.ingredientId), Number(row.reserved || 0)]));
+    for (const [itemId, quantity] of requested) {
+      const ordered = orderedByItem.get(itemId);
+      const remaining = Number(ordered.quantity || 0) - Number(ordered.receivedQuantity || 0) - Number(reservedByItem.get(itemId) || 0);
+      if (quantity > remaining + 0.000001) {
+        const error = new Error('purchase_quantity_exceeds_auto_order');
+        error.ingredientId = itemId;
+        error.remaining = Math.max(0, remaining);
+        throw error;
+      }
+    }
   }
   static lineForItem(line, item) {
     const purchaseUnit = String(item.purchaseUnit || '').trim().toLocaleLowerCase('ru-RU');
@@ -150,15 +180,18 @@ class PurchaseDocumentRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      await PurchaseDocumentRepository.assertSourceAutoOrder(client, input.venueId, input.sourceAutoOrderId);
+      const sourceOrder = await PurchaseDocumentRepository.assertSourceAutoOrder(client, input.venueId, input.sourceAutoOrderId);
       const { rows } = await client.query(`INSERT INTO inventory_purchase_documents (venue_id,supplier_name,document_number,document_date,note,source_auto_order_id,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [input.venueId, input.supplierName, input.documentNumber || null, input.documentDate, input.note || null, input.sourceAutoOrderId || null, input.createdBy || null]);
       const documentId = rows[0].id;
+      const normalizedLines = [];
       for (const line of input.lines || []) {
         const item = await client.query('SELECT id,name,unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier" FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [line.ingredientId, input.venueId]);
         if (!item.rows[0]) { const error = new Error('purchase_ingredient_not_found'); error.ingredientId = line.ingredientId; throw error; }
         const normalized = PurchaseDocumentRepository.lineForItem(line, item.rows[0]);
+        normalizedLines.push({ ...normalized, ingredientId: item.rows[0].id, stockUnit: item.rows[0].unit });
         await client.query(`INSERT INTO inventory_purchase_document_lines (document_id,venue_id,ingredient_id,ingredient_name_snapshot,stock_unit,quantity,unit,pack_multiplier,stock_quantity,unit_cost,receipt_unit_cost,line_total) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [documentId, input.venueId, item.rows[0].id, item.rows[0].name, normalized.stockUnit, normalized.quantity, normalized.unit, normalized.packMultiplier, normalized.stockQuantity, normalized.unitCost, normalized.receiptUnitCost, normalized.lineTotal]);
       }
+      await PurchaseDocumentRepository.assertAutoOrderAllocation(client, sourceOrder, input.venueId, documentId, normalizedLines);
       const document = await this.get(input.venueId, documentId, client);
       await client.query('COMMIT');
       return document;
@@ -171,15 +204,18 @@ class PurchaseDocumentRepository {
       const current = await client.query('SELECT id,status FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2 FOR UPDATE', [input.id, input.venueId]);
       if (!current.rows[0]) { const error = new Error('purchase_document_not_found'); throw error; }
       if (current.rows[0].status !== 'draft') { const error = new Error('purchase_document_not_draft'); throw error; }
-      await PurchaseDocumentRepository.assertSourceAutoOrder(client, input.venueId, input.sourceAutoOrderId);
+      const sourceOrder = await PurchaseDocumentRepository.assertSourceAutoOrder(client, input.venueId, input.sourceAutoOrderId);
       await client.query('UPDATE inventory_purchase_documents SET supplier_name=$1,document_number=$2,document_date=$3,note=$4,source_auto_order_id=$5 WHERE id=$6 AND venue_id=$7', [input.supplierName, input.documentNumber || null, input.documentDate, input.note || null, input.sourceAutoOrderId || null, input.id, input.venueId]);
       await client.query('DELETE FROM inventory_purchase_document_lines WHERE document_id=$1', [input.id]);
+      const normalizedLines = [];
       for (const line of input.lines || []) {
         const item = await client.query('SELECT id,name,unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier" FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [line.ingredientId, input.venueId]);
         if (!item.rows[0]) { const error = new Error('purchase_ingredient_not_found'); error.ingredientId = line.ingredientId; throw error; }
         const normalized = PurchaseDocumentRepository.lineForItem(line, item.rows[0]);
+        normalizedLines.push({ ...normalized, ingredientId: item.rows[0].id, stockUnit: item.rows[0].unit });
         await client.query(`INSERT INTO inventory_purchase_document_lines (document_id,venue_id,ingredient_id,ingredient_name_snapshot,stock_unit,quantity,unit,pack_multiplier,stock_quantity,unit_cost,receipt_unit_cost,line_total) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`, [input.id, input.venueId, item.rows[0].id, item.rows[0].name, normalized.stockUnit, normalized.quantity, normalized.unit, normalized.packMultiplier, normalized.stockQuantity, normalized.unitCost, normalized.receiptUnitCost, normalized.lineTotal]);
       }
+      await PurchaseDocumentRepository.assertAutoOrderAllocation(client, sourceOrder, input.venueId, input.id, normalizedLines);
       const document = await this.get(input.venueId, input.id, client);
       await client.query('COMMIT');
       return document;
@@ -193,6 +229,7 @@ class PurchaseDocumentRepository {
       const doc = docResult.rows[0];
       if (!doc) { const error = new Error('purchase_document_not_found'); throw error; }
       if (doc.status !== 'draft') { const error = new Error('purchase_document_not_postable'); error.status = doc.status; throw error; }
+      const sourceOrder = await PurchaseDocumentRepository.assertSourceAutoOrder(client, venueId, doc.sourceAutoOrderId);
       const lines = await client.query(`SELECT l.*,i.cost AS current_cost,i.unit AS current_stock_unit,i.purchase_unit AS current_purchase_unit,i.pack_multiplier AS current_pack_multiplier FROM inventory_purchase_document_lines l JOIN ingredients i ON i.id=l.ingredient_id AND i.venue_id=l.venue_id WHERE l.document_id=$1 AND l.venue_id=$2 ORDER BY l.ingredient_id,l.id FOR UPDATE OF l,i`, [id, venueId]);
       if (!lines.rowCount) { const error = new Error('purchase_document_empty'); throw error; }
       const staleUnit = lines.rows.find((line) => {
@@ -204,6 +241,9 @@ class PurchaseDocumentRepository {
         return line.stock_unit !== line.current_stock_unit || !factor || Number(line.pack_multiplier) !== Number(factor);
       });
       if (staleUnit) { const error = new Error('purchase_item_unit_changed'); error.ingredientId = staleUnit.ingredient_id; throw error; }
+      if (sourceOrder) {
+        await PurchaseDocumentRepository.assertAutoOrderAllocation(client, sourceOrder, venueId, id, lines.rows.map((line) => ({ ingredientId: line.ingredient_id, stockUnit: line.stock_unit, stockQuantity: line.stock_quantity })));
+      }
       const movementIds = [];
       let totalCost = 0;
       const currentCosts = new Map(lines.rows.map((line) => [line.ingredient_id, Number(line.current_cost || 0)]));
@@ -219,6 +259,14 @@ class PurchaseDocumentRepository {
         movementIds.push(movement.rows[0].id); totalCost += Number(line.line_total || 0);
       }
       await client.query('UPDATE inventory_purchase_documents SET status=\'posted\',posted_by=$1,posted_at=now() WHERE id=$2 AND venue_id=$3', [actorId || null, id, venueId]);
+      if (sourceOrder) {
+        const receivedByItem = new Map();
+        for (const line of lines.rows) receivedByItem.set(String(line.ingredient_id), (receivedByItem.get(String(line.ingredient_id)) || 0) + Number(line.stock_quantity || 0));
+        const nextLines = (Array.isArray(sourceOrder.lines) ? sourceOrder.lines : []).map((line) => ({ ...line, receivedQuantity: Number((Number(line.receivedQuantity || 0) + (receivedByItem.get(String(line.itemId)) || 0)).toFixed(6)) }));
+        const fullyReceived = nextLines.length > 0 && nextLines.every((line) => Number(line.receivedQuantity || 0) >= Number(line.quantity || 0) - 0.000001);
+        const nextStatus = fullyReceived ? 'received' : 'partially_received';
+        await client.query('UPDATE inventory_auto_orders SET status=$1,lines=$2::jsonb,updated_at=now() WHERE id=$3 AND venue_id=$4', [nextStatus, JSON.stringify(nextLines), sourceOrder.id, venueId]);
+      }
       const document = await this.get(venueId, id, client);
       await client.query('COMMIT');
       return { document, movementIds, totalCost: Math.round(totalCost * 100) / 100 };

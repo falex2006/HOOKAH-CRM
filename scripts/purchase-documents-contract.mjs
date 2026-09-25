@@ -28,5 +28,11 @@ for (const route of [
   "purchaseDocumentPath && req.method === 'PATCH'",
   "purchaseDocumentPostPath && req.method === 'POST'"
 ]) assert.match(server, new RegExp(route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-for (const contract of ['purchase_document_not_postable', 'purchase_document_empty', 'source_movement_id', 'stock_movements', 'receipt_unit_cost', 'inventory.purchase_document_posted', 'invalid_source_auto_order', 'FOR UPDATE OF l,i']) assert.match(`${server}\n${repository}`, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+for (const contract of ['purchase_document_not_postable', 'purchase_document_empty', 'source_movement_id', 'stock_movements', 'receipt_unit_cost', 'inventory.purchase_document_posted', 'invalid_source_auto_order', 'FOR UPDATE OF l,i', 'purchase_document_required', 'purchase_item_not_in_auto_order', 'purchase_quantity_exceeds_auto_order', 'partially_received', 'receivedQuantity', 'auto_order_has_draft_receipts', 'has_drafts']) assert.match(`${server}\n${repository}`, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+assert.match(repository, /assertAutoOrderAllocation\(client, sourceOrder, input\.venueId/,
+  'draft receipts must reserve only the quantity still expected in their auto-order');
+assert.match(repository, /UPDATE inventory_auto_orders SET status=\$1,lines=\$2::jsonb/,
+  'posting a linked receipt must update received quantities and auto-order status transactionally');
+assert.match(server, /SELECT id,status,lines FROM inventory_auto_orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE[\s\S]*?SELECT EXISTS\(SELECT 1 FROM inventory_purchase_documents WHERE source_auto_order_id=\$1 AND venue_id=\$2 AND status='draft'\)/,
+  'cancelling an auto-order must serialize with draft creation/posting and reject linked drafts');
 console.log('PURCHASE DOCUMENTS CONTRACT: PASS');

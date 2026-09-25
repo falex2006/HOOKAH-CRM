@@ -47,11 +47,19 @@ assert.match(portal, /allItems = data\.items \|\| \[\]; renderPurchaseLines\(/,
   'purchase item options must refresh after inventory finishes loading asynchronously');
 assert.match(portal, /В учёт поступит|В учёт поступит /,
   'each purchase line must show its normalized stock quantity');
+assert.match(portal, /purchasePanel\.querySelectorAll\('label:has\(:required\)'\)/,
+  'required receiving fields must be visibly identified from their actual validation state');
+assert.match(portal, /insertBefore\(purchasePanel, inventoryContentGrid\)/,
+  'document receiving must appear before adjustment operations in the warehouse workflow');
+assert.match(css, /\.purchase-document-form \.required-mark\{color:#ff7180;font-weight:800\}/,
+  'required receiving markers must use the shared required-field treatment');
 assert.match(css, /\.purchase-line\{display:grid;grid-template-columns:/,
   'purchase lines must have a structured desktop layout');
 assert.match(css, /@media\(max-width:650px\)[\s\S]*?\.purchase-line\{grid-template-columns:minmax\(0,1fr\)/,
   'purchase lines must collapse into a single-column phone layout');
 assert.match(css, /button\.button:not\(\.primary\):not\(\.danger\):not\(\.danger-outline\)\{background:#20242a;border:1px solid/,
   'neutral buttons must keep a visible premium control surface');
+assert.match(css, /@media\(max-width:980px\)\{\.velora-theme \.purchase-lines-head>\.button,\.velora-theme \.purchase-document-row>\.toolbar-row>\.button\{min-height:44px\}\}/,
+  'receiving actions must meet the touch target on Fold/tablet widths');
 
 console.log('INVENTORY RESPONSIVE CONTRACT: PASS');
