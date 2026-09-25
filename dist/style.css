@@ -2090,6 +2090,62 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .inventory-tabs{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:stretch}
 .velora-theme .inventory-tabs button{min-width:0;min-height:44px;padding:8px 10px;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
 @media(max-width:1400px){.velora-theme .inventory-page-title{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}.velora-theme .inventory-page-title>.toolbar-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:8px}.velora-theme .inventory-page-title>.toolbar-row>.button{box-sizing:border-box;justify-content:center;min-width:0;min-height:44px;padding-inline:10px;white-space:normal;text-align:center;line-height:1.25}.velora-theme .inventory-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media(max-width:900px){.velora-theme .inventory-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:650px){.velora-theme .inventory-page-title>.toolbar-row{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme .inventory-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.velora-theme .inventory-tabs button:last-child{grid-column:1/-1}}
+@media(max-width:900px){.velora-theme .inventory-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}.velora-theme .inventory-tabs button:last-child{grid-column:1/-1;justify-self:center}}
+@media(min-width:901px) and (max-width:1400px){.velora-theme .inventory-page-title>.toolbar-row{display:flex;width:auto;justify-content:flex-start;flex-wrap:wrap}.velora-theme .inventory-page-title>.toolbar-row>.button{min-width:0;min-height:44px;white-space:nowrap}.velora-theme .inventory-tabs button:nth-child(5){grid-column:2}}
+@media(min-width:651px) and (max-width:1000px){.velora-theme .inventory-tabs button:last-child{min-width:190px}.velora-theme .inventory-tabs+.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.velora-theme .inventory-tabs+.kpi-grid>.kpi{min-width:0;padding:14px}.velora-theme .inventory-tabs+.kpi-grid>.kpi>strong{font-size:clamp(20px,3vw,27px);overflow-wrap:anywhere}}
+@media(max-width:1000px){
+  .velora-theme .inventory-stock-panel .inventory-item-edit{min-height:44px;padding-inline:14px}
+  .velora-theme .inventory-departments button{min-height:44px;padding-inline:14px}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-check-col{display:flex;align-items:center;justify-content:center;gap:7px;box-sizing:border-box;width:auto;min-width:92px;min-height:44px;padding:4px 8px;border:1px solid #39414c;border-radius:11px;background:#222730;color:#c7ced7}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-check-col::after{content:'В заявку';font-size:11px;line-height:1;white-space:nowrap}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-check-col input{width:20px;height:20px;flex:0 0 20px;margin:0}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-item-cell{padding-right:104px}
+}
+@media(max-width:650px){.velora-theme .inventory-page-title>.toolbar-row{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme .inventory-tabs{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.velora-theme .inventory-tabs button:last-child{grid-column:1/-1;justify-self:stretch}}
 @media(max-width:380px){.velora-theme .inventory-page-title>.toolbar-row{grid-template-columns:minmax(0,1fr)}}
+
+/* Warehouse tables become labeled item cards when the available content column
+   is too narrow to scan safely; this also covers the Fold inner screen beside
+   the CRM rail without relying on horizontal panning. */
+@media(max-width:1000px){
+  .velora-theme .inventory-stock-panel .table-wrap{overflow:visible}
+  .velora-theme .inventory-stock-panel table{display:block;width:100%;min-width:0;border-collapse:separate;border-spacing:0}
+  .velora-theme .inventory-stock-panel thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .velora-theme .inventory-stock-panel tbody{display:grid;gap:10px}
+  .velora-theme .inventory-stock-panel tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;position:relative;min-width:0;padding:12px;border:1px solid #303640;border-radius:12px;background:#171a20}
+  .velora-theme .inventory-stock-panel tbody td{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:auto;min-width:0;padding:8px 0;border:0;text-align:right;overflow-wrap:anywhere}
+  .velora-theme .inventory-stock-panel tbody td::before{content:attr(data-label);flex:0 1 auto;color:#858f9b;font-size:11px;line-height:1.4;text-align:left}
+  .velora-theme .inventory-stock-panel tbody td.inventory-item-cell{display:grid;grid-column:1/-1;justify-content:stretch;gap:3px;padding:2px 0 10px;border-bottom:1px solid #2b3038;text-align:left}
+  .velora-theme .inventory-stock-panel tbody td.inventory-item-cell::before{font-size:10px;letter-spacing:.04em;text-transform:uppercase}
+  .velora-theme .inventory-stock-panel tbody td.inventory-item-cell>b{color:#edf0f3;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+  .velora-theme .inventory-stock-panel tbody td.inventory-item-cell>small{color:#929ba5;font-size:12px}
+  .velora-theme .inventory-stock-panel tbody td:last-child{grid-column:1/-1;justify-content:flex-end;padding-top:8px;border-top:1px solid #2b3038}
+  .velora-theme .inventory-stock-panel tbody td:last-child::before{margin-right:auto}
+  .velora-theme .inventory-stock-panel tbody td.empty{display:grid;grid-column:1/-1;justify-content:stretch;text-align:left}
+  .velora-theme .inventory-stock-panel tbody td.empty::before{content:none}
+}
+@media(max-width:1100px){
+  .velora-theme .auto-order-table-wrap{overflow:visible}
+  .velora-theme .auto-order-table-wrap table{display:block;width:100%;min-width:0;border-collapse:separate;border-spacing:0}
+  .velora-theme .auto-order-table-wrap thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .velora-theme .auto-order-table-wrap tbody{display:grid;gap:10px}
+  .velora-theme .auto-order-table-wrap tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;position:relative;min-width:0;padding:12px;border:1px solid #303640;border-radius:12px;background:#171a20}
+  .velora-theme .auto-order-table-wrap tbody td{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;width:auto;min-width:0;padding:8px 0;border:0;text-align:right;overflow-wrap:anywhere}
+  .velora-theme .auto-order-table-wrap tbody td::before{content:attr(data-label);flex:0 1 auto;color:#858f9b;font-size:11px;line-height:1.4;text-align:left}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-check-col{position:absolute;top:12px;right:12px;z-index:1;padding:0}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-check-col::before{content:none}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-item-cell{display:grid;grid-column:1/-1;justify-content:stretch;gap:3px;padding:2px 36px 10px 0;border-bottom:1px solid #2b3038;text-align:left}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-item-cell>b{color:#edf0f3;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-item-cell>small,.velora-theme .auto-order-table-wrap tbody td[data-label="К заказу"]>small{color:#929ba5;font-size:12px;line-height:1.4;text-align:left}
+  .velora-theme .auto-order-table-wrap tbody td[data-label="К заказу"]{display:grid;grid-column:1/-1;justify-content:stretch;gap:6px}
+  .velora-theme .auto-order-table-wrap tbody td[data-label="К заказу"]::before{display:block}
+  .velora-theme .auto-order-table-wrap .auto-order-quantity{box-sizing:border-box;width:100%;min-height:44px}
+  .velora-theme .auto-order-table-wrap tbody td:last-child{grid-column:1/-1;justify-content:space-between;padding-top:8px;border-top:1px solid #2b3038;color:#edf0f3;font-weight:700}
+}
+@media(max-width:560px){
+  .velora-theme .inventory-stock-panel tbody tr,.velora-theme .auto-order-table-wrap tbody tr{grid-template-columns:minmax(0,1fr);gap:0;padding:10px 12px}
+  .velora-theme .inventory-stock-panel tbody td,.velora-theme .auto-order-table-wrap tbody td{grid-column:1/-1;justify-content:space-between}
+  .velora-theme .inventory-stock-panel tbody td.inventory-item-cell,.velora-theme .auto-order-table-wrap tbody td.auto-order-item-cell{grid-column:1/-1}
+  .velora-theme .auto-order-table-wrap tbody td.auto-order-check-col{grid-column:auto;top:10px;right:12px}
+  .velora-theme .auto-order-table-wrap tbody td[data-label="К заказу"]{grid-column:1/-1}
+}

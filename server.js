@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createRepositories } = require('./db');
+const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
 const scryptAsync = require('util').promisify(crypto.scrypt);
 const catalogSeed = require('./catalog-seed');
 
@@ -292,30 +293,44 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
   try {
     if (ownsTransaction) await client.query('BEGIN');
     let requirements = [];
+    const cardProductIds = new Set();
+    const { rows: cards } = await client.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", rc.ingredients, rc.portion_count AS "portionCount"
+      FROM order_items oi JOIN products p ON p.id=oi.product_id
+      LEFT JOIN LATERAL (
+        SELECT candidate.ingredients,candidate.portion_count
+        FROM inventory_recipe_cards candidate
+        WHERE candidate.venue_id=$2 AND candidate.active=true
+          AND (candidate.product_id=oi.product_id OR (candidate.product_id IS NULL AND lower(candidate.name)=lower(p.name)))
+        ORDER BY (candidate.product_id=oi.product_id) DESC NULLS LAST,candidate.updated_at DESC,candidate.created_at DESC,candidate.id
+        LIMIT 1
+      ) rc ON true
+      WHERE oi.order_id=$1`, [orderId, venueId]);
+    for (const card of cards) {
+      if (!Array.isArray(card.ingredients)) continue;
+      cardProductIds.add(card.productId);
+      const scaledIngredients = scaleBatchRecipeIngredients(card.ingredients, Number(card.orderQuantity), Number(card.portionCount || 1));
+      for (const item of scaledIngredients) {
+        const name = String(item.name || '').trim(); const ingredientId = String(item.ingredientId || '').trim();
+        const quantity = Number(String(item.quantity || '').replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0] || 0);
+        if (quantity > 0 && (name || /^[0-9a-f-]{36}$/i.test(ingredientId))) requirements.push({ ingredientId: /^[0-9a-f-]{36}$/i.test(ingredientId) ? ingredientId : null, name, unit: String(item.unit || ''), quantity, sourceUnit: String(item.unit || '') });
+      }
+    }
+    // Older recipe rows remain a fallback only for products without an active
+    // inventory recipe card; applying both sources would double-deplete stock.
     await client.query('SAVEPOINT legacy_recipe_lookup');
     try {
-      const legacy = await client.query(`SELECT ri.ingredient_id AS "ingredientId", i.name, i.unit, SUM(ri.quantity * oi.quantity)::numeric AS quantity
+      const legacy = await client.query(`SELECT oi.product_id AS "productId",ri.ingredient_id AS "ingredientId",i.name,i.unit,SUM(ri.quantity * oi.quantity)::numeric AS quantity
         FROM order_items oi JOIN recipes r ON r.product_id=oi.product_id JOIN recipe_items ri ON ri.product_id=r.product_id
-        JOIN ingredients i ON i.id=ri.ingredient_id WHERE oi.order_id=$1 AND i.venue_id=$2 GROUP BY ri.ingredient_id,i.name,i.unit`, [orderId, venueId]);
-      requirements = legacy.rows;
+        JOIN ingredients i ON i.id=ri.ingredient_id WHERE oi.order_id=$1 AND i.venue_id=$2
+          AND NOT (oi.product_id=ANY($3::uuid[]))
+        GROUP BY oi.product_id,ri.ingredient_id,i.name,i.unit`, [orderId, venueId, [...cardProductIds]]);
+      requirements.push(...legacy.rows.map((item) => ({ ...item, sourceUnit: item.unit })));
     } catch (error) {
-      // The inventory recipe-card path is authoritative. Older installations may
-      // not have the legacy recipes tables, so their absence must not break sale
-      // closing or prevent the current cards from being applied.
+      // Some installations do not have the legacy recipe tables. Their absence
+      // must not prevent current recipe cards from being applied.
       if (error.code !== '42P01') throw error;
       await client.query('ROLLBACK TO SAVEPOINT legacy_recipe_lookup');
     }
-    const { rows: cards } = await client.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", rc.ingredients
-      FROM order_items oi JOIN products p ON p.id=oi.product_id
-      JOIN inventory_recipe_cards rc ON rc.venue_id=$2 AND rc.active=true AND (rc.product_id=oi.product_id OR lower(rc.name)=lower(p.name))
-      WHERE oi.order_id=$1`, [orderId, venueId]);
-    const extra = [];
-    for (const card of cards) for (const item of (Array.isArray(card.ingredients) ? card.ingredients : [])) {
-      const name = String(item.name || '').trim(); const ingredientId = String(item.ingredientId || '').trim();
-      const quantity = Number(String(item.quantity || '').replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0] || 0) * Number(card.orderQuantity || 0);
-      if (quantity > 0 && (name || /^[0-9a-f-]{36}$/i.test(ingredientId))) extra.push({ ingredientId: /^[0-9a-f-]{36}$/i.test(ingredientId) ? ingredientId : null, name, unit: String(item.unit || ''), quantity, sourceUnit: String(item.unit || '') });
-    }
-    requirements.push(...extra);
     if (!requirements.length) { if (ownsTransaction) await client.query('COMMIT'); return { lines: [], totalCost: 0 }; }
     const ids = requirements.map((item) => item.ingredientId).filter((item) => /^[0-9a-f-]{36}$/i.test(String(item || '')));
     const names = requirements.map((item) => String(item.name || '').toLowerCase()).filter(Boolean);
@@ -323,8 +338,13 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
     const queryNames = names.length ? names : ['__none__'];
     await client.query('SELECT id FROM ingredients WHERE venue_id=$1 AND (id=ANY($2::uuid[]) OR lower(name)=ANY($3::text[])) FOR UPDATE', [venueId, queryIds, queryNames]);
     const existing = await client.query("SELECT COUNT(*)::int AS count, COALESCE(SUM(sm.quantity * i.cost),0)::numeric AS cost FROM stock_movements sm JOIN ingredients i ON i.id=sm.ingredient_id WHERE sm.venue_id=$1 AND sm.order_id=$2 AND sm.direction='out'", [venueId, orderId]);
-    if (Number(existing.rows[0]?.count || 0) > 0) { if (ownsTransaction) await client.query('COMMIT'); return { lines: [], totalCost: Number(existing.rows[0].cost), alreadyDepleted: true }; }
-    const { rows: stock } = await client.query(`SELECT i.id, i.name, i.cost, i.unit, COALESCE(SUM(CASE WHEN sm.direction IN ('in','adjustment') THEN sm.quantity WHEN sm.direction='out' THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id WHERE i.venue_id=$1 AND (i.id=ANY($2::uuid[]) OR lower(i.name)=ANY($3::text[])) GROUP BY i.id`, [venueId, queryIds, queryNames]);
+    if (Number(existing.rows[0]?.count || 0) > 0) {
+      const snapshot = await client.query('SELECT cost FROM order_costs WHERE venue_id=$1 AND order_id=$2', [venueId, orderId]);
+      const historicalCost = snapshot.rows[0] ? Number(snapshot.rows[0].cost) : Number(existing.rows[0].cost);
+      if (ownsTransaction) await client.query('COMMIT');
+      return { lines: [], totalCost: historicalCost, alreadyDepleted: true };
+    }
+    const { rows: stock } = await client.query(`SELECT i.id, i.name, i.cost, i.unit, COALESCE(SUM(CASE WHEN sm.direction IN ('in','transfer','adjustment') THEN sm.quantity WHEN sm.direction IN ('out','waste') THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id WHERE i.venue_id=$1 AND (i.id=ANY($2::uuid[]) OR lower(i.name)=ANY($3::text[])) GROUP BY i.id`, [venueId, queryIds, queryNames]);
     const byId = new Map(stock.map((item) => [item.id, item])); const byName = new Map(stock.map((item) => [item.name.toLowerCase(), item]));
     const grouped = new Map();
     const factors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
@@ -405,6 +425,24 @@ const recordAudit = (req, action, entityType, entityId, beforeData, afterData) =
   const event = { id: `audit-${Date.now()}-${auditEvents.length}`, action, entityType, entityId: entityId || null, actor: req.user?.name || 'demo', beforeData: beforeData || null, afterData: afterData || null, createdAt: new Date().toISOString() };
   auditEvents.push(event);
   if (repositories?.audit) repositories.audit.record({ venueId: req.user?.venueId || defaultVenueDbId, actorId: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, action, entityType, entityId: /^[0-9a-f-]{36}$/i.test(entityId || '') ? entityId : null, beforeData, afterData }).catch(() => {});
+};
+const inventoryUnitFactors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
+const normalizePurchaseInput = (input) => {
+  const supplierName = String(input.supplierName || 'Не указан').trim();
+  const documentNumber = String(input.documentNumber || '').trim() || null;
+  const documentDate = String(input.documentDate || today());
+  const note = String(input.note || '').trim() || null;
+  if (!supplierName || supplierName.length > 160 || (documentNumber && documentNumber.length > 80) || !/^\d{4}-\d{2}-\d{2}$/.test(documentDate) || (note && note.length > 2000)) { const error = new Error('invalid_purchase_document'); throw error; }
+  if (input.sourceAutoOrderId !== undefined && input.sourceAutoOrderId !== null && input.sourceAutoOrderId !== '' && !/^[0-9a-f-]{36}$/i.test(String(input.sourceAutoOrderId))) { const error = new Error('invalid_source_auto_order'); throw error; }
+  if (input.lines !== undefined && !Array.isArray(input.lines)) { const error = new Error('invalid_purchase_lines'); throw error; }
+  const lines = (input.lines || []).map((entry) => {
+    const ingredientId = String(entry.ingredientId || '').trim();
+    const quantity = Number(entry.quantity); const unitCost = Number(entry.unitCost);
+    const unit = String(entry.unit || '').trim();
+    if (!ingredientId || !/^[0-9a-f-]{36}$/i.test(ingredientId) || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitCost) || unitCost < 0 || (!inventoryUnitFactors[unit] && unit.length > 30)) { const error = new Error('invalid_purchase_line'); error.ingredientId = ingredientId; throw error; }
+    return { ingredientId, quantity, unit, unitCost };
+  });
+  return { supplierName, documentNumber, documentDate, note, sourceAutoOrderId: input.sourceAutoOrderId || null, lines };
 };
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 700_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && effectivePermissions(req.user).includes(permission));
@@ -1719,15 +1757,56 @@ if (staffProfile && req.method === 'PATCH') {
       try {
         const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit]; const converted = item && conversionFactor ? quantity * conversionFactor : quantity;
         if (!item || !conversionFactor || !Number.isFinite(converted) || converted <= 0) return json(res, 400, { error: 'invalid_supply_unit' });
-        const previousValue = Number(item.onHand || 0) * Number(item.cost || 0); const normalizedUnitCost = unitCost / conversionFactor; const nextCost = (previousValue + converted * normalizedUnitCost) / (Number(item.onHand || 0) + converted);
-        await repositories.inventory.update(venueDbId, item.id, { cost: Math.round(nextCost * 100) / 100 });
-        const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: 'in', quantity: converted, reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
-        recordAudit(req, 'inventory.supply_received', 'inventory', item.id, { onHand: item.onHand, cost: item.cost }, { onHand: Number(item.onHand || 0) + converted, cost: nextCost, movement });
-        return json(res, 201, { ...movement, itemName: item.name, delta: converted, unit: item.unit, sourceUnit, unitCost, weightedCost: Math.round(nextCost * 100) / 100 });
+        const movement = await repositories.inventory.receive({ venueId: venueDbId, ingredientId: item.id, stockUnit: item.unit, quantity: converted, conversionFactor, unitCost, reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
+        recordAudit(req, 'inventory.supply_received', 'inventory', item.id, { onHand: movement.onHandBefore, cost: item.cost }, { onHand: movement.onHandAfter, cost: movement.weightedCost, movement });
+        return json(res, 201, { ...movement, delta: converted, sourceUnit, unitCost });
       } catch (error) { return json(res, 409, { error: 'supply_save_failed', detail: error.message }); }
     }
     const item = inventory.find((entry) => entry.id === input.itemId); const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit]; const converted = item && conversionFactor ? quantity * conversionFactor : quantity;
     if (!item || !conversionFactor || !Number.isFinite(converted) || converted <= 0) return json(res, 400, { error: 'invalid_supply_unit' }); const previousValue = Number(item.onHand || 0) * Number(item.cost || 0); const normalizedUnitCost = unitCost / conversionFactor; item.cost = Math.round(((previousValue + converted * normalizedUnitCost) / (Number(item.onHand || 0) + converted)) * 100) / 100; item.onHand = Math.round((Number(item.onHand || 0) + converted) * 100) / 100; const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta: converted, unit: item.unit, sourceUnit, reason, createdAt: new Date().toISOString() }; stockMovements.push(movement); recordAudit(req, 'inventory.supply_received', 'inventory', item.id, null, { onHand: item.onHand, cost: item.cost, movement }); return json(res, 201, { ...movement, unitCost, weightedCost: item.cost });
+  }
+  const purchaseDocumentPath = pathname.match(/^\/api\/inventory\/purchase-documents\/([^/]+)$/);
+  const purchaseDocumentPostPath = pathname.match(/^\/api\/inventory\/purchase-documents\/([^/]+)\/post$/);
+  if (pathname === '/api/inventory/purchase-documents' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['inventory_read', 'inventory'])) return;
+    if (!repositories?.purchaseDocuments) return json(res, 200, { items: [] });
+    const status = url.searchParams.get('status') || null;
+    if (status && !['draft', 'posted', 'voided'].includes(status)) return json(res, 400, { error: 'invalid_purchase_status' });
+    try { return json(res, 200, { items: await repositories.purchaseDocuments.list(venueDbId, status) }); } catch (error) { return json(res, 503, { error: 'purchase_documents_unavailable', detail: error.message }); }
+  }
+  if (pathname === '/api/inventory/purchase-documents' && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_documents_unavailable' });
+    try {
+      const input = normalizePurchaseInput(await body(req));
+      const created = await repositories.purchaseDocuments.saveDraft({ ...input, venueId: venueDbId, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
+      recordAudit(req, 'inventory.purchase_document_created', 'purchase_document', created.id, null, created);
+      return json(res, 201, created);
+    } catch (error) { return json(res, error.message === 'purchase_ingredient_not_found' ? 400 : error.message === 'invalid_purchase_unit' ? 400 : error.code === '23505' ? 409 : 400, { error: error.message === 'purchase_ingredient_not_found' ? 'purchase_ingredient_not_found' : error.message === 'invalid_purchase_unit' ? 'invalid_purchase_unit' : error.message === 'invalid_purchase_document' || error.message === 'invalid_purchase_line' || error.message === 'invalid_purchase_lines' || error.message === 'invalid_source_auto_order' ? error.message : 'purchase_document_create_failed', ingredientId: error.ingredientId, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit, detail: error.code === '23505' ? 'document_number_exists' : error.message }); }
+  }
+  if (purchaseDocumentPath && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['inventory_read', 'inventory'])) return;
+    if (!repositories?.purchaseDocuments) return json(res, 404, { error: 'purchase_document_not_found' });
+    try { const item = await repositories.purchaseDocuments.get(venueDbId, purchaseDocumentPath[1]); return item ? json(res, 200, item) : json(res, 404, { error: 'purchase_document_not_found' }); } catch (error) { return json(res, 503, { error: 'purchase_document_unavailable', detail: error.message }); }
+  }
+  if (purchaseDocumentPath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'inventory')) return;
+    if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_documents_unavailable' });
+    try {
+      const input = normalizePurchaseInput(await body(req));
+      const updated = await repositories.purchaseDocuments.updateDraft({ ...input, id: purchaseDocumentPath[1], venueId: venueDbId });
+      recordAudit(req, 'inventory.purchase_document_updated', 'purchase_document', updated.id, null, updated);
+      return json(res, 200, updated);
+    } catch (error) { const status = ['purchase_document_not_found', 'purchase_document_not_draft'].includes(error.message) ? 409 : 400; return json(res, status, { error: ['purchase_ingredient_not_found', 'invalid_purchase_unit', 'invalid_source_auto_order'].includes(error.message) ? error.message : 'purchase_document_update_failed', ingredientId: error.ingredientId, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit, detail: error.message }); }
+  }
+  if (purchaseDocumentPostPath && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_documents_unavailable' });
+    try {
+      const result = await repositories.purchaseDocuments.post(venueDbId, purchaseDocumentPostPath[1], /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null);
+      recordAudit(req, 'inventory.purchase_document_posted', 'purchase_document', result.document.id, { status: 'draft' }, result.document);
+      return json(res, 200, result);
+    } catch (error) { const status = ['purchase_document_not_found'].includes(error.message) ? 404 : ['purchase_document_not_postable', 'purchase_document_empty'].includes(error.message) ? 409 : 400; return json(res, status, { error: error.message === 'purchase_document_not_postable' ? 'purchase_document_not_postable' : error.message === 'purchase_document_empty' ? 'purchase_document_empty' : error.message === 'purchase_document_not_found' ? 'purchase_document_not_found' : 'purchase_document_post_failed', status: error.status, detail: error.message }); }
   }
   if (pathname === '/api/inventory/premixes' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'inventory_read') && !hasPermission(req, 'inventory')) return json(res, 403, { error: 'forbidden', permission: 'inventory' });
@@ -1746,7 +1825,7 @@ if (staffProfile && req.method === 'PATCH') {
         const outputResult = await repositories.pool.query('SELECT id,name,unit,cost FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [outputItemId, venueDbId]); const output = outputResult.rows[0]; if (!output) return json(res, 404, { error: 'premix_output_item_not_found' });
         const stock = (await repositories.inventory.list(venueDbId)).items; const requirements = []; for (const entry of (recipe.ingredients || [])) { const item = stock.find((candidate) => String(candidate.id) === String(entry.ingredientId) || String(candidate.name).toLocaleLowerCase('ru-RU') === String(entry.name || '').toLocaleLowerCase('ru-RU')); if (!item) return json(res, 409, { error: 'premix_ingredient_not_found', ingredient: entry.name || entry.ingredientId }); const parsed = parseRecipeQuantity(entry.quantity, item.unit, entry.unit || null); if (parsed.error) return json(res, 409, { error: parsed.error, ingredient: item.name, sourceUnit: parsed.sourceUnit, targetUnit: parsed.targetUnit }); requirements.push({ item, quantity: Number((parsed.amount * parsed.factor * multiplier).toFixed(6)), unit: item.unit }); }
         const outputFactor = unitFactors[recipe.yieldUnit]?.[output.unit]; if (!outputFactor) return json(res, 409, { error: 'premix_output_unit_mismatch', sourceUnit: recipe.yieldUnit, targetUnit: output.unit }); const outputQuantity = Number((Number(recipe.yieldQuantity) * multiplier * outputFactor).toFixed(6)); client = await repositories.pool.connect(); await client.query('BEGIN'); let totalCost = 0;
-        for (const requirement of requirements) { const lock = await client.query('SELECT id,name,unit,cost FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [requirement.item.id, venueDbId]); const row = lock.rows[0]; if (row) { const stockResult = await client.query("SELECT COALESCE(SUM(CASE WHEN direction IN ('in','adjustment') THEN quantity WHEN direction='out' THEN -quantity ELSE 0 END),0)::numeric AS on_hand FROM stock_movements WHERE ingredient_id=$1 AND venue_id=$2", [requirement.item.id, venueDbId]); row.on_hand = stockResult.rows[0]?.on_hand || 0; } if (!row || Number(row.on_hand || 0) < requirement.quantity) { const error = new Error('insufficient_premix_stock'); error.missing = [{ name: requirement.item.name, required: requirement.quantity, onHand: Number(row?.on_hand || 0), unit: requirement.unit }]; throw error; } totalCost += requirement.quantity * Number(row.cost || 0); await client.query('INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,created_by) VALUES ($1,$2,\'out\',$3,$4,$5)', [venueDbId, requirement.item.id, requirement.quantity, `Приготовление премикса «${recipe.name}»`, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); }
+        for (const requirement of requirements) { const lock = await client.query('SELECT id,name,unit,cost FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [requirement.item.id, venueDbId]); const row = lock.rows[0]; if (row) { const stockResult = await client.query("SELECT COALESCE(SUM(CASE WHEN direction IN ('in','transfer','adjustment') THEN quantity WHEN direction IN ('out','waste') THEN -quantity ELSE 0 END),0)::numeric AS on_hand FROM stock_movements WHERE ingredient_id=$1 AND venue_id=$2", [requirement.item.id, venueDbId]); row.on_hand = stockResult.rows[0]?.on_hand || 0; } if (!row || Number(row.on_hand || 0) < requirement.quantity) { const error = new Error('insufficient_premix_stock'); error.missing = [{ name: requirement.item.name, required: requirement.quantity, onHand: Number(row?.on_hand || 0), unit: requirement.unit }]; throw error; } totalCost += requirement.quantity * Number(row.cost || 0); await client.query('INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,created_by) VALUES ($1,$2,\'out\',$3,$4,$5)', [venueDbId, requirement.item.id, requirement.quantity, `Приготовление премикса «${recipe.name}»`, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); }
         await client.query('INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,created_by) VALUES ($1,$2,\'in\',$3,$4,$5)', [venueDbId, output.id, outputQuantity, `Выход премикса «${recipe.name}»`, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); const { rows } = await client.query('INSERT INTO inventory_premix_batches (venue_id,recipe_id,output_ingredient_id,output_quantity,output_unit,total_cost,ingredients,produced_by) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8) RETURNING id,recipe_id AS "recipeId",output_ingredient_id AS "outputItemId",output_quantity AS "outputQuantity",output_unit AS "outputUnit",total_cost AS "totalCost",ingredients,created_at AS "createdAt"', [venueDbId, recipe.id, output.id, outputQuantity, output.unit, Math.round(totalCost * 100) / 100, JSON.stringify(requirements.map((entry) => ({ ingredientId: entry.item.id, name: entry.item.name, quantity: entry.quantity, unit: entry.unit }))), /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); await client.query('COMMIT'); recordAudit(req, 'inventory.premix_produced', 'premix', rows[0].id, null, { ...rows[0], recipeName: recipe.name, outputItemName: output.name }); return json(res, 201, { ...rows[0], recipeName: recipe.name, outputItemName: output.name });
       } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: error.message === 'insufficient_premix_stock' ? 'insufficient_premix_stock' : 'premix_production_failed', missing: error.missing, detail: error.message }); } finally { client?.release(); }
     }
@@ -1762,10 +1841,11 @@ if (staffProfile && req.method === 'PATCH') {
       const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const delta = Number(input.delta);
       const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit]; const convertedDelta = item && conversionFactor ? delta * conversionFactor : delta;
       if (!item || !conversionFactor || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(convertedDelta)) return json(res, 400, { error: !conversionFactor ? 'invalid_movement_unit' : 'item_and_nonzero_delta_required' });
-      if (item.onHand + convertedDelta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
-      const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: convertedDelta > 0 ? 'in' : 'out', quantity: Math.abs(convertedDelta), reason: input.reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
-      recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand }, { onHand: item.onHand + convertedDelta, movement });
-      return json(res, 201, { ...movement, itemName: item.name, delta: convertedDelta, unit: item.unit, sourceUnit });
+      let movement;
+      try { movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, unit: item.unit, direction: convertedDelta > 0 ? 'in' : 'out', quantity: Math.abs(convertedDelta), reason: input.reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null }); }
+      catch (error) { if (error.code === 'insufficient_stock') return json(res, 409, { error: 'insufficient_stock', onHand: error.onHand }); if (error.message === 'inventory_unit_changed') return json(res, 409, { error: 'invalid_movement_unit' }); throw error; }
+      recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: movement.onHandBefore }, { onHand: movement.onHandAfter, movement });
+      return json(res, 201, { ...movement, delta: convertedDelta, sourceUnit });
     }
     const item = inventory.find((entry) => entry.id === input.itemId);
     const delta = Number(input.delta); const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit]; const convertedDelta = item && conversionFactor ? delta * conversionFactor : delta;
@@ -2076,6 +2156,7 @@ if (staffProfile && req.method === 'PATCH') {
         if (orderAction[2] === 'status') {
           const allowed = ['open', 'in_progress', 'ready', 'closed', 'cancelled'];
           if (!allowed.includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
+          if (input.status === 'closed') return json(res, 409, { error: 'order_close_requires_payment', action: 'POST /api/orders/:id/close' });
            const { rows: currentRows } = await repositories.pool.query('SELECT id,status,table_id AS "tableId" FROM orders WHERE id=$1 AND venue_id=$2', [orderAction[1], venueDbId]);
            if (!currentRows[0]) return json(res, 404, { error: 'order_not_found' });
            if (!validOrderTransition(currentRows[0].status, input.status)) return json(res, 409, { error: 'invalid_order_transition', from: currentRows[0].status, to: input.status });
@@ -2097,6 +2178,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (!order) return json(res, 404, { error: 'order_not_found' });
     if (orderAction[2] === 'status') {
        if (!['open', 'in_progress', 'ready', 'closed', 'cancelled'].includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
+       if (input.status === 'closed') return json(res, 409, { error: 'order_close_requires_payment', action: 'POST /api/orders/:id/close' });
        if (!validOrderTransition(order.status, input.status)) return json(res, 409, { error: 'invalid_order_transition', from: order.status, to: input.status });
       const before = { status: order.status, tableId: order.tableId }; order.status = input.status; if (input.status === 'closed') order.closedAt = new Date().toISOString();
       if (['closed', 'cancelled'].includes(input.status)) releaseMemoryTableIfIdle(order.tableId);
@@ -2111,11 +2193,32 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemMatch[1])) {
-      const { rows: orderStateRows } = await repositories.pool.query('SELECT status FROM orders WHERE id=$1 AND venue_id=$2', [itemMatch[1], venueDbId]);
-      if (!orderStateRows[0]) return json(res, 404, { error: 'order_not_found' });
-      if (!['open', 'in_progress', 'ready'].includes(orderStateRows[0].status)) return json(res, 409, { error: 'order_not_editable' });
       const input = await body(req); const quantity = Number(input.quantity || 1); if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) return json(res, 400, { error: 'quantity_must_be_positive' });
-      try { const { rows: productRows } = await repositories.pool.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true', [input.productId, venueDbId]); const product = productRows[0]; if (!product) return json(res, 400, { error: 'product_not_found' }); const { rows: existingRows } = await repositories.pool.query('SELECT id,product_id AS "productId",quantity,unit_price AS "unitPrice",station FROM order_items WHERE order_id=$1 AND product_id=$2 AND unit_price=$3 ORDER BY id LIMIT 1', [itemMatch[1], product.id, product.unitPrice]); if (existingRows[0]) { const nextQuantity = Number(existingRows[0].quantity) + quantity; if (nextQuantity > 999) return json(res, 400, { error: 'quantity_must_be_positive' }); const { rows } = await repositories.pool.query('UPDATE order_items SET quantity=$1 WHERE id=$2 RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station', [nextQuantity, existingRows[0].id]); const result = { ...rows[0], name: product.name }; recordAudit(req, 'order.item_quantity_increased', 'order_item', rows[0].id, existingRows[0], result); return json(res, 200, result); } const { rows } = await repositories.pool.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,$4,$5) RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station', [itemMatch[1], product.id, quantity, product.unitPrice, product.station]); const result = { ...rows[0], name: product.name }; recordAudit(req, 'order.item_added', 'order_item', rows[0].id, null, result); return json(res, 201, result); } catch (error) { return json(res, 409, { error: 'order_item_create_failed', detail: error.message }); }
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const { rows: orderRows } = await client.query('SELECT id,status FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [itemMatch[1], venueDbId]);
+        if (!orderRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+        if (!['open', 'in_progress', 'ready'].includes(orderRows[0].status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_editable' }); }
+        const { rows: productRows } = await client.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true', [input.productId, venueDbId]);
+        const product = productRows[0];
+        if (!product) { await client.query('ROLLBACK'); return json(res, 400, { error: 'product_not_found' }); }
+        const { rows: existingRows } = await client.query('SELECT id,product_id AS "productId",quantity,unit_price AS "unitPrice",station FROM order_items WHERE order_id=$1 AND product_id=$2 AND unit_price=$3 ORDER BY id LIMIT 1', [itemMatch[1], product.id, product.unitPrice]);
+        let result;
+        let status;
+        if (existingRows[0]) {
+          const nextQuantity = Number(existingRows[0].quantity) + quantity;
+          if (nextQuantity > 999) { await client.query('ROLLBACK'); return json(res, 400, { error: 'quantity_must_be_positive' }); }
+          const { rows } = await client.query('UPDATE order_items SET quantity=$1 WHERE id=$2 RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station', [nextQuantity, existingRows[0].id]);
+          result = { ...rows[0], name: product.name }; status = 200;
+        } else {
+          const { rows } = await client.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price,station) VALUES ($1,$2,$3,$4,$5) RETURNING id,product_id AS "productId",quantity,unit_price AS "unitPrice",station', [itemMatch[1], product.id, quantity, product.unitPrice, product.station]);
+          result = { ...rows[0], name: product.name }; status = 201;
+        }
+        await client.query('COMMIT');
+        recordAudit(req, existingRows[0] ? 'order.item_quantity_increased' : 'order.item_added', 'order_item', result.id, existingRows[0] || null, result);
+        return json(res, status, result);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'order_item_create_failed', detail: error.message }); } finally { client.release(); }
     }
     const order = orders.find((entry) => entry.id === itemMatch[1]);
     if (order && !['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' });
@@ -2136,13 +2239,24 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(itemAction[1]) && /^[0-9a-f-]{36}$/i.test(itemAction[2])) {
+      let client;
       try {
-        const { rows: orderStateRows } = await repositories.pool.query('SELECT status FROM orders WHERE id=$1 AND venue_id=$2', [itemAction[1], venueDbId]);
-        if (!orderStateRows[0]) return json(res, 404, { error: 'order_not_found' });
-        if (!['open', 'in_progress', 'ready'].includes(orderStateRows[0].status)) return json(res, 409, { error: 'order_not_editable' });
-        if (req.method === 'DELETE') { const { rows } = await repositories.pool.query('DELETE FROM order_items WHERE id=$1 AND order_id=$2 RETURNING id,quantity,unit_price AS "unitPrice"', [itemAction[2], itemAction[1]]); if (!rows[0]) return json(res, 404, { error: 'order_item_not_found' }); recordAudit(req, 'order.item_removed', 'order_item', rows[0].id, rows[0], null); return json(res, 200, rows[0]); }
-        const input = await body(req); const quantity = Number(input.quantity); if (!Number.isFinite(quantity) || quantity < 1) return json(res, 400, { error: 'quantity_must_be_positive' }); const { rows } = await repositories.pool.query('UPDATE order_items SET quantity=$1 WHERE id=$2 AND order_id=$3 RETURNING id,quantity,unit_price AS "unitPrice"', [quantity, itemAction[2], itemAction[1]]); if (!rows[0]) return json(res, 404, { error: 'order_item_not_found' }); recordAudit(req, 'order.item_quantity_changed', 'order_item', rows[0].id, null, rows[0]); return json(res, 200, rows[0]);
-      } catch (error) { return json(res, 409, { error: 'order_item_update_failed', detail: error.message }); }
+        const input = req.method === 'PATCH' ? await body(req) : {};
+        const quantity = req.method === 'PATCH' ? Number(input.quantity) : null;
+        if (req.method === 'PATCH' && (!Number.isFinite(quantity) || quantity < 1 || quantity > 999)) return json(res, 400, { error: 'quantity_must_be_positive' });
+        client = await repositories.pool.connect();
+        await client.query('BEGIN');
+        const { rows: orderRows } = await client.query('SELECT id,status FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [itemAction[1], venueDbId]);
+        if (!orderRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+        if (!['open', 'in_progress', 'ready'].includes(orderRows[0].status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_editable' }); }
+        const query = req.method === 'DELETE'
+          ? await client.query('DELETE FROM order_items WHERE id=$1 AND order_id=$2 RETURNING id,quantity,unit_price AS "unitPrice"', [itemAction[2], itemAction[1]])
+          : await client.query('UPDATE order_items SET quantity=$1 WHERE id=$2 AND order_id=$3 RETURNING id,quantity,unit_price AS "unitPrice"', [quantity, itemAction[2], itemAction[1]]);
+        if (!query.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_item_not_found' }); }
+        await client.query('COMMIT');
+        recordAudit(req, req.method === 'DELETE' ? 'order.item_removed' : 'order.item_quantity_changed', 'order_item', query.rows[0].id, null, req.method === 'DELETE' ? null : query.rows[0]);
+        return json(res, 200, query.rows[0]);
+      } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'order_item_update_failed', detail: error.message }); } finally { client?.release(); }
     }
     const order = orders.find((entry) => entry.id === itemAction[1]); if (order && !['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' }); const item = order?.items?.find((entry) => entry.id === itemAction[2]); if (!item) return json(res, 404, { error: 'order_item_not_found' });
     if (req.method === 'DELETE') { order.items = order.items.filter((entry) => entry.id !== item.id); recordAudit(req, 'order.item_removed', 'order_item', item.id, item, null); return json(res, 200, { id: item.id }); }
@@ -2153,16 +2267,59 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'orders')) return;
     if (req.method === 'POST' && await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(paymentPath[1])) {
+      if (req.method === 'GET') {
+        try {
+          const { rows: orderRows } = await repositories.pool.query('SELECT id,status,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [paymentPath[1], venueDbId]);
+          const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' });
+          const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [paymentPath[1]]);
+          const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const { rows: discountRows } = await repositories.pool.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [paymentPath[1]]); const discount = discountRows.reduce((sum, item) => sum + (item.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(item.value || 0))) / 100 : Math.max(0, Number(item.value || 0))), 0); const due = Math.max(subtotal - discount, Number(persisted.minimumOrderTotal || 0));
+          const { rows } = await repositories.pool.query('SELECT id,method,amount,status,created_at AS "createdAt" FROM payments WHERE order_id=$1 ORDER BY created_at', [paymentPath[1]]); const paid = rows.filter((item) => item.status === 'paid').reduce((sum, item) => sum + Number(item.amount), 0);
+          return json(res, 200, { items: rows, due, paid, remaining: Math.max(0, due - paid) });
+        } catch (error) { return json(res, 409, { error: 'payment_create_failed', detail: error.message }); }
+      }
+
+      const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash');
+      if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' });
+      let client;
       try {
-        const { rows: orderRows } = await repositories.pool.query('SELECT id,status,table_id AS "tableId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [paymentPath[1], venueDbId]);
-        const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' }); if (req.method === 'POST' && (persisted.status === 'closed' || persisted.status === 'cancelled')) return json(res, 409, { error: 'order_already_final' });
-        const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [paymentPath[1]]);
-        const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const { rows: discountRows } = await repositories.pool.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [paymentPath[1]]); const discount = discountRows.reduce((sum, item) => sum + (item.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(item.value || 0))) / 100 : Math.max(0, Number(item.value || 0))), 0); const due = Math.max(subtotal - discount, Number(persisted.minimumOrderTotal || 0));
-        if (req.method === 'GET') { const { rows } = await repositories.pool.query('SELECT id,method,amount,status,created_at AS "createdAt" FROM payments WHERE order_id=$1 ORDER BY created_at', [paymentPath[1]]); return json(res, 200, { items: rows, due, paid: rows.filter((item) => item.status === 'paid').reduce((sum, item) => sum + Number(item.amount), 0), remaining: Math.max(0, due - rows.filter((item) => item.status === 'paid').reduce((sum, item) => sum + Number(item.amount), 0)) }); }
-        const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' });
-        const { rows: paidRows } = await repositories.pool.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [paymentPath[1]]); const paid = Number(paidRows[0]?.paid || 0); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) });
-        const { rows } = await repositories.pool.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,\'paid\') RETURNING id,method,amount,status,created_at AS "createdAt"', [paymentPath[1], method, amount]); const nextPaid = paid + amount; if (nextPaid >= due) { let depletion = { totalCost: 0 }; try { depletion = await depleteRecipeForOrder(repositories.pool, paymentPath[1], venueDbId, req.user?.id); } catch (depletionError) { if (depletionError.message === 'insufficient_recipe_stock') { await repositories.pool.query('DELETE FROM payments WHERE id=$1', [rows[0].id]); return json(res, 409, { error: 'insufficient_recipe_stock', missing: depletionError.missing }); } throw depletionError; } await repositories.pool.query('UPDATE orders SET status=\'closed\',closed_at=now() WHERE id=$1 AND venue_id=$2', [paymentPath[1], venueDbId]); if (depletion.totalCost > 0) await repositories.pool.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, paymentPath[1], depletion.totalCost]); if (persisted.tableId) await repositories.pool.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]); } const closed = nextPaid >= due; const finalMeta = closed ? { finalTotal: due, discountTotal: discount, minimumAdjustment: Math.max(0, Number(persisted.minimumOrderTotal || 0) - (subtotal - discount)), paymentMethod: paid > 0 ? 'mixed' : method } : {}; recordAudit(req, 'order.payment_added', 'payment', rows[0].id, null, { ...rows[0], orderId: paymentPath[1], paid: nextPaid, due, closed }); return json(res, 201, { ...rows[0], due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...finalMeta });
-      } catch (error) { return json(res, 409, { error: 'payment_create_failed', detail: error.message }); }
+        client = await repositories.pool.connect();
+        await client.query('BEGIN');
+        // Serialize concurrent payments and close requests using the same order lock.
+        const { rows: orderRows } = await client.query('SELECT id,status,table_id AS "tableId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [paymentPath[1], venueDbId]);
+        const persisted = orderRows[0];
+        if (!persisted) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+        if (persisted.status === 'closed' || persisted.status === 'cancelled') { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_already_final' }); }
+        const { rows: itemRows } = await client.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [paymentPath[1]]);
+        const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+        const { rows: discountRows } = await client.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [paymentPath[1]]);
+        const discount = discountRows.reduce((sum, item) => sum + (item.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(item.value || 0))) / 100 : Math.max(0, Number(item.value || 0))), 0);
+        const due = Math.max(subtotal - discount, Number(persisted.minimumOrderTotal || 0));
+        const { rows: paidRows } = await client.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [paymentPath[1]]);
+        const paid = Number(paidRows[0]?.paid || 0);
+        if (paid + amount > due + 0.01) { await client.query('ROLLBACK'); return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); }
+        const { rows } = await client.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,\'paid\') RETURNING id,method,amount,status,created_at AS "createdAt"', [paymentPath[1], method, amount]);
+        const nextPaid = paid + amount;
+        const closed = nextPaid >= due;
+        const finalMeta = closed ? { finalTotal: due, discountTotal: discount, minimumAdjustment: Math.max(0, Number(persisted.minimumOrderTotal || 0) - (subtotal - discount)), paymentMethod: paid > 0 ? 'mixed' : method } : {};
+        if (closed) {
+          const depletion = await depleteRecipeForOrder(repositories.pool, paymentPath[1], venueDbId, req.user?.id, client);
+          const { rows: closedRows } = await client.query('UPDATE orders SET status=\'closed\',closed_at=now() WHERE id=$1 AND venue_id=$2 AND status NOT IN (\'closed\',\'cancelled\') RETURNING id', [paymentPath[1], venueDbId]);
+          if (!closedRows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
+          if (depletion.totalCost > 0) await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, paymentPath[1], depletion.totalCost]);
+          if (persisted.tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]);
+        }
+        const response = { ...rows[0], due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...finalMeta };
+        await client.query('COMMIT');
+        recordAudit(req, 'order.payment_added', 'payment', rows[0].id, null, { ...rows[0], orderId: paymentPath[1], paid: nextPaid, due, closed });
+        return json(res, 201, response);
+      } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing });
+        if (error.code === 'order_already_final') return json(res, 409, { error: 'order_already_final' });
+        return json(res, 409, { error: 'payment_create_failed', detail: error.message });
+      } finally {
+        client?.release();
+      }
     }
     const order = orders.find((entry) => entry.id === paymentPath[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); if (req.method === 'POST' && (order.status === 'closed' || order.status === 'cancelled')) return json(res, 409, { error: 'order_already_final' }); order.payments ||= []; const subtotal = orderTotal(order); const discount = approvedDiscountTotal(order.id, subtotal); const due = Math.max(subtotal - discount, Number(order.minimumOrderTotal || 0)); const paid = order.payments.reduce((sum, item) => sum + Number(item.amount), 0);
     if (req.method === 'GET') return json(res, 200, { items: order.payments, due, paid, remaining: Math.max(0, due - paid) });
@@ -2189,7 +2346,56 @@ if (staffProfile && req.method === 'PATCH') {
     if (await requireOpenShift(req, res)) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(orderPath[1])) {
       const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
-      try { const { rows: orderRows } = await repositories.pool.query('SELECT id,status,table_id AS "tableId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2', [orderPath[1], venueDbId]); const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' }); if (['closed', 'cancelled'].includes(persisted.status)) return json(res, 409, { error: 'order_already_final' }); const { rows: itemRows } = await repositories.pool.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderPath[1]]); const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0); const { rows: discountRows } = await repositories.pool.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [orderPath[1]]); const discount = discountRows.reduce((sum, item) => sum + (item.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(item.value || 0))) / 100 : Math.max(0, Number(item.value || 0))), 0); const minimum = Number(persisted.minimumOrderTotal || 0); const finalTotal = Math.max(subtotal - discount, minimum); const { rows: paidRows } = await repositories.pool.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [orderPath[1]]); const paid = Number(paidRows[0]?.paid || 0); const remaining = Math.max(0, finalTotal - paid); let depletion = { totalCost: 0 }; try { depletion = await depleteRecipeForOrder(repositories.pool, orderPath[1], venueDbId, req.user?.id); } catch (depletionError) { if (depletionError.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: depletionError.missing }); throw depletionError; } const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=now() WHERE id=$2 AND venue_id=$3 AND status NOT IN (\'closed\',\'cancelled\') RETURNING *', ['closed', orderPath[1], venueDbId]); if (!rows[0]) return json(res, 409, { error: 'order_already_final' }); if (depletion.totalCost > 0) await repositories.pool.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]); if (remaining > 0) await repositories.pool.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,$4)', [orderPath[1], paymentMethod, remaining, 'paid']); if (persisted.tableId) await repositories.pool.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]); const result = { ...rows[0], subtotal, discountTotal: discount, finalTotal, paid: paid + remaining, remaining: 0, minimumAdjustment: Math.max(0, minimum - (subtotal - discount)), paymentMethod }; recordAudit(req, 'order.closed', 'order', orderPath[1], { status: persisted.status }, result); return json(res, 200, result); } catch (error) { return json(res, 409, { error: 'order_close_failed', detail: error.message }); }
+      let client;
+      let result;
+      try {
+        client = await repositories.pool.connect();
+        await client.query('BEGIN');
+        // Serialize concurrent close attempts before reading totals or depleting stock.
+        const { rows: orderRows } = await client.query('SELECT id,status,table_id AS "tableId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderPath[1], venueDbId]);
+        const persisted = orderRows[0];
+        if (!persisted) {
+          await client.query('ROLLBACK');
+          return json(res, 404, { error: 'order_not_found' });
+        }
+        if (['closed', 'cancelled'].includes(persisted.status)) {
+          await client.query('ROLLBACK');
+          return json(res, 409, { error: 'order_already_final' });
+        }
+
+        const { rows: itemRows } = await client.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderPath[1]]);
+        const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+        const { rows: discountRows } = await client.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [orderPath[1]]);
+        const discount = discountRows.reduce((sum, item) => sum + (item.type === 'percent' ? subtotal * Math.min(100, Math.max(0, Number(item.value || 0))) / 100 : Math.max(0, Number(item.value || 0))), 0);
+        const minimum = Number(persisted.minimumOrderTotal || 0);
+        const finalTotal = Math.max(subtotal - discount, minimum);
+        const { rows: paidRows } = await client.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [orderPath[1]]);
+        const paid = Number(paidRows[0]?.paid || 0);
+        const remaining = Math.max(0, finalTotal - paid);
+
+        const depletion = await depleteRecipeForOrder(repositories.pool, orderPath[1], venueDbId, req.user?.id, client);
+        const { rows } = await client.query('UPDATE orders SET status=$1,closed_at=now() WHERE id=$2 AND venue_id=$3 AND status NOT IN (\'closed\',\'cancelled\') RETURNING *', ['closed', orderPath[1], venueDbId]);
+        if (!rows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
+        if (depletion.totalCost > 0) await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]);
+        if (remaining > 0) await client.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,$4)', [orderPath[1], paymentMethod, remaining, 'paid']);
+        if (persisted.tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]);
+        result = { ...rows[0], subtotal, discountTotal: discount, finalTotal, paid: paid + remaining, remaining: 0, minimumAdjustment: Math.max(0, minimum - (subtotal - discount)), paymentMethod };
+        await client.query('COMMIT');
+        // Audit is intentionally emitted after commit so it never describes a rolled-back close.
+        recordAudit(req, 'order.closed', 'order', orderPath[1], { status: persisted.status }, result);
+      } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        if (error.message === 'insufficient_recipe_stock') {
+          return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing });
+        }
+        if (error.code === 'order_already_final') {
+          return json(res, 409, { error: 'order_already_final' });
+        }
+        return json(res, 409, { error: 'order_close_failed', detail: error.message });
+      } finally {
+        client?.release();
+      }
+      return json(res, 200, result);
     }
     const order = orders.find((entry) => entry.id === orderPath[1]);
     if (!order) return json(res, 404, { error: 'order_not_found' });
