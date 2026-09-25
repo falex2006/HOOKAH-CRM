@@ -43,16 +43,22 @@ const product=await req('/api/products','POST',{name:'QA напиток',categor
 await req(`/api/products/${product.id}`,'PATCH',{price:175});
 await req(`/api/products/${product.id}`,'DELETE');
 await req(`/api/product-categories/${category.id}`,'DELETE');
-const recipe=await req('/api/recipes','POST',{name:'QA рецепт',ingredients:[{name:'вода',quantity:'100 мл'}]},201);
+await req('/api/recipes','POST',{name:'QA без выхода',ingredients:[{name:'вода',quantity:'100 мл'}]},400);
+const recipe=await req('/api/recipes','POST',{name:'QA рецепт',ingredients:[{name:'вода',quantity:'100 мл'}],yieldQuantity:1,yieldUnit:'порция',portionCount:1},201);
+assert.equal(recipe.yieldQuantity,1); assert.equal(recipe.yieldUnit,'порция'); assert.equal(recipe.portionCount,1); checks++;
+await req(`/api/recipes/${recipe.id}`,'PATCH',{yieldQuantity:2,yieldUnit:'л',portionCount:4});
+await req(`/api/recipes/${recipe.id}`,'PATCH',{yieldUnit:'мл'});
+const outputPatched=(await req('/api/recipes')).items.find(x=>x.id===recipe.id); assert.equal(outputPatched.yieldQuantity,2); assert.equal(outputPatched.yieldUnit,'мл'); assert.equal(outputPatched.portionCount,4); checks++;
+await req(`/api/recipes/${recipe.id}`,'PATCH',{yieldQuantity:0},400);
 await req(`/api/recipes/${recipe.id}`,'PATCH',{name:'QA рецепт изменён',technology:'Смешать'});
 await req(`/api/recipes/${recipe.id}`,'PATCH',{name:'Should not persist',technology:'x'.repeat(4001)},400);
 assert.equal((await req('/api/recipes')).items.find(x=>x.id===recipe.id).name,'QA рецепт изменён');checks++;
 await req(`/api/recipes/${recipe.id}`,'DELETE');
 const costItem=await req('/api/inventory/items','POST',{name:'QA — Вода',unit:'мл',itemType:'ingredient',cost:0.5},201);
 try {
- const costRecipe=await req('/api/recipes','POST',{name:'QA конвертация',ingredients:[{ingredientId:costItem.id,name:costItem.name,quantity:'2 л'}]},201);
+ const costRecipe=await req('/api/recipes','POST',{name:'QA конвертация',ingredients:[{ingredientId:costItem.id,name:costItem.name,quantity:'2 л'}],yieldQuantity:2,yieldUnit:'л',portionCount:1},201);
  const cost=await req(`/api/recipes/${costRecipe.id}/cost`);
- assert.equal(cost.lines[0].quantity,2000); assert.equal(cost.lines[0].unit,'мл'); assert.equal(cost.totalCost,1000); checks++;
+ assert.equal(cost.lines[0].quantity,2000); assert.equal(cost.lines[0].unit,'мл'); assert.equal(cost.totalCost,1000); assert.equal(cost.costPerPortion,1000); checks++;
  await req(`/api/recipes/${costRecipe.id}`,'DELETE');
 } finally { await req(`/api/inventory/items/${costItem.id}`,'DELETE'); }
 console.log(`WAREHOUSE QA: ${checks} checks passed`);
