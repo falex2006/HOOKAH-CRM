@@ -1913,3 +1913,17 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .visual-catalog-empty{grid-column:1/-1;min-height:140px;display:grid;place-items:center;align-content:center;gap:6px;text-align:center;padding:24px}
 .velora-theme .visual-catalog-empty strong{color:#c8d0d9;font-size:15px}
 .velora-theme .visual-catalog-empty small{color:#858f9b;font-size:12px}
+
+/* Recipe wizard clarity on compact screens. */
+.velora-theme .recipe-wizard .required-mark{color:#ff7180;font-weight:800}
+.velora-theme .recipe-wizard .field-hint{display:block;color:#858f9b;font-size:11px;line-height:1.45;margin-top:2px}
+.velora-theme .recipe-linked-empty{display:block;padding:8px 2px;color:#858f9b;font-size:12px}
+.velora-theme .recipe-ingredient-picker label>span{display:block;color:#aeb7c1;font-size:12px;line-height:1.35;margin-bottom:2px}
+.velora-theme .recipe-wizard-steps button{line-height:1.25;padding-inline:8px}
+@media(max-width:650px){
+  .velora-theme .recipe-wizard-steps{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .velora-theme .recipe-wizard-steps button{min-height:44px;font-size:12px;padding:8px 6px}
+  .velora-theme .recipe-wizard .recipe-ingredient-picker .form-row{grid-template-columns:1fr;gap:10px}
+  .velora-theme .recipe-wizard-nav,.velora-theme .recipe-wizard>[data-recipe-stage="4"]+.recipe-wizard-nav+ .toolbar-row{gap:8px}
+  .velora-theme .recipe-wizard-nav .button,.velora-theme .recipe-wizard>[data-recipe-stage="4"]~.toolbar-row .button{flex:1}
+}
