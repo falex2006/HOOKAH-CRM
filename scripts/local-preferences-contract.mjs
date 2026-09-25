@@ -6,4 +6,7 @@ assert.match(server, /lockTimeoutMinutes/);
 assert.match(server, /dashboardModules/);
 assert.match(server, /dashboardRevenueStyle/);
 assert.match(server, /insights/);
-console.log('LOCAL PREFERENCES CONTRACT: PASS (per-user timeout, modules, revenue style and insights are wired)');
+const portal = fs.readFileSync('portal.js', 'utf8');
+assert.match(portal, /data-dashboard-module-toggle/);
+assert.doesNotMatch(portal, /data-dashboard-revenue-style|data-insight-toggle/);
+console.log('LOCAL PREFERENCES CONTRACT: PASS (dashboard modules are user configurable; headline KPI styling stays consistent; legacy fields remain compatible)');

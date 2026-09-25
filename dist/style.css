@@ -141,6 +141,7 @@
 .staff-profile-phones{display:grid;gap:10px;padding:12px;border:1px solid #303844;border-radius:14px;background:rgba(255,255,255,.03)}.staff-profile-phones__head{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#b9c4ce}.staff-profile-phone-add{border:1px solid #ff7180;border-radius:9px;padding:6px 9px;background:transparent;color:#ff7180;cursor:pointer}.staff-profile-phone-list{display:grid;gap:8px}.staff-profile-phone-row{display:grid;grid-template-columns:120px minmax(120px,1fr) auto auto;align-items:center;gap:7px}.staff-profile-phone-row select,.staff-profile-phone-row input[type=tel]{min-width:0;width:100%;box-sizing:border-box;padding:9px;border:1px solid #3d4651;border-radius:8px;background:#11151a;color:#eef1f4}.staff-profile-phone-row label{font-size:11px;color:#9ca8b2;white-space:nowrap}.staff-profile-phone-row button{border:0;background:transparent;color:#ff7c86;font-size:19px;cursor:pointer}@media(max-width:540px){.staff-profile-phone-row{grid-template-columns:1fr 1fr}.staff-profile-phone-row label{grid-column:1}.staff-profile-phone-row button{grid-column:2;justify-self:end}}
 .staff-profile-modal{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:rgba(4,8,12,.72);backdrop-filter:blur(8px)}
 .staff-profile-dialog{position:relative;width:min(460px,100%);display:grid;gap:16px;padding:24px;border:1px solid rgba(255,255,255,.12);border-radius:22px;background:#171c22;color:#f7f9fb;box-shadow:0 24px 80px rgba(0,0,0,.42)}
+
 .staff-profile-close{position:absolute;top:12px;right:14px;border:0;background:transparent;color:#b8c1cb;font-size:26px;cursor:pointer}
 .staff-profile-dialog__heading{display:flex;align-items:center;gap:12px}.staff-profile-dialog__heading h2{margin:0}.staff-profile-dialog__heading p{margin:4px 0 0;color:#91a0ad}
 .staff-profile-dialog__avatar{width:58px;height:58px;font-size:23px}.staff-profile-field{display:grid;gap:7px;color:#b9c4ce}.staff-profile-field input{width:100%;box-sizing:border-box}.staff-profile-error{min-height:20px;margin:0;color:#ff8890}.staff-profile-actions{display:flex;justify-content:flex-end;gap:10px}.staff-profile-actions button{border:1px solid #ff7180;border-radius:12px;padding:10px 16px;background:transparent;color:#ff7180;cursor:pointer}.staff-profile-actions .staff-profile-save{background:#ff7180;color:#07131d}
@@ -2031,3 +2032,32 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 @media (max-width:700px){.premix-batch-row{align-items:flex-start;flex-direction:column}.finance-staff-items{font-size:.78rem}}
 
 .velora-theme .employee-turnover-panel{display:grid;gap:12px;max-width:720px;padding:24px}.velora-theme .employee-turnover-panel>div{display:grid;gap:8px}.velora-theme .employee-turnover-panel strong{font-size:clamp(32px,6vw,48px);line-height:1.05;letter-spacing:-.04em;color:#f5f7f8}.velora-theme .employee-turnover-panel small{font-size:13px}
+
+/* The daily dashboard uses one visual system for every headline metric. */
+.velora-theme .dashboard-kpi-grid{grid-template-columns:minmax(0,1.18fr) repeat(3,minmax(0,1fr));gap:14px;container-type:inline-size;container-name:dashboard-kpis}
+.velora-theme .dashboard-kpi-grid>.kpi{display:flex;flex-direction:column;justify-content:flex-start;min-width:0;min-height:150px;padding:20px;border-color:#303640;border-radius:16px;background:#181b21;box-shadow:none;transition:border-color .18s ease,background-color .18s ease,transform .18s ease}
+.velora-theme .dashboard-kpi-grid>.kpi:hover{transform:translateY(-2px);border-color:#4a515c;background:#1b1e24}
+.velora-theme .dashboard-kpi-grid>.kpi::after{display:none}
+.velora-theme .dashboard-kpi-grid>.kpi:focus-visible{outline:2px solid #ff7180;outline-offset:3px}
+.velora-theme .dashboard-kpi-grid>.kpi>span{color:#9ca5af;font-size:13px;line-height:1.4}
+.velora-theme .dashboard-kpi-grid>.kpi>strong{margin:16px 0 8px;color:#f2f4f6;font-size:clamp(28px,2.2vw,34px);line-height:1.05;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.velora-theme .dashboard-kpi-grid>.kpi>small{display:block;margin-top:auto;color:#8f99a4;font-size:12px;line-height:1.4}
+.velora-theme .dashboard-kpi-grid>.dashboard-revenue-card{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(92px,.85fr);align-items:center;gap:14px;border-color:#443640;background:linear-gradient(145deg,#201d24,#181a20);box-shadow:inset 3px 0 0 #ff6372;cursor:pointer}
+.velora-theme .dashboard-kpi-grid>.dashboard-revenue-card:hover{border-color:#62444f;background:linear-gradient(145deg,#252027,#1a1c22)}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-main{display:grid;align-content:center;gap:3px;min-width:0}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-main>span{color:#a5adb8;font-size:13px}
+.velora-theme .dashboard-kpi-grid>.dashboard-revenue-card .dashboard-revenue-main>strong{display:block;margin:8px 0 5px;color:#f5f6f8;font-size:clamp(34px,2.8vw,42px);line-height:1.05;letter-spacing:-.045em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-main>small{max-width:none;color:#44d6a6;font-size:11px;line-height:1.4}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-pending{display:grid;align-content:center;justify-self:stretch;gap:4px;min-width:0;max-width:none;width:auto;padding:3px 0 3px 14px;border:0;border-left:1px solid #3a3038;border-radius:0;background:transparent}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-pending>span{color:#9ca5af;font-size:12px;line-height:1.35}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-pending>strong{color:#d5d9de;font-size:clamp(18px,1.5vw,22px);line-height:1.15;letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-pending.has-pending>strong{color:#ff8290}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-pending>small{color:#89929d;font-size:10px;line-height:1.35;overflow-wrap:anywhere}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-pending>small::after{content:none!important}
+.velora-theme .dashboard-kpi-grid .dashboard-revenue-main small.positive{color:#44d6a6}
+@media(max-width:1366px){.velora-theme .dashboard-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.velora-theme .dashboard-kpi-grid{grid-template-columns:minmax(0,1fr);gap:10px}.velora-theme .dashboard-kpi-grid>.kpi{min-height:126px;padding:17px}.velora-theme .dashboard-kpi-grid>.dashboard-revenue-card{grid-template-columns:minmax(0,1.2fr) minmax(96px,.8fr);min-height:140px;gap:12px}.velora-theme .dashboard-kpi-grid .dashboard-revenue-pending{padding-left:11px}.velora-theme .dashboard-kpi-grid>.kpi>strong{font-size:30px}.velora-theme .dashboard-kpi-grid>.dashboard-revenue-card .dashboard-revenue-main>strong{font-size:36px}}
+@media(prefers-reduced-motion:reduce){.velora-theme .dashboard-kpi-grid>.kpi{transition:none}.velora-theme .dashboard-kpi-grid>.kpi:hover{transform:none}}
+.velora-theme #dashboard-insights .insight-layout{grid-template-columns:minmax(0,1fr)}
+.velora-theme #dashboard-insights .insight-payment-empty{display:grid;align-content:center;gap:5px;min-height:72px;padding:8px 0;color:#dfe3e7}
+.velora-theme #dashboard-insights .insight-payment-empty span{color:#929ba5;font-size:12px;line-height:1.45}
