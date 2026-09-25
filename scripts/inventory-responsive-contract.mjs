@@ -38,5 +38,20 @@ assert.match(css, /td\.auto-order-check-col\{display:flex;align-items:center;jus
   'auto-order selection must be a clear touch-sized control on constrained screens');
 assert.match(css, /td\.auto-order-check-col::after\{content:'В заявку'/,
   'auto-order checkbox must explain its action on constrained screens');
+for (const requirement of ['Приёмка по документу', 'Поставщик', 'Номер документа', 'Дата накладной', 'Добавить позицию', 'Сохранить черновик', 'Провести поступление', 'purchase-documents']) {
+  assert.ok(portal.includes(requirement), `documented receiving workflow is missing: ${requirement}`);
+}
+assert.match(portal, /Черновик сохранён\. Остаток изменится после проведения\./,
+  'saving a draft must clearly state that stock has not moved yet');
+assert.match(portal, /allItems = data\.items \|\| \[\]; renderPurchaseLines\(/,
+  'purchase item options must refresh after inventory finishes loading asynchronously');
+assert.match(portal, /В учёт поступит|В учёт поступит /,
+  'each purchase line must show its normalized stock quantity');
+assert.match(css, /\.purchase-line\{display:grid;grid-template-columns:/,
+  'purchase lines must have a structured desktop layout');
+assert.match(css, /@media\(max-width:650px\)[\s\S]*?\.purchase-line\{grid-template-columns:minmax\(0,1fr\)/,
+  'purchase lines must collapse into a single-column phone layout');
+assert.match(css, /button\.button:not\(\.primary\):not\(\.danger\):not\(\.danger-outline\)\{background:#20242a;border:1px solid/,
+  'neutral buttons must keep a visible premium control surface');
 
 console.log('INVENTORY RESPONSIVE CONTRACT: PASS');

@@ -4,8 +4,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 const root = new URL('../', import.meta.url);
 const htmlFiles = readdirSync(root).filter(file => file.endsWith('.html'));
 assert.ok(htmlFiles.length >= 14, 'all application HTML routes should be present');
-const cssRevision = 243;
-const portalRevision = 256;
+const cssRevision = 245;
+const portalRevision = 258;
 for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, new RegExp(`style\\.css\\?rev=${cssRevision}`), `${file} must use current CSS cache version`);
@@ -32,6 +32,10 @@ for (const fileUrl of distHtmlFiles) {
   if (!/\/login(?:\/|\.html)/.test(fileUrl.pathname) && !/\/platform(?:\/|\.html)/.test(fileUrl.pathname) && !fileUrl.pathname.endsWith('/dist/index.html')) {
     assert.match(html, new RegExp(`portal\\.js\\?rev=${portalRevision}`), `${fileUrl.pathname} must use current portal JS cache version`);
   }
+}
+for (const file of htmlFiles) {
+  assert.equal(readFileSync(new URL(`../dist/${file}`, import.meta.url), 'utf8'), readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'),
+    `flat dist/${file} must match its current source template`);
 }
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 assert.match(css, /\.velora-theme a\.button[^}]*text-decoration:none!important/);

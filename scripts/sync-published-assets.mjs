@@ -3,8 +3,13 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '243';
-const portalRevision = '256';
+const cssRevision = '245';
+const portalRevision = '258';
+// Keep flat published pages in dist aligned with their source templates. Some
+// deploy targets resolve /inventory.html while others use /inventory/.
+for (const name of readdirSync(root).filter((entry) => entry.endsWith('.html'))) {
+  cpSync(resolve(root, name), resolve(root, 'dist', name));
+}
 const htmlFiles = [];
 const walk = (directory) => {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
