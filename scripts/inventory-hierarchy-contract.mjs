@@ -15,4 +15,7 @@ if (!portal.includes('syncInventoryHierarchyOptions')) throw new Error('inventor
 if (!portal.includes('Выберите подцех из справочника выбранного цеха')) throw new Error('inventory hierarchy UX validation is missing');
 if (!server.includes('validateInventoryHierarchy')) throw new Error('inventory hierarchy API validation is missing');
 if (!server.includes("inventory_department_not_found") || !server.includes("inventory_subdepartment_not_found")) throw new Error('inventory hierarchy error contract is missing');
+if (!portal.includes("path === '/api/inventory/auto-orders' && method === 'GET'")) throw new Error('demo auto-order recommendations endpoint is missing');
+if (!portal.includes("path === '/api/inventory/auto-orders' && method === 'POST'")) throw new Error('demo auto-order creation endpoint is missing');
+if (!portal.includes("const demoAutoOrderPath = path.match(/^\\/api\\/inventory\\/auto-orders\\/([^/]+)$/)")) throw new Error('demo auto-order status endpoint is missing');
 console.log('INVENTORY HIERARCHY CONTRACT: PASS');
