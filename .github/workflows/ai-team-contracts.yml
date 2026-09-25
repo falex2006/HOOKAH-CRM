@@ -17,5 +17,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Validate 15-role team manifest
+      - name: Validate team manifest and code-health role
         run: node scripts/ai-team-contract.mjs

@@ -8,6 +8,27 @@ const staffHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'ut
 const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 const icons = fs.readFileSync(new URL('../assets/tabler-icons.svg', import.meta.url), 'utf8');
 
+// Every canonical CRM page must retain the shared navigation/header shell.
+// Employee mode has its own header variant; platform and login use separate shells.
+for (const file of [
+  'admin.html', 'orders.html', 'clients.html', 'reservations.html',
+  'delivery.html', 'inventory.html', 'finance.html', 'finance-report.html',
+  'finance-categories.html', 'integrations.html', 'network.html',
+]) {
+  const html = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  assert.match(html, /class="portal-sidebar"/, `${file} must use the shared CRM sidebar`);
+  assert.match(html, /class="portal-header"/, `${file} must use the shared CRM header`);
+}
+assert.match(staffHtml, /class="portal-sidebar"/, 'employee mode must retain the shared CRM sidebar');
+assert.match(staffHtml, /<header>/, 'employee mode must retain its top header');
+assert.match(css, /\.velora-theme \.portal-header\{height:78px/, 'admin routes must share a baseline header height');
+assert.match(css, /\.velora-theme \.portal-header \.header-right > \.notification-bell[^}]*width:44px;height:44px/,
+  'shared header action controls must use the common 44px touch target');
+assert.match(css, /\.velora-theme \.portal-header\{padding:0 16px\}/,
+  'admin header must have deliberate mobile side spacing');
+assert.match(css, /\.staff-theme header\{padding:0 16px;align-items:center\}/,
+  'employee header must have deliberate mobile side spacing');
+
 // A staff work contour is a real route variant, not a cosmetic label. The
 // sidebar must preserve its query when deciding which item is active.
 assert.match(portal, /const currentUrl = new URL\(location\.href\);/);

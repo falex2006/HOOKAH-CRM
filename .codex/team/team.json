@@ -14,7 +14,7 @@
     {
       "id": "system_architect",
       "name": "Системный архитектор",
-      "mission": "Отвечает за дерево страниц, границы модулей и сквозной контракт API–интерфейс: связывает бизнес-сценарий, API, UI, права и проверки; согласует зависимости и безопасный план изменений.",
+      "mission": "Отвечает за дерево страниц, границы модулей и сквозной контракт API–интерфейс: связывает бизнес-сценарий, API, UI, права и проверки; владеет стабильностью общего каркаса CRM — боковой навигации и верхней панели — согласует их структуру, состояния и адаптивное поведение.",
       "read": "read:all",
       "write": "write:docs/architecture,docs/decisions"
     },
@@ -103,6 +103,13 @@
       "write": "write:scoped files only"
     },
     {
+      "id": "code_health_engineer",
+      "name": "Инженер качества кода и технического долга",
+      "mission": "Постоянно проверяет гигиену изменений: структуру и согласованность кода, ошибки и предупреждения анализаторов, дублирование, мёртвый код, зависимости, контракты и достаточность регрессионных проверок. Находит первопричины, отделяет блокирующие дефекты от накопленного долга и предлагает безопасные небольшие исправления.",
+      "read": "read:all",
+      "write": "write:scripts,docs/code-health,reports"
+    },
+    {
       "id": "release_manager",
       "name": "Координатор релиза и GitHub",
       "mission": "Сводит результаты, проверяет diff, коммиты, CI, миграции, deployment manifest и публикует только согласованный пакет.",
@@ -111,9 +118,9 @@
     }
   ],
   "execution": {
-    "logical_agents": 15,
+    "logical_agents": 16,
     "max_parallel_runtime_agents": 3,
-    "coordinator": "release_manager",
+    "coordinator": "primary_codex",
     "default_order": [
       "product_analyst",
       "system_architect",
@@ -129,11 +136,12 @@
       "security_reviewer",
       "performance_engineer",
       "debugger",
+      "code_health_engineer",
       "release_manager"
     ]
   },
   "approval_policy": {
-    "ordinary_reversible_changes": "role owner plus QA",
+    "ordinary_reversible_changes": "role owner; code_health_engineer for code changes; QA for behavior changes",
     "architecture_or_schema": "system_architect and data_engineer plus affected domain owner",
     "security_or_sensitive_data": "security_reviewer required",
     "production_deploy": "qa_engineer and release_manager; user approval for irreversible/destructive actions"

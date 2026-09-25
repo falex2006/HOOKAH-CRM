@@ -1,6 +1,6 @@
 # Рабочий процесс CRM
 
-Командная модель из 15 ролей и порядок согласования закреплены в [`docs/AI_TEAM.md`](docs/AI_TEAM.md) и [`docs/AI_TEAM_WORKFLOW.md`](docs/AI_TEAM_WORKFLOW.md). Любой пакет изменений проходит этот workflow до коммита и публикации.
+Командная модель из 16 ролей и порядок согласования закреплены в [`docs/AI_TEAM.md`](docs/AI_TEAM.md) и [`docs/AI_TEAM_WORKFLOW.md`](docs/AI_TEAM_WORKFLOW.md). Координацию активной задачи выполняет основной Codex по [`docs/AI_ORCHESTRATOR.md`](docs/AI_ORCHESTRATOR.md). Любой пакет изменений проходит этот workflow до коммита и публикации.
 
 ## Пакетная разработка
 

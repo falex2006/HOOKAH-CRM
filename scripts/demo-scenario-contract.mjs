@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+
+const source = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+const staffSource = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+const factoryStart = source.indexOf('const createRichDemoScenario = () => {');
+const factoryEnd = source.indexOf('\nconst handleDemoScenario', factoryStart);
+assert.ok(factoryStart >= 0 && factoryEnd > factoryStart, 'rich demo scenario factory exists');
+const factorySource = `${source.slice(factoryStart, factoryEnd)}\nglobalThis.createScenario = createRichDemoScenario;`;
+const context = { demoDefaultVenue: { id: 'demo-venue-test', name: 'Тест' }, Date, Object, String, Math };
+vm.runInNewContext(factorySource, context, { timeout: 1000 });
+const scenario = context.createScenario();
+const { state, orders } = scenario;
+const tables = state.floorZones.flatMap((zone) => zone.tables);
+const localDate = (value) => [value.getFullYear(), String(value.getMonth() + 1).padStart(2, '0'), String(value.getDate()).padStart(2, '0')].join('-');
+const today = localDate(new Date());
+
+assert.ok(state.staff.length >= 6, 'varied active and inactive staff are available');
+assert.ok(new Set(state.staff.map((person) => person.role)).size >= 4, 'multiple staff roles are represented');
+assert.ok(state.floorZones.length >= 3 && tables.length >= 12, 'multiple zones and tables are available');
+assert.ok(state.inventory.some((item) => item.onHand < item.minLevel), 'below-minimum stock is represented');
+assert.ok(state.inventory.some((item) => item.onHand === item.minLevel), 'at-minimum stock is represented');
+assert.ok(state.inventory.some((item) => item.onHand > item.minLevel), 'healthy stock is represented');
+assert.ok(state.reservations.some((item) => item.status === 'confirmed') && state.reservations.some((item) => item.status === 'cancelled'), 'reservation states are varied');
+assert.ok(state.reservations.some((item) => item.status === 'confirmed' && item.date === today), 'a confirmed reservation exists today');
+assert.ok(state.clients.length >= 4 && state.recipes.some((recipe) => recipe.ingredients.length >= 3), 'guest profiles and multi-ingredient recipes are included');
+assert.ok(state.expenses.length >= 7 && state.expenses.every((item) => item.amount > 0 && item.date), 'daily operating expenses are included');
+assert.ok(new Date(state.shift.openedAt) <= new Date(), 'the demo shift opens before the present moment');
+assert.ok(orders.filter((order) => order.status === 'closed' && localDate(new Date(order.closedAt)) === today).every((order) => new Date(order.closedAt) <= new Date()), 'today paid orders are not timestamped in the future');
+assert.ok(orders.filter((order) => order.status === 'closed').length >= 15, 'historical and current closed orders are included');
+for (const status of ['open', 'in_progress', 'ready']) assert.ok(orders.some((order) => order.status === status), `${status} orders are represented`);
+assert.ok(orders.some((order) => order.closedAt && localDate(new Date(order.closedAt)) === today), 'today has paid orders for dashboard metrics');
+assert.ok(new Set(orders.flatMap((order) => order.payments.map((payment) => payment.method))).size >= 3, 'cash, card, and QR payments are represented');
+for (const order of orders) {
+  assert.ok(tables.some((table) => table.id === order.tableId), `order ${order.id} references a known table`);
+  const itemTotal = order.items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
+  assert.equal(order.total, itemTotal, `order ${order.id} totals match its line items`);
+  assert.ok(order.payments.reduce((sum, payment) => sum + Number(payment.amount), 0) <= itemTotal, `order ${order.id} is not overpaid`);
+  if (order.status === 'closed') assert.ok(order.items.every((item) => Number(item.unitCost) >= 0), `closed order ${order.id} has a cost snapshot for demo profit checks`);
+}
+
+assert.match(source, /if \(!\['localhost', '127\.0\.0\.1', '::1'\]\.includes\(window\.location\.hostname\)\)/, 'scenario activation is restricted to loopback hosts');
+assert.match(source, /territory_crm_demo_scenario_backup_v1/, 'original browser demo data is backed up');
+assert.match(source, /demo-static-scenario/, 'scenario switches the local tab to the isolated browser demo API');
+assert.match(source, /'crm_session_token', 'crm_session_user'/, 'the prior local session is included in the restore snapshot');
+assert.match(source, /'territory_crm_shift'/, 'the separate staff-shift storage is backed up and seeded');
+assert.match(source, /mode === 'restore'/, 'previous browser demo data can be restored');
+assert.match(source, /item\.status === 'confirmed' && item\.date === today/, 'today reservation metric excludes cancelled and future bookings');
+assert.match(source, /totalCostOfGoods[\s\S]*totalRevenue - totalExpenses - totalCostOfGoods/, 'demo analytics subtracts cost of goods and expenses from revenue');
+assert.match(source, /path === '\/api\/orders' && method === 'GET'/, 'demo order journal reads the generated orders');
+assert.match(source, /path === '\/api\/expenses' && method === 'GET'[\s\S]*expenseDate: item\.date/, 'demo expense ledger lists seeded expenses using the finance API shape');
+assert.match(source, /path === '\/api\/expenses' && method === 'POST'[\s\S]*demoState\.expenses\.push\(expense\)/, 'demo expense form persists entries into the same analytics data');
+assert.match(source, /data-current-date/, 'portal header dates are rendered from the current date');
+assert.match(source, /order\.clientId === client\.id \|\| order\.guestName === client\.name/, 'guest history links matching demo orders');
+assert.match(staffSource, /if\(staticStaffDemo\(\)\)\{let state=\{\};try\{state=JSON\.parse\(localStorage\.getItem\('territory_crm_demo_state'/, 'staff hall reads the same isolated demo floor data');
+assert.match(staffSource, /updateStaffHeaderClock[\s\S]*setInterval\(updateStaffHeaderClock,30000\)/, 'staff header date and time stay current');
+console.log(`DEMO SCENARIO CONTRACT: PASS (${orders.length} orders, ${tables.length} tables, ${state.staff.length} staff, ${state.inventory.length} stock items, ${state.expenses.length} expenses)`);
