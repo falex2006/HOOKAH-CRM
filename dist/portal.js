@@ -81,7 +81,13 @@ const normalizeManagementSidebar = () => {
   sidebar.querySelectorAll('a[href="/network"]').forEach((link) => link.remove());
   sidebar.querySelectorAll('.portal-nav:not(.staff-nav) a[href="/integrations"]').forEach((link) => link.remove());
   const makeLink = ({ href, permission, label, iconName }) => {
-    const link = document.createElement('a'); link.href = href; link.dataset.permission = permission; link.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`; return link;
+    const link = document.createElement('a');
+    const targetUrl = new URL(href, location.origin);
+    if (targetUrl.pathname === '/inventory') {
+      const currentUrl = new URL(location.href);
+      currentUrl.searchParams.forEach((value, key) => { if (key !== 'view' && !targetUrl.searchParams.has(key)) targetUrl.searchParams.set(key, value); });
+    }
+    link.href = targetUrl.pathname + targetUrl.search + targetUrl.hash; link.dataset.permission = permission; link.hidden = !portalPermissions.has(permission); link.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`; return link;
   };
   // Include nav blocks inside disclosure groups so hash-based re-renders do
   // not create duplicate operation/control menus after the first grouping pass.
@@ -109,8 +115,8 @@ const normalizeManagementSidebar = () => {
   operationLinks.forEach((item) => { const link = operations.querySelector(`a[href="${item.href}"]`); if (link) operations.append(link); });
   let control = navs.find((nav) => nav !== mainNav && nav !== operations && [...nav.querySelectorAll('a')].some((a) => ['/inventory','/finance'].includes(a.getAttribute('href'))));
   if (!control) { control = document.createElement('nav'); control.className = 'portal-nav'; operations.after(control); }
+  control.querySelectorAll('a[href="/inventory"],a[href^="/inventory?"]').forEach((link) => link.remove());
   const controlLinks = [
-    { href: '/inventory', permission: 'inventory_read', label: 'Склад', iconName: 'package' },
     { href: '/finance', permission: 'finance_read', label: 'Финансы', iconName: 'chart-bar' },
   ];
   controlLinks.forEach((item) => {
@@ -119,15 +125,41 @@ const normalizeManagementSidebar = () => {
     else { link.dataset.permission = item.permission; link.innerHTML = `${iconMarkup(item.iconName)}<span>${item.label}</span>`; }
   });
   controlLinks.forEach((item) => { const link = control.querySelector(`a[href="${item.href}"]`); if (link) control.append(link); });
+  control.setAttribute('aria-label', 'Контроль финансов');
   const groupStorageKey = (key) => `crm_sidebar_group_${String(portalUser.id || portalUser.login || portalUser.role || 'user')}_${key}`;
   const savedGroupState = (key) => { try { const value = localStorage.getItem(groupStorageKey(key)); return value === null ? null : value === 'open'; } catch (_) { return null; } };
   const rememberGroupState = (details, key) => details.addEventListener('toggle', () => {
     if (window.matchMedia('(max-width: 900px)').matches) { if (!details.open) details.open = true; return; }
     try { localStorage.setItem(groupStorageKey(key), details.open ? 'open' : 'closed'); } catch (_) {}
   });
-  // Multi-link sections share one disclosure pattern. Keep the single-link
-  // primary destination (“Главное”) visible at all times.
-  [['ОПЕРАЦИИ', 'operations'], ['КОНТРОЛЬ', 'control']].forEach(([labelText, key]) => {
+  const ensureAreaGroup = (key, label, iconName, items) => {
+    let details = sidebar.querySelector(`details.sidebar-nav-group[data-nav-group="${key}"]`);
+    if (!details) {
+      details = document.createElement('details'); details.className = 'sidebar-nav-group'; details.dataset.navGroup = key;
+      const summary = document.createElement('summary'); summary.setAttribute('aria-label', label); summary.title = label;
+      summary.innerHTML = `${iconMarkup(iconName)}<span>${label}</span>`;
+      const nav = document.createElement('nav'); nav.className = 'portal-nav';
+      details.append(summary, nav); rememberGroupState(details, key);
+    }
+    const nav = details.querySelector('.portal-nav');
+    nav.replaceChildren(...items.map((item) => makeLink(item)));
+    details.hidden = !items.some((item) => portalPermissions.has(item.permission));
+    details.open = savedGroupState(key) ?? true;
+    return details;
+  };
+  const menuGroup = ensureAreaGroup('menu', 'МЕНЮ', 'layout-grid', [
+    { href: '/inventory?view=products', permission: 'inventory_read', label: 'Каталог товаров', iconName: 'layout-grid' },
+    { href: '/inventory?view=recipes', permission: 'inventory_read', label: 'Технологические карты', iconName: 'clipboard-list' },
+  ]);
+  const inventoryGroup = ensureAreaGroup('inventory', 'СКЛАД', 'package', [
+    { href: '/inventory?view=stock', permission: 'inventory_read', label: 'Остатки', iconName: 'package' },
+    { href: '/inventory?view=auto-orders', permission: 'inventory_read', label: 'Пополнение запасов', iconName: 'alert-triangle' },
+    { href: '/inventory?view=movements', permission: 'inventory_read', label: 'Поставки и списания', iconName: 'truck-delivery' },
+    { href: '/inventory?view=premixes', permission: 'inventory_read', label: 'Заготовки и премиксы', iconName: 'building' },
+    { href: '/inventory?view=directories', permission: 'inventory_read', label: 'Цеха и категории', iconName: 'building' },
+  ]);
+  // Daily operational destinations share one disclosure. Keep “Главное” visible.
+  [['ОПЕРАЦИИ', 'operations']].forEach(([labelText, key]) => {
     const label = [...sidebar.querySelectorAll(':scope > .side-label')].find((node) => node.textContent.trim() === labelText);
     const nav = label?.nextElementSibling;
     if (!label || !nav?.classList.contains('portal-nav')) return;
@@ -182,7 +214,7 @@ const normalizeManagementSidebar = () => {
   if (!disclosureRoot) { disclosureRoot = document.createElement('div'); disclosureRoot.className = 'sidebar-nav-groups'; }
   disclosureRoot.className = 'sidebar-nav-groups';
   mainNav.after(disclosureRoot);
-  disclosureRoot.replaceChildren(...['operations', 'control', 'team', 'system'].map((key) => disclosureGroups.get(key)).filter(Boolean));
+  disclosureRoot.replaceChildren(...['operations', 'menu', 'inventory', 'finance', 'team', 'system'].map((key) => key === 'menu' ? menuGroup : key === 'inventory' ? inventoryGroup : key === 'finance' ? control : disclosureGroups.get(key)).filter(Boolean));
   sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((group) => {
     group.open = savedGroupState(group.dataset.navGroup) ?? true;
   });
@@ -203,12 +235,22 @@ const normalizeManagementSidebar = () => {
     const modeMatches = linkMode ? linkMode === currentMode : !linkMode;
     const settingsLinkActive = linkUrl.pathname === '/admin' && linkUrl.hash === '#settings' && settingsHashes.has(currentHash);
     const hashMatches = linkUrl.hash ? linkUrl.hash === currentHash : !currentHash;
-    const active = settingsLinkActive || (linkUrl.pathname === currentPath && modeMatches && hashMatches);
+    const linkView = linkUrl.searchParams.get('view');
+    const currentView = currentUrl.searchParams.get('view') || 'stock';
+    const viewMatches = linkUrl.pathname === '/inventory' ? (linkView || 'stock') === currentView : true;
+    const active = settingsLinkActive || (linkUrl.pathname === currentPath && modeMatches && hashMatches && viewMatches);
     link.classList.toggle('active', active);
     if (active) {
       link.setAttribute('aria-current', 'page');
       requestAnimationFrame(() => link.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
     } else link.removeAttribute('aria-current');
+  });
+  sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((group) => {
+    const activeLink = group.querySelector('a.active');
+    const summary = group.querySelector(':scope > summary');
+    summary?.classList.toggle('has-active-child', Boolean(activeLink));
+    if (activeLink) summary?.setAttribute('aria-current', 'location');
+    else summary?.removeAttribute('aria-current');
   });
 };
 normalizeManagementSidebar();
@@ -218,7 +260,7 @@ document.querySelectorAll('.portal-nav a[data-permission]').forEach((link) => {
 if (portalUser.role === 'manager') document.querySelectorAll('.portal-nav a[href="/network"]').forEach((link) => { link.hidden = true; });
 // Do not leave empty headings or navigation blocks after role filtering.
 const refreshSidebarGroups = () => {
-  document.querySelectorAll('.portal-sidebar > .portal-nav').forEach((nav) => {
+  document.querySelectorAll('.portal-sidebar > .portal-nav,.portal-sidebar > .sidebar-nav-groups > .portal-nav').forEach((nav) => {
     const hasVisibleLink = [...nav.querySelectorAll('a')].some((link) => !link.hidden);
     nav.hidden = !hasVisibleLink;
     const label = nav.previousElementSibling;
@@ -1031,7 +1073,7 @@ function renderInventory() {
   const movementButton = canWriteInventory ? `<button type="button" class="button" id="open-movement" title="Записать поставку, списание или корректировку остатка">${icon('plus')} Учесть поставку или списание</button>` : '<span class="badge">Только просмотр</span>';
   const itemButton = canWriteInventory ? `<button type="button" class="button primary" id="new-inventory-item" title="Создать новую складскую позицию для учёта">${icon('plus')} Добавить складскую позицию</button>` : '';
   const movementPanel = canWriteInventory ? '<section class="panel inventory-movement-editor"><div class="panel-head"><div><h2>Поступление или списание</h2><span class="muted">Выберите позицию, операцию и количество. Для прихода можно указать закупочную стоимость.</span></div></div><form id="movement-form" class="stack-form"><label>Позиция<select id="movement-item" required></select></label><label>Операция<select id="movement-direction"><option value="in">Поступление — добавить на склад</option><option value="out">Списание — убрать со склада</option></select></label><div class="form-row"><label>Количество<input id="movement-delta" type="number" min="0.01" step="0.01" placeholder="Например, 10" required><small class="muted" id="movement-unit-hint">Единица: —</small></label><label>Единица<select id="movement-unit"><option value="шт">шт</option><option value="г">г</option><option value="кг">кг</option><option value="мл">мл</option><option value="л">л</option><option value="порция">порция</option><option value="уп">уп</option><option value="упаковка">упаковка</option></select></label></div><label id="movement-unit-cost-label">Закупочная стоимость за единицу<input id="movement-unit-cost" type="number" min="0" step="0.01" placeholder="Например, 350"><small class="muted">Укажите стоимость только для прихода, чтобы пересчитать себестоимость.</small></label><label>Причина<input id="movement-reason" placeholder="Поставка, списание или корректировка"></label><button type="submit" class="button primary">Сохранить операцию</button><p class="form-message" id="movement-message"></p></form></section>' : '<section class="panel inventory-movement-editor"><div class="panel-head"><h2>Доступ</h2></div><p class="muted">У этой роли доступен просмотр остатков. Изменения выполняет сотрудник с правом управления складом.</p></section>';
-  target.innerHTML = `<div class="page-title inventory-page-title"><div><p class="eyebrow">ОПЕРАЦИОННЫЙ КОНТРОЛЬ</p><h1>Склад</h1><p class="muted">Управление запасами, закупками и себестоимостью заведения.</p></div><div class="toolbar-row">${itemButton}${movementButton}</div></div><nav class="inventory-tabs" aria-label="Разделы склада"><button type="button" class="is-active" data-inventory-tab="stock">Остатки</button><button type="button" data-inventory-tab="auto-orders">Пополнение запасов</button><button type="button" data-inventory-tab="movements">Поставки и списания</button><button type="button" data-inventory-tab="recipes">Технологические карты</button><button type="button" data-inventory-tab="premixes">Заготовки и премиксы</button><button type="button" data-inventory-tab="directories">Цеха и категории</button><button type="button" data-inventory-tab="products">Каталог товаров</button></nav><div class="kpi-grid compact"><article class="kpi" data-kpi-target=".inventory-stock-panel" aria-label="Показать все складские позиции"><span>Всего позиций</span><strong id="inventory-count">—</strong><small>Ингредиенты и товары</small></article><article class="kpi" data-kpi-target=".inventory-auto-order-panel" aria-label="Открыть пополнение запасов"><span>Нужно пополнить</span><strong id="inventory-low">—</strong><small>До минимального остатка</small></article><article class="kpi" data-kpi-target=".movement-history" aria-label="Открыть историю движений"><span>Последняя операция</span><strong id="inventory-last">—</strong><small>По журналу склада</small></article></div><div class="content-grid inventory-content-grid"><section class="panel wide inventory-stock-panel inventory-view-section"><div class="panel-head"><div><h2>Остатки</h2><span class="muted">Текущие количества по всем складским позициям</span></div><div class="toolbar-row inventory-stock-filters"><input class="table-search" id="inventory-search" aria-label="Поиск позиции" placeholder="Поиск позиции"><select id="inventory-department-filter" aria-label="Фильтр по цеху"><option value="">Все цеха</option></select></div></div><div class="table-wrap"><table><thead><tr><th>Позиция</th><th>Цех / категория</th><th>Остаток</th><th>Минимум</th><th>Состояние</th><th>Действия</th></tr></thead><tbody id="inventory-rows"></tbody></table></div></section>${movementPanel}</div>`;
+  target.innerHTML = `<div class="page-title inventory-page-title"><div><p class="eyebrow">ОПЕРАЦИОННЫЙ КОНТРОЛЬ</p><h1>Склад</h1><p class="muted">Управление запасами, закупками и себестоимостью заведения.</p></div><div class="toolbar-row">${itemButton}${movementButton}</div></div><div class="kpi-grid compact"><article class="kpi" data-kpi-target=".inventory-stock-panel" aria-label="Показать все складские позиции"><span>Всего позиций</span><strong id="inventory-count">—</strong><small>Ингредиенты и товары</small></article><article class="kpi" data-kpi-target=".inventory-auto-order-panel" aria-label="Открыть пополнение запасов"><span>Нужно пополнить</span><strong id="inventory-low">—</strong><small>До минимального остатка</small></article><article class="kpi" data-kpi-target=".movement-history" aria-label="Открыть историю движений"><span>Последняя операция</span><strong id="inventory-last">—</strong><small>По журналу склада</small></article></div><div class="content-grid inventory-content-grid"><section class="panel wide inventory-stock-panel inventory-view-section"><div class="panel-head"><div><h2>Остатки</h2><span class="muted">Текущие количества по всем складским позициям</span></div><div class="toolbar-row inventory-stock-filters"><input class="table-search" id="inventory-search" aria-label="Поиск позиции" placeholder="Поиск позиции"><select id="inventory-department-filter" aria-label="Фильтр по цеху"><option value="">Все цеха</option></select></div></div><div class="table-wrap"><table><thead><tr><th>Позиция</th><th>Цех / категория</th><th>Остаток</th><th>Минимум</th><th>Состояние</th><th>Действия</th></tr></thead><tbody id="inventory-rows"></tbody></table></div></section>${movementPanel}</div>`;
   const purchasePanel = document.createElement('section');
   purchasePanel.className = 'panel wide inventory-purchase-panel inventory-view-hidden';
   purchasePanel.innerHTML = `<div class="panel-head"><div><h2>Приёмка по документу</h2><span class="muted">Запишите поставщика, накладную и фактическое количество. Проведение обновит остаток и закупочную стоимость.</span></div><span class="badge info">Черновик → проверка → провести</span></div>${canWriteInventory ? `<form id="purchase-document-form" class="purchase-document-form"><div id="purchase-order-context" class="purchase-order-context" hidden><strong>Поступление по автозаказу</strong><span>Проведение обновит полученное количество, остаток и закупочную стоимость.</span></div><div class="form-grid"><label>Поставщик<input id="purchase-supplier" maxlength="160" placeholder="Название поставщика"></label><label>Номер документа<input id="purchase-number" maxlength="80" placeholder="Например, УПД-1042"></label><label>Дата накладной<input id="purchase-date" type="date" required></label></div><div class="purchase-lines-head"><div><h3>Полученные позиции</h3><small class="muted">Укажите закупочную упаковку и цену за неё. Склад пересчитает количество и стоимость в единицу учёта.</small></div><button class="button small" type="button" id="purchase-add-line">${icon('plus')} Добавить позицию</button></div><div id="purchase-lines" class="purchase-lines"></div><label>Комментарий<textarea id="purchase-note" rows="2" maxlength="2000" placeholder="Расхождение, партия или примечание к накладной"></textarea></label><div class="purchase-form-footer"><strong id="purchase-total">Итого: 0 ₽</strong><div class="toolbar-row"><button class="button primary" type="submit" id="purchase-save">Сохранить черновик</button><button class="button" type="button" id="purchase-cancel" hidden>Отмена редактирования</button></div></div><p class="form-message" id="purchase-message" aria-live="polite"></p></form>` : '<p class="muted">Для приёмки необходимы права управления складом.</p>'}<div class="purchase-history"><div class="section-title-row"><div><h3>Документы поступления</h3><span class="muted">Проведённые документы хранят историю закупочной цены и движения</span></div></div><div id="purchase-document-list"><div class="empty">Загрузка документов…</div></div></div>`;
@@ -1058,8 +1100,18 @@ function renderInventory() {
   if (canWriteInventory) {
     const editor = document.createElement('section'); inventoryItemEditor = editor; editor.className = 'panel inventory-item-editor-panel'; editor.hidden = true; editor.innerHTML = `<div class="panel-head"><div><h2>Новая складская позиция</h2><span class="muted">Ингредиент, товар или расходник для учёта остатков и технологических карт</span></div></div><form id="inventory-item-form" class="product-editor" hidden><div class="form-grid"><label><span>Название <span class="required-mark">*</span></span><input id="inventory-item-name" maxlength="120" required placeholder="Например, Сироп маракуйя"></label><label><span>Цех <span class="required-mark">*</span></span><select id="inventory-item-department"><option value="kitchen">Кухня</option><option value="bar">Бар</option><option value="hookah">Кальяны</option><option value="inventory">Хозяйственный склад</option></select></label><label>Подцех<input id="inventory-item-subdepartment" list="inventory-subdepartment-options" maxlength="80" placeholder="Например, Холодный цех"><datalist id="inventory-subdepartment-options"></datalist></label><label>Категория<select id="inventory-item-category"><option value="">Выберите категорию</option></select><small class="field-hint">Категория выбирается из справочника выбранного цеха.</small></label><label>Тип<select id="inventory-item-type"><option value="ingredient">Ингредиент</option><option value="product">Товар</option><option value="consumable">Расходник</option><option value="equipment">Инвентарь</option></select></label><label><span>Единица учёта <span class="required-mark">*</span></span><select id="inventory-item-unit"><option>шт</option><option>г</option><option>кг</option><option>мл</option><option>л</option><option>порция</option><option>уп</option><option>упаковка</option></select></label><label>Закупочная единица<input id="inventory-item-purchase-unit" maxlength="30" placeholder="коробка, бутылка"></label><label>В упаковке<input id="inventory-item-pack" type="number" min="0.01" step="0.01" value="1"></label><label>Себестоимость<input id="inventory-item-cost" type="number" min="0" step="0.01" value="0"></label><label>Минимальный остаток<input id="inventory-item-min" type="number" min="0" step="0.01" value="0"></label><label>Поставщик<input id="inventory-item-supplier" maxlength="160" placeholder="Название поставщика"></label><label>Штрихкод<input id="inventory-item-barcode" maxlength="64"></label></div><label>Комментарий<textarea id="inventory-item-note" maxlength="500" rows="2" placeholder="Срок хранения, условия списания"></textarea></label><div class="toolbar-row"><button class="button primary" type="submit">Сохранить позицию</button><button class="button" id="cancel-inventory-item" type="button">Отмена</button></div><p class="form-message" id="inventory-item-message"></p></form></section>`; target.insertBefore(editor, target.querySelector('.movement-history') || null);
   }
-  document.querySelectorAll('[data-inventory-tab]').forEach((tab) => tab.addEventListener('click', () => { const sections = { overview: ['.inventory-stock-panel'], stock: ['.inventory-stock-panel'], 'auto-orders': ['.inventory-auto-order-panel'], movements: ['.inventory-purchase-panel', '.inventory-movement-editor', '.movement-history'], recipes: ['.recipes-panel'], premixes: ['.premix-panel'], directories: ['.inventory-departments-panel'], products: ['.visual-catalog-panel'] }; const view = tab.dataset.inventoryTab; const visible = sections[view] || sections.overview; document.querySelectorAll('.inventory-stock-panel,.inventory-auto-order-panel,.inventory-purchase-panel,.inventory-movement-editor,.movement-history,.visual-catalog-panel,.inventory-departments-panel,.recipes-panel,.premix-panel').forEach((section) => section.classList.toggle('inventory-view-hidden', !visible.some((selector) => section.matches(selector)))); document.querySelectorAll('[data-inventory-tab]').forEach((item) => item.classList.toggle('is-active', item === tab)); document.querySelector('.portal-main')?.scrollTo({ top: 0, behavior: 'smooth' }); }));
-  const setInventoryView = (view) => { const sections = { overview: ['.inventory-stock-panel'], stock: ['.inventory-stock-panel'], 'auto-orders': ['.inventory-auto-order-panel'], movements: ['.inventory-purchase-panel', '.inventory-movement-editor', '.movement-history'], recipes: ['.recipes-panel'], premixes: ['.premix-panel'], directories: ['.inventory-departments-panel'], products: ['.visual-catalog-panel'] }; const visible = sections[view] || sections.overview; document.querySelectorAll('.inventory-stock-panel,.inventory-auto-order-panel,.inventory-purchase-panel,.inventory-movement-editor,.movement-history,.visual-catalog-panel,.inventory-departments-panel,.recipes-panel,.premix-panel').forEach((section) => section.classList.toggle('inventory-view-hidden', !visible.some((selector) => section.matches(selector)))); document.querySelectorAll('[data-inventory-tab]').forEach((item) => item.classList.toggle('is-active', item.dataset.inventoryTab === view)); document.querySelector('.portal-main')?.scrollTo({ top: 0, behavior: 'smooth' }); }; setInventoryView('stock');
+  const inventorySections = { stock: ['.inventory-stock-panel'], 'auto-orders': ['.inventory-auto-order-panel'], movements: ['.inventory-purchase-panel', '.inventory-movement-editor', '.movement-history'], recipes: ['.recipes-panel'], premixes: ['.premix-panel'], directories: ['.inventory-departments-panel'], products: ['.visual-catalog-panel'] };
+  const setInventoryView = (requestedView, { historyMode = 'push', scroll = true } = {}) => {
+    const view = Object.hasOwn(inventorySections, requestedView) ? requestedView : 'stock';
+    const visible = inventorySections[view];
+    document.querySelectorAll('.inventory-stock-panel,.inventory-auto-order-panel,.inventory-purchase-panel,.inventory-movement-editor,.movement-history,.visual-catalog-panel,.inventory-departments-panel,.recipes-panel,.premix-panel').forEach((section) => section.classList.toggle('inventory-view-hidden', !visible.some((selector) => section.matches(selector))));
+    const nextUrl = new URL(location.href);
+    if (view === 'stock') nextUrl.searchParams.delete('view'); else nextUrl.searchParams.set('view', view);
+    if (nextUrl.search !== location.search && historyMode) history[historyMode + 'State']({}, '', nextUrl.pathname + nextUrl.search + nextUrl.hash);
+    normalizeManagementSidebar();
+    if (scroll) document.querySelector('.portal-main')?.scrollTo({ top: 0, behavior: 'smooth' });
+    return view;
+  };
   const movementHistory = document.createElement('section'); movementHistory.className = 'panel movement-history'; movementHistory.innerHTML = '<div class="panel-head"><div><h2>История операций</h2><span class="muted">Последние операции по складу</span></div></div><div id="movement-history-list" class="movement-history-list"><div class="empty">Загрузка истории…</div></div>'; target.append(movementHistory);
   const autoOrderPanel = document.createElement('section'); autoOrderPanel.className = 'panel wide inventory-auto-order-panel inventory-view-section'; autoOrderPanel.innerHTML = `<div class="panel-head"><div><h2>Пополнение запасов</h2><span class="muted">Позиции, которые нужно заказать, и заявка для управляющего</span></div><div class="toolbar-row"><span class="badge warning" id="auto-order-low-count">Загрузка…</span>${canWriteInventory ? '<button class="button primary" type="button" id="create-auto-order">Сформировать заявку управляющему</button>' : ''}</div></div><div class="auto-order-explainer"><span class="auto-order-explainer-icon">${icon('clipboard-list')}</span><div><b>Как рассчитывается количество</b><p>Система сравнивает остаток с минимумом и добавляет запас до следующего целого количества упаковок. Перед отправкой заявку можно проверить и изменить.</p></div></div><div id="auto-order-list"><div class="empty">Загрузка позиций…</div></div><div class="auto-order-history"><div class="section-title-row"><div><h3>Заявки управляющему</h3><span class="muted">Последние сформированные заявки и их статус</span></div></div><div id="auto-order-history-list"><div class="empty">Заявок пока нет</div></div></div>`; target.append(autoOrderPanel);
   bindKpiNavigation();
@@ -1207,7 +1259,8 @@ function renderInventory() {
     document.querySelector('#recipe-ingredients')?.addEventListener('input', calculateRecipeCost);
     setRecipeStep(1);
   }
-  setInventoryView('stock');
+  setInventoryView(new URL(location.href).searchParams.get('view') || 'stock', { historyMode: 'replace', scroll: false });
+  window.addEventListener('popstate', () => setInventoryView(new URL(location.href).searchParams.get('view') || 'stock', { historyMode: false, scroll: false }));
   const warehouseKpis = [['#inventory-count','stock'],['#inventory-low','stock'],['#inventory-last','movements']];
   warehouseKpis.forEach(([selector, view]) => { const card = document.querySelector(selector)?.closest('.kpi'); if (!card) return; card.addEventListener('click', () => setInventoryView(view)); card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') setInventoryView(view); }); });
   document.querySelector('#inventory-count')?.closest('.kpi')?.setAttribute('aria-label', 'Показать складские позиции');

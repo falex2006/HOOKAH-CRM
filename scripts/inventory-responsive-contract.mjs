@@ -20,16 +20,13 @@ assert.match(css, /\.auto-order-table-wrap table\{display:block;width:100%;min-w
   'mobile replenishment cards must not retain the desktop minimum width');
 assert.match(css, /@media\(max-width:560px\)\{[\s\S]*?grid-template-columns:minmax\(0,1fr\)/,
   'phone-width warehouse cards must collapse to one column');
-assert.match(css, /@media\(max-width:900px\)\{\.velora-theme \.inventory-tabs\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\.velora-theme \.inventory-tabs button:last-child\{grid-column:1\/-1;justify-self:center\}\}/,
-  'the final warehouse tab must span the last row so the tablet layout stays balanced');
-assert.match(css, /@media\(max-width:900px\)[\s\S]*?button:last-child\{grid-column:1\/-1;justify-self:center\}/,
-  'the final tablet tab must be visually centered within its final row');
-assert.match(css, /@media\(min-width:651px\) and \(max-width:1000px\)\{[\s\S]*?inventory-tabs\+\.kpi-grid\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,
+assert.doesNotMatch(portal, /class="inventory-tabs"/, 'warehouse views must not duplicate the sidebar navigation inside the page');
+assert.match(css, /@media\(min-width:651px\) and \(max-width:1000px\)\{\.velora-theme \.kpi-grid\.compact\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,
   'Fold/tablet KPI tiles must remain in a single balanced row');
 assert.match(css, /@media\(min-width:901px\) and \(max-width:1400px\)\{[\s\S]*?inventory-page-title>\.toolbar-row\{display:flex;width:auto/,
   'laptop warehouse actions should retain compact intrinsic widths');
-assert.match(css, /inventory-tabs button:nth-child\(5\)\{grid-column:2\}/,
-  'the second row of warehouse tabs should be centered when it has three items');
+assert.match(css, /\.sidebar-nav-group:not\(\[open\]\)>summary\.has-active-child\{color:#f3f5f7;background:#1d2027;border-radius:10px/,
+  'a collapsed inventory group must still indicate that one of its child routes is active');
 assert.match(css, /\.inventory-stock-panel \.inventory-item-edit\{min-height:44px/,
   'stock card actions must meet the touch target on constrained screens');
 assert.match(css, /\.inventory-departments button\{min-height:44px/,

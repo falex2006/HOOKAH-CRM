@@ -18,5 +18,14 @@
     {"path":"/network","file":"network.html","mode":"admin","title":"Моя сеть"},
     {"path":"/platform","file":"platform.html","mode":"platform","title":"Платформа"}
   ],
+  "inventoryViews": [
+    {"view":"products","group":"menu","title":"Каталог товаров"},
+    {"view":"recipes","group":"menu","title":"Технологические карты"},
+    {"view":"stock","group":"inventory","title":"Остатки"},
+    {"view":"auto-orders","group":"inventory","title":"Пополнение запасов"},
+    {"view":"movements","group":"inventory","title":"Поставки и списания"},
+    {"view":"premixes","group":"inventory","title":"Заготовки и премиксы"},
+    {"view":"directories","group":"inventory","title":"Цеха и категории"}
+  ],
   "adminSubroutes": ["staff","tasks","loyalty","shift-control","settings","company","venue-layout-settings","lock-security","settings-dashboard-modules","audit","diagnostics"]
 }

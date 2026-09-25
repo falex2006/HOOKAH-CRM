@@ -25,6 +25,11 @@ for (const entry of siteMap.entries) {
   assert.equal(routes[entry.path], entry.file, `map mismatch ${entry.path}`);
   assert.ok(entry.title && entry.mode, `incomplete map entry ${entry.path}`);
 }
+assert.equal(siteMap.inventoryViews?.length, 7, 'inventory view map must enumerate every supported view');
+assert.deepEqual(siteMap.inventoryViews.map((entry) => entry.view), ['products', 'recipes', 'stock', 'auto-orders', 'movements', 'premixes', 'directories']);
+assert.deepEqual(siteMap.inventoryViews.filter((entry) => entry.group === 'menu').map((entry) => entry.view), ['products', 'recipes']);
+assert.deepEqual(siteMap.inventoryViews.filter((entry) => entry.group === 'inventory').map((entry) => entry.view), ['stock', 'auto-orders', 'movements', 'premixes', 'directories']);
+assert.match(tree, /\?view=auto-orders/);
 for (const subroute of siteMap.adminSubroutes) assert.match(siteMap.entries.find((entry) => entry.path === '/admin')?.file || '', /admin\.html/);
 assert.match(server, /canonicalByFile/);
 assert.match(server, /Location: location/);

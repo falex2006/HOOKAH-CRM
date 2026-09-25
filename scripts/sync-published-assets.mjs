@@ -3,8 +3,8 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '246';
-const portalRevision = '259';
+const cssRevision = '247';
+const portalRevision = '260';
 // Keep flat published pages in dist aligned with their source templates. Some
 // deploy targets resolve /inventory.html while others use /inventory/.
 for (const name of readdirSync(root).filter((entry) => entry.endsWith('.html'))) {

@@ -19,6 +19,7 @@ assert.match(server, /combinedRequirements/,
 assert.match(server, /const combinedRequirements = new Map\(\); for \(const entry of requirements\)/,
   'demo production must validate aggregated requirements before it changes any stock');
 assert.match(portal, /Заготовки и премиксы/);
-assert.match(portal, /data-inventory-tab="premixes"/);
+assert.match(portal, /href: '\/inventory\?view=premixes'/);
+assert.match(portal, /window\.addEventListener\('popstate', \(\) => setInventoryView/);
 assert.match(portal, /recipeType/);
 console.log('PREMIX CONTRACT: PASS');

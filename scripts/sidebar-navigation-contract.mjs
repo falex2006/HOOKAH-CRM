@@ -35,7 +35,7 @@ assert.match(portal, /const currentUrl = new URL\(location\.href\);/);
 assert.match(portal, /const linkMode = linkUrl\.searchParams\.get\('mode'\);/);
 assert.match(portal, /const currentMode = currentUrl\.searchParams\.get\('mode'\);/);
 assert.match(portal, /const modeMatches = linkMode \? linkMode === currentMode : !linkMode;/);
-assert.match(portal, /linkUrl\.pathname === currentPath && modeMatches && hashMatches/);
+assert.match(portal, /linkUrl\.pathname === currentPath && modeMatches && hashMatches && viewMatches/);
 assert.match(portal, /href: '\/\?mode=staff'/);
 assert.match(portal, /window\.addEventListener\('hashchange', \(\) => \{\s*normalizeManagementSidebar\(\);/s);
 
@@ -46,8 +46,23 @@ for (const route of ['/admin', '/orders', '/clients', '/reservations', '/invento
 }
 assert.match(portal, /href: '\/admin#settings'/);
 assert.match(portal, /href: '\/integrations'/);
-assert.match(portal, /\[\['ОПЕРАЦИИ', 'operations'\], \['КОНТРОЛЬ', 'control'\]\]/,
+assert.match(portal, /\[\['ОПЕРАЦИИ', 'operations'\]\]/,
   'multi-link operational groups must use the same collapsible pattern');
+for (const item of [
+  "{ href: '/inventory?view=products', permission: 'inventory_read', label: 'Каталог товаров', iconName: 'layout-grid' }",
+  "{ href: '/inventory?view=recipes', permission: 'inventory_read', label: 'Технологические карты', iconName: 'clipboard-list' }",
+  "{ href: '/inventory?view=stock', permission: 'inventory_read', label: 'Остатки', iconName: 'package' }",
+  "{ href: '/inventory?view=auto-orders', permission: 'inventory_read', label: 'Пополнение запасов', iconName: 'alert-triangle' }",
+  "{ href: '/inventory?view=movements', permission: 'inventory_read', label: 'Поставки и списания', iconName: 'truck-delivery' }",
+  "{ href: '/inventory?view=premixes', permission: 'inventory_read', label: 'Заготовки и премиксы', iconName: 'building' }",
+  "{ href: '/inventory?view=directories', permission: 'inventory_read', label: 'Цеха и категории', iconName: 'building' }",
+]) assert.ok(portal.includes(item), `missing inventory navigation target ${item}`);
+assert.match(portal, /ensureAreaGroup\('menu', 'МЕНЮ'/);
+assert.match(portal, /ensureAreaGroup\('inventory', 'СКЛАД'/);
+assert.match(portal, /summary\?\.classList\.toggle\('has-active-child', Boolean\(activeLink\)\)/);
+assert.match(portal, /window\.addEventListener\('popstate', \(\) => setInventoryView/);
+assert.match(portal, /history\[historyMode \+ 'State'\]/);
+assert.doesNotMatch(portal, /data-inventory-tab/, 'warehouse view navigation must have one visible source in the sidebar');
 assert.match(portal, /makeGroup\('КОМАНДА',[\s\S]*makeGroup\('СИСТЕМА'/,
   'team and system groups must remain in the shared disclosure pattern');
 assert.match(portal, /crm_sidebar_group_/,
@@ -56,7 +71,7 @@ assert.match(portal, /group\.open = savedGroupState\(group\.dataset\.navGroup\) 
   'sidebar disclosure state must be restored exactly as the user left it');
 assert.doesNotMatch(portal, /activeGroup\.open = true/,
   'loading a route must not override a saved collapsed group');
-assert.match(portal, /mainNav\.after\(disclosureRoot\);\s*disclosureRoot\.replaceChildren\(\.\.\.\['operations', 'control', 'team', 'system'\]/,
+assert.match(portal, /mainNav\.after\(disclosureRoot\);\s*disclosureRoot\.replaceChildren\(\.\.\.\['operations', 'menu', 'inventory', 'finance', 'team', 'system'\]/,
   'all collapsible sidebar sections must share one ordered container and spacing system');
 assert.match(portal, /summary\.innerHTML = `\$\{iconMarkup\(key === 'operations' \? 'clipboard-list' : 'chart-bar'\)\}<span>/,
   'compact icon navigation must expose accessible, recognizable group controls');
@@ -79,7 +94,7 @@ for (const entry of [
   "{ href: '/admin#loyalty', permission: 'loyalty', label: 'Система лояльности', iconName: 'gift' }",
   "{ href: '/integrations', permission: 'integrations', label: 'Telegram', iconName: 'send' }",
 ]) assert.ok(portal.includes(entry), `missing semantic navigation mapping ${entry}`);
-for (const symbol of ['table-layout', 'receipt', 'calendar-event', 'users', 'truck-delivery', 'package', 'chart-bar', 'id-badge', 'list-check', 'gift', 'settings', 'send']) {
+for (const symbol of ['table-layout', 'receipt', 'clipboard-list', 'calendar-event', 'users', 'truck-delivery', 'package', 'chart-bar', 'id-badge', 'list-check', 'gift', 'settings', 'send', 'layout-grid', 'building', 'alert-triangle']) {
   assert.ok(icons.includes(`<symbol id="${symbol}"`), `missing sidebar icon ${symbol}`);
 }
 assert.match(staffHtml, /tabler-icons\.svg\?rev=3#table-layout/);
