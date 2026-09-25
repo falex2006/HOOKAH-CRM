@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 const root = new URL('../', import.meta.url);
 const htmlFiles = readdirSync(root).filter(file => file.endsWith('.html'));
 assert.ok(htmlFiles.length >= 14, 'all application HTML routes should be present');
-const cssRevision = 225;
+const cssRevision = 226;
 const portalRevision = 230;
 for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
