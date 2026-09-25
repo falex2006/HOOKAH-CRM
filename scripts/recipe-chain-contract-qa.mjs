@@ -6,7 +6,8 @@ const migration = fs.readFileSync(new URL('../migrations/029_inventory_recipe_ou
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 let checks = 0;
 
-assert.match(source, /const client = await pool\.connect\(\);/);
+assert.match(source, /const client = transactionClient \|\| await pool\.connect\(\);/);
+assert.match(source, /const ownsTransaction = !transactionClient;/);
 assert.match(source, /await client\.query\('BEGIN'\)/);
 assert.match(source, /SAVEPOINT legacy_recipe_lookup/);
 assert.match(source, /ROLLBACK TO SAVEPOINT legacy_recipe_lookup/);
@@ -14,7 +15,7 @@ assert.match(source, /await client\.query\('SELECT id FROM ingredients[\s\S]*FOR
 assert.match(source, /error\.code !== '42P01'/);
 assert.match(source, /alreadyDepleted: true/);
 assert.match(source, /order_costs/);
-checks += 8;
+checks += 9;
 assert.match(migration, /yield_quantity/);
 assert.match(migration, /yield_unit/);
 assert.match(migration, /portion_count/);

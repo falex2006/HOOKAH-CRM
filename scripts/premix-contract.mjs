@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+const migration = fs.readFileSync(new URL('../migrations/037_inventory_premix.sql', import.meta.url), 'utf8');
+assert.match(migration, /inventory_premix_batches/);
+assert.match(migration, /recipe_type/);
+assert.match(server, /\/api\/inventory\/premixes\/produce/);
+assert.match(server, /insufficient_premix_stock/);
+assert.match(server, /inventory\.premix_produced/);
+assert.match(portal, /Премиксы и заготовки/);
+assert.match(portal, /data-inventory-tab="premixes"/);
+assert.match(portal, /recipeType/);
+console.log('PREMIX CONTRACT: PASS');

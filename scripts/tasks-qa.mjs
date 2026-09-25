@@ -1,5 +1,12 @@
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const source = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+assert.match(source, /if \(pathname === '\/api\/tasks' && req\.method === 'POST'\) \{\s*if \(denyUnless\(req, res, 'staff_manage'\)\)/);
+assert.match(source, /task_update_forbidden/);
+assert.match(source, /String\(task\.assigneeId \|\| ''\) !== String\(req\.user\?\.id \|\| ''\)/);
+assert.match(source, /task_assignee_not_found/);
 
 const port = 3217;
 const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), AUTH_REQUIRED: 'false', DATABASE_URL: '' }, stdio: ['ignore', 'pipe', 'pipe'] });

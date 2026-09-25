@@ -4,14 +4,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 const root = new URL('../', import.meta.url);
 const htmlFiles = readdirSync(root).filter(file => file.endsWith('.html'));
 assert.ok(htmlFiles.length >= 14, 'all application HTML routes should be present');
-const cssRevision = 226;
-const portalRevision = 230;
+const cssRevision = 227;
+const portalRevision = 231;
 for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, new RegExp(`style\\.css\\?rev=${cssRevision}`), `${file} must use current CSS cache version`);
   assert.doesNotMatch(html, /style\.css\?rev=(?:12[0-7]|1[01]\d)/, `${file} has stale CSS cache version`);
   if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, new RegExp(`portal\\.js\\?rev=${portalRevision}`), `${file} must use current portal JS cache version`);
-  if (file === 'index.html') assert.match(html, /app\.js\?rev=116/, 'index.html must use current staff app JS cache version');
+  if (file === 'index.html') assert.match(html, /app\.js\?rev=117/, 'index.html must use current staff app JS cache version');
   if (file === 'platform.html') assert.match(html, /platform\.js\?rev=3/, 'platform.html must use platform JS');
 }
 const distRoot = new URL('../dist/', import.meta.url);
@@ -40,3 +40,6 @@ for (const file of ['admin.html', 'orders.html', 'inventory.html']) {
     `${file} must use Tabler Icons`);
 }
 console.log(`LOCAL DESIGN CONTRACT: PASS (routes=${htmlFiles.length}, dist routes=${distHtmlFiles.length}, CSS rev=${cssRevision}, portal rev=${portalRevision}, action links and Tabler Icons)`);
+
+
+
