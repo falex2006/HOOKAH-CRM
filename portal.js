@@ -140,14 +140,24 @@ const normalizeManagementSidebar = () => {
       if (!node.closest('.sidebar-nav-group')) node.remove();
     });
   }
-  const currentPath = location.pathname;
-  const currentHash = location.hash;
+  const currentUrl = new URL(location.href);
+  const currentPath = currentUrl.pathname;
+  const currentHash = currentUrl.hash;
   const settingsHashes = new Set(['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit']);
   sidebar.querySelectorAll('.portal-nav a').forEach((link) => {
     const href = link.getAttribute('href') || '';
-    const [path, hash] = href.split('#');
-    const settingsLinkActive = path === '/admin' && hash === 'settings' && settingsHashes.has(currentHash);
-    const active = settingsLinkActive || (path === currentPath && (hash ? `#${hash}` === currentHash : !currentHash));
+    let linkUrl;
+    try { linkUrl = new URL(href, currentUrl); } catch (_) { linkUrl = null; }
+    if (!linkUrl) return;
+    // Keep query parameters that select a working mode part of the route.
+    // Without this check `/?mode=staff` was never highlighted because the
+    // old string split compared `/?mode=staff` with the pathname `/`.
+    const linkMode = linkUrl.searchParams.get('mode');
+    const currentMode = currentUrl.searchParams.get('mode');
+    const modeMatches = linkMode ? linkMode === currentMode : !linkMode;
+    const settingsLinkActive = linkUrl.pathname === '/admin' && linkUrl.hash === '#settings' && settingsHashes.has(currentHash);
+    const hashMatches = linkUrl.hash ? linkUrl.hash === currentHash : !currentHash;
+    const active = settingsLinkActive || (linkUrl.pathname === currentPath && modeMatches && hashMatches);
     link.classList.toggle('active', active);
     if (active) {
       link.setAttribute('aria-current', 'page');
