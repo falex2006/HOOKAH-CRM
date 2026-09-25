@@ -10,6 +10,7 @@ const required=[
   ['Safe area support', /env\(safe-area-inset-(left|right|bottom)\)/],
   ['Touch-size navigation', /\.velora-theme \.portal-sidebar \.portal-nav a\{width:52px;height:44px;min-height:44px/],
   ['Touch-size header controls', /\.velora-theme \.portal-header \.header-right[^}]*width:44px;height:44px/],
+  ['Compact rail group captions hidden', /@media\(max-width:900px\)\{[\s\S]*?\.velora-theme \.sidebar-nav-group>summary\{display:none\}/],
   ['Smooth content transition', /\.velora-theme\s+#page-content\.crm-route-enter\s*\{\s*animation:\s*crm-route-content-in/],
   ['Reduced motion fallback', /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.velora-theme\s+#page-content\.crm-route-enter\s*\{\s*animation:none!important/],
   ['Stable scrollbar slot', /\.velora-theme\s+\.portal-main,\.staff-theme\s+main\s*\{\s*scrollbar-gutter:\s*stable;/]
