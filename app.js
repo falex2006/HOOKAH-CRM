@@ -179,7 +179,7 @@ document.querySelector('#print-receipt')?.addEventListener('click',()=>{
 document.querySelector('#split-order')?.addEventListener('click',()=>{
   if(!currentOrder?.id || !(currentOrder.items||[]).length){notice('В заказе нет позиций для разделения');return;}
   if(['closed','cancelled'].includes(currentOrder.status)){notice('Закрытый заказ нельзя разделить');return;}
-  const lines=currentOrder.items.map((item,index)=>`${index+1}. ${item.name||'Позиция'} ×${item.quantity||1}`).join('\n');
+  const lines=currentOrder.items.map((item,index)=>`${index+1}. ${displayProductName(item.name||'Позиция')} ×${item.quantity||1}`).join('\n');
   requestStaffAction({title:'Разделить заказ',description:`Выберите номера позиций через запятую.\n${lines}`,submitLabel:'Создать новый заказ',fields:[{name:'items',label:'Номера позиций',type:'text',placeholder:'1, 3',required:true}]}).then((choice)=>{if(!choice)return;const indexes=String(choice.items||'').split(',').map((value)=>Number(value.trim())-1).filter((value)=>Number.isInteger(value)&&value>=0&&value<currentOrder.items.length);const itemIds=[...new Set(indexes)].map((index)=>currentOrder.items[index].id);if(!itemIds.length){notice('Позиции не выбраны');return;}apiJson(`/api/orders/${currentOrder.id}/split`,{method:'POST',headers:orderHeaders(),body:JSON.stringify({itemIds})}).then((target)=>{currentOrder.items=currentOrder.items.filter((item)=>!itemIds.includes(item.id));openOrders.push(target);drawOrder(currentOrder);drawQueue();return refreshFloor().then(()=>loadOrders()).then(()=>{notice('Новый заказ создан');});}).catch(()=>notice('Не удалось разделить заказ'));});
 });
 const paymentModal=document.querySelector('#payment-modal'); const paymentForm=document.querySelector('#payment-form');
