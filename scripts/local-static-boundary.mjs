@@ -60,7 +60,7 @@ try {
     }
   }
   // Include resources loaded by JS and CSS, not just the initial HTML.
-  for (const source of ['app.js', 'portal.js', 'style.css']) {
+  for (const source of ['app.js', 'portal.js', 'header-shell.js', 'style.css']) {
     const text = readFileSync(new URL('../' + source, import.meta.url), 'utf8');
     for (const match of text.matchAll(/(?:script\.src=|url\()["'](\/[^"']+)["']/g)) resources.add(match[1]);
   }

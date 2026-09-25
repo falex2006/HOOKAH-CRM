@@ -63,7 +63,7 @@ const normalizeManagementSidebar = () => {
   document.querySelectorAll('a[href="/finance#discounts"]').forEach((link) => link.remove());
   const sidebar = document.querySelector('.portal-sidebar');
   if (!sidebar) return;
-  const iconMarkup = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=3#${name}"></use></svg>`;
+  const iconMarkup = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=4#${name}"></use></svg>`;
   if (!sidebar.querySelector('.sidebar-mobile-toggle')) {
     const toggle = document.createElement('button');
     toggle.type = 'button';
@@ -237,7 +237,7 @@ const portalFooterRole = document.querySelector('.sidebar-footer b');
 const portalFooterAccess = document.querySelector('.sidebar-footer small');
 if (portalFooterRole) portalFooterRole.textContent = `● ${portalRole[0]}`;
 if (portalFooterAccess) portalFooterAccess.textContent = portalRole[1];
-document.querySelector('#notification-bell')?.addEventListener('click', () => { api('/api/discount-requests').then((data) => { const items = (data?.items || []).filter((item) => item.status === 'requested' && (!item.notificationRecipients || item.notificationRecipients.includes(portalUser.role))); localStorage.setItem('territory_crm_seen_discount_notifications', JSON.stringify(items.map((item) => item.id).slice(-100))); const badge = document.querySelector('#notification-count'); if (badge) badge.hidden = true; portalNotice(items.length ? `Заявки на скидку: ${items.length}` : 'Новых уведомлений нет', 'info'); }).catch(() => portalNotice('Не удалось загрузить уведомления', 'error')); });
+document.querySelector('#notification-bell')?.addEventListener('click', async (event) => { const bell = event.currentTarget; bell.disabled = true; bell.setAttribute('aria-busy', 'true'); try { const items = await loadHeaderNotificationItems(); markHeaderNotificationsSeen(items); const badge = document.querySelector('#notification-count'); if (badge) badge.hidden = true; const counts = items.reduce((result, item) => { result[item.type] = (result[item.type] || 0) + 1; return result; }, {}); const details = [counts.discount ? 'скидки — ' + counts.discount : '', counts.inventory_auto_order ? 'пополнение склада — ' + counts.inventory_auto_order : '', counts.order_deleted ? 'удалённые заказы — ' + counts.order_deleted : ''].filter(Boolean).join('; '); portalNotice(items.length ? 'Новых уведомлений: ' + items.length + (details ? '. ' + details : '') + (items.partial ? '. Часть уведомлений временно недоступна' : '') : items.partial ? 'Часть уведомлений временно недоступна' : 'Новых уведомлений нет', items.partial ? 'warning' : 'info'); } catch (_) { const badge = document.querySelector('#notification-count'); if (badge) badge.hidden = true; bell.title = 'Не удалось загрузить уведомления'; portalNotice('Не удалось загрузить уведомления', 'error'); } finally { bell.disabled = false; bell.removeAttribute('aria-busy'); } });
 document.querySelector('#logout')?.addEventListener('click', async (event) => {
   if (event.currentTarget.disabled) return; event.currentTarget.disabled = true; try { await fetch('/api/logout', { method: 'POST', headers: authHeaders() }); } catch (_) {}
   localStorage.removeItem('crm_session_token');
@@ -325,7 +325,44 @@ const refreshStaffPinNotifications = () => {
       portalNotice(`Сотрудник обновил PIN: ${unseen[0].staffName}`, 'info');
     }
   }).catch(() => {});
-};const refreshLeaderNotifications = () => { if (!['owner', 'admin', 'manager'].includes(portalUser.role)) return; Promise.allSettled([api('/api/discount-requests'), api('/api/inventory/auto-orders'), api('/api/notifications')]).then(([discountResult, autoOrderResult, notificationResult]) => { const discounts = discountResult.status === 'fulfilled' ? (discountResult.value?.items || []).filter((item) => item.status === 'requested' && (!item.notificationRecipients || item.notificationRecipients.includes(portalUser.role))) : []; const autoOrders = autoOrderResult.status === 'fulfilled' ? (autoOrderResult.value?.requests || []).filter((item) => item.status === 'sent').map((item) => ({ ...item, id: `auto-order-${item.id}`, type: 'inventory_auto_order', notificationRecipients: ['owner', 'admin', 'manager'] })) : []; const deletedOrders = notificationResult.status === 'fulfilled' ? (notificationResult.value?.items || []).filter((item) => item.type === 'order_deleted' && (!item.notificationRecipients || item.notificationRecipients.includes(portalUser.role))) : []; const items = [...discounts, ...autoOrders, ...deletedOrders].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)); const seenKey = 'territory_crm_seen_manager_notifications'; let seen = []; try { seen = JSON.parse(localStorage.getItem(seenKey) || '[]'); } catch (_) {} const unseen = items.filter((item) => !seen.includes(item.id)); const badge = document.querySelector('#notification-count'); if (badge) { badge.textContent = String(unseen.length); badge.hidden = unseen.length === 0; } const bell = document.querySelector('#notification-bell'); if (bell) bell.title = unseen.length ? `Новые уведомления: ${unseen.length}` : 'Уведомления'; if (unseen.length && !refreshLeaderNotifications.notified) { refreshLeaderNotifications.notified = true; const first = unseen[0]; const message = first.type === 'inventory_auto_order' ? 'Новая заявка на пополнение склада' : first.type === 'order_deleted' ? `Заказ ${first.orderId} удалён${first.writeoff ? ', ингредиенты списаны' : ''}` : `Новая заявка на скидку: ${first.value}% по заказу ${first.orderId}`; portalNotice(message, 'info'); localStorage.setItem(seenKey, JSON.stringify(items.map((item) => item.id).slice(-100))); } }).catch(() => {}); };
+};
+const headerNotificationRoles = new Set(['owner', 'admin', 'manager', 'developer']);
+const loadHeaderNotificationItems = async () => {
+  if (!headerNotificationRoles.has(portalUser.role)) return [];
+  const results = await Promise.allSettled([api('/api/discount-requests'), api('/api/inventory/auto-orders'), api('/api/notifications')]);
+  if (results.every((result) => result.status === 'rejected')) throw new Error('header_notifications_unavailable');
+  const discountResult = results[0], autoOrderResult = results[1], notificationResult = results[2];
+  const discounts = discountResult.status === 'fulfilled' ? (discountResult.value?.items || []).filter((item) => item.status === 'requested' && (!item.notificationRecipients || item.notificationRecipients.includes(portalUser.role))).map((item) => ({ ...item, type: 'discount' })) : [];
+  const autoOrders = autoOrderResult.status === 'fulfilled' ? (autoOrderResult.value?.requests || []).filter((item) => item.status === 'sent').map((item) => ({ ...item, id: 'auto-order-' + item.id, type: 'inventory_auto_order' })) : [];
+  const deletedOrders = notificationResult.status === 'fulfilled' ? (notificationResult.value?.items || []).filter((item) => item.type === 'order_deleted' && (!item.notificationRecipients || item.notificationRecipients.includes(portalUser.role))) : [];
+  const uniqueItems = new Map();
+  for (const item of [...discounts, ...autoOrders, ...deletedOrders]) uniqueItems.set(item.id, item);
+  const items = [...uniqueItems.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  items.partial = results.some((result) => result.status === 'rejected');
+  return items;
+};
+const readHeaderNotificationIds = () => {
+  try { return new Set([...JSON.parse(localStorage.getItem('territory_crm_seen_manager_notifications') || '[]'), ...JSON.parse(localStorage.getItem('territory_crm_seen_discount_notifications') || '[]')]); } catch (_) { return new Set(); }
+};
+const markHeaderNotificationsSeen = (items) => {
+  localStorage.setItem('territory_crm_seen_manager_notifications', JSON.stringify(items.map((item) => item.id).slice(-100)));
+  localStorage.setItem('territory_crm_seen_discount_notifications', JSON.stringify(items.filter((item) => item.type === 'discount').map((item) => item.id).slice(-100)));
+};
+const refreshLeaderNotifications = async () => {
+  if (!headerNotificationRoles.has(portalUser.role)) return;
+  try {
+    const items = await loadHeaderNotificationItems();
+    const seen = readHeaderNotificationIds();
+    const unseen = items.filter((item) => !seen.has(item.id));
+    const badge = document.querySelector('#notification-count');
+    if (badge) { badge.textContent = String(unseen.length); badge.hidden = unseen.length === 0; }
+    const bell = document.querySelector('#notification-bell');
+    if (bell) bell.title = (items.partial ? 'Часть уведомлений недоступна. ' : '') + (unseen.length ? 'Новые уведомления: ' + unseen.length : 'Уведомления');
+  } catch (_) {
+    const bell = document.querySelector('#notification-bell');
+    if (bell) bell.title = 'Не удалось загрузить уведомления';
+  }
+};
 const bindKpiNavigation = () => { const activate = (card) => { const route = card.dataset.kpiRoute; const target = card.dataset.kpiTarget; if (target) { document.querySelector(target)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); document.querySelector(target)?.focus?.({ preventScroll: true }); return; } if (route) window.location.href = route; }; document.querySelectorAll('[data-kpi-route], [data-kpi-target]').forEach((card) => { if (card.dataset.kpiBound === '1') return; card.dataset.kpiBound = '1'; card.setAttribute('role', 'button'); card.setAttribute('tabindex', '0'); card.addEventListener('click', () => activate(card)); card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(card); } }); }); };
 const staticDemo = () => String(localStorage.getItem('crm_session_token') || '').startsWith('demo-static-');
 const demoKey = 'territory_crm_demo_state';
@@ -588,7 +625,7 @@ Promise.allSettled([api('/api/venue'), api('/api/metrics')]).then(([venueResult,
     document.querySelectorAll('[data-metric]').forEach((el) => { const key = el.dataset.metric; if (metrics[key] !== undefined) el.textContent = key === 'staffActive' ? String(metrics[key]) + ' ' + pluralRu(Number(metrics[key]), 'активный', 'активных', 'активных') : metrics[key]; });
   }
 });
-const shiftStatusNode = document.querySelector('.portal-header .live-dot'); const shiftStatusVisible = ['/finance', '/finance/report', '/orders', '/reservations', '/delivery'].includes(location.pathname) || (location.pathname === '/admin' && (!location.hash || location.hash === '#shift-control')); if (shiftStatusNode) shiftStatusNode.hidden = !shiftStatusVisible; if (shiftStatusNode && shiftStatusVisible) api('/api/shifts').then((data) => { shiftStatusNode.textContent = data.current ? '● Смена открыта' : '● Смена закрыта'; shiftStatusNode.classList.toggle('offline', !data.current); }).catch(() => {});
+const shiftStatusNode = document.querySelector('.portal-header .header-shift-status'); if (shiftStatusNode) api('/api/shifts').then((data) => { if (!data || !Object.prototype.hasOwnProperty.call(data, 'current')) throw new Error('shift_status_unavailable'); const isOpen = Boolean(data.current); shiftStatusNode.textContent = isOpen ? '● Смена открыта' : '● Смена закрыта'; shiftStatusNode.dataset.shiftState = isOpen ? 'open' : 'closed'; shiftStatusNode.classList.toggle('offline', !isOpen); }).catch(() => { shiftStatusNode.textContent = '● Статус смены недоступен'; shiftStatusNode.dataset.shiftState = 'error'; shiftStatusNode.classList.add('offline'); });
 
 function setupFinancePreferences() {
   const identity = String(portalUser.id || portalUser.login || portalUser.name || portalUser.role || 'user').toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '_');

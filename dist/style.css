@@ -2061,3 +2061,26 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme #dashboard-insights .insight-layout{grid-template-columns:minmax(0,1fr)}
 .velora-theme #dashboard-insights .insight-payment-empty{display:grid;align-content:center;gap:5px;min-height:72px;padding:8px 0;color:#dfe3e7}
 .velora-theme #dashboard-insights .insight-payment-empty span{color:#929ba5;font-size:12px;line-height:1.45}
+
+/* Shared CRM top bar contract: one action lane and one responsive rhythm on every management route. */
+.velora-theme .portal-header{box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:20px;width:100%;height:68px;min-height:68px;padding-inline:clamp(18px,2.4vw,38px)}
+.velora-theme .portal-header>.header-context{display:block;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#dfe3e7}
+.velora-theme .portal-header>.header-context .muted{color:#929ba5}
+.velora-theme .portal-header>.header-right{display:flex;flex:0 1 auto;align-items:center;justify-content:flex-end;gap:clamp(8px,1vw,14px);min-width:0;white-space:nowrap}
+.velora-theme .portal-header .header-user{display:flex;flex:0 0 auto;align-items:center;gap:10px;min-width:0}
+.velora-theme .portal-header .header-user-copy{min-width:0;text-align:right}
+.velora-theme .portal-header .header-user-copy b,.velora-theme .portal-header .header-user-copy small{display:block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.velora-theme .portal-header .header-user-copy small{color:#929ba5}
+.velora-theme .portal-header .header-date{color:#929ba5;font-size:12px;font-variant-numeric:tabular-nums}
+.velora-theme .portal-header .header-shift-status{color:#44d6a6;font-size:12px}
+.velora-theme .portal-header .header-shift-status.offline{color:#ffb86b}
+.velora-theme .portal-header .header-right>button[hidden]{display:none!important}
+.velora-theme .portal-header .header-right>.notification-bell:disabled{opacity:.65;cursor:wait}
+.velora-theme .portal-header .header-right>.notification-bell,.velora-theme .portal-header .header-right>.lock-settings-button,.velora-theme .portal-header .header-right>#lock-screen-button{box-sizing:border-box;flex:0 0 44px;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:0;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;line-height:0}
+.velora-theme .portal-header .header-right>.notification-bell .icon,.velora-theme .portal-header .header-right>.lock-settings-button .icon,.velora-theme .portal-header .header-right>#lock-screen-button .lock-button-glyph{display:block;flex:0 0 18px;width:18px;height:18px;min-width:18px;min-height:18px}
+.staff-theme .staff-header-user>#lock-settings-button,.staff-theme .staff-header-user>#lock-screen-button{box-sizing:border-box;flex:0 0 44px;width:44px;height:44px;min-width:44px;min-height:44px;margin:0 4px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.staff-theme .staff-header-user>#lock-screen-button .lock-button-glyph{width:18px!important;height:18px!important}
+@media(max-width:950px){.velora-theme .portal-header{gap:12px;padding-inline:20px}.velora-theme .portal-header .header-user-copy,.velora-theme .portal-header .header-date{display:none}}
+@media(max-width:760px){.velora-theme .portal-header{height:64px;min-height:64px;gap:8px;padding-inline:12px}.velora-theme .portal-header>.header-context{max-width:42%;font-size:13px}.velora-theme .portal-header>.header-context>.muted{display:none}.velora-theme .portal-shell .portal-header>.header-context{margin-left:50px;max-width:calc(42% - 50px)}.velora-theme .portal-header>.header-right{gap:4px}.velora-theme .portal-header .header-shift-status{display:none}}
+@media(max-width:420px){.velora-theme .portal-header{height:60px;min-height:60px;padding-inline:8px}.velora-theme .portal-header>.header-context{max-width:38%;font-size:12px}.velora-theme .portal-header>.header-right{gap:2px}.velora-theme .portal-header .avatar{flex:0 0 32px;width:32px;height:32px}}
+@media(max-width:650px){.staff-theme header{box-sizing:border-box;display:flex;flex-wrap:wrap;align-content:center;gap:4px 8px;height:auto;min-height:96px;padding:8px 14px}.staff-theme header>div:first-child{display:flex;flex:1 1 100%;align-items:center;justify-content:space-between;gap:8px;min-width:0}.staff-theme header>div:first-child>b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.staff-theme .shift{flex:0 0 auto;margin-left:0;white-space:nowrap;font-size:12px}.staff-theme .staff-header-user{display:flex;flex:1 1 100%;justify-content:flex-end;gap:0;min-width:0;margin:0}.staff-theme .staff-header-user .staff-header-copy,.staff-theme .staff-header-user .staff-header-date{display:none}.staff-theme .staff-header-user>#lock-settings-button,.staff-theme .staff-header-user>#lock-screen-button{margin-inline:2px}.staff-theme .staff-header-user .staff-header-avatar{flex:0 0 32px;width:32px;height:32px;margin-left:4px}}

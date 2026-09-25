@@ -13,6 +13,7 @@
     "qa:warehouse": "node scripts/warehouse-qa.mjs",
     "qa:payroll": "node scripts/payroll-qa.mjs",
     "qa:orders": "node scripts/order-attention-qa.mjs",
+    "qa:header": "node scripts/header-shell-contract.mjs",
     "db:seed-menu": "node scripts/seed-menu-catalog.js"
   },
   "engines": {

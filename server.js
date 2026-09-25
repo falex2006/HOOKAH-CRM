@@ -2279,7 +2279,7 @@ function staticFile(req, res) {
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
     '/phone-format.js',
-    ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/admin.js',
+    ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
