@@ -1679,8 +1679,8 @@ if (staffProfile && req.method === 'PATCH') {
     const unitFactors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
     if (repositories?.inventory) {
       try {
-        const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit] ? unitFactors[sourceUnit][item.unit] : 1; const converted = item ? quantity * conversionFactor : quantity;
-        if (!item || !Number.isFinite(converted) || converted <= 0) return json(res, 400, { error: 'invalid_supply_unit' });
+        const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit]; const converted = item && conversionFactor ? quantity * conversionFactor : quantity;
+        if (!item || !conversionFactor || !Number.isFinite(converted) || converted <= 0) return json(res, 400, { error: 'invalid_supply_unit' });
         const previousValue = Number(item.onHand || 0) * Number(item.cost || 0); const normalizedUnitCost = unitCost / conversionFactor; const nextCost = (previousValue + converted * normalizedUnitCost) / (Number(item.onHand || 0) + converted);
         await repositories.inventory.update(venueDbId, item.id, { cost: Math.round(nextCost * 100) / 100 });
         const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: 'in', quantity: converted, reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
@@ -1688,8 +1688,8 @@ if (staffProfile && req.method === 'PATCH') {
         return json(res, 201, { ...movement, itemName: item.name, delta: converted, unit: item.unit, sourceUnit, unitCost, weightedCost: Math.round(nextCost * 100) / 100 });
       } catch (error) { return json(res, 409, { error: 'supply_save_failed', detail: error.message }); }
     }
-    const item = inventory.find((entry) => entry.id === input.itemId); const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit] ? unitFactors[sourceUnit][item.unit] : 1; const converted = item ? quantity * conversionFactor : quantity;
-    if (!item || !Number.isFinite(converted) || converted <= 0) return json(res, 400, { error: 'invalid_supply_unit' }); const previousValue = Number(item.onHand || 0) * Number(item.cost || 0); const normalizedUnitCost = unitCost / conversionFactor; item.cost = Math.round(((previousValue + converted * normalizedUnitCost) / (Number(item.onHand || 0) + converted)) * 100) / 100; item.onHand = Math.round((Number(item.onHand || 0) + converted) * 100) / 100; const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta: converted, unit: item.unit, sourceUnit, reason, createdAt: new Date().toISOString() }; stockMovements.push(movement); recordAudit(req, 'inventory.supply_received', 'inventory', item.id, null, { onHand: item.onHand, cost: item.cost, movement }); return json(res, 201, { ...movement, unitCost, weightedCost: item.cost });
+    const item = inventory.find((entry) => entry.id === input.itemId); const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit]; const converted = item && conversionFactor ? quantity * conversionFactor : quantity;
+    if (!item || !conversionFactor || !Number.isFinite(converted) || converted <= 0) return json(res, 400, { error: 'invalid_supply_unit' }); const previousValue = Number(item.onHand || 0) * Number(item.cost || 0); const normalizedUnitCost = unitCost / conversionFactor; item.cost = Math.round(((previousValue + converted * normalizedUnitCost) / (Number(item.onHand || 0) + converted)) * 100) / 100; item.onHand = Math.round((Number(item.onHand || 0) + converted) * 100) / 100; const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta: converted, unit: item.unit, sourceUnit, reason, createdAt: new Date().toISOString() }; stockMovements.push(movement); recordAudit(req, 'inventory.supply_received', 'inventory', item.id, null, { onHand: item.onHand, cost: item.cost, movement }); return json(res, 201, { ...movement, unitCost, weightedCost: item.cost });
   }
   if (pathname === '/api/inventory/movements' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -1699,16 +1699,16 @@ if (staffProfile && req.method === 'PATCH') {
     const unitFactors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
     if (repositories?.inventory) {
       const current = await repositories.inventory.list(venueDbId); const item = current.items.find((entry) => entry.id === input.itemId); const delta = Number(input.delta);
-      const sourceUnit = String(input.unit || item?.unit || ''); const convertedDelta = item && unitFactors[sourceUnit]?.[item.unit] ? delta * unitFactors[sourceUnit][item.unit] : delta;
-      if (!item || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(convertedDelta)) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
+      const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit]; const convertedDelta = item && conversionFactor ? delta * conversionFactor : delta;
+      if (!item || !conversionFactor || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(convertedDelta)) return json(res, 400, { error: !conversionFactor ? 'invalid_movement_unit' : 'item_and_nonzero_delta_required' });
       if (item.onHand + convertedDelta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
       const movement = await repositories.inventory.move({ venueId: venueDbId, ingredientId: item.id, direction: convertedDelta > 0 ? 'in' : 'out', quantity: Math.abs(convertedDelta), reason: input.reason, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
       recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand }, { onHand: item.onHand + convertedDelta, movement });
       return json(res, 201, { ...movement, itemName: item.name, delta: convertedDelta, unit: item.unit, sourceUnit });
     }
     const item = inventory.find((entry) => entry.id === input.itemId);
-    const delta = Number(input.delta); const sourceUnit = String(input.unit || item?.unit || ''); const convertedDelta = item && unitFactors[sourceUnit]?.[item.unit] ? delta * unitFactors[sourceUnit][item.unit] : delta;
-    if (!item || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(convertedDelta)) return json(res, 400, { error: 'item_and_nonzero_delta_required' });
+    const delta = Number(input.delta); const sourceUnit = String(input.unit || item?.unit || ''); const conversionFactor = item && unitFactors[sourceUnit]?.[item.unit]; const convertedDelta = item && conversionFactor ? delta * conversionFactor : delta;
+    if (!item || !conversionFactor || !Number.isFinite(delta) || delta === 0 || !Number.isFinite(convertedDelta)) return json(res, 400, { error: !conversionFactor ? 'invalid_movement_unit' : 'item_and_nonzero_delta_required' });
     if (item.onHand + convertedDelta < 0) return json(res, 409, { error: 'insufficient_stock', onHand: item.onHand });
     item.onHand = Math.round((item.onHand + convertedDelta) * 100) / 100;
     const movement = { id: `mov-${Date.now()}`, itemId: item.id, itemName: item.name, delta: convertedDelta, unit: item.unit, sourceUnit, reason: input.reason, createdAt: new Date().toISOString() };

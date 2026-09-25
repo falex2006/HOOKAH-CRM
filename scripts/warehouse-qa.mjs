@@ -13,6 +13,8 @@ try {
  await req(`/api/inventory/items/${item.id}`,'PATCH',{onHand:999,id:'hijack'},400);
  await req(`/api/inventory/items/${item.id}`,'PATCH',{cost:-1},400);
  await req(`/api/inventory/items/${item.id}`,'PATCH',{name:'QA — Сироп обновлён',itemType:'consumable',purchaseUnit:'канистра',packMultiplier:500});
+ await req('/api/inventory/supplies','POST',{itemId:item.id,quantity:2,unit:'кг',unitCost:100},400);
+ await req('/api/inventory/movements','POST',{itemId:item.id,delta:2,unit:'кг',reason:'QA несовместимая единица'},400);
  await req('/api/inventory/movements','POST',{itemId:item.id,delta:100,reason:'QA поставка'},201);
  await req('/api/inventory/movements','POST',{itemId:item.id,delta:-30,reason:'QA списание'},201);
  await req('/api/inventory/movements','POST',{itemId:item.id,delta:-100,reason:'QA сверх остатка'},409);
