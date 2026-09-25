@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const tree = fs.readFileSync(new URL('../SITE_TREE.md', import.meta.url), 'utf8');
+const nginx = fs.readFileSync(new URL('../nginx/default.conf', import.meta.url), 'utf8');
 const siteMap = JSON.parse(fs.readFileSync(new URL('../site-map.json', import.meta.url), 'utf8'));
 const routes = {
   '/': 'index.html', '/login': 'login.html', '/admin': 'admin.html', '/orders': 'orders.html',
@@ -27,4 +28,8 @@ for (const entry of siteMap.entries) {
 for (const subroute of siteMap.adminSubroutes) assert.match(siteMap.entries.find((entry) => entry.path === '/admin')?.file || '', /admin\.html/);
 assert.match(server, /canonicalByFile/);
 assert.match(server, /Location: location/);
+// Nginx owns trailing-slash normalization for the deployed reverse-proxy
+// path. Keep the root URL intact while redirecting every nested slash form.
+assert.match(nginx, /location\s+~\s+\^\(\.\+\)\/\+\$\s*\{/);
+assert.match(nginx, /return\s+308\s+\$1\$is_args\$args;/);
 console.log(`SITE STRUCTURE CONTRACT: PASS (${Object.keys(routes).length} canonical pages)`);

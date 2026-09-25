@@ -23,6 +23,20 @@ try {
  const supply=await req('/api/inventory/supplies','POST',{itemId:item.id,quantity:2,unit:'л',unitCost:100,supplier:'QA поставщик'},201);
  assert.equal(supply.sourceUnit,'л'); assert.equal(supply.unit,'мл'); checks++;
  await req('/api/inventory/movements','POST',{itemId:item.id,delta:-2000,reason:'QA очистка поставки'},201);
+ const autoOrder = await req('/api/inventory/auto-orders');
+ assert.ok(autoOrder.items.some((entry) => entry.id === item.id), 'low stock item must appear in auto-order suggestions'); checks++;
+ const request = await req('/api/inventory/auto-orders','POST',{items:[{itemId:item.id,quantity:500}],note:'QA автозаказ'},201);
+ assert.equal(request.status,'sent'); assert.equal(request.lines[0].receivedQuantity,0); checks++;
+ const partially = await req(`/api/inventory/auto-orders/${request.id}`,'PATCH',{status:'partially_received',receipts:[{itemId:item.id,quantity:250}]},200);
+ assert.equal(partially.status,'partially_received'); assert.equal(partially.lines[0].receivedQuantity,250); checks++;
+ const received = await req(`/api/inventory/auto-orders/${request.id}`,'PATCH',{status:'received'},200);
+ assert.equal(received.status,'received'); assert.equal(received.lines[0].receivedQuantity,500); checks++;
+ const afterReceipt = await req('/api/inventory'); assert.equal(afterReceipt.items.find((entry) => entry.id === item.id).onHand,500); checks++;
+ const repeated = await req(`/api/inventory/auto-orders/${request.id}`,'PATCH',{status:'received'},200);
+ assert.equal(repeated.lines[0].receivedQuantity,500); assert.equal((await req('/api/inventory')).items.find((entry) => entry.id === item.id).onHand,500); checks++;
+ await req(`/api/inventory/auto-orders/${request.id}`,'PATCH',{status:'cancelled'},409);
+ await req(`/api/inventory/auto-orders/${request.id}`,'PATCH',{status:'received',receipts:[{itemId:item.id,quantity:1}]},409);
+ await req('/api/inventory/movements','POST',{itemId:item.id,delta:-500,reason:'QA очистка автозаказа'},201);
 } finally { await req(`/api/inventory/items/${item.id}`,'DELETE'); }
 const category=await req('/api/product-categories','POST',{name:'QA категория',department:'bar'},201);
 const product=await req('/api/products','POST',{name:'QA напиток',category:category.name,price:150},201);

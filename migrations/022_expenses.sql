@@ -11,4 +11,19 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS expenses_venue_date_idx ON expenses(venue_id, expense_date);
-ALTER TABLE payroll_entries ADD CONSTRAINT payroll_entries_expense_fk FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE SET NULL;
+-- The deployment script may replay every migration against an existing volume.
+-- Add the relation only when it is not already present.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'payroll_entries_expense_fk'
+      AND conrelid = 'payroll_entries'::regclass
+  ) THEN
+    ALTER TABLE payroll_entries
+      ADD CONSTRAINT payroll_entries_expense_fk
+      FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE SET NULL;
+  END IF;
+END
+$$;

@@ -1454,10 +1454,10 @@ if (staffProfile && req.method === 'PATCH') {
       try {
         const data = await repositories.inventory.list(venueDbId);
         const { rows } = await repositories.pool.query(`SELECT id,status,lines,note,total_estimate AS "totalEstimate",created_at AS "createdAt",sent_at AS "sentAt",updated_at AS "updatedAt" FROM inventory_auto_orders WHERE venue_id=$1 ORDER BY created_at DESC LIMIT 20`, [venueDbId]);
-        return json(res, 200, { items: buildSuggestions(data.items), requests: rows.map((row) => ({ ...row, totalEstimate: Number(row.totalEstimate || 0), lines: Array.isArray(row.lines) ? row.lines : [] })) });
+        return json(res, 200, { items: buildSuggestions(data.items), requests: rows.map((row) => ({ ...row, totalEstimate: Number(row.totalEstimate || 0), lines: Array.isArray(row.lines) ? row.lines.map((line) => ({ ...line, quantity: Number(line.quantity || 0), receivedQuantity: Number(line.receivedQuantity || 0) })) : [] })) });
       } catch (error) { return json(res, 503, { error: 'auto_orders_unavailable', detail: error.message }); }
     }
-    const suggestions = buildSuggestions(inventory); return json(res, 200, { items: suggestions, requests: autoOrderRequests.slice().reverse().slice(0, 20) });
+    const suggestions = buildSuggestions(inventory); return json(res, 200, { items: suggestions, requests: autoOrderRequests.slice().reverse().slice(0, 20).map((request) => ({ ...request, lines: Array.isArray(request.lines) ? request.lines.map((line) => ({ ...line, quantity: Number(line.quantity || 0), receivedQuantity: Number(line.receivedQuantity || 0) })) : [] })) });
   }
   if (pathname === '/api/inventory/auto-orders' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -1466,7 +1466,7 @@ if (staffProfile && req.method === 'PATCH') {
     const requestedLines = rawItems.map((line) => ({ itemId: String(line.itemId || '').trim(), quantity: Number(line.quantity) })).filter((line) => line.itemId && Number.isFinite(line.quantity) && line.quantity > 0);
     if (!requestedLines.length || requestedLines.length !== rawItems.length) return json(res, 400, { error: 'invalid_auto_order_lines' });
     const current = repositories?.inventory ? (await repositories.inventory.list(venueDbId)).items : inventory;
-    const lines = requestedLines.map((line) => { const item = current.find((entry) => entry.id === line.itemId); if (!item) return null; const pack = Math.max(0.01, Number(item.packMultiplier || 1)); const quantity = Math.ceil(line.quantity / pack) * pack; return { itemId: item.id, name: item.name, quantity: Number(quantity.toFixed(3)), unit: item.unit, supplier: item.supplier || null, unitCost: Number(item.cost || 0), estimate: Number((quantity * Number(item.cost || 0)).toFixed(2)) }; });
+    const lines = requestedLines.map((line) => { const item = current.find((entry) => entry.id === line.itemId); if (!item) return null; const pack = Math.max(0.01, Number(item.packMultiplier || 1)); const quantity = Math.ceil(line.quantity / pack) * pack; return { itemId: item.id, name: item.name, quantity: Number(quantity.toFixed(3)), receivedQuantity: 0, unit: item.unit, supplier: item.supplier || null, unitCost: Number(item.cost || 0), estimate: Number((quantity * Number(item.cost || 0)).toFixed(2)) }; });
     if (lines.some((line) => !line)) return json(res, 400, { error: 'auto_order_item_not_found' });
     const totalEstimate = Number(lines.reduce((sum, line) => sum + line.estimate, 0).toFixed(2)); const note = String(input.note || '').trim().slice(0, 500) || null;
     if (repositories?.pool) {
@@ -1480,12 +1480,57 @@ if (staffProfile && req.method === 'PATCH') {
   }
   const autoOrderPath = pathname.match(/^\/api\/inventory\/auto-orders\/([^/]+)$/);
   if (autoOrderPath && req.method === 'PATCH') {
+    // Only inventory writers may change an auto-order. inventory_read is deliberately
+    // read-only, including for receipt/status mutations.
     if (denyUnless(req, res, 'inventory')) return;
-    const input = await body(req); const status = String(input.status || ''); if (!['sent', 'partially_received', 'received', 'cancelled'].includes(status)) return json(res, 400, { error: 'invalid_auto_order_status' });
+    const input = await body(req); const status = String(input.status || '');
+    const allowedStatuses = ['sent', 'partially_received', 'received', 'cancelled'];
+    const transitions = { sent: new Set(['sent', 'partially_received', 'received', 'cancelled']), partially_received: new Set(['partially_received', 'received', 'cancelled']), received: new Set(['received']), cancelled: new Set(['cancelled']) };
+    if (!allowedStatuses.includes(status)) return json(res, 400, { error: 'invalid_auto_order_status' });
+    const normalizeLines = (value) => (Array.isArray(value) ? value : []).map((line) => ({ ...line, quantity: Number(line.quantity || 0), receivedQuantity: Number(line.receivedQuantity || 0) }));
+    const parseReceipts = (lines, requestedReceipts, requestedStatus) => {
+      const current = normalizeLines(lines); const remaining = new Map(current.map((line) => [String(line.itemId), Math.max(0, Number(line.quantity || 0) - Number(line.receivedQuantity || 0))]));
+      const receipts = Array.isArray(requestedReceipts) ? requestedReceipts : requestedStatus === 'received' ? current.filter((line) => remaining.get(String(line.itemId)) > 0).map((line) => ({ itemId: line.itemId, quantity: remaining.get(String(line.itemId)) })) : [];
+      if (requestedStatus === 'partially_received' && !receipts.length) return { error: 'auto_order_receipt_lines_required' };
+      const totals = new Map();
+      for (const receipt of receipts) { const itemId = String(receipt?.itemId || '').trim(); const quantity = Number(receipt?.quantity); if (!itemId || !Number.isFinite(quantity) || quantity <= 0) return { error: 'invalid_auto_order_receipt_lines' }; totals.set(itemId, (totals.get(itemId) || 0) + quantity); }
+      for (const [itemId, quantity] of totals) { if (!remaining.has(itemId)) return { error: 'auto_order_item_not_found' }; if (quantity > remaining.get(itemId) + 0.000001) return { error: 'auto_order_receipt_exceeds_ordered', itemId, remaining: remaining.get(itemId) }; }
+      const nextLines = current.map((line) => ({ ...line, receivedQuantity: Number((Number(line.receivedQuantity || 0) + (totals.get(String(line.itemId)) || 0)).toFixed(3)) }));
+      const fullyReceived = nextLines.length > 0 && nextLines.every((line) => Number(line.receivedQuantity || 0) >= Number(line.quantity || 0) - 0.000001);
+      if (requestedStatus === 'received' && !fullyReceived) return { error: 'auto_order_receipt_incomplete' };
+      return { receipts: [...totals.entries()].map(([itemId, quantity]) => ({ itemId, quantity })), lines: nextLines, fullyReceived };
+    };
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(autoOrderPath[1])) {
-      try { const { rows } = await repositories.pool.query(`UPDATE inventory_auto_orders SET status=$1,updated_at=now() WHERE id=$2 AND venue_id=$3 RETURNING id,status,lines,note,total_estimate AS "totalEstimate",created_at AS "createdAt",sent_at AS "sentAt",updated_at AS "updatedAt"`, [status, autoOrderPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'auto_order_not_found' }); recordAudit(req, `inventory.auto_order_${status}`, 'inventory_auto_order', rows[0].id, null, rows[0]); return json(res, 200, { ...rows[0], totalEstimate: Number(rows[0].totalEstimate || 0), lines: rows[0].lines || [] }); } catch (error) { return json(res, 409, { error: 'auto_order_status_save_failed', detail: error.message }); }
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const { rows: currentRows } = await client.query(`SELECT id,status,lines,note,total_estimate AS "totalEstimate",created_at AS "createdAt",sent_at AS "sentAt",updated_at AS "updatedAt" FROM inventory_auto_orders WHERE id=$1 AND venue_id=$2 FOR UPDATE`, [autoOrderPath[1], venueDbId]);
+        const current = currentRows[0]; if (!current) { await client.query('ROLLBACK'); return json(res, 404, { error: 'auto_order_not_found' }); }
+        if (!transitions[current.status]?.has(status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'invalid_auto_order_transition', from: current.status, to: status }); }
+        const receiptResult = parseReceipts(current.lines, input.receipts, status); if (receiptResult.error) { await client.query('ROLLBACK'); return json(res, 409, receiptResult); }
+        if (receiptResult.receipts.length) {
+          const ids = receiptResult.receipts.map((line) => line.itemId).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+          if (ids.length !== receiptResult.receipts.length) { await client.query('ROLLBACK'); return json(res, 409, { error: 'auto_order_item_not_found' }); }
+          const { rows: inventoryRows } = await client.query('SELECT id,name,unit FROM ingredients WHERE venue_id=$1 AND id=ANY($2::uuid[]) AND is_marked=true FOR UPDATE', [venueDbId, ids]);
+          const inventoryById = new Map(inventoryRows.map((item) => [item.id, item]));
+          for (const receipt of receiptResult.receipts) {
+            const item = inventoryById.get(receipt.itemId); if (!item) { await client.query('ROLLBACK'); return json(res, 409, { error: 'auto_order_item_not_found', itemId: receipt.itemId }); }
+            const line = normalizeLines(current.lines).find((entry) => String(entry.itemId) === receipt.itemId);
+            await client.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,created_by) VALUES ($1,$2,'in',$3,$4,$5)`, [venueDbId, item.id, receipt.quantity, `Приёмка по автозаказу ${autoOrderPath[1]}`, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]);
+            if (line && line.unit && line.unit !== item.unit) { await client.query('ROLLBACK'); return json(res, 409, { error: 'auto_order_unit_mismatch', itemId: item.id }); }
+          }
+        }
+        const nextStatus = receiptResult.receipts.length && receiptResult.fullyReceived ? 'received' : status;
+        const { rows } = await client.query(`UPDATE inventory_auto_orders SET status=$1,lines=$2::jsonb,updated_at=now() WHERE id=$3 AND venue_id=$4 RETURNING id,status,lines,note,total_estimate AS "totalEstimate",created_at AS "createdAt",sent_at AS "sentAt",updated_at AS "updatedAt"`, [nextStatus, JSON.stringify(receiptResult.lines.length ? receiptResult.lines : normalizeLines(current.lines)), autoOrderPath[1], venueDbId]);
+        await client.query('COMMIT');
+        recordAudit(req, `inventory.auto_order_${nextStatus}`, 'inventory_auto_order', rows[0].id, { status: current.status, lines: current.lines }, rows[0]); return json(res, 200, { ...rows[0], totalEstimate: Number(rows[0].totalEstimate || 0), lines: normalizeLines(rows[0].lines) });
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'auto_order_status_save_failed', detail: error.message }); } finally { client.release(); }
     }
-    const request = autoOrderRequests.find((entry) => entry.id === autoOrderPath[1]); if (!request) return json(res, 404, { error: 'auto_order_not_found' }); request.status = status; request.updatedAt = new Date().toISOString(); recordAudit(req, `inventory.auto_order_${status}`, 'inventory_auto_order', request.id, null, request); return json(res, 200, request);
+    const request = autoOrderRequests.find((entry) => entry.id === autoOrderPath[1]); if (!request) return json(res, 404, { error: 'auto_order_not_found' });
+    if (!transitions[request.status]?.has(status)) return json(res, 409, { error: 'invalid_auto_order_transition', from: request.status, to: status });
+    const receiptResult = parseReceipts(request.lines, input.receipts, status); if (receiptResult.error) return json(res, 409, receiptResult);
+    for (const receipt of receiptResult.receipts) { const item = inventory.find((entry) => entry.id === receipt.itemId); if (!item) return json(res, 409, { error: 'auto_order_item_not_found', itemId: receipt.itemId }); item.onHand = Math.round((Number(item.onHand || 0) + receipt.quantity) * 1000) / 1000; stockMovements.push({ id: `mov-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, itemId: item.id, itemName: item.name, delta: receipt.quantity, quantity: receipt.quantity, direction: 'in', reason: `Приёмка по автозаказу ${request.id}`, createdAt: new Date().toISOString() }); }
+    const nextStatus = receiptResult.receipts.length && receiptResult.fullyReceived ? 'received' : status; request.lines = receiptResult.lines.length ? receiptResult.lines : normalizeLines(request.lines); request.status = nextStatus; request.updatedAt = new Date().toISOString(); recordAudit(req, `inventory.auto_order_${nextStatus}`, 'inventory_auto_order', request.id, null, request); return json(res, 200, request);
   }
   const inventoryItemPath = pathname.match(/^\/api\/inventory\/items\/([^/]+)$/);
   if (pathname === '/api/inventory/items' && req.method === 'POST') {
