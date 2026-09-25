@@ -293,32 +293,56 @@ const normalizeRecipeOutput = (input = {}, previous = {}) => {
   return { yieldQuantity: Number(quantity.toFixed(3)), yieldUnit: unit, portionCount: portions };
 };
 async function depleteRecipeForOrder(pool, orderId, venueId, actorId) {
-  const { rows: requirements } = await pool.query(`SELECT ri.ingredient_id AS "ingredientId", i.name, i.unit, SUM(ri.quantity * oi.quantity)::numeric AS quantity
-    FROM order_items oi JOIN recipes r ON r.product_id=oi.product_id JOIN recipe_items ri ON ri.product_id=r.product_id
-    JOIN ingredients i ON i.id=ri.ingredient_id WHERE oi.order_id=$1 AND i.venue_id=$2 GROUP BY ri.ingredient_id,i.name,i.unit`, [orderId, venueId]);
-  const { rows: cards } = await pool.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", rc.ingredients
-    FROM order_items oi JOIN products p ON p.id=oi.product_id
-    JOIN inventory_recipe_cards rc ON rc.venue_id=$2 AND rc.active=true AND (rc.product_id=oi.product_id OR lower(rc.name)=lower(p.name))
-    WHERE oi.order_id=$1`, [orderId, venueId]);
-  const extra = [];
-  for (const card of cards) for (const item of (Array.isArray(card.ingredients) ? card.ingredients : [])) {
-    const name = String(item.name || '').trim(); const ingredientId = String(item.ingredientId || '').trim();
-    const quantity = Number(String(item.quantity || '').replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0] || 0) * Number(card.orderQuantity || 0);
-    if (quantity > 0 && (name || /^[0-9a-f-]{36}$/i.test(ingredientId))) extra.push({ ingredientId: /^[0-9a-f-]{36}$/i.test(ingredientId) ? ingredientId : null, name, unit: String(item.unit || ''), quantity, sourceUnit: String(item.unit || '') });
-  }
-  requirements.push(...extra);
-  if (!requirements.length) return { lines: [], totalCost: 0 };
-  const ids = requirements.map((item) => item.ingredientId).filter((item) => /^[0-9a-f-]{36}$/i.test(String(item || '')));
-  const names = requirements.map((item) => String(item.name || '').toLowerCase()).filter(Boolean);
-  const { rows: stock } = await pool.query(`SELECT i.id, i.name, i.cost, i.unit, COALESCE(SUM(CASE WHEN sm.direction IN ('in','adjustment') THEN sm.quantity WHEN sm.direction='out' THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id WHERE i.venue_id=$1 AND (i.id=ANY($2::uuid[]) OR lower(i.name)=ANY($3::text[])) GROUP BY i.id`, [venueId, ids.length ? ids : ['00000000-0000-0000-0000-000000000000'], names.length ? names : ['__none__']]);
-  const byId = new Map(stock.map((item) => [item.id, item])); const byName = new Map(stock.map((item) => [item.name.toLowerCase(), item]));
-  const grouped = new Map();
-  const factors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
-  for (const item of requirements) { const found = (item.ingredientId && byId.get(item.ingredientId)) || byName.get(String(item.name || '').toLowerCase()); const key = found?.id || item.ingredientId || item.name.toLowerCase(); const sourceUnit = String(item.sourceUnit || item.unit || found?.unit || '').trim(); const targetUnit = String(found?.unit || item.unit || '').trim(); const converted = factors[sourceUnit]?.[targetUnit] ? Number(item.quantity || 0) * factors[sourceUnit][targetUnit] : Number(item.quantity || 0); const previous = grouped.get(key); grouped.set(key, { ingredientId: found?.id, name: found?.name || item.name, unit: targetUnit, quantity: (previous?.quantity || 0) + converted, stock: found }); }
-  const finalRequirements = [...grouped.values()]; const missing = finalRequirements.filter((item) => !item.stock || Number(item.stock.on_hand || 0) < Number(item.quantity));
-  if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((item) => ({ ...item, onHand: Number(item.stock?.on_hand || 0) })); throw error; }
-  for (const item of finalRequirements) await pool.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,order_id,created_by) VALUES ($1,$2,'out',$3,$4,$5,$6)`, [venueId, item.ingredientId, item.quantity, `Списание по заказу ${orderId}`, orderId, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
-  return { lines: finalRequirements, totalCost: finalRequirements.reduce((sum, item) => sum + Number(item.quantity) * Number(item.stock?.cost || 0), 0) };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let requirements = [];
+    await client.query('SAVEPOINT legacy_recipe_lookup');
+    try {
+      const legacy = await client.query(`SELECT ri.ingredient_id AS "ingredientId", i.name, i.unit, SUM(ri.quantity * oi.quantity)::numeric AS quantity
+        FROM order_items oi JOIN recipes r ON r.product_id=oi.product_id JOIN recipe_items ri ON ri.product_id=r.product_id
+        JOIN ingredients i ON i.id=ri.ingredient_id WHERE oi.order_id=$1 AND i.venue_id=$2 GROUP BY ri.ingredient_id,i.name,i.unit`, [orderId, venueId]);
+      requirements = legacy.rows;
+    } catch (error) {
+      // The inventory recipe-card path is authoritative. Older installations may
+      // not have the legacy recipes tables, so their absence must not break sale
+      // closing or prevent the current cards from being applied.
+      if (error.code !== '42P01') throw error;
+      await client.query('ROLLBACK TO SAVEPOINT legacy_recipe_lookup');
+    }
+    const { rows: cards } = await client.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", rc.ingredients
+      FROM order_items oi JOIN products p ON p.id=oi.product_id
+      JOIN inventory_recipe_cards rc ON rc.venue_id=$2 AND rc.active=true AND (rc.product_id=oi.product_id OR lower(rc.name)=lower(p.name))
+      WHERE oi.order_id=$1`, [orderId, venueId]);
+    const extra = [];
+    for (const card of cards) for (const item of (Array.isArray(card.ingredients) ? card.ingredients : [])) {
+      const name = String(item.name || '').trim(); const ingredientId = String(item.ingredientId || '').trim();
+      const quantity = Number(String(item.quantity || '').replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0] || 0) * Number(card.orderQuantity || 0);
+      if (quantity > 0 && (name || /^[0-9a-f-]{36}$/i.test(ingredientId))) extra.push({ ingredientId: /^[0-9a-f-]{36}$/i.test(ingredientId) ? ingredientId : null, name, unit: String(item.unit || ''), quantity, sourceUnit: String(item.unit || '') });
+    }
+    requirements.push(...extra);
+    if (!requirements.length) { await client.query('COMMIT'); return { lines: [], totalCost: 0 }; }
+    const ids = requirements.map((item) => item.ingredientId).filter((item) => /^[0-9a-f-]{36}$/i.test(String(item || '')));
+    const names = requirements.map((item) => String(item.name || '').toLowerCase()).filter(Boolean);
+    const queryIds = ids.length ? ids : ['00000000-0000-0000-0000-000000000000'];
+    const queryNames = names.length ? names : ['__none__'];
+    await client.query('SELECT id FROM ingredients WHERE venue_id=$1 AND (id=ANY($2::uuid[]) OR lower(name)=ANY($3::text[])) FOR UPDATE', [venueId, queryIds, queryNames]);
+    const existing = await client.query("SELECT COUNT(*)::int AS count, COALESCE(SUM(sm.quantity * i.cost),0)::numeric AS cost FROM stock_movements sm JOIN ingredients i ON i.id=sm.ingredient_id WHERE sm.venue_id=$1 AND sm.order_id=$2 AND sm.direction='out'", [venueId, orderId]);
+    if (Number(existing.rows[0]?.count || 0) > 0) { await client.query('COMMIT'); return { lines: [], totalCost: Number(existing.rows[0].cost), alreadyDepleted: true }; }
+    const { rows: stock } = await client.query(`SELECT i.id, i.name, i.cost, i.unit, COALESCE(SUM(CASE WHEN sm.direction IN ('in','adjustment') THEN sm.quantity WHEN sm.direction='out' THEN -sm.quantity ELSE 0 END),0)::numeric AS on_hand FROM ingredients i LEFT JOIN stock_movements sm ON sm.ingredient_id=i.id AND sm.venue_id=i.venue_id WHERE i.venue_id=$1 AND (i.id=ANY($2::uuid[]) OR lower(i.name)=ANY($3::text[])) GROUP BY i.id`, [venueId, queryIds, queryNames]);
+    const byId = new Map(stock.map((item) => [item.id, item])); const byName = new Map(stock.map((item) => [item.name.toLowerCase(), item]));
+    const grouped = new Map();
+    const factors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
+    for (const item of requirements) { const found = (item.ingredientId && byId.get(item.ingredientId)) || byName.get(String(item.name || '').toLowerCase()); const key = found?.id || item.ingredientId || item.name.toLowerCase(); const sourceUnit = String(item.sourceUnit || item.unit || found?.unit || '').trim(); const targetUnit = String(found?.unit || item.unit || '').trim(); const converted = factors[sourceUnit]?.[targetUnit] ? Number(item.quantity || 0) * factors[sourceUnit][targetUnit] : Number(item.quantity || 0); const previous = grouped.get(key); grouped.set(key, { ingredientId: found?.id, name: found?.name || item.name, unit: targetUnit, quantity: (previous?.quantity || 0) + converted, stock: found }); }
+    const finalRequirements = [...grouped.values()]; const missing = finalRequirements.filter((item) => !item.stock || Number(item.stock.on_hand || 0) < Number(item.quantity));
+    if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((item) => ({ ...item, onHand: Number(item.stock?.on_hand || 0) })); throw error; }
+    for (const item of finalRequirements) await client.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,order_id,created_by) VALUES ($1,$2,'out',$3,$4,$5,$6)`, [venueId, item.ingredientId, item.quantity, `Списание по заказу ${orderId}`, orderId, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
+    await client.query('COMMIT');
+    return { lines: finalRequirements, totalCost: finalRequirements.reduce((sum, item) => sum + Number(item.quantity) * Number(item.stock?.cost || 0), 0) };
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally { client.release(); }
 }
 const approvedDiscountTotal = (orderId, subtotal) => discountRequests.filter((request) => request.orderId === orderId && request.status === 'approved' && request.type === 'percent').reduce((sum, request) => sum + subtotal * Math.min(100, Math.max(0, Number(request.value || 0))) / 100, 0);
 const orderNetTotal = (order) => Math.max(0, orderTotal(order) - approvedDiscountTotal(order.id, orderTotal(order)));
@@ -371,6 +395,14 @@ const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && effectivePermissions(req.user).includes(permission));
 const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (['admin', 'developer'].includes(req.user?.role) && !['owner', 'admin', 'developer'].includes(role));
 const canManageVenueIdentity = (req) => process.env.AUTH_REQUIRED !== 'true' || ['owner', 'admin', 'developer'].includes(req.user?.role);
+const requestOrganizationId = (req) => String(req.user?.organizationId || '').trim();
+const requireOrganizationContext = (req, res) => {
+  if (process.env.AUTH_REQUIRED === 'true' && repositories?.pool && !/^[0-9a-f-]{36}$/i.test(requestOrganizationId(req))) {
+    json(res, 403, { error: 'organization_context_required' });
+    return true;
+  }
+  return false;
+};
 const canSeeSensitiveStaff = (req) => Boolean(req.user && effectivePermissions(req.user).includes('staff_sensitive'));
 const canSeeStaffPhoto = (req) => Boolean(req.user && ['owner', 'admin', 'manager'].includes(req.user.role));
 const validBirthDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
@@ -741,7 +773,11 @@ async function api(req, res) {
   if (pathname === '/api/network/venues' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
     if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,format,city,address,phone,timezone,is_current AS "isCurrent" FROM venues WHERE is_active=true ORDER BY name'); const hasMarkedCurrent = rows.some((row) => Boolean(row.isCurrent)); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: hasMarkedCurrent ? Boolean(row.isCurrent) : row.id === venueDbId })) }); } catch (_) {} }
+    const organizationId = requestOrganizationId(req);
+    if (repositories?.pool) {
+      if (requireOrganizationContext(req, res)) return;
+      try { const { rows } = await repositories.pool.query('SELECT id,name,format,city,address,phone,timezone,is_current AS "isCurrent" FROM venues WHERE is_active=true AND organization_id=$1 ORDER BY name', [organizationId]); const hasMarkedCurrent = rows.some((row) => Boolean(row.isCurrent)); return json(res, 200, { items: rows.map((row) => ({ ...row, status: 'active', isCurrent: hasMarkedCurrent ? Boolean(row.isCurrent) : row.id === venueDbId })) }); } catch (_) {}
+    }
     return json(res, 200, { items: networkVenues.filter((item) => item.status !== 'archived').map((item) => ({ ...item, isCurrent: item.id === currentVenueId })) });
   }
   if (pathname === '/api/network/venues' && req.method === 'POST') {
@@ -750,9 +786,11 @@ async function api(req, res) {
     const input = await body(req); const name = String(input.name || '').trim(); const city = String(input.city || '').trim(); const address = String(input.address || '').trim();
     if (!name || name.length > 120 || !city || city.length > 80 || !address || address.length > 240) return json(res, 400, { error: 'venue_name_city_address_required' });
     const item = { id: `venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, format: String(input.format || 'кальян-бар').trim().slice(0, 80), city, address, phone: String(input.phone || '').trim().slice(0, 32), timezone: String(input.timezone || venue.timezone).trim().slice(0, 64), status: 'active', isCurrent: false };
+    const organizationId = requestOrganizationId(req);
     if (repositories?.pool) {
+      if (requireOrganizationContext(req, res)) return;
       try {
-        const { rows } = await repositories.pool.query('INSERT INTO venues (name,format,city,address,phone,timezone,is_current) VALUES ($1,$2,$3,$4,$5,$6,false) RETURNING id,name,format,city,address,phone,timezone,is_current AS "isCurrent"', [name, item.format, city, address, item.phone || null, item.timezone]);
+        const { rows } = await repositories.pool.query('INSERT INTO venues (organization_id,name,format,city,address,phone,timezone,is_current) VALUES ($1,$2,$3,$4,$5,$6,$7,false) RETURNING id,name,format,city,address,phone,timezone,is_current AS "isCurrent"', [organizationId, name, item.format, city, address, item.phone || null, item.timezone]);
         const created = { ...rows[0], status: 'active', isCurrent: false }; recordAudit(req, 'venue.created', 'venue', created.id, null, created); return json(res, 201, created);
       } catch (error) { return json(res, 409, { error: 'venue_create_failed', detail: error.message }); }
     }
@@ -763,11 +801,14 @@ async function api(req, res) {
     if (denyUnless(req, res, 'settings')) return;
     if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenuePath[1])) {
+      if (requireOrganizationContext(req, res)) return;
+      const organizationId = requestOrganizationId(req);
       const input = await body(req);
       const fields = []; const values = [networkVenuePath[1]];
       for (const [column, key, max] of [['name', 'name', 120], ['format', 'format', 80], ['city', 'city', 80], ['address', 'address', 240], ['phone', 'phone', 32], ['timezone', 'timezone', 64]]) if (input[key] !== undefined) { fields.push(`${column}=$${values.length + 1}`); values.push(String(input[key] || '').trim().slice(0, max)); }
       if (!fields.length) return json(res, 400, { error: 'venue_name_city_address_required' });
-      try { const { rows } = await repositories.pool.query(`UPDATE venues SET ${fields.join(',')} WHERE id=$1 AND is_active=true RETURNING id,name,format,city,address,phone,timezone`, values); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const updated = { ...rows[0], status: 'active', isCurrent: rows[0].id === venueDbId }; recordAudit(req, 'venue.updated', 'venue', updated.id, null, updated); return json(res, 200, updated); } catch (error) { return json(res, 409, { error: 'venue_update_failed', detail: error.message }); }
+      values.push(organizationId);
+      try { const { rows } = await repositories.pool.query(`UPDATE venues SET ${fields.join(',')} WHERE id=$1 AND organization_id=$${values.length} AND is_active=true RETURNING id,name,format,city,address,phone,timezone`, values); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const updated = { ...rows[0], status: 'active', isCurrent: rows[0].id === venueDbId }; recordAudit(req, 'venue.updated', 'venue', updated.id, null, updated); return json(res, 200, updated); } catch (error) { return json(res, 409, { error: 'venue_update_failed', detail: error.message }); }
     }
     const item = networkVenues.find((entry) => entry.id === networkVenuePath[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     const input = await body(req); const before = { ...item };
@@ -780,8 +821,9 @@ async function api(req, res) {
     if (denyUnless(req, res, 'settings')) return;
     if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenuePath[1])) {
+      if (requireOrganizationContext(req, res)) return;
       if (networkVenuePath[1] === venueDbId) return json(res, 409, { error: 'current_venue_cannot_be_archived' });
-      try { const { rows } = await repositories.pool.query('UPDATE venues SET is_active=false WHERE id=$1 AND is_active=true RETURNING id,name,format,city,address,phone,timezone', [networkVenuePath[1]]); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const archived = { ...rows[0], status: 'archived', isCurrent: false }; recordAudit(req, 'venue.archived', 'venue', archived.id, { status: 'active' }, archived); return json(res, 200, archived); } catch (error) { return json(res, 409, { error: 'venue_archive_failed', detail: error.message }); }
+      try { const { rows } = await repositories.pool.query('UPDATE venues SET is_active=false WHERE id=$1 AND organization_id=$2 AND is_active=true RETURNING id,name,format,city,address,phone,timezone', [networkVenuePath[1], requestOrganizationId(req)]); if (!rows[0]) return json(res, 404, { error: 'venue_not_found' }); const archived = { ...rows[0], status: 'archived', isCurrent: false }; recordAudit(req, 'venue.archived', 'venue', archived.id, { status: 'active' }, archived); return json(res, 200, archived); } catch (error) { return json(res, 409, { error: 'venue_archive_failed', detail: error.message }); }
     }
     const item = networkVenues.find((entry) => entry.id === networkVenuePath[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     if (item.id === currentVenueId) return json(res, 409, { error: 'current_venue_cannot_be_archived' });
@@ -791,7 +833,8 @@ async function api(req, res) {
   if (networkVenueSelect && req.method === 'POST') {
     if (denyUnless(req, res, 'settings')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(networkVenueSelect[1])) {
-      try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const { rows } = await client.query('SELECT id,name,format,city,address,phone,timezone FROM venues WHERE id=$1 AND is_active=true FOR UPDATE', [networkVenueSelect[1]]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'venue_not_found' }); } await client.query('UPDATE venues SET is_current=false WHERE is_active=true'); await client.query('UPDATE venues SET is_current=true WHERE id=$1', [networkVenueSelect[1]]); await client.query('COMMIT'); const previousVenueId = venueDbId; const selected = { ...rows[0], status: 'active', isCurrent: true }; venueDbId = selected.id; recordAudit(req, 'venue.selected', 'venue', selected.id, { currentVenueId: previousVenueId }, { currentVenueId: selected.id }); return json(res, 200, selected); } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); } } catch (error) { return json(res, 409, { error: 'venue_select_failed', detail: error.message }); }
+      if (requireOrganizationContext(req, res)) return;
+      try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const { rows } = await client.query('SELECT id,name,format,city,address,phone,timezone FROM venues WHERE id=$1 AND organization_id=$2 AND is_active=true FOR UPDATE', [networkVenueSelect[1], requestOrganizationId(req)]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'venue_not_found' }); } await client.query('UPDATE venues SET is_current=false WHERE is_active=true AND organization_id=$1', [requestOrganizationId(req)]); await client.query('UPDATE venues SET is_current=true WHERE id=$1 AND organization_id=$2', [networkVenueSelect[1], requestOrganizationId(req)]); await client.query('COMMIT'); const previousVenueId = venueDbId; const selected = { ...rows[0], status: 'active', isCurrent: true }; venueDbId = selected.id; recordAudit(req, 'venue.selected', 'venue', selected.id, { currentVenueId: previousVenueId }, { currentVenueId: selected.id }); return json(res, 200, selected); } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); } } catch (error) { return json(res, 409, { error: 'venue_select_failed', detail: error.message }); }
     }
     const item = networkVenues.find((entry) => entry.id === networkVenueSelect[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     const before = networkVenues.find((entry) => entry.id === currentVenueId); currentVenueId = item.id; Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, timezone: item.timezone, format: item.format });
