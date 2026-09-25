@@ -20,8 +20,8 @@ assert.match(migration, /yield_quantity/);
 assert.match(migration, /yield_unit/);
 assert.match(migration, /portion_count/);
 checks += 3;
-assert.ok(portal.includes('const hasUnit ='));
-assert.ok(portal.includes('(?=\\s|$)'));
+assert.ok(portal.includes('const sourceUnit = quantityText.match('), 'recipe UI must parse the ingredient measurement unit');
+assert.ok(portal.includes('unitFactors[sourceUnit]?.[item.unit]'), 'recipe costing must convert compatible units before calculating cost');
 checks += 2;
 
 console.log(`RECIPE CHAIN CONTRACT QA: ${checks} checks passed`);

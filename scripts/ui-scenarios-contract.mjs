@@ -17,6 +17,8 @@ const checks = [
   ['Inventory directory has department and category sections', /inventory-department-list[\s\S]*product-category-list/, portal],
   ['Employee table page renders selectable tables', /querySelectorAll\('\.table'\)|querySelectorAll\("\.table"\)/, app],
   ['Order item removal uses an explicit item endpoint', /items\/\$\{item\.id\}/, app],
+  ['Order deletion requires reason and stock decision', /Причина удаления[\s\S]*Списать ингредиенты по технологической карте/, app],
+  ['Employee finance page returns after showing only personal turnover', /МОЯ СМЕНА[\s\S]*Сумма ваших оплаченных заказов за сегодня[\s\S]*return;[\s\S]*Динамика показателей/, portal],
 ];
 
 let failed = 0;

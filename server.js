@@ -30,12 +30,6 @@ const venue = {
   timezone: 'Asia/Yekaterinburg', vipRoomMinimums: { vip_room_1: 1500, vip_room_2: 2500 }
 };
 const integrations = {
-  egais: { enabled: false, status: 'planned' },
-  honestMark: { enabled: false, status: 'planned' },
-  chestnyZnak: { enabled: false, status: 'planned' },
-  kkt: { enabled: false, status: 'planned' },
-  ofd: { enabled: false, status: 'planned' },
-  payments: { enabled: false, status: 'planned' },
   telegram: { enabled: false, status: 'planned' }
 };
 const networkVenues = [{ id: venue.id, name: venue.name, format: venue.format, city: venue.city, address: venue.address, phone: venue.phone, timezone: venue.timezone, status: 'active', isCurrent: true }];
@@ -169,16 +163,16 @@ const staffPassportCipher = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
   admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
   manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'settings'],
-  senior_bartender: ['floor', 'orders', 'bar_tasks'],
-  senior_hookah_master: ['floor', 'orders', 'hookah_tasks'],
-  bartender: ['floor', 'orders', 'bar_tasks'],
-  hookah_master: ['floor', 'orders', 'hookah_tasks'],
+  senior_bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
+  senior_hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
+  bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
+  hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
   developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations', 'delivery'],
   platform_owner: ['platform', 'diagnostics', 'settings'],
-  cleaner: [],
-  security: [],
-  technician: [],
-  other_staff: []
+  cleaner: ['finance_read'],
+  security: ['finance_read'],
+  technician: ['finance_read'],
+  other_staff: ['finance_read']
 };
 const staffPinCipher = {
   encrypt(pin) { const wrapped = staffPassportCipher.encrypt({ pin: String(pin) }); return wrapped; },
@@ -789,7 +783,7 @@ async function api(req, res) {
     if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return;
     const key = pathname.split('/').pop(); const item = integrations[key];
     if (!item) return json(res, 404, { error: 'integration_not_found' });
-    const requirements = { egais: ['ИНН организации', 'лицензия на алкоголь'], honestMark: ['ИНН организации', 'доступ к маркировке'], kkt: ['модель ККТ', 'регистрационный номер'], ofd: ['адрес ОФД', 'токен доступа'], payments: ['эквайринг', 'ключи СБП или QR'], telegram: ['токен бота', 'чат уведомлений'] };
+    const requirements = { telegram: ['токен бота', 'чат уведомлений'] };
     return json(res, 200, { key, enabled: Boolean(item.enabled), status: item.status || 'planned', mode: item.mode || 'test', requirements: requirements[key] || ['Реквизиты сервиса'] });
   }
   if (pathname === '/api/integrations') { if (denyUnlessAny(req, res, ['diagnostics', 'settings', 'integrations'])) return; return json(res, 200, integrations); }
@@ -912,6 +906,13 @@ async function api(req, res) {
   if (pathname === '/api/analytics' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance_read') && !hasPermission(req, 'finance')) return json(res, 403, { error: 'forbidden', permission: 'analytics' });
     const employeeFinanceView = isOperationalEmployee(req); const requestedPeriod = employeeFinanceView ? '1' : String(url.searchParams.get('days') || '7').trim().toLowerCase(); const isAllTime = !employeeFinanceView && (requestedPeriod === 'all' || requestedPeriod === '0'); const requestedDays = Number(requestedPeriod); const analyticsDays = employeeFinanceView ? 1 : (isAllTime ? 365 : Math.min(Math.max(Number.isFinite(requestedDays) ? Math.round(requestedDays) : 7, 3), 90)); const end = new Date(); const endDate = end.toISOString().slice(0, 10); let startDate; if (isAllTime && repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COALESCE(LEAST((SELECT MIN(closed_at::date) FROM orders WHERE venue_id=$1 AND status='closed'), (SELECT MIN(expense_date) FROM expenses WHERE venue_id=$1), (SELECT MIN(created_at::date) FROM order_costs WHERE venue_id=$1)), CURRENT_DATE) AS start_date`, [venueDbId]); startDate = String(rows[0]?.start_date || endDate).slice(0, 10); } catch (_) { startDate = '2000-01-01'; } } else { const start = new Date(end); start.setDate(start.getDate() - (analyticsDays - 1)); startDate = start.toISOString().slice(0, 10); }
+    if (employeeFinanceView && repositories?.pool) {
+      try {
+        const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
+        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= $3::date AND o.closed_at < ($3::date + INTERVAL '1 day') AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, endDate]);
+        const revenue = Number(rows[0]?.revenue || 0); const ordersCount = Number(rows[0]?.orders || 0); return json(res, 200, { employeeView: true, period: 'today', days: [{ date: endDate, revenue, orders: ordersCount, averageCheck: ordersCount ? revenue / ordersCount : 0 }], totalRevenue: revenue, averageCheck: ordersCount ? revenue / ordersCount : 0, staffDynamics: [], staffSales: [], topProducts: [], byStation: {}, hallLoad: { busy: 0, total: 0 } });
+      } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
+    }
     if (repositories?.pool) {
       try {
         const [daily, products, hall, staffRows, stationRows, expenseRows, costRows, staffItemRows] = await Promise.all([
@@ -929,7 +930,8 @@ async function api(req, res) {
         // Fall through to the zero-safe in-memory analytics response below.
       }
     }
-    const dayKey = (value) => businessDateKey(value); const dayDates = recentBusinessDates(analyticsDays); const days = dayDates.map((date) => { const closed = orders.filter((order) => order.status === 'closed' && dayKey(order.closedAt || order.createdAt) === date); const checks = closed.map((order) => Number(order.finalTotal || orderTotal(order) || 0)).sort((a, b) => a - b); const revenue = checks.reduce((sum, value) => sum + value, 0); const medianCheck = checks.length ? (checks.length % 2 ? checks[(checks.length - 1) / 2] : (checks[checks.length / 2 - 1] + checks[checks.length / 2]) / 2) : 0; return { date, revenue, expenses: 0, netProfit: revenue, orders: closed.length, averageCheck: closed.length ? revenue / closed.length : 0, medianCheck, tables: new Set(closed.map((order) => order.tableId).filter(Boolean)).size }; }); const counts = new Map(); orders.filter((order) => order.status === 'closed' && dayDates.includes(dayKey(order.closedAt || order.createdAt))).flatMap((order) => order.items || []).forEach((item) => { const name = item.name || item.productName || item.productId || 'Позиция'; counts.set(name, (counts.get(name) || 0) + Number(item.quantity || 0)); }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalExpenses = days.reduce((sum, row) => sum + row.expenses, 0); const totalCostOfGoods = days.reduce((sum, row) => sum + row.costOfGoods, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const staffMap = new Map(); const staffSalesMap = new Map(); orders.filter((order) => order.status === 'closed' && dayDates.includes(dayKey(order.closedAt || order.createdAt))).forEach((order) => { const name = order.createdByName || order.waiterName || 'Не указан'; const row = staffMap.get(name) || { name, revenue: 0, orders: 0 }; row.revenue += Number(order.finalTotal || orderTotal(order) || 0); row.orders += 1; staffMap.set(name, row); const sales = staffSalesMap.get(name) || { name, items: [], revenue: 0, orders: 0 }; sales.revenue = row.revenue; sales.orders = row.orders; for (const item of order.items || []) { const existing = sales.items.find((entry) => entry.name === (item.name || item.productName || item.productId)); if (existing) { existing.quantity += Number(item.quantity || 0); existing.revenue += Number(item.unitPrice || item.price || 0) * Number(item.quantity || 0); } else sales.items.push({ name: item.name || item.productName || item.productId || 'Позиция', quantity: Number(item.quantity || 0), revenue: Number(item.unitPrice || item.price || 0) * Number(item.quantity || 0) }); } staffSalesMap.set(name, sales); }); const tables = floor.flatMap((zone) => zone.tables || []); const fullAnalytics = { days, totalRevenue, totalExpenses, totalCostOfGoods, netProfit: totalRevenue - totalExpenses - totalCostOfGoods, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, quantity]) => ({ name, quantity })), staffDynamics: [...staffMap.values()].sort((a, b) => b.revenue - a.revenue), staffSales: [...staffSalesMap.values()].sort((a, b) => b.revenue - a.revenue), medianCheck: days.length ? days.reduce((sum, row) => sum + row.medianCheck, 0) / days.length : 0, avgTablesPerDay: days.length ? days.reduce((sum, row) => sum + row.tables, 0) / days.length : 0, byStation: {}, hallLoad: { busy: tables.filter((table) => ['occupied', 'reserved'].includes(table.status)).length, total: tables.length } }; return json(res, 200, employeeFinanceView ? { employeeView: true, period: 'today', days: days.map((day) => ({ date: day.date, revenue: day.revenue, orders: day.orders, averageCheck: day.averageCheck })), totalRevenue, averageCheck: fullAnalytics.averageCheck, staffDynamics: [], staffSales: [], topProducts: [], byStation: {}, hallLoad: { busy: 0, total: 0 } } : fullAnalytics);
+    const employeeOrders = employeeFinanceView ? orders.filter((order) => String(order.openedBy || order.openedById || '') === String(req.user?.id || '')) : orders;
+    const dayKey = (value) => businessDateKey(value); const dayDates = recentBusinessDates(analyticsDays); const days = dayDates.map((date) => { const closed = employeeOrders.filter((order) => order.status === 'closed' && dayKey(order.closedAt || order.createdAt) === date); const checks = closed.map((order) => Number(order.finalTotal || orderTotal(order) || 0)).sort((a, b) => a - b); const revenue = checks.reduce((sum, value) => sum + value, 0); const medianCheck = checks.length ? (checks.length % 2 ? checks[(checks.length - 1) / 2] : (checks[checks.length / 2 - 1] + checks[checks.length / 2]) / 2) : 0; return { date, revenue, expenses: 0, netProfit: revenue, orders: closed.length, averageCheck: closed.length ? revenue / closed.length : 0, medianCheck, tables: new Set(closed.map((order) => order.tableId).filter(Boolean)).size }; }); const counts = new Map(); employeeOrders.filter((order) => order.status === 'closed' && dayDates.includes(dayKey(order.closedAt || order.createdAt))).flatMap((order) => order.items || []).forEach((item) => { const name = item.name || item.productName || item.productId || 'Позиция'; counts.set(name, (counts.get(name) || 0) + Number(item.quantity || 0)); }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalExpenses = days.reduce((sum, row) => sum + row.expenses, 0); const totalCostOfGoods = days.reduce((sum, row) => sum + row.costOfGoods, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const staffMap = new Map(); const staffSalesMap = new Map(); employeeOrders.filter((order) => order.status === 'closed' && dayDates.includes(dayKey(order.closedAt || order.createdAt))).forEach((order) => { const name = order.createdByName || order.waiterName || 'Не указан'; const row = staffMap.get(name) || { name, revenue: 0, orders: 0 }; row.revenue += Number(order.finalTotal || orderTotal(order) || 0); row.orders += 1; staffMap.set(name, row); const sales = staffSalesMap.get(name) || { name, items: [], revenue: 0, orders: 0 }; sales.revenue = row.revenue; sales.orders = row.orders; for (const item of order.items || []) { const existing = sales.items.find((entry) => entry.name === (item.name || item.productName || item.productId)); if (existing) { existing.quantity += Number(item.quantity || 0); existing.revenue += Number(item.unitPrice || item.price || 0) * Number(item.quantity || 0); } else sales.items.push({ name: item.name || item.productName || item.productId || 'Позиция', quantity: Number(item.quantity || 0), revenue: Number(item.unitPrice || item.price || 0) * Number(item.quantity || 0) }); } staffSalesMap.set(name, sales); }); const tables = floor.flatMap((zone) => zone.tables || []); const fullAnalytics = { days, totalRevenue, totalExpenses, totalCostOfGoods, netProfit: totalRevenue - totalExpenses - totalCostOfGoods, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, quantity]) => ({ name, quantity })), staffDynamics: [...staffMap.values()].sort((a, b) => b.revenue - a.revenue), staffSales: [...staffSalesMap.values()].sort((a, b) => b.revenue - a.revenue), medianCheck: days.length ? days.reduce((sum, row) => sum + row.medianCheck, 0) / days.length : 0, avgTablesPerDay: days.length ? days.reduce((sum, row) => sum + row.tables, 0) / days.length : 0, byStation: {}, hallLoad: { busy: tables.filter((table) => ['occupied', 'reserved'].includes(table.status)).length, total: tables.length } }; return json(res, 200, employeeFinanceView ? { employeeView: true, period: 'today', days: days.map((day) => ({ date: day.date, revenue: day.revenue, orders: day.orders, averageCheck: day.averageCheck })), totalRevenue, averageCheck: fullAnalytics.averageCheck, staffDynamics: [], staffSales: [], topProducts: [], byStation: {}, hallLoad: { busy: 0, total: 0 } } : fullAnalytics);
   }
   if (pathname === '/api/audit' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'diagnostics') && !hasPermission(req, 'settings')) return json(res, 403, { error: 'forbidden', permission: 'diagnostics' });
@@ -1779,6 +1781,13 @@ if (staffProfile && req.method === 'PATCH') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance' });
     const employeeFinanceView = isOperationalEmployee(req); const date = employeeFinanceView ? today() : (url.searchParams.get('date') || today());
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'invalid_finance_date' });
+    if (employeeFinanceView && repositories?.pool) {
+      try {
+        const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
+        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS closed_orders, COUNT(p.id)::int AS payment_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= $3::date AND o.closed_at < ($3::date + INTERVAL '1 day') AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date]);
+        const row = rows[0] || {}; return json(res, 200, { date, revenue: Number(row.revenue || 0), employeeView: true });
+      } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
+    }
     if (repositories?.pool) {
       try {
         const totals = await repositories.pool.query(`
@@ -1805,7 +1814,7 @@ if (staffProfile && req.method === 'PATCH') {
         return json(res, 503, { error: 'database_unavailable', detail: error.message });
       }
     }
-    const closed = orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date);
+    const closed = employeeFinanceView ? orders.filter((order) => String(order.openedBy || order.openedById || '') === String(req.user?.id || '') && order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date) : orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date);
     const byType = {}; let revenue = 0; let paymentCount = 0;
     closed.forEach((order) => { const payments = (order.payments || []).filter((payment) => payment.status === 'paid'); if (payments.length) payments.forEach((payment) => { const amount = Number(payment.amount || 0); paymentCount += 1; revenue += amount; const key = payment.method || 'не указан'; byType[key] = (byType[key] || 0) + amount; }); else { const amount = Number(order.finalTotal || orderTotal(order)); revenue += amount; const key = order.paymentMethod || 'не указан'; byType[key] = (byType[key] || 0) + amount; } });
     const pending = pendingPaymentSummary(); const currentShift = shifts.find((shift) => !shift.closedAt); const shiftClosed = currentShift ? closed.filter((order) => new Date(order.closedAt || 0) >= new Date(currentShift.openedAt)) : []; const shiftRevenue = shiftClosed.reduce((sum, order) => sum + (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)).reduce((total, payment) => total + Number(payment.amount || 0), 0), 0); const fullSummary = { date, revenue, closedOrders: closed.length, paymentCount, byPaymentMethod: byType, currentShiftOrders: shiftClosed.length, currentShiftAverageCheck: shiftClosed.length ? shiftRevenue / shiftClosed.length : 0, pendingOrders: pending.pendingOrders, pendingRevenue: pending.pendingRevenue, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length }; return json(res, 200, employeeFinanceView ? { date, revenue, employeeView: true } : fullSummary);
@@ -1817,6 +1826,15 @@ if (staffProfile && req.method === 'PATCH') {
     const type = ['x', 'z', 'waiter'].includes(requestedReportType) ? requestedReportType : 'x';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'invalid_finance_date' });
     const reportNumber = `R-${date.replace(/-/g, '')}-${type.toUpperCase()}-${String(Date.now()).slice(-6)}`;
+    if (employeeFinanceView && repositories?.pool) {
+      try {
+        const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
+        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS checks_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= $3::date AND o.closed_at < ($3::date + INTERVAL '1 day') AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date]);
+        const report = { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber, checksCount: Number(rows[0]?.checks_count || 0), revenue: Number(rows[0]?.revenue || 0), employeeView: true };
+        recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type: 'x', date, checksCount: report.checksCount, revenue: report.revenue });
+        return json(res, 200, report);
+      } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
+    }
     const byPaymentMethod = {}; const byStation = {}; const byStaff = {}; let revenue = 0; let paymentCount = 0; let closedOrders = [];
     const addOrder = (order) => {
       const payments = (order.payments || []).filter((payment) => payment.status === 'paid');
@@ -1832,7 +1850,7 @@ if (staffProfile && req.method === 'PATCH') {
         const itemRows = await repositories.pool.query(`SELECT oi.order_id AS "orderId",oi.quantity,oi.unit_price AS "unitPrice",COALESCE(oi.station,'other') AS station FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day')`, [venueDbId, date]);
         const itemsByOrder = new Map(); itemRows.rows.forEach((item) => { if (!itemsByOrder.has(item.orderId)) itemsByOrder.set(item.orderId, []); itemsByOrder.get(item.orderId).push(item); }); closedOrders.forEach((order) => { order.items = itemsByOrder.get(order.id) || []; addOrder(order); });
       } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
-    } else { closedOrders = orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date); closedOrders.forEach(addOrder); }
+    } else { closedOrders = orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date && (!employeeFinanceView || String(order.openedBy || order.openedById || '') === String(req.user?.id || ''))); closedOrders.forEach(addOrder); }
     const activeShift = repositories?.pool ? null : shifts.find((shift) => !shift.closedAt);
     const report = { type, date, generatedAt: new Date().toISOString(), reportNumber, cashier: req.user?.name || 'Кассир', checksCount: closedOrders.length, closedOrders: closedOrders.length, paymentCount, revenue: Math.round(revenue * 100) / 100, cash: Math.round(Number(byPaymentMethod.cash || 0) * 100) / 100, card: Math.round(Number(byPaymentMethod.card || 0) * 100) / 100, qr: Math.round(Number(byPaymentMethod.qr || 0) * 100) / 100, byPaymentMethod, byStation, byStaff: type === 'waiter' ? byStaff : undefined, shift: { id: activeShift?.id || null, status: activeShift ? 'open' : 'closed', isFinal: type === 'z' } };
     recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type, date, checksCount: report.checksCount, revenue: report.revenue });

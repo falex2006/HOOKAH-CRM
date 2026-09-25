@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const server=fs.readFileSync(new URL('../server.js',import.meta.url),'utf8');
+const portal=fs.readFileSync(new URL('../portal.js',import.meta.url),'utf8');
+const finance=portal.slice(portal.indexOf('function renderFinance()'),portal.indexOf('function renderFinanceReport()'));
+assert.match(server,/const employeeFinanceView = isOperationalEmployee\(req\); const date = employeeFinanceView \? today\(\)/);
+assert.match(server,/o\.opened_by=\$2[\s\S]*employeeFinanceView/);
+assert.match(server,/const closed = employeeFinanceView \? orders\.filter\([\s\S]*businessDateKey\(order\.closedAt \|\| order\.createdAt\) === date/);
+assert.ok(finance.indexOf('if (employeeFinanceView)') < finance.indexOf('Динамика показателей'));
+assert.match(finance,/МОЯ СМЕНА[\s\S]*Мой оборот сегодня[\s\S]*return;/);
+assert.doesNotMatch(finance.slice(0,finance.indexOf('if (employeeFinanceView)')),/finance-total-expenses/);
+console.log('EMPLOYEE FINANCE VISIBILITY CONTRACT: PASS (today-only personal turnover)');

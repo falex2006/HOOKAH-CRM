@@ -91,7 +91,8 @@ if ($financeCategoryUpdated.name -notlike '*updated*') { throw 'finance category
 $financeCategoryDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/finance/categories/$($financeCategory.id)"
 if ($financeCategoryDeleted.active -ne $false) { throw 'finance category deactivation failed' }
 $integrations = Invoke-RestMethod "$BaseUrl/api/integrations"
-if (-not $integrations.egais -or $integrations.egais.enabled) { throw 'integration flags failed' }
+$integrationKeys = @($integrations.PSObject.Properties.Name)
+if ($integrationKeys.Count -ne 1 -or $integrationKeys[0] -ne 'telegram' -or $integrations.telegram.enabled) { throw 'Telegram-only integration contract failed' }
 $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body '{"tableId":"vip-room-1","orderType":"vip","minimumOrderTotal":1500}'
 $closed = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($order.id)/close" -ContentType 'application/json' -Body '{}'
 if ($closed.finalTotal -ne 1500 -or $closed.minimumAdjustment -ne 1500) { throw 'vip minimum failed' }

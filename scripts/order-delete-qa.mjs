@@ -3,10 +3,19 @@ import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 
 const source = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const staffSource = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+const portalSource = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 assert.match(source, /order_delete_comment_required/);
 assert.match(source, /order_delete_writeoff_required/);
 assert.match(source, /depleteRecipeForOrder\(repositories\.pool, orderDelete\[1\], venueDbId, req\.user\?\.id, client\)/);
 assert.match(source, /type: 'order_deleted'/);
+assert.match(staffSource, /#order-delete/);
+assert.match(staffSource, /method:'DELETE'/);
+assert.match(staffSource, /name:'comment'.*required:true/s);
+assert.match(staffSource, /name:'writeoff'.*type:'select'/s);
+assert.match(staffSource, /order_delete_comment_required/);
+assert.match(staffSource, /error\.payload=payload/);
+assert.match(portalSource, /type === 'order_deleted'/);
 
 const port = 3221;
 const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), AUTH_REQUIRED: 'false', DATABASE_URL: '' }, stdio: ['ignore', 'pipe', 'pipe'] });

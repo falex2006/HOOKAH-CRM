@@ -8,7 +8,7 @@ assert.match(migration, /recipe_type/);
 assert.match(server, /\/api\/inventory\/premixes\/produce/);
 assert.match(server, /insufficient_premix_stock/);
 assert.match(server, /inventory\.premix_produced/);
-assert.match(portal, /Премиксы и заготовки/);
+assert.match(portal, /Заготовки и премиксы/);
 assert.match(portal, /data-inventory-tab="premixes"/);
 assert.match(portal, /recipeType/);
 console.log('PREMIX CONTRACT: PASS');

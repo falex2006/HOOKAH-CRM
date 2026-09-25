@@ -1066,6 +1066,38 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
 .velora-theme .portal-sidebar > .portal-nav + .side-label{
   margin-top:18px;
 }
+.velora-theme .portal-sidebar > .sidebar-nav-groups{
+  display:grid;
+  gap:0;
+  margin-top:18px;
+}
+.velora-theme .portal-sidebar .sidebar-nav-group{
+  margin:0;
+  padding:8px 0 0;
+  border-top:1px solid #2b3038;
+}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary{
+  display:flex;
+  min-height:28px;
+  box-sizing:border-box;
+  align-items:center;
+  gap:9px;
+  padding:0 12px 8px;
+  line-height:20px;
+}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary .icon{width:16px;height:16px;flex:0 0 16px;color:#8d949e}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{float:none;margin-left:auto}
+.velora-theme .portal-sidebar .sidebar-nav-group .portal-nav{
+  flex:0 0 auto;
+  gap:6px;
+  margin:2px 0 0;
+}
+.velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a{
+  min-height:46px;
+  box-sizing:border-box;
+  padding:0 13px;
+  line-height:1.25;
+}
 
 /* iPhone-inspired lock keypad in Territory palette */
 .screen-lock-card{width:min(100%,410px);padding:34px 30px;border-radius:28px;background:linear-gradient(155deg,rgba(29,49,58,.96),rgba(15,22,29,.98) 56%,rgba(39,21,36,.98));border-color:#79aab6;box-shadow:inset 0 1px #efffff55,0 30px 100px #000d}
@@ -1759,8 +1791,9 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .sidebar-mobile-toggle{display:none}
 .recipe-ingredient-picker{display:grid;gap:10px;margin:8px 0 12px;padding:12px;border:1px solid #30343c;border-radius:10px;background:#171a1f}.recipe-linked-ingredients{display:grid;gap:6px}.recipe-linked-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 9px;border:1px solid #30343c;border-radius:8px;color:#cbd1d8}.recipe-linked-row .button{margin:0}
 .velora-theme .portal-sidebar .portal-nav a[href="/admin"]{margin-top:8px}
-.velora-theme .portal-sidebar .portal-nav a[href="/admin"].active{background:linear-gradient(100deg,#ff4164,#ff963d);border-color:transparent;color:#fff;font-weight:800}
+.velora-theme .portal-sidebar .portal-nav a[href="/admin"].active{background:linear-gradient(100deg,#ff4164,#ff963d);border-color:transparent;color:#fff;font-weight:500}
 .velora-theme .portal-sidebar .portal-nav a{min-height:46px;box-sizing:border-box;line-height:1.25;font-size:16px;font-weight:500;letter-spacing:0}
+.velora-theme .portal-sidebar .portal-nav a.active{font-weight:500}
 .velora-theme .portal-sidebar .portal-nav a .icon{width:18px;height:18px;flex:0 0 18px;display:block}
 
 /* Fold portrait and compact tablet: preserve workspace width while keeping the rail usable. */
@@ -1825,6 +1858,15 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 /* Reserve the vertical scrollbar slot so route data loading cannot shift the
    entire layout horizontally while the page height changes. */
 .velora-theme .portal-main,.staff-theme main{scrollbar-gutter:stable;}
+
+/* Give desktop navigation enough room for full Russian labels while keeping
+   the workspace wide; scale gently up to ultrawide desktop sizes. */
+@media (min-width:1181px) and (max-width:1799px){
+  .velora-theme .portal-sidebar,.staff-theme .portal-sidebar{width:clamp(248px,16vw,280px);padding-inline:clamp(18px,1.3vw,22px)}
+}
+@media (min-width:1800px){
+  .staff-theme .portal-sidebar{width:280px;padding-inline:22px}
+}
 
 .integration-group{margin-top:18px}.integration-group:first-child{margin-top:0}.integration-group-head{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #2a2e35}.integration-group-head h3{margin:0}.integration-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}@media(max-width:760px){.integration-group-grid{grid-template-columns:1fr}}
 
@@ -1968,9 +2010,18 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 /* Compact Fold/mobile rail: group captions have no room beside icon-only links. */
 @media(max-width:900px){
-  .velora-theme .sidebar-nav-groups{gap:10px}
-  .velora-theme .sidebar-nav-group{border-top:0;padding-top:0}
-  .velora-theme .sidebar-nav-group>summary{display:none}
+  .velora-theme .portal-sidebar > .sidebar-nav-groups{gap:0}
+  .velora-theme .portal-sidebar .sidebar-nav-group{border-top:0;padding:0}
+  .velora-theme .portal-sidebar .sidebar-nav-group>summary{display:flex;min-height:38px;align-items:center;justify-content:center;padding:0}
+  .velora-theme .portal-sidebar .sidebar-nav-group>summary span{display:none}
+  .velora-theme .portal-sidebar .sidebar-nav-group>summary .icon{width:18px;height:18px;flex:0 0 18px;color:#8d949e}
+  .velora-theme .portal-sidebar .sidebar-nav-group>summary::after{display:none}
+}
+@media(max-width:650px){
+  .velora-theme .portal-sidebar.is-expanded .sidebar-nav-group>summary{justify-content:space-between;padding:0 12px 8px}
+  .velora-theme .portal-sidebar.is-expanded .sidebar-nav-group>summary span{display:inline}
+  .velora-theme .portal-sidebar.is-expanded .sidebar-nav-group>summary .icon{display:none}
+  .velora-theme .portal-sidebar.is-expanded .sidebar-nav-group>summary::after{display:inline;float:none}
 }
 
 .finance-staff-items{display:block;margin-top:6px;line-height:1.45;color:var(--muted,#9098a7);font-size:.82rem}
@@ -1978,3 +2029,5 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .premix-batch-row{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:14px 16px;border:1px solid var(--line,#303641);border-radius:12px;background:rgba(255,255,255,.02)}
 .premix-batch-row small{display:block;margin-top:4px;color:var(--muted,#9098a7)}
 @media (max-width:700px){.premix-batch-row{align-items:flex-start;flex-direction:column}.finance-staff-items{font-size:.78rem}}
+
+.velora-theme .employee-turnover-panel{display:grid;gap:12px;max-width:720px;padding:24px}.velora-theme .employee-turnover-panel>div{display:grid;gap:8px}.velora-theme .employee-turnover-panel strong{font-size:clamp(32px,6vw,48px);line-height:1.05;letter-spacing:-.04em;color:#f5f7f8}.velora-theme .employee-turnover-panel small{font-size:13px}

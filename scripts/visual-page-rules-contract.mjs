@@ -11,7 +11,7 @@ const requiredGlobal = [
   '44px', 'Канонические адреса', 'Не добавлять новые цвета', 'Склад', 'Финансы'
 ];
 for (const text of requiredGlobal) assert.ok(rules.includes(text), `visual rules missing global rule: ${text}`);
-for (const text of ['Остатки', 'Поступления и списания', 'Техкарты', 'Каталог и справочники', 'Понятны ли названия всех кнопок']) {
+for (const text of ['Остатки', 'Поставки и списания', 'Технологические карты', 'Каталог товаров', 'Понятны ли названия всех кнопок']) {
   assert.ok(warehousePrompt.includes(text), `warehouse prompt missing rule: ${text}`);
 }
 assert.match(rules, /WAREHOUSE_PAGE_PROMPT\.md/);

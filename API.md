@@ -45,8 +45,9 @@
 
 
 - GET /api/venue — профиль площадки и минимумы VIP-комнат.
-- GET /api/integrations — статусы будущих интеграций.
+- GET /api/integrations — состояние интеграции Telegram.
 
+- `/api/finance/summary`, `/api/finance/report`, `/api/analytics` для рядового сотрудника возвращают только его оборот за текущий бизнес-день; период и дата из запроса не расширяют доступ.
 - GET /api/metrics — агрегаты для административного обзора.
 - GET /api/audit — последние события аудита действий пользователей.
 - GET /api/orders?venueId=… — использует PostgreSQL-репозиторий при настроенном DATABASE_URL.
