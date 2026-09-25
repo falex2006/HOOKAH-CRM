@@ -48,4 +48,11 @@ await req(`/api/recipes/${recipe.id}`,'PATCH',{name:'QA рецепт измен�
 await req(`/api/recipes/${recipe.id}`,'PATCH',{name:'Should not persist',technology:'x'.repeat(4001)},400);
 assert.equal((await req('/api/recipes')).items.find(x=>x.id===recipe.id).name,'QA рецепт изменён');checks++;
 await req(`/api/recipes/${recipe.id}`,'DELETE');
+const costItem=await req('/api/inventory/items','POST',{name:'QA — Вода',unit:'мл',itemType:'ingredient',cost:0.5},201);
+try {
+ const costRecipe=await req('/api/recipes','POST',{name:'QA конвертация',ingredients:[{ingredientId:costItem.id,name:costItem.name,quantity:'2 л'}]},201);
+ const cost=await req(`/api/recipes/${costRecipe.id}/cost`);
+ assert.equal(cost.lines[0].quantity,2000); assert.equal(cost.lines[0].unit,'мл'); assert.equal(cost.totalCost,1000); checks++;
+ await req(`/api/recipes/${costRecipe.id}`,'DELETE');
+} finally { await req(`/api/inventory/items/${costItem.id}`,'DELETE'); }
 console.log(`WAREHOUSE QA: ${checks} checks passed`);
