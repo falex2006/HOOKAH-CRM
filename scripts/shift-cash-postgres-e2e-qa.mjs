@@ -28,10 +28,10 @@ let productId = null;
 const callShiftApi = async ({ path, method = 'POST', body = {} }) => {
   let response;
   const pathname = path;
-  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts',
+  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts','isOperationalEmployee',
     `return (async()=>{${shiftRoute}})();`)(
     pathname, { method, user: { id: userId, name: 'Cash QA', role: 'owner' } }, {}, { pool }, venueId,
-    () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {}, [],
+    () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {}, [], () => false,
   );
   return response || result;
 };
