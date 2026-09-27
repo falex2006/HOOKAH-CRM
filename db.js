@@ -100,8 +100,9 @@ class InventoryRepository {
       const weightedCost = onHandAfter > 0 ? (Math.max(0, onHandBefore) * Number(item.cost || 0) + quantity * normalizedUnitCost) / onHandAfter : normalizedUnitCost;
       const { rows } = await client.query(`INSERT INTO stock_movements (venue_id, ingredient_id, direction, quantity, reason, created_by)
         VALUES ($1,$2,'in',$3,$4,$5) RETURNING id,ingredient_id AS "itemId",quantity,direction,reason,created_at AS "createdAt"`, [input.venueId, input.ingredientId, quantity, input.reason || null, input.createdBy || null]);
-      await client.query('UPDATE ingredients SET cost=$1 WHERE id=$2 AND venue_id=$3', [Math.round(weightedCost * 100) / 100, input.ingredientId, input.venueId]);
-      const result = { ...rows[0], itemName: item.name, unit: item.unit, onHandBefore, onHandAfter: Number(onHandAfter.toFixed(6)), weightedCost: Math.round(weightedCost * 100) / 100 };
+      const preciseWeightedCost = Number(weightedCost.toFixed(4));
+      await client.query('UPDATE ingredients SET cost=$1 WHERE id=$2 AND venue_id=$3', [preciseWeightedCost, input.ingredientId, input.venueId]);
+      const result = { ...rows[0], itemName: item.name, unit: item.unit, onHandBefore, onHandAfter: Number(onHandAfter.toFixed(6)), weightedCost: preciseWeightedCost };
       await client.query('COMMIT');
       return result;
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client.release(); }
@@ -319,8 +320,9 @@ class PurchaseDocumentRepository {
         const oldOnHand = Number(onHand.rows[0]?.value || 0) - Number(line.stock_quantity);
         const newOnHand = Number(onHand.rows[0]?.value || 0);
         const nextCost = newOnHand > 0 ? ((Math.max(0, oldOnHand) * Number(currentCosts.get(line.ingredient_id) || 0)) + (Number(line.stock_quantity) * Number(line.receipt_unit_cost))) / newOnHand : Number(line.receipt_unit_cost);
-        await client.query('UPDATE ingredients SET cost=$1 WHERE id=$2 AND venue_id=$3', [Math.round(nextCost * 100) / 100, line.ingredient_id, venueId]);
-        currentCosts.set(line.ingredient_id, Math.round(nextCost * 100) / 100);
+        const preciseNextCost = Number(nextCost.toFixed(4));
+        await client.query('UPDATE ingredients SET cost=$1 WHERE id=$2 AND venue_id=$3', [preciseNextCost, line.ingredient_id, venueId]);
+        currentCosts.set(line.ingredient_id, preciseNextCost);
         await client.query('UPDATE inventory_purchase_document_lines SET source_movement_id=$1 WHERE id=$2', [movement.rows[0].id, line.id]);
         movementIds.push(movement.rows[0].id); totalCost += Number(line.line_total || 0);
       }

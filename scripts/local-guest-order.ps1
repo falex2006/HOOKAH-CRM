@@ -22,6 +22,11 @@ $client = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/clients" -ContentTyp
   barPreferences = @('Red Bull')
 } | ConvertTo-Json -Depth 8)
 if (-not $client.id -or $client.phoneNumbers.Count -ne 2) { throw 'Client profile was not created with multiple phones' }
+$loyalty = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/clients/$($client.id)/loyalty" -ContentType 'application/json' -Body (@{ delta = 25; reason = 'Проверка локального теста' } | ConvertTo-Json)
+if ($loyalty.loyaltyPoints -ne 25 -or $loyalty.bonusBalance -ne 25) { throw 'Loyalty adjustment returned inconsistent balances' }
+$guestAfterLoyalty = Invoke-RestMethod "$BaseUrl/api/clients"
+$storedGuest = $guestAfterLoyalty.items | Where-Object { $_.id -eq $client.id } | Select-Object -First 1
+if ($storedGuest.loyaltyPoints -ne 25 -or $storedGuest.bonusBalance -ne 25) { throw 'Guest list did not show the updated bonus balance' }
 $product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Гостевой тест $suffix"; category = 'bar'; price = 100 } | ConvertTo-Json)
 
 $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{

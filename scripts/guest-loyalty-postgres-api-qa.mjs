@@ -18,12 +18,16 @@ const guestStart = server.indexOf("if (pathname === '/api/clients' && req.method
 const guestEnd = server.indexOf('const clientHistory = pathname.match', guestStart);
 const guestListStart = server.indexOf("if (pathname === '/api/clients' && req.method === 'GET')");
 const guestListEnd = server.indexOf('const clientArchive = pathname.match', guestListStart);
+const loyaltyStart = server.indexOf('const clientLoyalty = pathname.match');
+const loyaltyEnd = server.indexOf('const productImage = pathname.match', loyaltyStart);
 assert.ok(groupStart >= 0 && groupEnd > groupStart, 'discount group API handlers are present');
 assert.ok(guestStart >= 0 && guestEnd > guestStart, 'guest create/update API handlers are present');
 assert.ok(guestListStart >= 0 && guestListEnd > guestListStart, 'guest list API handler is present');
+assert.ok(loyaltyStart >= 0 && loyaltyEnd > loyaltyStart, 'loyalty adjustment API handler is present');
 const groupRoute = server.slice(groupStart, groupEnd);
 const guestRoute = server.slice(guestStart, guestEnd);
 const guestListRoute = server.slice(guestListStart, guestListEnd);
+const loyaltyRoute = server.slice(loyaltyStart, loyaltyEnd);
 const phoneNormalizer = server.match(/const normalizePhoneNumbers = .*?;\r?\n/)?.[0];
 assert.ok(phoneNormalizer, 'production phone normalizer is available');
 const normalizePhoneNumbers = new Function(`${phoneNormalizer}; return normalizePhoneNumbers;`)();
@@ -101,6 +105,28 @@ try {
   assert.equal(Number(guestList.data.items.find((item) => item.id === guestId).discountPercent), 10);
   assert.equal(Number(guestList.data.items.find((item) => item.id === guestId).bonusBalance), 125);
   assert.equal(Number(guestList.data.items.find((item) => item.id === guestId).depositBalance), 300);
+  const ordersOnlyBalancePatch = await callApi({ route: guestRoute, path: `/api/clients/${guestId}`, method: 'PATCH', permissions: ['orders'], body: { bonusBalance: 999999, depositBalance: 50000, discountGroupId: null } });
+  assert.equal(ordersOnlyBalancePatch.status, 403, 'orders-only roles cannot use guest profile PATCH to change protected balances or loyalty group');
+  const unchangedAfterDeniedPatch = await callApi({ route: guestListRoute, path: '/api/clients' });
+  assert.equal(Number(unchangedAfterDeniedPatch.data.items.find((item) => item.id === guestId).bonusBalance), 125,
+    'denied protected-field PATCH leaves guest bonus balance unchanged');
+  assert.equal(Number(unchangedAfterDeniedPatch.data.items.find((item) => item.id === guestId).depositBalance), 300,
+    'denied protected-field PATCH leaves guest deposit unchanged');
+  assert.equal((await callApi({ route: loyaltyRoute, path: `/api/clients/${guestId}/loyalty`, method: 'POST', permissions: [], body: { delta: 5, reason: 'forbidden test' } })).status, 403,
+    'roles without loyalty permission cannot adjust guest balances');
+  const concurrentAdjustments = await Promise.all([
+    callApi({ route: loyaltyRoute, path: `/api/clients/${guestId}/loyalty`, method: 'POST', body: { delta: 20, reason: 'concurrent test A' } }),
+    callApi({ route: loyaltyRoute, path: `/api/clients/${guestId}/loyalty`, method: 'POST', body: { delta: 10, reason: 'concurrent test B' } }),
+    callApi({ route: loyaltyRoute, path: `/api/clients/${guestId}/loyalty`, method: 'POST', body: { delta: -5, reason: 'concurrent test C' } }),
+    callApi({ route: loyaltyRoute, path: `/api/clients/${guestId}/loyalty`, method: 'POST', body: { delta: -15, reason: 'concurrent test D' } }),
+  ]);
+  assert.ok(concurrentAdjustments.every((result) => result.status === 200), 'concurrent positive and negative adjustments all succeed');
+  assert.ok(concurrentAdjustments.every((result) => result.data.bonusBalance === result.data.loyaltyPoints), 'API returns synchronized balance aliases');
+  const afterConcurrentAdjustments = await callApi({ route: guestListRoute, path: '/api/clients' });
+  assert.equal(Number(afterConcurrentAdjustments.data.items.find((item) => item.id === guestId).loyaltyPoints), 135,
+    'concurrent adjustments preserve the sum of every serialized update');
+  const foreignAdjustment = await callApi({ route: loyaltyRoute, path: `/api/clients/${guestId}/loyalty`, venue: otherVenueId, method: 'POST', body: { delta: 10, reason: 'wrong venue' } });
+  assert.equal(foreignAdjustment.status, 404, 'another venue cannot adjust this guest balance');
   const patch = await callApi({ route: guestRoute, path: `/api/clients/${guestId}`, method: 'PATCH', body: {
     discountGroupId: null, bonusBalance: 180, depositBalance: 750,
   } });

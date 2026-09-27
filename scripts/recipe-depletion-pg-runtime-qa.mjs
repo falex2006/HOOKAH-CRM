@@ -264,17 +264,38 @@ try {
   await req(base, `/api/finance/purchase-payables/${priceChangeReceipt.id}/payments`, 'POST', {
     amount: 100, paymentDate: currentDate, paymentMethod: 'cash', idempotencyKey: `qa-chain:${venueId}:3`,
   }, 201);
-  assert.equal(Number((await client.query('SELECT cost FROM ingredients WHERE id=$1', [stockItem.id])).rows[0].cost), 0.05,
-    'weighted average purchase cost rounds to the currency precision'); checks++;
+  assert.equal(Number((await client.query('SELECT cost FROM ingredients WHERE id=$1', [stockItem.id])).rows[0].cost), 0.0467,
+    'weighted average unit cost retains four decimal places instead of rounding every ml to a kopeck'); checks++;
   const retryClose = await req(base, `/api/orders/${failedOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
   assert.equal(retryClose.status, 'closed');
-  assert.equal(await getOrderCost(failedOrderId), 56, 'retry uses new weighted cost for the first ingredient and current price for the second ingredient'); checks += 2;
+  assert.equal(await getOrderCost(failedOrderId), 52.7, 'retry rounds final recipe cost to kopecks after preserving weighted unit-cost precision'); checks += 2;
   assert.equal(await getBalance(stockItem.id), 2000, 'retry depletes exactly one portion, not the failed attempt plus retry'); checks++;
   assert.equal(await getBalance(secondStockItem.id), 1600, 'retry consumes exactly one second-component portion after the rolled-back attempt'); checks++;
   const duplicateClose = await req(base, `/api/orders/${failedOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
   assert.equal(duplicateClose.error, 'order_already_final'); checks++;
   assert.equal(await getBalance(stockItem.id), 2000, 'duplicate close cannot deplete inventory again'); checks++;
   assert.equal(await getBalance(secondStockItem.id), 1600, 'duplicate close cannot consume a recipe component again'); checks++;
+
+  const premixOutput = await req(base, '/api/inventory/items', 'POST', {
+    name: 'QA premix output', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
+  }, 201);
+  const premixRecipe = await req(base, '/api/recipes', 'POST', {
+    name: 'QA weighted-cost premix', recipeType: 'premix',
+    ingredients: [
+      { ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' },
+      { ingredientId: secondStockItem.id, name: secondStockItem.name, quantity: '200 мл' },
+    ],
+    yieldQuantity: 1200, yieldUnit: 'мл', portionCount: 1,
+  }, 201);
+  const premixBatch = await req(base, '/api/inventory/premixes/produce', 'POST', {
+    recipeId: premixRecipe.id, outputItemId: premixOutput.id, multiplier: 1,
+  }, 201);
+  assert.equal(Number(premixBatch.totalCost), 52.7, 'premix cost uses the precise weighted cost of the milliliter stock unit');
+  assert.equal(Number((await client.query('SELECT cost FROM ingredients WHERE id=$1', [premixOutput.id])).rows[0].cost), 0.0439,
+    'premix output persists sub-kopeck unit cost so later recipes do not round each ml to a kopeck');
+  assert.equal(await getBalance(premixOutput.id), 1200, 'premix output quantity is added to the stock ledger');
+  assert.equal(await getBalance(stockItem.id), 1000, 'premix production consumes its first component exactly once');
+  assert.equal(await getBalance(secondStockItem.id), 1400, 'premix production consumes its second component exactly once'); checks += 5;
 
   const snapshots = await client.query('SELECT cost FROM order_costs WHERE order_id=$1', [firstOrderId]);
   assert.equal(Number(snapshots.rows[0].cost), 26, 'historical COGS snapshot is unchanged after a later purchase changes weighted cost'); checks++;
@@ -321,11 +342,11 @@ try {
   assert.ok(today, 'selected analytics period includes the synthetic sales date');
   assert.match(today.date, /^\d{4}-\d{2}-\d{2}$/, 'analytics serializes PostgreSQL date values as stable ISO calendar dates');
   assert.equal(Number(today.revenue), 300, 'analytics revenue reads both paid product sales');
-  assert.equal(Number(today.costOfGoods), 82, 'analytics COGS sums the two immutable order snapshots: 26 + 56');
+  assert.equal(Number(today.costOfGoods), 78.7, 'analytics COGS sums the two immutable order snapshots: 26 + 52.7');
   assert.equal(Number(today.expenses), 0, 'supplier principal does not count as a second operating expense');
   assert.equal(Number(today.cashOutflow), 220, 'supplier settlements remain visible in cash flow');
   assert.equal(Number(today.payroll), 0, 'unpaid payroll is not recorded as an incurred operating result');
-  assert.equal(Number(today.netProfit), 218, 'current-day profit equals revenue 300 minus COGS 82'); checks += 8;
+  assert.equal(Number(today.netProfit), 221.3, 'current-day profit equals revenue 300 minus COGS 78.7'); checks += 8;
 
   const manualExpenseResponse = await fetch(`${base}/api/expenses`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -339,8 +360,8 @@ try {
   assert.ok(afterExpense);
   assert.equal(Number(afterExpense.expenses), 18, 'manual operating expense is counted once as accrual');
   assert.equal(Number(afterExpense.cashOutflow), 238, 'cash flow includes 220 RUB supplier payments and one 18 RUB operating payment');
-  assert.equal(Number(afterExpense.netProfit), 200, 'profit subtracts COGS and manual operating expense');
-  assert.equal(Number(withOperatingExpense.netProfit), 200, 'period profit equals 300 revenue − 82 COGS − 18 expense'); checks += 7;
+  assert.equal(Number(afterExpense.netProfit), 203.3, 'profit subtracts COGS and manual operating expense');
+  assert.equal(Number(withOperatingExpense.netProfit), 203.3, 'period profit equals 300 revenue − 78.7 COGS − 18 expense'); checks += 7;
 
   const rule = await client.query(`INSERT INTO payroll_rules (venue_id,name,rule_type,rate)
     VALUES ($1,'QA hourly finance','hourly',50) RETURNING id`, [venueId]);
@@ -365,7 +386,7 @@ try {
   assert.ok(approvedPayrollDay);
   assert.equal(Number(approvedPayrollDay.payroll), 200, 'approved salary accrues to operating profit before cash payment');
   assert.equal(Number(approvedPayrollDay.cashOutflow), 238, 'approved-but-unpaid salary is not shown as cash outflow');
-  assert.equal(Number(approvedPayrollDay.netProfit), 0, 'accrual profit includes approved salary exactly once');
+  assert.ok(Math.abs(Number(approvedPayrollDay.netProfit) - 3.3) < 0.001, 'accrual profit includes approved salary exactly once');
   const payPayrollResponse = await fetch(`${base}/api/payroll/entries/${payrollDraft.id}`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'pay', paymentDate: currentDate }),
@@ -381,8 +402,8 @@ try {
   assert.equal(Number(afterPayroll.payroll), 200, 'paid salary is included in accrued operational result once');
   assert.equal(Number(afterPayroll.expenses), 218, 'profit expenses include the 18 RUB manual cost and 200 RUB salary once');
   assert.equal(Number(afterPayroll.cashOutflow), 438, 'cash flow includes supplier payments, operating expenses and salary actually paid');
-  assert.equal(Number(afterPayroll.netProfit), 0, 'profit equals 300 revenue − 82 COGS − 18 operating cost − 200 salary');
-  assert.equal(Number(afterPayrollAnalytics.netProfit), 0, 'period P&L reconciles to the independently expected zero'); checks += 11;
+  assert.ok(Math.abs(Number(afterPayroll.netProfit) - 3.3) < 0.001, 'profit equals 300 revenue − 78.7 COGS − 18 operating cost − 200 salary');
+  assert.ok(Math.abs(Number(afterPayrollAnalytics.netProfit) - 3.3) < 0.001, 'period P&L reconciles to the independently expected result'); checks += 11;
 
   console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase document/payment→stock→two-component recipe→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
 } finally {
