@@ -330,3 +330,16 @@ CREATE INDEX IF NOT EXISTS idx_orders_table_open ON orders (table_id, status) WH
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items (order_id);
 CREATE INDEX IF NOT EXISTS idx_stock_movements_ingredient_time ON stock_movements (ingredient_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_events_venue_time ON audit_events (venue_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS finance_categories (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  name text NOT NULL CHECK (length(btrim(name)) BETWEEN 1 AND 80),
+  kind text NOT NULL CHECK (kind IN ('income','expense')),
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id, id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS finance_categories_active_name_uq
+  ON finance_categories (venue_id, kind, lower(name)) WHERE active=true;

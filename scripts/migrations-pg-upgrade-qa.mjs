@@ -77,6 +77,8 @@ try {
   const payrollAfter = (await client.query('SELECT id,status,amount FROM payroll_entries ORDER BY period_from')).rows;
   assert.deepEqual(payrollAfter, legacyPayrollIds, '040 preserves legacy payroll status and amount');
   assert.equal((await client.query('SELECT id FROM expenses WHERE id=$1 AND source=\'purchase\'', [oldExpense])).rowCount, 1);
+  assert.equal((await client.query('SELECT category_id FROM expenses WHERE id=$1', [oldExpense])).rows[0].category_id, null,
+    '044 preserves legacy expense category labels rather than guessing category identities');
   assert.equal((await client.query('SELECT id FROM inventory_purchase_documents WHERE id=$1 AND status=\'posted\'', [oldDocument])).rowCount, 1);
 
   for (const file of latest) {

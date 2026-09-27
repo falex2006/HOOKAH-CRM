@@ -1,5 +1,15 @@
 # Рабочий журнал команды
 
+## 2026-09-28 — постоянный справочник финансовых категорий
+
+- Диагноз: `/api/finance/categories` хранил категории только в памяти; форма расхода вводила свободный текст и не связывалась со справочником; страница не позволяла увидеть/восстановить архив и показывала чужой финансовым категориям блок правил.
+- Исправление: миграция `044_finance_categories.sql` добавляет хранимый по заведению справочник, уникальность активного имени для вида, nullable связь расходов и tenant-bound FK. Категории создаются/переименовываются/архивируются/восстанавливаются; переименование обновляет связанные исторические подписи транзакционно, существующие текстовые расходы остаются без предположительной привязки. Форма расходов теперь выбирает активную категорию вида «Расход».
+- Файлы: `server.js`, `portal.js`, `style.css`, `dist/portal.js`, `schema.sql`, `migrations/044_finance_categories.sql`, `scripts/finance-categories-postgres-api-qa.mjs`, `scripts/postgres-qa.mjs`, `scripts/migrations-pg-upgrade-qa.mjs`, `scripts/finance-required-marker-contract.mjs`, `FINAL_ACCEPTANCE_REPORT.md`.
+- API/БД: существующие `/api/finance/categories` и `/api/expenses` принимают `categoryId`; migration 044. Старые маршруты не заменялись; текстовая совместимость сохранена для старых расходов.
+- Проверки: Docker Desktop Engine 29.8.0, изолированная PostgreSQL 16, schema + 44 миграции, migration upgrade/replay QA — PASS; полный PG QA — 11 suites PASS; локальный полный acceptance — PASS после актуализации контракта категории с input на select; CRUD, migration contract, JS syntax, source/dist sync и `git diff --check` — PASS. Только synthetic data.
+- Ограничения: свежий браузер/Fold screenshot QA не выполнен; VPS/production не подключались. Связанные документы расходов и фактическая финансовая приёмка остаются отдельными задачами.
+- Commit: pending.
+
 Каждый пакет изменений фиксируется координатором: цель, роли, изменённые файлы, проверки, результат и commit.
 
 ## 2026-09-28 — Персистентность групп лояльности и гостевых балансов

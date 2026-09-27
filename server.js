@@ -103,6 +103,7 @@ const autoOrderRequests = [];
 const reservations = [];
 const deliveries = [];
 const tasks = [];
+const manualExpenses = [];
 const financeCategories = [
   { id: 'finance-kitchen', name: 'Кухня', kind: 'income', active: true },
   { id: 'finance-bar', name: 'Бар', kind: 'income', active: true },
@@ -989,28 +990,68 @@ async function api(req, res) {
   if (pathname === '/api/finance/categories' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
     const query = String(url.searchParams.get('q') || '').trim().toLocaleLowerCase('ru-RU');
-    return json(res, 200, { items: financeCategories.filter((item) => item.active !== false && (!query || item.name.toLocaleLowerCase('ru-RU').includes(query))) });
+    const includeArchived = url.searchParams.get('includeArchived') === 'true';
+    if (includeArchived && denyUnless(req, res, 'finance')) return;
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query(`SELECT c.id,c.name,c.kind,c.active,COUNT(e.id)::int AS "operationCount"
+          FROM finance_categories c LEFT JOIN expenses e ON e.venue_id=c.venue_id AND e.category_id=c.id
+          WHERE c.venue_id=$1 AND ($2::boolean OR c.active=true) AND ($3::text='' OR c.name ILIKE '%' || $3 || '%')
+          GROUP BY c.id ORDER BY c.active DESC,c.kind,lower(c.name),c.id`, [venueDbId, includeArchived, query]);
+        return json(res, 200, { items: rows });
+      } catch (error) { return json(res, 503, { error: 'finance_categories_unavailable', detail: error.message }); }
+    }
+    return json(res, 200, { items: financeCategories.filter((item) => (includeArchived || item.active !== false) && (!query || item.name.toLocaleLowerCase('ru-RU').includes(query))).map((item) => ({ ...item, operationCount: manualExpenses.filter((expense) => expense.categoryId === item.id).length })) });
   }
   if (pathname === '/api/finance/categories' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
     const input = await body(req); const name = String(input.name || '').trim(); const kind = String(input.kind || 'income');
     if (!name || name.length > 80 || !['income', 'expense'].includes(kind)) return json(res, 400, { error: 'invalid_finance_category' });
-    if (financeCategories.some((item) => item.active && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'finance_category_exists' });
+    if (repositories?.pool) {
+      try { const { rows } = await repositories.pool.query('INSERT INTO finance_categories (venue_id,name,kind) VALUES ($1,$2,$3) RETURNING id,name,kind,active,0::int AS "operationCount"', [venueDbId, name, kind]); recordAudit(req, 'finance_category.created', 'finance_category', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); }
+      catch (error) { return json(res, error.code === '23505' ? 409 : 503, { error: error.code === '23505' ? 'finance_category_exists' : 'finance_category_save_failed', detail: error.message }); }
+    }
+    if (financeCategories.some((item) => item.active && item.kind === kind && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'finance_category_exists' });
     const category = { id: `finance-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, kind, active: true };
     financeCategories.push(category); recordAudit(req, 'finance_category.created', 'finance_category', category.id, null, category); return json(res, 201, category);
   }
   const financeCategoryPath = pathname.match(/^\/api\/finance\/categories\/([^/]+)$/);
   if (financeCategoryPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'finance')) return;
+    if (repositories?.pool) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(financeCategoryPath[1])) return json(res, 404, { error: 'finance_category_not_found' });
+      const input = await body(req); const client = await repositories.pool.connect(); let before = null; let updated = null;
+      try {
+        await client.query('BEGIN');
+        const current = await client.query('SELECT id,name,kind,active FROM finance_categories WHERE id=$1 AND venue_id=$2 FOR UPDATE', [financeCategoryPath[1], venueDbId]);
+        if (!current.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'finance_category_not_found' }); }
+        before = current.rows[0];
+        const name = input.name === undefined ? before.name : String(input.name || '').trim(); const kind = input.kind === undefined ? before.kind : String(input.kind); const active = input.active === undefined ? before.active : input.active;
+        if (!name || name.length > 80 || !['income', 'expense'].includes(kind) || typeof active !== 'boolean') { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_finance_category' }); }
+        if (before.kind === 'expense' && kind !== 'expense') {
+          const usage = await client.query('SELECT 1 FROM expenses WHERE venue_id=$1 AND category_id=$2 LIMIT 1', [venueDbId, before.id]);
+          if (usage.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'finance_category_has_expenses' }); }
+        }
+        const result = await client.query('UPDATE finance_categories SET name=$1,kind=$2,active=$3,updated_at=now() WHERE id=$4 AND venue_id=$5 RETURNING id,name,kind,active', [name,kind,active,before.id,venueDbId]);
+        updated = result.rows[0];
+        if (name !== before.name) await client.query('UPDATE expenses SET category=$1 WHERE venue_id=$2 AND category_id=$3', [name,venueDbId,before.id]);
+        await client.query('COMMIT');
+        recordAudit(req, active !== before.active ? active ? 'finance_category.restored' : 'finance_category.archived' : 'finance_category.updated', 'finance_category', updated.id, before, updated);
+        return json(res, 200, updated);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, error.code === '23505' ? 409 : 503, { error: error.code === '23505' ? 'finance_category_exists' : 'finance_category_update_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
     const category = financeCategories.find((item) => item.id === financeCategoryPath[1]); if (!category) return json(res, 404, { error: 'finance_category_not_found' });
     const input = await body(req); const name = input.name === undefined ? category.name : String(input.name || '').trim(); const kind = input.kind === undefined ? category.kind : String(input.kind);
-    if (!name || name.length > 80 || !['income', 'expense'].includes(kind)) return json(res, 400, { error: 'invalid_finance_category' });
-    const before = { ...category }; category.name = name; category.kind = kind; recordAudit(req, 'finance_category.updated', 'finance_category', category.id, before, category); return json(res, 200, category);
+    const active = input.active === undefined ? category.active !== false : input.active;
+    if (!name || name.length > 80 || !['income', 'expense'].includes(kind) || typeof active !== 'boolean') return json(res, 400, { error: 'invalid_finance_category' });
+    const before = { ...category }; category.name = name; category.kind = kind; category.active = active; recordAudit(req, active !== before.active ? active ? 'finance_category.restored' : 'finance_category.archived' : 'finance_category.updated', 'finance_category', category.id, before, category); return json(res, 200, category);
   }
   if (financeCategoryPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'finance')) return;
+    if (repositories?.pool) { const { rows } = await repositories.pool.query('UPDATE finance_categories SET active=false,updated_at=now() WHERE id=$1 AND venue_id=$2 RETURNING id,name,kind,active', [financeCategoryPath[1],venueDbId]); if (!rows[0]) return json(res, 404, { error: 'finance_category_not_found' }); recordAudit(req, 'finance_category.archived', 'finance_category', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); }
     const category = financeCategories.find((item) => item.id === financeCategoryPath[1]); if (!category) return json(res, 404, { error: 'finance_category_not_found' });
-    category.active = false; recordAudit(req, 'finance_category.deactivated', 'finance_category', category.id, { active: true }, { active: false }); return json(res, 200, category);
+    category.active = false; recordAudit(req, 'finance_category.archived', 'finance_category', category.id, { active: true }, { active: false }); return json(res, 200, category);
   }
   if (pathname === '/api/metrics') {
     if (isOperationalEmployee(req)) {
@@ -1923,15 +1964,19 @@ if (staffProfile && req.method === 'PATCH') {
     if (isOperationalEmployee(req)) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
     const from = url.searchParams.get('from') || '1900-01-01'; const to = url.searchParams.get('to') || '2999-12-31';
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query("SELECT e.*, CASE WHEN e.source='payroll' THEN COALESCE((SELECT pe.status FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id ORDER BY pe.created_at DESC LIMIT 1),'legacy_unmatched') ELSE NULL END AS \"payrollStatus\", (e.source='payroll' AND NOT EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id AND pe.status='paid')) AS \"payrollNeedsReview\" FROM expenses e WHERE e.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND ($4::boolean OR e.source <> 'payroll') ORDER BY e.expense_date DESC,e.created_at DESC", [venueDbId,from,to,hasPermission(req,'finance')]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'expenses_unavailable', detail: error.message }); } }
-    return json(res, 200, { items: [] });
+    return json(res, 200, { items: manualExpenses.filter((expense) => expense.date >= from && expense.date <= to).sort((a,b) => b.date.localeCompare(a.date)) });
   }
   if (pathname === '/api/expenses' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
-    const input = await body(req); const category = String(input.category || '').trim(); const amount = Number(input.amount); const expenseDate = String(input.expenseDate || today());
-    if (!category || category.length > 80 || !Number.isFinite(amount) || amount < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(expenseDate)) return json(res, 400, { error: 'invalid_expense' });
+    const input = await body(req); let category = String(input.category || '').trim(); let categoryId = input.categoryId ? String(input.categoryId) : null; const amount = Number(input.amount); const expenseDate = String(input.expenseDate || today());
+    if (categoryId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(categoryId)) return json(res, 400, { error: 'invalid_finance_category' });
+    if ((!categoryId && (!category || category.length > 80)) || !Number.isFinite(amount) || amount < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(expenseDate)) return json(res, 400, { error: 'invalid_expense' });
     if (input.source === 'payroll') return json(res, 400, { error: 'payroll_expense_must_be_paid_through_payroll' });
     if (input.source === 'purchase') return json(res, 400, { error: 'purchase_payment_requires_receipt_link' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,document_url,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *', [venueDbId,category,amount,expenseDate,String(input.description || '').slice(0,1000) || null,['manual','purchase','other'].includes(input.source) ? input.source : 'manual',String(input.documentUrl || '').slice(0,500) || null,req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'expense_save_failed', detail: error.message }); } }
+    if (repositories?.pool) { try { if (categoryId) { const selected = await repositories.pool.query("SELECT name FROM finance_categories WHERE id=$1 AND venue_id=$2 AND active=true AND kind='expense'", [categoryId,venueDbId]); if (!selected.rows[0]) return json(res, 400, { error: 'invalid_finance_category' }); category = selected.rows[0].name; } if (!category || category.length > 80) return json(res, 400, { error: 'invalid_expense' }); const { rows } = await repositories.pool.query('INSERT INTO expenses (venue_id,category,category_id,amount,expense_date,description,source,document_url,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *', [venueDbId,category,categoryId,amount,expenseDate,String(input.description || '').slice(0,1000) || null,['manual','purchase','other'].includes(input.source) ? input.source : 'manual',String(input.documentUrl || '').slice(0,500) || null,req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, error.code === '23503' ? 400 : 409, { error: error.code === '23503' ? 'invalid_finance_category' : 'expense_save_failed', detail: error.message }); } }
+    if (categoryId) { const selected = financeCategories.find((item) => item.id === categoryId && item.active !== false && item.kind === 'expense'); if (!selected) return json(res, 400, { error: 'invalid_finance_category' }); category = selected.name; }
+    if (!category || category.length > 80) return json(res, 400, { error: 'invalid_expense' });
+    const expense = { id: `expense-${Date.now()}`, category, categoryId, amount, date: expenseDate, expenseDate, description: String(input.description || '').slice(0,1000), source: ['manual','other'].includes(input.source) ? input.source : 'manual', createdAt: new Date().toISOString() }; manualExpenses.push(expense); return json(res, 201, expense);
   }
   if (pathname === '/api/payroll/rules' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;

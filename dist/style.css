@@ -2253,7 +2253,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 /* Keep required markers on the same line as their expense-field labels. */
 .velora-theme .finance-expenses-panel #expense-form>.form-row label{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:4px}
-.velora-theme .finance-expenses-panel #expense-form>.form-row label>input{flex:0 0 100%;width:100%;min-width:0;box-sizing:border-box}
+.velora-theme .finance-expenses-panel #expense-form>.form-row label>:is(input,select){flex:0 0 100%;width:100%;min-width:0;box-sizing:border-box}
 
 /* Use the usable workspace width, not viewport width, for dashboard and warehouse composition. */
 @supports (container-type:inline-size){

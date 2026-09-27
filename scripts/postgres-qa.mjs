@@ -31,6 +31,7 @@ const checks = [
   'migrations-pg-041-recovery-concurrency-qa.mjs',
   'purchase-payment-postgres-api-qa.mjs',
   'guest-loyalty-postgres-api-qa.mjs',
+  'finance-categories-postgres-api-qa.mjs',
   'payroll-lifecycle-postgres-api-qa.mjs',
   'finance-employee-postgres-qa.mjs',
   'shift-cash-postgres-e2e-qa.mjs',
