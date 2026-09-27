@@ -24,5 +24,11 @@ assert.match(css, /body\[data-page="clients"\] \.content-grid\.has-client-editor
   'desktop editor may use a side-by-side layout only after an explicit selection');
 assert.match(css, /body\[data-page="clients"\] \.content-grid>#client-editor\{order:-1\}/,
   'when open on narrow screens, the editor must precede the list');
+assert.match(css, /body\[data-page="clients"\] \.client-card-head\{[^}]*flex-direction:column[^}]*min-width:0[^}]*width:100%/,
+  'narrow guest cards must stack their person/actions instead of squeezing identity text beside controls');
+assert.match(css, /body\[data-page="clients"\] \.client-card-person>div\{[^}]*min-width:0[^}]*overflow-wrap:anywhere[^}]*word-break:normal/,
+  'guest name and phone text must wrap as words when narrow, not one character per line');
+assert.match(css, /@media\(max-width:700px\)\{\.velora-theme \.client-groups\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,
+  'mobile guest segments must expose all statuses in a wrapping grid rather than hide them in horizontal scrolling');
 
 console.log('CLIENT EDITOR CONTRACT: PASS (on-demand editor, clear close, focus, and responsive list-first layout)');

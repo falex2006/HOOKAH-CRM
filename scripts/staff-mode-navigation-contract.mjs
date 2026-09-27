@@ -6,6 +6,9 @@ const app = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const distApp = fs.readFileSync(new URL('../dist/app.js', import.meta.url), 'utf8');
 const distHtml = fs.readFileSync(new URL('../dist/index.html', import.meta.url), 'utf8');
+const syncScript = fs.readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8');
+const appRevision = syncScript.match(/appRevision = '(\d+)'/)?.[1];
+assert.ok(appRevision, 'app cache revision must be declared in the asset sync script');
 
 assert.match(app, /const preserveWorkspaceRoute=\(href\)=>/);
 assert.match(app, /queryParams\.delete\('mode'\)/);
@@ -15,6 +18,10 @@ assert.doesNotMatch(app, /operatorId|actingAccount|режим сотрудник
 
 // The employee sidebar stays hidden until the authenticated session is read.
 assert.equal([...html.matchAll(/<nav class="portal-nav" hidden aria-busy="true" data-session-pending="true">/g)].length, 2);
+const staffNavButtons = [...html.matchAll(/<button\b([^>]*)data-permission="[^"]+"([^>]*)>([\s\S]*?)<\/button>/g)];
+assert.ok(staffNavButtons.length > 0, 'staff navigation must contain permission-filtered buttons');
+assert.ok(staffNavButtons.every(([, before, after]) => /aria-label="[^"]+"/.test(before + after)),
+  'icon-only staff navigation buttons must preserve their labels for assistive technology');
 assert.match(app, /else fetch\('\/api\/session'/);
 assert.match(app, /if\(!s\?\.user\)return/);
 assert.match(app, /item\.hidden=!hasStaffPermission\(item\.dataset\.permission,permissions\)/,
@@ -33,6 +40,10 @@ assert.equal(hasStaffPermission('inventory', managerPermissions), false, 'read-o
 assert.equal(hasStaffPermission('staff_manage', managerPermissions), false, 'manager must not get personnel-management access');
 assert.match(app, /canOpenAdmin=\['owner','admin','manager','developer'\]/,
   'the manager must be able to open the management panel granted by the server role profile');
+assert.match(app, /link\.className='staff-admin-nav-link'/,
+  'the authorized management return remains in the sidebar navigation');
+assert.doesNotMatch(app, /staff-admin-switch/,
+  'the duplicate management-panel link must not remain in the user profile footer');
 assert.match(app, /\.portal-nav:not\(\.staff-admin-nav\)/,
   'role-filtered employee sections must not hide the separate role-gated admin return link');
 assert.match(app, /manager:\['floor','orders','reservations','inventory_read','finance_read','loyalty'\]/,
@@ -42,6 +53,6 @@ assert.match(app, /manager:\['floor','orders','reservations','inventory_read','f
 // or diverge on a static dist deployment.
 assert.equal(distApp, app);
 assert.equal(distHtml, html);
-assert.match(html, /app\.js\?rev=128/);
+assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`));
 
 console.log('STAFF SESSION NAVIGATION CONTRACT: PASS (server-driven permissions, manager links, fail-closed loading, root/dist parity)');

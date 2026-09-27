@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '281';
+const cssRevision = '286';
 const portalRevision = '283';
-const appRevision = '128';
+const appRevision = '129';
 const staffProfileRevision = '6';
 const loginRevision = '92';
 const staffAdminCardRevision = '2';

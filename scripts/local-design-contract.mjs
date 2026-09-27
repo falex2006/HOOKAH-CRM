@@ -61,6 +61,10 @@ for (const [alias, source] of Object.entries(routeAliases)) {
 }
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+assert.match(css, /\.platform-main>\.platform-content\{[^}]*width:100%[^}]*min-width:0[^}]*box-sizing:border-box/,
+  'the platform workspace must respect the available width beside its sidebar');
+assert.match(css, /@media\(max-width:1180px\)\{\.platform-hero\{align-items:flex-start;flex-direction:column\}\}/,
+  'the platform hero must stack before tablet content is squeezed by the persistent sidebar');
 assert.match(portal, /staffPanel\.classList\.add\('staff-directory-only'\)/, 'staff directory must mark the drawer-only layout');
 assert.match(css, /\.staff-panel\.staff-directory-only \.staff-layout\{grid-template-columns:minmax\(0,1fr\);gap:0\}/, 'staff directory must reclaim the drawer column width');
 assert.match(css, /\.velora-theme a\.button[^}]*text-decoration:none!important/);

@@ -22,5 +22,13 @@ assert.match(styles, /\.finance-chart-empty\{[^}]*min-height:210px/,
   'the no-data state has intentional layout and visual hierarchy');
 assert.match(styles, /\.finance-kpi-grid\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,
   'the three finance KPIs fill the available desktop row');
+assert.match(styles, /\.finance-expenses-panel #expense-form>\.form-row\{[^}]*grid-template-columns:minmax\(0,1fr\)/,
+  'finance expense fields stack within the narrow phone workspace');
+assert.match(styles, /\.finance-expenses-panel #expense-form\{[^}]*grid-template-columns:minmax\(0,1fr\)/,
+  'the expense form grid itself must release its content-sized implicit track on phones');
+assert.match(styles, /\.finance-expenses-panel #expense-list \.payment-row>strong\{[^}]*flex:0 0 auto;white-space:nowrap/,
+  'expense amounts retain their full readable value on narrow screens');
+assert.match(styles, /\.finance-expenses-panel #expense-list \.payment-row>span\{[^}]*min-width:0/,
+  'expense descriptions can wrap without forcing the amount into a narrow column');
 
 console.log('FINANCE CHART EMPTY STATE CONTRACT: PASS (zero activity is explicit; desktop KPI row matches its three-card content)');
