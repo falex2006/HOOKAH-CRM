@@ -2334,3 +2334,5 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .dashboard-shift-empty small{color:#9aa3ae;font-size:13px;line-height:1.45}
 .dashboard-shift-empty__action{min-height:44px;white-space:nowrap}
 @media(max-width:640px){.dashboard-shift-empty{grid-template-columns:44px minmax(0,1fr);justify-content:stretch;gap:12px;padding:18px}.dashboard-shift-empty__action{grid-column:1/-1;width:100%}}
+.login-card>p.login-message{display:block;box-sizing:border-box;width:100%;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+@media(max-height:800px){.login{place-items:start center;align-content:start;overflow-x:hidden;overflow-y:auto;padding:clamp(16px,calc((100svh - 570px)/2),76px) 14px;box-sizing:border-box}}

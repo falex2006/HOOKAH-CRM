@@ -45,7 +45,6 @@ const showSetupIfNeeded = async () => {
     } else if (status && !status.required && form && setupForm) {
       setupForm.hidden = true;
       form.hidden = false;
-      form.querySelector('#login-username')?.focus();
     }
   } catch (_) {}
 };
@@ -108,29 +107,51 @@ form?.addEventListener('submit', async (event) => {
   message.textContent = 'Проверяем доступ…';
   if (submit) { submit.disabled = true; submit.textContent = 'Проверяем…'; }
 
+  let response;
   try {
-    const response = await fetch('/api/login', {
+    response = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'login_failed');
-    finishLogin(data);
   } catch (error) {
+    // Offline/demo credentials are only a fallback when no HTTP response was
+    // received. Never turn a server-side rejection (401/409/429/503) into a
+    // local identity or an invalid token loop.
     try {
       const state = JSON.parse(localStorage.getItem('territory_crm_demo_state') || '{}');
       const person = (state.staff || []).find((entry) => entry.active !== false && entry.login === username && entry.password === password);
       if (person) { finishLogin({ token: `demo-static-${person.role}-${Date.now()}`, user: { id: person.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl || null } }); return; }
     } catch (_) {}
     const user = demoUsers[`${username}:${password}`];
-    if (!user) {
-      message.textContent = error?.message === 'too_many_login_attempts' ? 'Слишком много попыток. Повторите позже.' : error?.message === 'session_limit_reached' ? 'Учетная запись уже открыта на двух устройствах. Выйдите на одном из них и повторите вход.' : 'Неверный логин или пароль';
-      await showFailureAnimation();
-      if (submit) { submit.disabled = false; submit.textContent = 'Войти в систему'; }
+    if (user) {
+      finishLogin({ token: `demo-static-${user.role}-${Date.now()}`, user });
       return;
     }
-    finishLogin({ token: `demo-static-${user.role}-${Date.now()}`, user });
+    message.textContent = 'Сервер входа недоступен. Проверьте подключение и повторите попытку.';
+    await showFailureAnimation();
+    if (submit) { submit.disabled = false; submit.textContent = 'Войти в систему'; }
+    return;
   }
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const messages = {
+      invalid_credentials: 'Неверный логин или пароль',
+      too_many_login_attempts: 'Слишком много попыток. Повторите позже.',
+      session_limit_reached: 'Учетная запись уже открыта на двух устройствах. Выйдите на одном из них и повторите вход.',
+    };
+    message.textContent = messages[data.error] || 'Не удалось войти. Проверьте данные и повторите попытку.';
+    await showFailureAnimation();
+    if (submit) { submit.disabled = false; submit.textContent = 'Войти в систему'; }
+    return;
+  }
+  if (!data.token || !data.user) {
+    message.textContent = 'Сервер вернул неполный ответ. Повторите попытку.';
+    await showFailureAnimation();
+    if (submit) { submit.disabled = false; submit.textContent = 'Войти в систему'; }
+    return;
+  }
+  await finishLogin(data);
   if (submit) { submit.disabled = false; submit.textContent = 'Войти в систему'; }
 });

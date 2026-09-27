@@ -27,6 +27,8 @@ assert.match(deploy, /\*@example\.com/);
 assert.match(deploy, /replace-with|replace-\*/, 'replace placeholders must be rejected');
 assert.match(deploy, /AUTH_REQUIRED=true/);
 assert.match(deploy, /COOKIE_SECURE=true/);
+assert.match(migrate, /psql --single-transaction -v ON_ERROR_STOP=1/, 'each VPS migration file must commit or roll back atomically');
+assert.match(migrate, /export LC_ALL=C/, 'VPS migration order must match the Node migration runner');
 assert.match(deploy, /git rev-parse --verify HEAD/, 'deployments must identify a committed release');
 assert.match(deploy, /git status --porcelain --untracked-files=all/, 'dirty and untracked release files must block deployment');
 assert.match(deploy, /flock 8/, 'parallel deployments must be serialized');

@@ -8,6 +8,7 @@ if ($baseUri.Host -notin @('localhost', '127.0.0.1', '::1')) { throw "Local-only
 $root = Split-Path -Parent $PSScriptRoot
 $checks = @(
   @{ file = 'site-structure-contract.mjs'; node = $true },
+  @{ file = 'final-acceptance-matrix-contract.mjs'; node = $true },
   @{ file = 'visual-page-rules-contract.mjs'; node = $true },
   @{ file = 'fold-responsive-contract.mjs'; node = $true },
   @{ file = 'sidebar-navigation-contract.mjs'; node = $true },
@@ -44,6 +45,7 @@ $checks = @(
   @{ file = 'local-date-contract.mjs'; node = $true },
   @{ file = 'local-asset-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-login-contract.mjs'; node = $true },
+  @{ file = 'login-error-runtime-qa.mjs'; node = $true },
   @{ file = 'staff-pin-passport-contract.mjs'; node = $true },
   @{ file = 'staff-pin-passport-runtime-qa.mjs'; node = $true },
   @{ file = 'staff-worklog-runtime-qa.mjs'; node = $true },

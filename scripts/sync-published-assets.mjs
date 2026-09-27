@@ -3,11 +3,11 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '273';
+const cssRevision = '276';
 const portalRevision = '283';
 const appRevision = '128';
 const staffProfileRevision = '6';
-const loginRevision = '90';
+const loginRevision = '92';
 const staffAdminCardRevision = '2';
 const purchaseDocumentValidationRevision = '1';
 // Keep flat pages and directory-index aliases in dist aligned with their source

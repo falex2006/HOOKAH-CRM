@@ -26,10 +26,13 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
+# Match scripts/migrate.js lexical ordering and keep each file atomic. A failed
+# statement must not leave a partially-applied migration before the next retry.
+export LC_ALL=C
 for migration in migrations/*.sql; do
   test -f "$migration" || continue
   echo "Applying $migration"
-  $COMPOSE exec -T db psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-crm}" -d "${POSTGRES_DB:-crm}" < "$migration"
+  $COMPOSE exec -T db psql --single-transaction -v ON_ERROR_STOP=1 -U "${POSTGRES_USER:-crm}" -d "${POSTGRES_DB:-crm}" < "$migration"
 done
 
 echo 'CRM migrations applied'
