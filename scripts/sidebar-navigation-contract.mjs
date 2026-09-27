@@ -118,6 +118,8 @@ assert.ok(operationOrder.every((position) => position >= 0), 'every operational 
 assert.deepEqual(operationOrder, [...operationOrder].sort((a, b) => a - b), 'operational menu order must follow the service flow');
 assert.match(portal, /else \{ link\.dataset\.permission = item\.permission; link\.innerHTML = `\$\{iconMarkup\(item\.iconName\)\}<span>\$\{item\.label\}<\/span>`; \}/,
   'existing static links must be updated with the canonical permission, label and icon');
+assert.match(portal, /const activeLink = group\.querySelector\('a\.active'\);[\s\S]*?if \(activeLink\) group\.open = true;[\s\S]*?aria-expanded', String\(group\.open\)/,
+  'the group containing the active route must stay open so its active item is visible');
 for (const entry of [
   "{ href: '/finance', permission: 'finance_read', label: 'Обзор финансов', iconName: 'chart-bar', navigationModule: 'finance' }",
   "{ href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'id-badge' }",

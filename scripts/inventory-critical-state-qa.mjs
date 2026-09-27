@@ -119,7 +119,7 @@ assert.match(inventoryErrorMarkup, /Не удалось загрузить ск�
 assert.match(inventoryErrorMarkup, /data-inventory-retry/);
 assert.match(portal, /const retry = event\.target\.closest\('\[data-inventory-retry\]'\); if \(retry\) \{ retry\.disabled = true; retry\.textContent = 'Загружаем…'; load\(\); return; \}/,
   'the inventory error retry button must disable during retry and invoke the same load function');
-assert.match(portal, /\.catch\(\(\) => \{ document\.querySelector\('#inventory-rows'\)\.innerHTML = inventoryLoadErrorMarkup\(\);/,
+assert.match(portal, /\.catch\(\(\) => \{ inventoryLoadState = 'error'; refreshInventoryContext\(\); document\.querySelector\('#inventory-rows'\)\.innerHTML = inventoryLoadErrorMarkup\(\);/,
   'inventory request errors must render the actionable error state');
 
 console.log('INVENTORY CRITICAL STATE QA: PASS (custom department round-trip; auto-order error states; inventory error retry state)');

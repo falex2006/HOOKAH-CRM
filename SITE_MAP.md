@@ -45,7 +45,7 @@
 │  ├─ Заготовки и премиксы    /inventory?view=premixes
 │  └─ Цеха и категории        /inventory?view=directories
 ├─ Финансы                    /finance
-│  ├─ Категории расходов      /finance/categories
+│  ├─ Категории доходов и расходов /finance/categories
 │  └─ Отчёты                  /finance/report
 └─ Интеграции                 /integrations
 

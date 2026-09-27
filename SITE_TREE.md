@@ -15,7 +15,7 @@
 | `/delivery` | `delivery.html` | Доставка |
 | `/inventory` | `inventory.html` | Склад и связанные представления меню, техкарт и запасов |
 | `/finance` | `finance.html` | Финансы и аналитика |
-| `/finance/categories` | `finance-categories.html` | Категории расходов |
+| `/finance/categories` | `finance-categories.html` | Категории доходов и расходов |
 | `/finance/report` | `finance-report.html` | Финансовый отчёт |
 | `/integrations` | `integrations.html` | Интеграции |
 | `/network` | `network.html` | Сеть заведений |

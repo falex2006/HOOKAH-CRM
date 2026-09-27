@@ -4,6 +4,15 @@ import { readFileSync } from 'node:fs';
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
+assert.match(portal, /stock: \['\.inventory-stock-panel', '\.inventory-item-editor-panel'\]/,
+  'the item editor belongs only to the stock view and must hide when switching to other warehouse sections');
+assert.match(portal, /\.inventory-stock-panel,\.inventory-item-editor-panel,\.inventory-auto-order-panel/,
+  'warehouse view switching must include the item editor in visibility toggles');
+assert.match(portal, /inventoryLoadState === 'loading' && \['stock', 'movements'\]\.includes\(view\) \? '—'/,
+  'stock and movement KPI values must remain loading placeholders until inventory data arrives');
+assert.match(portal, /inventoryLoadState = 'error'; refreshInventoryContext\(\)/,
+  'inventory API errors must not leave false zero KPI values on screen');
+
 for (const label of ['Позиция', 'Цех / категория', 'Остаток', 'Минимум', 'Состояние', 'Действия']) {
   assert.ok(portal.includes(`data-label="${label}"`), `stock card label is missing: ${label}`);
 }
