@@ -21,6 +21,8 @@ const zoneId = randomUUID();
 const tableId = randomUUID();
 const failureFunction = 'qa_recipe_order_close_failure';
 const failureTrigger = 'qa_recipe_order_close_failure';
+const processTimezone = 'Etc/GMT+12';
+const venueTimezone = 'Pacific/Kiritimati';
 const client = new Client({ connectionString: databaseUrl });
 let server;
 let serverOutput = '';
@@ -62,23 +64,54 @@ async function getBusinessDate() {
 async function cleanSyntheticVenue(id) {
   await client.query(`DROP TRIGGER IF EXISTS ${failureTrigger} ON orders`).catch(() => {});
   await client.query(`DROP FUNCTION IF EXISTS public.${failureFunction}()`).catch(() => {});
-  await client.query('DELETE FROM audit_events WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [id]);
-  await client.query('DELETE FROM order_costs WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM discounts WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [id]);
-  await client.query('DELETE FROM stock_movements WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM orders WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM shifts WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM payroll_entries WHERE venue_id=$1', [id]).catch(() => {});
-  await client.query('DELETE FROM staff_work_logs WHERE venue_id=$1', [id]).catch(() => {});
-  await client.query('DELETE FROM payroll_rules WHERE venue_id=$1', [id]).catch(() => {});
-  await client.query('DELETE FROM inventory_recipe_cards WHERE venue_id=$1', [id]).catch(() => {});
-  await client.query('DELETE FROM ingredients WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM products WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM zones WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM inventory_departments WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM users WHERE venue_id=$1', [id]);
-  await client.query('DELETE FROM venues WHERE id=$1', [id]);
+  await client.query('BEGIN');
+  try {
+    // Posted purchase documents are immutable through the product workflow.
+    // For this isolated synthetic-fixture teardown only, disable those two
+    // business guards in-transaction while keeping all foreign keys enabled.
+    await client.query('ALTER TABLE inventory_purchase_document_lines DISABLE TRIGGER inventory_purchase_line_lifecycle_guard');
+    await client.query('ALTER TABLE inventory_purchase_documents DISABLE TRIGGER inventory_purchase_document_delete_guard');
+    await client.query('DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [id]);
+    await client.query('DELETE FROM discounts WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [id]);
+    await client.query('DELETE FROM payroll_entries WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM expenses WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM inventory_purchase_document_lines WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM inventory_premix_batches WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM inventory_recipe_cards WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM inventory_purchase_documents WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM inventory_auto_orders WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM inventory_subdepartments WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM tasks WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM staff_schedules WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM staff_work_logs WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM payroll_rules WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM audit_events WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM integration_events WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM order_costs WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM stock_movements WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM orders WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM reservations WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM shifts WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM product_categories WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM products WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM ingredients WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM guests WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM zones WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM inventory_departments WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM users WHERE venue_id=$1', [id]);
+    await client.query('DELETE FROM venues WHERE id=$1', [id]);
+    await client.query('ALTER TABLE inventory_purchase_document_lines ENABLE TRIGGER inventory_purchase_line_lifecycle_guard');
+    await client.query('ALTER TABLE inventory_purchase_documents ENABLE TRIGGER inventory_purchase_document_delete_guard');
+    const scopedTables = await client.query(`SELECT format('%I.%I', table_schema, table_name) AS relation
+      FROM information_schema.columns WHERE table_schema='public' AND column_name='venue_id'`);
+    for (const { relation } of scopedTables.rows) {
+      const remaining = await client.query(`SELECT 1 FROM ${relation} WHERE venue_id::text=$1 LIMIT 1`, [id]);
+      assert.equal(remaining.rowCount, 0, `synthetic venue cleanup removes all rows from ${relation}`);
+    }
+    assert.equal((await client.query('SELECT 1 FROM venues WHERE id=$1', [id])).rowCount, 0,
+      'synthetic venue cleanup removes its test venue');
+    await client.query('COMMIT');
+  } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
 }
 
 try {
@@ -92,7 +125,7 @@ try {
   }
   assert.equal((await client.query('SELECT id FROM users WHERE id=$1', [actorId])).rowCount, 0,
     'no synthetic fallback actor remains after fixture cleanup');
-  await client.query('INSERT INTO venues (id,name,timezone) VALUES ($1,$2,$3)', [venueId, 'Синтетическая QA-точка', 'Asia/Yekaterinburg']);
+  await client.query('INSERT INTO venues (id,name,timezone) VALUES ($1,$2,$3)', [venueId, 'Синтетическая QA-точка', venueTimezone]);
   await client.query('INSERT INTO users (id,venue_id,full_name,login,role) VALUES ($1,$2,$3,$4,$5)', [actorId, venueId, 'QA Владелец', `qa-${venueId}`, 'owner']);
   await client.query('INSERT INTO inventory_departments (venue_id,code,name) VALUES ($1,$2,$3)', [venueId, 'bar', 'Бар']);
   await client.query('INSERT INTO zones (id,venue_id,name) VALUES ($1,$2,$3)', [zoneId, venueId, 'QA зона']);
@@ -109,6 +142,7 @@ try {
       AUTH_REQUIRED: 'false',
       NODE_ENV: 'test',
       API_RATE_LIMIT: '5000',
+      BUSINESS_TIMEZONE: processTimezone,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -129,20 +163,45 @@ try {
   assert.equal(health.database, 'postgres', 'test exercises the actual PostgreSQL repository path'); checks++;
   await req(base, '/api/shifts', 'POST', { openingCash: 100 }, 201);
 
+  const currentDate = await getBusinessDate();
+  const timezoneMismatch = await client.query('SELECT (now() AT TIME ZONE $1)::date <> (now() AT TIME ZONE $2)::date AS differs', [processTimezone, venueTimezone]);
+  assert.equal(timezoneMismatch.rows[0].differs, true, 'fixture forces process and venue business dates to differ'); checks++;
+  await client.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source,note)
+    VALUES ($1,$2,($3::date::timestamp + INTERVAL '30 minutes') AT TIME ZONE $4,($3::date::timestamp + INTERVAL '90 minutes') AT TIME ZONE $4,'manual','QA venue-local default date')`,
+  [venueId, actorId, currentDate, venueTimezone]);
+  const defaultWorkTimeResponse = await fetch(`${base}/api/staff/time`);
+  assert.equal(defaultWorkTimeResponse.status, 200, 'default work-time request succeeds with venue-local dates');
+  const defaultWorkTime = await defaultWorkTimeResponse.json();
+  const localBoundaryLog = defaultWorkTime.items.find((entry) => entry.note === 'QA venue-local default date');
+  assert.ok(localBoundaryLog, 'omitted work-time dates select the venue-local current date, not the process date');
+  assert.equal(Number(localBoundaryLog.hours), 1, 'local-day work-log boundary keeps the exact elapsed hour'); checks += 4;
+
   const stockItem = await req(base, '/api/inventory/items', 'POST', {
     name: 'QA сироп для продажи', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
   }, 201);
   const secondStockItem = await req(base, '/api/inventory/items', 'POST', {
     name: 'QA сок для продажи', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
   }, 201);
-  const receipt = await req(base, '/api/inventory/supplies', 'POST', {
-    itemId: stockItem.id, quantity: 3, unit: 'л', unitCost: 20, supplier: 'Synthetic QA supplier',
+  const supplierReceipt = await req(base, '/api/inventory/purchase-documents', 'POST', {
+    supplierName: 'Synthetic QA supplier', documentNumber: `QA-${venueId.slice(0, 8)}`,
+    documentDate: currentDate, lines: [
+      { ingredientId: stockItem.id, quantity: 3, unit: 'л', unitCost: 20 },
+      { ingredientId: secondStockItem.id, quantity: 2, unit: 'л', unitCost: 30 },
+    ],
   }, 201);
-  assert.equal(Number(receipt.onHandAfter), 3000); assert.equal(Number(receipt.weightedCost), 0.02); checks += 2;
-  const secondReceipt = await req(base, '/api/inventory/supplies', 'POST', {
-    itemId: secondStockItem.id, quantity: 2, unit: 'л', unitCost: 30, supplier: 'Synthetic QA supplier',
+  assert.equal(Number(supplierReceipt.totalCost), 120, 'purchase lines retain their total supplier cost'); checks++;
+  const postedReceipt = await req(base, `/api/inventory/purchase-documents/${supplierReceipt.id}/post`, 'POST', {}, 200);
+  assert.equal(postedReceipt.document.status, 'posted', 'posting the supplier document commits the receipt'); checks++;
+  assert.equal(await getBalance(stockItem.id), 3000, 'posted receipt converts 3 liters into 3000 ml in the stock ledger'); checks++;
+  assert.equal(await getBalance(secondStockItem.id), 2000, 'posted receipt converts 2 liters into 2000 ml in the stock ledger'); checks++;
+  const firstPurchasePayment = await req(base, `/api/finance/purchase-payables/${supplierReceipt.id}/payments`, 'POST', {
+    amount: 45, paymentDate: currentDate, paymentMethod: 'bank_transfer', idempotencyKey: `qa-chain:${venueId}:1`,
   }, 201);
-  assert.equal(Number(secondReceipt.onHandAfter), 2000); assert.equal(Number(secondReceipt.weightedCost), 0.03); checks += 2;
+  assert.equal(Number(firstPurchasePayment.balanceDue), 75, 'partial supplier payment leaves the exact open balance'); checks++;
+  const finalPurchasePayment = await req(base, `/api/finance/purchase-payables/${supplierReceipt.id}/payments`, 'POST', {
+    amount: 75, paymentDate: currentDate, paymentMethod: 'cash', idempotencyKey: `qa-chain:${venueId}:2`,
+  }, 201);
+  assert.equal(Number(finalPurchasePayment.balanceDue), 0, 'final supplier payment settles the posted purchase'); checks++;
 
   const product = await req(base, '/api/products', 'POST', {
     name: `QA напиток ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
@@ -196,8 +255,13 @@ try {
   await client.query(`DROP TRIGGER ${failureTrigger} ON orders`);
   await client.query(`DROP FUNCTION public.${failureFunction}()`);
 
-  await req(base, '/api/inventory/supplies', 'POST', {
-    itemId: stockItem.id, quantity: 1, unit: 'л', unitCost: 100, supplier: 'Synthetic QA price change',
+  const priceChangeReceipt = await req(base, '/api/inventory/purchase-documents', 'POST', {
+    supplierName: 'Synthetic QA price change', documentNumber: `QA-PRICE-${venueId.slice(0, 8)}`,
+    documentDate: currentDate, lines: [{ ingredientId: stockItem.id, quantity: 1, unit: 'л', unitCost: 100 }],
+  }, 201);
+  await req(base, `/api/inventory/purchase-documents/${priceChangeReceipt.id}/post`, 'POST', {}, 200);
+  await req(base, `/api/finance/purchase-payables/${priceChangeReceipt.id}/payments`, 'POST', {
+    amount: 100, paymentDate: currentDate, paymentMethod: 'cash', idempotencyKey: `qa-chain:${venueId}:3`,
   }, 201);
   assert.equal(Number((await client.query('SELECT cost FROM ingredients WHERE id=$1', [stockItem.id])).rows[0].cost), 0.05,
     'weighted average purchase cost rounds to the currency precision'); checks++;
@@ -221,7 +285,6 @@ try {
   const activeShift = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL', [venueId]);
   assert.equal(activeShift.rowCount, 1, 'sale flow retains one active shift for later cash reconciliation'); checks++;
 
-  const currentDate = await getBusinessDate();
   const previousUtcDate = new Date(`${currentDate}T00:00:00Z`);
   previousUtcDate.setUTCDate(previousUtcDate.getUTCDate() - 1);
   const utcPreviousDayAfterLocalMidnight = `${previousUtcDate.toISOString().slice(0, 10)}T22:30:00Z`;
@@ -234,8 +297,10 @@ try {
   assert.match(today.date, /^\d{4}-\d{2}-\d{2}$/, 'analytics serializes PostgreSQL date values as stable ISO calendar dates');
   assert.equal(Number(today.revenue), 300, 'analytics revenue reads both paid product sales');
   assert.equal(Number(today.costOfGoods), 82, 'analytics COGS sums the two immutable order snapshots: 26 + 56');
+  assert.equal(Number(today.expenses), 0, 'supplier principal does not count as a second operating expense');
+  assert.equal(Number(today.cashOutflow), 220, 'supplier settlements remain visible in cash flow');
   assert.equal(Number(today.payroll), 0, 'unpaid payroll is not recorded as an incurred operating result');
-  assert.equal(Number(today.netProfit), 218, 'current-day profit equals revenue 300 minus COGS 82'); checks += 6;
+  assert.equal(Number(today.netProfit), 218, 'current-day profit equals revenue 300 minus COGS 82'); checks += 8;
 
   const manualExpenseResponse = await fetch(`${base}/api/expenses`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -248,7 +313,7 @@ try {
   const afterExpense = withOperatingExpense.days.find((day) => day.date === currentDate);
   assert.ok(afterExpense);
   assert.equal(Number(afterExpense.expenses), 18, 'manual operating expense is counted once as accrual');
-  assert.equal(Number(afterExpense.cashOutflow), 18, 'manual operating expense is represented in cash flow once');
+  assert.equal(Number(afterExpense.cashOutflow), 238, 'cash flow includes 220 RUB supplier payments and one 18 RUB operating payment');
   assert.equal(Number(afterExpense.netProfit), 200, 'profit subtracts COGS and manual operating expense');
   assert.equal(Number(withOperatingExpense.netProfit), 200, 'period profit equals 300 revenue − 82 COGS − 18 expense'); checks += 7;
 
@@ -256,7 +321,7 @@ try {
     VALUES ($1,'QA hourly finance','hourly',50) RETURNING id`, [venueId]);
   await client.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source)
     VALUES ($1,$2,$3::date::timestamp AT TIME ZONE $4,($3::date::timestamp + INTERVAL '4 hours') AT TIME ZONE $4,'manual')`,
-  [venueId, actorId, currentDate, 'Asia/Yekaterinburg']);
+  [venueId, actorId, currentDate, venueTimezone]);
   const payrollDraftResponse = await fetch(`${base}/api/payroll/entries`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId: actorId, ruleId: rule.rows[0].id, periodFrom: currentDate, periodTo: currentDate }),
@@ -274,7 +339,7 @@ try {
   const approvedPayrollDay = approvedPayrollAnalytics.days.find((day) => day.date === currentDate);
   assert.ok(approvedPayrollDay);
   assert.equal(Number(approvedPayrollDay.payroll), 200, 'approved salary accrues to operating profit before cash payment');
-  assert.equal(Number(approvedPayrollDay.cashOutflow), 18, 'approved-but-unpaid salary is not shown as cash outflow');
+  assert.equal(Number(approvedPayrollDay.cashOutflow), 238, 'approved-but-unpaid salary is not shown as cash outflow');
   assert.equal(Number(approvedPayrollDay.netProfit), 0, 'accrual profit includes approved salary exactly once');
   const payPayrollResponse = await fetch(`${base}/api/payroll/entries/${payrollDraft.id}`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
@@ -290,18 +355,18 @@ try {
   assert.ok(afterPayroll);
   assert.equal(Number(afterPayroll.payroll), 200, 'paid salary is included in accrued operational result once');
   assert.equal(Number(afterPayroll.expenses), 218, 'profit expenses include the 18 RUB manual cost and 200 RUB salary once');
-  assert.equal(Number(afterPayroll.cashOutflow), 218, 'cash flow includes the same two actual cash payments');
+  assert.equal(Number(afterPayroll.cashOutflow), 438, 'cash flow includes supplier payments, operating expenses and salary actually paid');
   assert.equal(Number(afterPayroll.netProfit), 0, 'profit equals 300 revenue − 82 COGS − 18 operating cost − 200 salary');
   assert.equal(Number(afterPayrollAnalytics.netProfit), 0, 'period P&L reconciles to the independently expected zero'); checks += 11;
 
-  console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; two-component recipe→sale→rollback/retry→COGS→salary/expenses→analytics/P&L/cashflow; all data is synthetic)`);
+  console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase document/payment→stock→two-component recipe→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
 } finally {
   if (server && server.exitCode === null) {
     server.kill();
     await Promise.race([new Promise((resolve) => server.once('exit', resolve)), delay(3000)]);
   }
   if (client._connected) {
-    await cleanSyntheticVenue(venueId).catch(() => {});
+    await cleanSyntheticVenue(venueId);
     await client.end();
   }
 }

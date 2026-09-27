@@ -1670,7 +1670,19 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (pathname === '/api/staff/time' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;
-    const from = url.searchParams.get('from') || today(); const to = url.searchParams.get('to') || from;
+    let from = url.searchParams.get('from') || ''; let to = url.searchParams.get('to') || '';
+    if (repositories?.pool && (!from || !to)) {
+      try {
+        const localDate = await repositories.pool.query(`SELECT (now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg'))::date::text AS date FROM venues v LEFT JOIN organizations org ON org.id=v.organization_id WHERE v.id=$1`, [venueDbId]);
+        const venueDate = localDate.rows[0]?.date;
+        if (!venueDate) return json(res, 503, { error: 'work_time_unavailable' });
+        if (!from) from = venueDate;
+        if (!to) to = from;
+      } catch (error) { return json(res, 503, { error: 'work_time_unavailable', detail: error.message }); }
+    } else {
+      from ||= today();
+      to ||= from;
+    }
     if (!isValidIsoDate(from) || !isValidIsoDate(to) || to < from) return json(res, 400, { error: 'invalid_work_time_period' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`WITH tz AS (SELECT COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg') AS name FROM venues v LEFT JOIN organizations org ON org.id=v.organization_id WHERE v.id=$1), bounds AS (SELECT ($2::date::timestamp AT TIME ZONE name) starts_at, (($3::date+1)::timestamp AT TIME ZONE name) ends_at FROM tz), clipped AS (SELECT w.*,u.full_name AS "userName",GREATEST(w.started_at,b.starts_at) starts_at,LEAST(COALESCE(w.ended_at,now()),b.ends_at) ends_at FROM bounds b JOIN staff_work_logs w ON w.venue_id=$1 AND w.started_at < b.ends_at AND COALESCE(w.ended_at,now()) > b.starts_at JOIN users u ON u.id=w.user_id), ordered AS (SELECT *,MAX(ends_at) OVER (PARTITION BY user_id ORDER BY starts_at,ends_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped), merged AS (SELECT *,GREATEST(starts_at,COALESCE(previous_end,starts_at)) effective_start FROM ordered) SELECT id,venue_id,user_id,started_at AS "started_at",ended_at AS "ended_at",source,note,created_at,"userName",COALESCE(GREATEST(0,EXTRACT(EPOCH FROM (ends_at-effective_start))/3600),0)::numeric AS hours FROM merged ORDER BY started_at DESC`, [venueDbId, from, to]); return json(res, 200, { items: rows.map((row) => ({ ...row, hours: Number(Number(row.hours || 0).toFixed(2)) })) }); } catch (error) { return json(res, 503, { error: 'work_time_unavailable', detail: error.message }); } }
     return json(res, 200, { items: [] });
