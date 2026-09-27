@@ -1208,7 +1208,7 @@ function renderDashboard() {
    if (['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash) && portalPermissions.has('settings')) {
      const settingsHub = document.createElement('section');
      settingsHub.className = 'settings-hub';
-     settingsHub.innerHTML = `<div class="settings-hub-head"><div><p class="eyebrow">ЦЕНТР НАСТРОЕК</p><h2>Настройки CRM</h2><p class="muted">Разделы сгруппированы по задачам. Администратор управляет заведением и доступами, управляющий — рабочим процессом и интерфейсом смены.</p></div><span class="badge success">${portalUser.role === 'manager' ? 'Управляющий' : 'Расширенный доступ'}</span></div><nav class="settings-category-grid" aria-label="Категории настроек"><a class="settings-category-card" href="#company" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('building')}</span><span><b>Заведение</b><small>Название, адрес, формат, контакты и VIP-депозиты</small></span></a><a class="settings-category-card" href="#settings-dashboard-modules"><span class="settings-category-icon">${icon('layout-dashboard')}</span><span><b>Интерфейс</b><small>Светлая схема, главная, боковое меню и показатели</small></span></a><a class="settings-category-card" href="#venue-layout-settings"><span class="settings-category-icon">${icon('package')}</span><span><b>Залы и рабочая зона</b><small>Залы, столы, VIP-комнаты и доступность объектов</small></span></a><a class="settings-category-card" href="#lock-security"><span class="settings-category-icon">${icon('settings')}</span><span><b>Безопасность</b><small>PIN блокировки экрана и автоматическая пауза</small></span></a><a class="settings-category-card" href="#audit" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('clipboard-list')}</span><span><b>Журнал изменений</b><small>Кто и когда менял данные, роли и настройки</small></span></a><a class="settings-category-card" href="/network" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('building')}</span><span><b>Сеть заведений</b><small>Точки сети и переключение текущего заведения</small></span></a></nav>`;
+     settingsHub.innerHTML = `<div class="settings-hub-head"><div><p class="eyebrow">РАЗДЕЛЫ НАСТРОЕК</p><p class="muted">Разделы сгруппированы по задачам. Администратор управляет заведением и доступами, управляющий — рабочим процессом и интерфейсом смены.</p></div><span class="badge success">${portalUser.role === 'manager' ? 'Управляющий' : 'Расширенный доступ'}</span></div><nav class="settings-category-grid" aria-label="Категории настроек"><a class="settings-category-card" href="#company" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('building')}</span><span><b>Заведение</b><small>Название, адрес, формат, контакты и VIP-депозиты</small></span></a><a class="settings-category-card" href="#settings-dashboard-modules"><span class="settings-category-icon">${icon('layout-dashboard')}</span><span><b>Интерфейс</b><small>Светлая схема, главная, боковое меню и показатели</small></span></a><a class="settings-category-card" href="#venue-layout-settings"><span class="settings-category-icon">${icon('package')}</span><span><b>Залы и рабочая зона</b><small>Залы, столы, VIP-комнаты и доступность объектов</small></span></a><a class="settings-category-card" href="#lock-security"><span class="settings-category-icon">${icon('settings')}</span><span><b>Безопасность</b><small>PIN блокировки экрана и автоматическая пауза</small></span></a><a class="settings-category-card" href="#audit" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('clipboard-list')}</span><span><b>Журнал изменений</b><small>Кто и когда менял данные, роли и настройки</small></span></a><a class="settings-category-card" href="/network" data-settings-role="owner-admin"><span class="settings-category-icon">${icon('building')}</span><span><b>Сеть заведений</b><small>Точки сети и переключение текущего заведения</small></span></a></nav>`;
      target.querySelector('.page-title')?.after(settingsHub);
      const securityPanel = document.createElement('section');
      securityPanel.className = 'panel settings-security-panel';
@@ -1250,6 +1250,16 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
       settingsPageTitle.querySelector('h1')?.replaceChildren(document.createTextNode('Настройки CRM'));
       settingsPageTitle.querySelector('.muted')?.replaceChildren(document.createTextNode('Управление заведением, интерфейсом, безопасностью и журналом изменений.'));
     }
+    const getSettingsHashTarget = (hash = window.location.hash) => {
+      const targets = {
+        '#company': '#company-form',
+        '#settings-dashboard-modules': '#settings-dashboard-modules',
+        '#venue-layout-settings': '#venue-layout-settings',
+        '#lock-security': '#lock-security',
+        '#audit': '#audit',
+      };
+      return targets[hash] ? target.querySelector(targets[hash]) : target.querySelector('.page-title');
+    };
     const applySettingsView = (hash = window.location.hash, shouldScroll = true) => {
       const settingsView = hash || '#settings';
       const focusedView = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(settingsView) ? settingsView : '#settings';
@@ -1272,7 +1282,7 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
         setDashboardPanelVisibility('#lock-security', true);
       }
       if (shouldScroll) {
-        const scrollTarget = target.querySelector('.page-title');
+        const scrollTarget = getSettingsHashTarget(settingsView);
         scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     };
@@ -1296,7 +1306,11 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
       if (window.location.hash === '#tasks') renderTasks();
       else if (window.location.hash === '#loyalty') renderLoyalty();
       else renderDashboard();
-      if (window.location.hash) target.querySelector('.page-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (window.location.hash) {
+        const focused = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash);
+        const scrollTarget = focused ? getSettingsHashTarget(window.location.hash) : target.querySelector('.page-title');
+        scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
       animateRouteContent();
       return;
     }
@@ -1304,7 +1318,8 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
     nextTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     animateRouteContent();
   });
-  const hashTarget = window.location.hash ? (page === 'dashboard' ? target.querySelector('.page-title') : document.querySelector(window.location.hash)) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const focusedSettingsHash = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash);
+  const hashTarget = window.location.hash ? (page === 'dashboard' ? (focusedSettingsHash ? target.querySelector(window.location.hash === '#company' ? '#company-form' : window.location.hash) : target.querySelector('.page-title')) : document.querySelector(window.location.hash)) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderInventory() {

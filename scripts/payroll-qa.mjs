@@ -24,7 +24,7 @@ assert.match(server, /payrollNeedsReview/, 'legacy payroll expenses remain visib
 assert.match(server, /legacy_unmatched/, 'unlinked historical payroll expense gets an explicit review state');
 assert.match(server, /pe\.period_to >= \$2::date/);
 assert.match(server, /pe\.period_from <= \$3::date/);
-assert.match(server, /AT TIME ZONE COALESCE\(NULLIF\(org\.timezone/);
+assert.match(server, /AT TIME ZONE COALESCE\(NULLIF\(v\.timezone/);
 assert.match(server, /COUNT\(DISTINCT shift_date\) FILTER \(WHERE is_shift_start\)/, 'split time logs on one business day count as one shift');
 assert.match(server, /MAX\(ends_at\) OVER \(ORDER BY starts_at,ends_at/, 'overlapping historical logs cannot inflate payroll hours');
 assert.match(server, /netProfit: revenue - expenses - costOfGoods/);

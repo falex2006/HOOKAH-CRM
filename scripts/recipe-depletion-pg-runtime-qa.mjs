@@ -51,6 +51,14 @@ async function getOrderCost(orderId) {
   return result.rows[0] ? Number(result.rows[0].cost) : null;
 }
 
+async function getBusinessDate() {
+  const result = await client.query(`SELECT COALESCE(NULLIF(v.timezone,''),NULLIF(org.timezone,''),'Asia/Yekaterinburg') AS timezone
+    FROM venues v LEFT JOIN organizations org ON org.id=v.organization_id WHERE v.id=$1`, [venueId]);
+  const timezone = result.rows[0]?.timezone || 'Asia/Yekaterinburg';
+  const date = await client.query('SELECT (now() AT TIME ZONE $1)::date::text AS date', [timezone]);
+  return date.rows[0].date;
+}
+
 async function cleanSyntheticVenue(id) {
   await client.query(`DROP TRIGGER IF EXISTS ${failureTrigger} ON orders`).catch(() => {});
   await client.query(`DROP FUNCTION IF EXISTS public.${failureFunction}()`).catch(() => {});
@@ -61,6 +69,9 @@ async function cleanSyntheticVenue(id) {
   await client.query('DELETE FROM stock_movements WHERE venue_id=$1', [id]);
   await client.query('DELETE FROM orders WHERE venue_id=$1', [id]);
   await client.query('DELETE FROM shifts WHERE venue_id=$1', [id]);
+  await client.query('DELETE FROM payroll_entries WHERE venue_id=$1', [id]).catch(() => {});
+  await client.query('DELETE FROM staff_work_logs WHERE venue_id=$1', [id]).catch(() => {});
+  await client.query('DELETE FROM payroll_rules WHERE venue_id=$1', [id]).catch(() => {});
   await client.query('DELETE FROM inventory_recipe_cards WHERE venue_id=$1', [id]).catch(() => {});
   await client.query('DELETE FROM ingredients WHERE venue_id=$1', [id]);
   await client.query('DELETE FROM products WHERE venue_id=$1', [id]);
@@ -121,10 +132,17 @@ try {
   const stockItem = await req(base, '/api/inventory/items', 'POST', {
     name: 'QA сироп для продажи', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
   }, 201);
+  const secondStockItem = await req(base, '/api/inventory/items', 'POST', {
+    name: 'QA сок для продажи', unit: 'мл', itemType: 'ingredient', cost: 0, department: 'bar',
+  }, 201);
   const receipt = await req(base, '/api/inventory/supplies', 'POST', {
     itemId: stockItem.id, quantity: 3, unit: 'л', unitCost: 20, supplier: 'Synthetic QA supplier',
   }, 201);
   assert.equal(Number(receipt.onHandAfter), 3000); assert.equal(Number(receipt.weightedCost), 0.02); checks += 2;
+  const secondReceipt = await req(base, '/api/inventory/supplies', 'POST', {
+    itemId: secondStockItem.id, quantity: 2, unit: 'л', unitCost: 30, supplier: 'Synthetic QA supplier',
+  }, 201);
+  assert.equal(Number(secondReceipt.onHandAfter), 2000); assert.equal(Number(secondReceipt.weightedCost), 0.03); checks += 2;
 
   const product = await req(base, '/api/products', 'POST', {
     name: `QA напиток ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
@@ -132,7 +150,10 @@ try {
   const recipe = await req(base, '/api/recipes', 'POST', {
     productId: product.id,
     name: product.name,
-    ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' }],
+    ingredients: [
+      { ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' },
+      { ingredientId: secondStockItem.id, name: secondStockItem.name, quantity: '200 мл' },
+    ],
     yieldQuantity: 1,
     yieldUnit: 'порция',
     portionCount: 1,
@@ -148,8 +169,9 @@ try {
   const firstOrderId = await createOrder();
   const firstClose = await req(base, `/api/orders/${firstOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
   assert.equal(firstClose.status, 'closed');
-  assert.equal(await getOrderCost(firstOrderId), 20, '1 l at the received 20 RUB/l costs 20 RUB and is persisted as COGS'); checks += 2;
+  assert.equal(await getOrderCost(firstOrderId), 26, '1 l at 20 RUB/l plus 200 ml at 30 RUB/l costs 26 RUB and is persisted as COGS'); checks += 2;
   assert.equal(await getBalance(stockItem.id), 2000, 'sale subtracts 1000 ml from the real PostgreSQL ledger'); checks++;
+  assert.equal(await getBalance(secondStockItem.id), 1800, 'the second recipe component subtracts 200 ml from its real PostgreSQL ledger'); checks++;
 
   const failedOrderId = await createOrder();
   await client.query(`CREATE FUNCTION public.${failureFunction}() RETURNS trigger LANGUAGE plpgsql AS $$
@@ -165,6 +187,7 @@ try {
   const rejectedClose = await req(base, `/api/orders/${failedOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
   assert.equal(rejectedClose.error, 'order_close_failed'); checks++;
   assert.equal(await getBalance(stockItem.id), 2000, 'failure after recipe depletion rolls back the stock movement'); checks++;
+  assert.equal(await getBalance(secondStockItem.id), 1800, 'failure rolls back every component movement'); checks++;
   const afterInjectedFailure = await client.query(`SELECT o.status,
       (SELECT count(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
       (SELECT count(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs
@@ -180,14 +203,16 @@ try {
     'weighted average purchase cost rounds to the currency precision'); checks++;
   const retryClose = await req(base, `/api/orders/${failedOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
   assert.equal(retryClose.status, 'closed');
-  assert.equal(await getOrderCost(failedOrderId), 50, 'retry uses the current weighted ingredient cost and stores COGS'); checks += 2;
+  assert.equal(await getOrderCost(failedOrderId), 56, 'retry uses new weighted cost for the first ingredient and current price for the second ingredient'); checks += 2;
   assert.equal(await getBalance(stockItem.id), 2000, 'retry depletes exactly one portion, not the failed attempt plus retry'); checks++;
+  assert.equal(await getBalance(secondStockItem.id), 1600, 'retry consumes exactly one second-component portion after the rolled-back attempt'); checks++;
   const duplicateClose = await req(base, `/api/orders/${failedOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
   assert.equal(duplicateClose.error, 'order_already_final'); checks++;
   assert.equal(await getBalance(stockItem.id), 2000, 'duplicate close cannot deplete inventory again'); checks++;
+  assert.equal(await getBalance(secondStockItem.id), 1600, 'duplicate close cannot consume a recipe component again'); checks++;
 
   const snapshots = await client.query('SELECT cost FROM order_costs WHERE order_id=$1', [firstOrderId]);
-  assert.equal(Number(snapshots.rows[0].cost), 20, 'historical COGS snapshot is unchanged after a later purchase changes weighted cost'); checks++;
+  assert.equal(Number(snapshots.rows[0].cost), 26, 'historical COGS snapshot is unchanged after a later purchase changes weighted cost'); checks++;
   const paymentRows = await client.query('SELECT amount,status,shift_id FROM payments WHERE order_id=$1', [failedOrderId]);
   assert.equal(paymentRows.rowCount, 1);
   assert.equal(Number(paymentRows.rows[0].amount), 150);
@@ -196,7 +221,80 @@ try {
   const activeShift = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL', [venueId]);
   assert.equal(activeShift.rowCount, 1, 'sale flow retains one active shift for later cash reconciliation'); checks++;
 
-  console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; receipts→stock→recipe→sale→atomic rollback/retry→COGS/payment snapshot; all data is synthetic)`);
+  const currentDate = await getBusinessDate();
+  const previousUtcDate = new Date(`${currentDate}T00:00:00Z`);
+  previousUtcDate.setUTCDate(previousUtcDate.getUTCDate() - 1);
+  const utcPreviousDayAfterLocalMidnight = `${previousUtcDate.toISOString().slice(0, 10)}T22:30:00Z`;
+  await client.query('UPDATE orders SET closed_at=$2::timestamptz WHERE id=$1', [firstOrderId, utcPreviousDayAfterLocalMidnight]);
+  const analyticsResponse = await fetch(`${base}/api/analytics?days=7`);
+  assert.equal(analyticsResponse.status, 200);
+  const analytics = await analyticsResponse.json();
+  const today = analytics.days.find((day) => day.date === currentDate);
+  assert.ok(today, 'selected analytics period includes the synthetic sales date');
+  assert.match(today.date, /^\d{4}-\d{2}-\d{2}$/, 'analytics serializes PostgreSQL date values as stable ISO calendar dates');
+  assert.equal(Number(today.revenue), 300, 'analytics revenue reads both paid product sales');
+  assert.equal(Number(today.costOfGoods), 82, 'analytics COGS sums the two immutable order snapshots: 26 + 56');
+  assert.equal(Number(today.payroll), 0, 'unpaid payroll is not recorded as an incurred operating result');
+  assert.equal(Number(today.netProfit), 218, 'current-day profit equals revenue 300 minus COGS 82'); checks += 6;
+
+  const manualExpenseResponse = await fetch(`${base}/api/expenses`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category: 'QA операционные расходы', amount: 18, expenseDate: currentDate, description: 'synthetic operating expense', source: 'manual' }),
+  });
+  assert.equal(manualExpenseResponse.status, 201);
+  const withOperatingExpenseResponse = await fetch(`${base}/api/analytics?days=7`);
+  assert.equal(withOperatingExpenseResponse.status, 200);
+  const withOperatingExpense = await withOperatingExpenseResponse.json();
+  const afterExpense = withOperatingExpense.days.find((day) => day.date === currentDate);
+  assert.ok(afterExpense);
+  assert.equal(Number(afterExpense.expenses), 18, 'manual operating expense is counted once as accrual');
+  assert.equal(Number(afterExpense.cashOutflow), 18, 'manual operating expense is represented in cash flow once');
+  assert.equal(Number(afterExpense.netProfit), 200, 'profit subtracts COGS and manual operating expense');
+  assert.equal(Number(withOperatingExpense.netProfit), 200, 'period profit equals 300 revenue − 82 COGS − 18 expense'); checks += 7;
+
+  const rule = await client.query(`INSERT INTO payroll_rules (venue_id,name,rule_type,rate)
+    VALUES ($1,'QA hourly finance','hourly',50) RETURNING id`, [venueId]);
+  await client.query(`INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source)
+    VALUES ($1,$2,$3::date::timestamp AT TIME ZONE $4,($3::date::timestamp + INTERVAL '4 hours') AT TIME ZONE $4,'manual')`,
+  [venueId, actorId, currentDate, 'Asia/Yekaterinburg']);
+  const payrollDraftResponse = await fetch(`${base}/api/payroll/entries`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: actorId, ruleId: rule.rows[0].id, periodFrom: currentDate, periodTo: currentDate }),
+  });
+  assert.equal(payrollDraftResponse.status, 201);
+  const payrollDraft = await payrollDraftResponse.json();
+  assert.equal(Number(payrollDraft.amount), 200, 'the payroll amount comes from four worked hours at 50 RUB/hour');
+  const approvePayrollResponse = await fetch(`${base}/api/payroll/entries/${payrollDraft.id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve' }),
+  });
+  assert.equal(approvePayrollResponse.status, 200);
+  const approvedPayrollAnalyticsResponse = await fetch(`${base}/api/analytics?days=7`);
+  assert.equal(approvedPayrollAnalyticsResponse.status, 200);
+  const approvedPayrollAnalytics = await approvedPayrollAnalyticsResponse.json();
+  const approvedPayrollDay = approvedPayrollAnalytics.days.find((day) => day.date === currentDate);
+  assert.ok(approvedPayrollDay);
+  assert.equal(Number(approvedPayrollDay.payroll), 200, 'approved salary accrues to operating profit before cash payment');
+  assert.equal(Number(approvedPayrollDay.cashOutflow), 18, 'approved-but-unpaid salary is not shown as cash outflow');
+  assert.equal(Number(approvedPayrollDay.netProfit), 0, 'accrual profit includes approved salary exactly once');
+  const payPayrollResponse = await fetch(`${base}/api/payroll/entries/${payrollDraft.id}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'pay', paymentDate: currentDate }),
+  });
+  assert.equal(payPayrollResponse.status, 200);
+  const paidPayroll = await payPayrollResponse.json();
+  assert.ok(paidPayroll.expense_id, 'salary payout is linked to exactly one payroll cashflow expense');
+  const afterPayrollResponse = await fetch(`${base}/api/analytics?days=7`);
+  assert.equal(afterPayrollResponse.status, 200);
+  const afterPayrollAnalytics = await afterPayrollResponse.json();
+  const afterPayroll = afterPayrollAnalytics.days.find((day) => day.date === currentDate);
+  assert.ok(afterPayroll);
+  assert.equal(Number(afterPayroll.payroll), 200, 'paid salary is included in accrued operational result once');
+  assert.equal(Number(afterPayroll.expenses), 218, 'profit expenses include the 18 RUB manual cost and 200 RUB salary once');
+  assert.equal(Number(afterPayroll.cashOutflow), 218, 'cash flow includes the same two actual cash payments');
+  assert.equal(Number(afterPayroll.netProfit), 0, 'profit equals 300 revenue − 82 COGS − 18 operating cost − 200 salary');
+  assert.equal(Number(afterPayrollAnalytics.netProfit), 0, 'period P&L reconciles to the independently expected zero'); checks += 11;
+
+  console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; two-component recipe→sale→rollback/retry→COGS→salary/expenses→analytics/P&L/cashflow; all data is synthetic)`);
 } finally {
   if (server && server.exitCode === null) {
     server.kill();

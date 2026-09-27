@@ -1822,31 +1822,21 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .portal-sidebar .portal-nav a.active{font-weight:500}
 .velora-theme .portal-sidebar .portal-nav a .icon{width:18px;height:18px;flex:0 0 18px;display:block}
 
-/* Fold portrait and compact tablet: preserve workspace width while keeping the rail usable. */
+/* Fold portrait and compact tablet: keep the workspace full width; open navigation as a drawer. */
 @media (min-width:651px) and (max-width:900px){
-  .velora-theme .portal-sidebar{width:78px;padding:20px 10px}
-  .velora-theme .portal-sidebar .brand{padding:0 0 76px;justify-content:center}
-  .velora-theme .portal-sidebar .brand div,.velora-theme .portal-sidebar .side-label,.velora-theme .portal-sidebar .portal-nav span,.velora-theme .portal-sidebar .sidebar-footer{display:none}
-  .velora-theme .portal-sidebar .portal-nav{gap:10px}
-  .velora-theme .portal-sidebar .portal-nav a{width:52px;height:44px;min-height:44px;margin:0 auto;padding:0;justify-content:center;font-size:0}
-  .velora-theme .portal-sidebar .portal-nav a .icon{width:20px;height:20px;flex:0 0 20px}
-  .velora-theme .portal-sidebar .current-mode{display:none}
-  .velora-theme .portal-sidebar .admin-mode-switch{justify-content:center;margin-inline:0;padding:11px 8px}
-  .velora-theme .portal-sidebar .admin-mode-switch span{display:none}
-  .velora-theme .portal-sidebar .logout-button{width:52px;margin-inline:auto;font-size:0;padding:8px 0}
-  .velora-theme .portal-sidebar .logout-button::after{content:'↪';font-size:16px}
-  .velora-theme .portal-main{min-width:0}
-  .velora-theme .portal-header{padding-inline:20px}
+  .velora-theme .portal-sidebar{position:fixed;z-index:25;left:0;top:0;bottom:0;width:280px;transform:translateX(-100%);transition:transform .18s ease;padding:26px 16px;box-shadow:12px 0 30px #0008;overflow-y:auto;overscroll-behavior:contain}
+  .velora-theme .portal-main,.velora-theme .portal-app>.portal-main{box-sizing:border-box;flex:1 1 100%;width:100%;min-width:0;margin-left:0!important}
+  .velora-theme .portal-header{padding:0 20px 0 64px}
   .velora-theme .portal-content{padding:24px 20px}
-  .velora-theme .sidebar-mobile-toggle{display:grid;position:fixed;z-index:30;left:18px;top:72px;width:42px;height:38px;place-items:center;border:1px solid #363b44;border-radius:10px;background:#17191d;color:#ff9168;box-shadow:0 8px 20px #0008}
+  .velora-theme .sidebar-mobile-toggle{display:grid;position:fixed;z-index:30;left:10px;top:10px;width:42px;height:38px;place-items:center;border:1px solid #363b44;border-radius:10px;background:#17191d;color:#ff9168;box-shadow:0 8px 20px #0008}
   .velora-theme .sidebar-mobile-toggle .icon{width:19px;height:19px}
   .velora-theme .sidebar-mobile-toggle span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
   .velora-theme .sidebar-mobile-toggle[aria-expanded="true"]{z-index:61}
-  .velora-theme .portal-sidebar.is-expanded{position:fixed;z-index:60;left:0;top:0;bottom:0;width:280px;height:100vh;max-height:100vh;padding:26px 16px;background:#17191d;box-shadow:12px 0 30px #0008;overflow-y:auto}
+  .velora-theme .portal-sidebar.is-expanded{position:fixed;z-index:60;left:0;top:0;bottom:0;width:min(280px,calc(100vw - 48px));max-width:calc(100vw - 48px);height:100vh;max-height:100vh;padding:26px 16px;background:#17191d;box-shadow:12px 0 30px #0008;overflow-y:auto;transform:translateX(0)}
   .velora-theme .portal-sidebar.is-expanded .brand div,.velora-theme .portal-sidebar.is-expanded .side-label,.velora-theme .portal-sidebar.is-expanded .portal-nav span,.velora-theme .portal-sidebar.is-expanded .sidebar-footer{display:block}
   .velora-theme .portal-sidebar.is-expanded .brand{justify-content:flex-start;padding-bottom:34px}
   .velora-theme .portal-sidebar.is-expanded .portal-nav a{display:flex;align-items:center;gap:12px;width:auto;height:auto;min-height:46px;margin:0;padding:12px 13px;justify-content:flex-start;font-size:16px;line-height:1.25}
-  .velora-theme .portal-sidebar.is-expanded + .portal-main{margin-left:78px}
+  .velora-theme .sidebar-mobile-toggle[aria-expanded="true"]{left:224px;top:22px;z-index:61}
   .sidebar-backdrop:not([hidden]){position:fixed;z-index:55;inset:0;display:block;background:rgba(4,7,11,.7);backdrop-filter:blur(1px);-webkit-backdrop-filter:blur(1px);touch-action:none}
   .portal.sidebar-drawer-open{overflow:hidden}
 }
@@ -2136,6 +2126,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 /* Keep the management and employee headers on one shared vertical grid. */
 :root{--crm-header-height:68px}
+.velora-theme .page-title{scroll-margin-top:calc(var(--crm-header-height,68px) + 12px)}
+.velora-theme #company-form,.velora-theme #settings-dashboard-modules,.velora-theme #venue-layout-settings,.velora-theme #lock-security,.velora-theme #audit{scroll-margin-top:calc(var(--crm-header-height,68px) + 12px)}
 .velora-theme .portal-header{height:var(--crm-header-height);min-height:var(--crm-header-height)}
 .staff-theme header{height:var(--crm-header-height);min-height:var(--crm-header-height)}
 @media(min-width:760px) and (max-width:1200px) and (min-aspect-ratio:3/4) and (max-aspect-ratio:4/3){:root{--crm-header-height:72px}}

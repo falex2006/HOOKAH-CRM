@@ -27,7 +27,7 @@ const makeDb = ({ failExpenseInsert = false } = {}) => {
     if (sql === 'ROLLBACK') { if (snapshot) { Object.assign(state, snapshot); snapshot = null; } return { rows: [] }; }
     if (sql.startsWith('SELECT id FROM users')) return { rows: params[0] === userId ? [{ id: userId }] : [] };
     if (sql.startsWith('SELECT * FROM payroll_rules')) return { rows: params[0] === ruleId ? [{ ...state.rule }] : [] };
-    if (sql.startsWith('WITH tz AS (SELECT COALESCE(NULLIF(org.timezone')) return { rows: state.logs };
+    if (sql.startsWith('WITH tz AS (SELECT COALESCE(NULLIF(v.timezone')) return { rows: state.logs };
     if (sql.startsWith('INSERT INTO payroll_entries')) {
       const existing = state.entries.find((row) => row.user_id === params[1] && row.rule_id === params[2] && row.period_from === params[3] && row.period_to === params[4]);
       if (existing) { if (existing.status !== 'draft') return { rows: [] }; existing.amount = String(params[5]); return { rows: [{ ...existing }] }; }

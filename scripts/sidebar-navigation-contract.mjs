@@ -136,8 +136,8 @@ assert.match(css, /\.velora-theme \.portal-sidebar \.sidebar-nav-group \.portal-
   'nested sidebar labels use a consistent compact size to avoid unnecessary wrapping');
 assert.match(css, /@media \(min-width:1181px\) and \(max-width:1799px\)\{[\s\S]*?\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{width:clamp\(210px,18vw,280px\)/,
   'desktop sidebar width must scale smoothly from the compact desktop breakpoint to ultrawide width in both modes');
-assert.match(css, /\.portal-sidebar \.brand\{padding:0 0 76px;justify-content:center\}/,
-  'the Fold menu toggle must have a dedicated slot instead of covering the home destination');
+assert.match(css, /@media \(min-width:651px\) and \(max-width:900px\)\{[\s\S]*?\.portal-sidebar\{position:fixed;z-index:25;left:0;top:0;bottom:0;width:280px;transform:translateX\(-100%\)/,
+  'the Fold sidebar opens as an overlay and does not permanently consume workspace width');
 assert.match(css, /\.portal-sidebar \.sidebar-nav-group>summary\{display:flex;min-height:44px/,
   'collapsed Fold navigation groups must match adjacent 44px touch targets');
 assert.match(css, /@media \(min-width:1800px\)\{\s*\.staff-theme \.portal-sidebar\{width:280px/,
