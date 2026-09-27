@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '276';
+const cssRevision = '281';
 const portalRevision = '283';
 const appRevision = '128';
 const staffProfileRevision = '6';
