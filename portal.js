@@ -68,7 +68,7 @@ const normalizeManagementSidebar = () => {
   const sidebar = document.querySelector('.portal-sidebar');
   if (!sidebar) return;
   const iconMarkup = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=5#${name}"></use></svg>`;
-  if (!sidebar.querySelector('.sidebar-mobile-toggle')) {
+  if (!document.querySelector('.sidebar-mobile-toggle')) {
     const toggle = document.createElement('button');
     toggle.type = 'button';
     toggle.className = 'sidebar-mobile-toggle';
@@ -103,6 +103,10 @@ const normalizeManagementSidebar = () => {
         if (modalOpen) main.setAttribute('aria-hidden', 'true');
         else main.removeAttribute('aria-hidden');
       }
+      const hiddenDrawer = isDrawerViewport() && !expanded;
+      sidebar.inert = hiddenDrawer;
+      if (hiddenDrawer) sidebar.setAttribute('aria-hidden', 'true');
+      else sidebar.removeAttribute('aria-hidden');
       if (!expanded && restoreFocus && toggle.getClientRects().length > 0) toggle.focus({ preventScroll: true });
     };
     toggle.addEventListener('click', () => {
@@ -143,6 +147,7 @@ const normalizeManagementSidebar = () => {
         if (sidebar.classList.contains('is-expanded')) syncToggle(false, { restoreFocus: true });
       }
     });
+    syncToggle(false);
   }
   sidebar.querySelectorAll('.portal-nav:not(.staff-nav) a[href="/integrations"]').forEach((link) => link.remove());
   const makeLink = ({ href, permission, label, iconName, navigationModule }) => {
