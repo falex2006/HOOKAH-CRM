@@ -1,14 +1,28 @@
-import assert from 'node:assert/strict';
+import { Pool } from 'pg';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertQaDatabaseIdentity, validateQaDatabaseUrl } from './postgres-qa-safety.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 if (!databaseUrl) throw new Error('Set MIGRATIONS_PG_TEST_DATABASE_URL to a pre-initialized, isolated PostgreSQL QA database');
-const parsedUrl = new URL(databaseUrl);
-assert.match(parsedUrl.pathname, /(?:test|qa|scratch)/i,
-  'refusing PostgreSQL QA writes unless the database name clearly identifies test/QA/scratch');
+const databaseTargets = [
+  ['MIGRATIONS_PG_TEST_DATABASE_URL', databaseUrl],
+  ['PAYROLL_LIFECYCLE_TEST_DATABASE_URL', process.env.PAYROLL_LIFECYCLE_TEST_DATABASE_URL || databaseUrl],
+  ['RECIPE_DEPLETION_PG_TEST_DATABASE_URL', process.env.RECIPE_DEPLETION_PG_TEST_DATABASE_URL || databaseUrl],
+].map(([label, value]) => ({ label, value, ...validateQaDatabaseUrl(value, label) }));
+
+// Confirm the actual server and role with a read-only query before any test suite can write.
+for (const target of databaseTargets) {
+  const pool = new Pool({ connectionString: target.value, max: 1, connectionTimeoutMillis: 5000 });
+  try {
+    const { rows } = await pool.query(`SELECT current_database() AS database, inet_server_addr()::text AS address,
+      inet_server_port() AS port, COALESCE((SELECT rolsuper FROM pg_roles WHERE rolname=current_user),false) AS superuser`);
+    assertQaDatabaseIdentity(rows[0], target.database, Number(target.url.port || 5432), target.label);
+    console.log(`Verified isolated PostgreSQL QA target: ${target.label} (${target.database}, ${rows[0].address}:${rows[0].port})`);
+  } finally { await pool.end(); }
+}
 
 const checks = [
   'payroll-lifecycle-migration-preflight.mjs',
