@@ -247,7 +247,11 @@ const normalizeManagementSidebar = () => {
   ]);
   // Finance navigation is always rendered from one canonical list. Older
   // templates may contain a flat finance nav with a different subset.
-  if (control !== financeGroup.querySelector('.portal-nav')) control.remove();
+  if (control !== financeGroup.querySelector('.portal-nav')) {
+    const controlLabel = control.previousElementSibling;
+    if (controlLabel?.classList.contains('side-label') && controlLabel.textContent.trim() === 'КОНТРОЛЬ') controlLabel.remove();
+    control.remove();
+  }
   // Daily operational destinations share one disclosure. Keep “Главное” visible.
   [['ОПЕРАЦИИ', 'operations']].forEach(([labelText, key]) => {
     const label = [...sidebar.querySelectorAll(':scope > .side-label')].find((node) => node.textContent.trim() === labelText);
@@ -1235,6 +1239,16 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
   setupDashboardShiftKpis();
   if (!['owner', 'admin'].includes(portalUser.role)) { document.querySelector('#audit')?.remove(); document.querySelector('#company-form')?.setAttribute('hidden', ''); document.querySelector('#company-panel-title')?.replaceChildren(document.createTextNode('Рабочие настройки')); document.querySelector('#company-panel-description')?.replaceChildren(document.createTextNode('Управляющий настраивает рабочий интерфейс, показатели и схему зала. Данные заведения и сеть доступны администратору.')); }
   if (!['owner', 'admin', 'developer'].includes(portalUser.role)) { document.querySelector('#staff-form')?.remove(); document.querySelectorAll('.staff-delete').forEach((node) => node.remove()); }
+  const getSettingsHashTarget = (hash = window.location.hash) => {
+    const targets = {
+      '#company': '#company-form',
+      '#settings-dashboard-modules': '#settings-dashboard-modules',
+      '#venue-layout-settings': '#venue-layout-settings',
+      '#lock-security': '#lock-security',
+      '#audit': '#audit',
+    };
+    return targets[hash] ? target.querySelector(targets[hash]) : target.querySelector('.page-title');
+  };
   const settingsHash = ['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash); const dashboardFocus = settingsHash ? 'settings' : window.location.hash.slice(1);
   const setDashboardPanelVisibility = (selector, visible) => target.querySelectorAll(selector).forEach((node) => { node.hidden = !visible; });
   setDashboardPanelVisibility('.dashboard-page-actions', !dashboardFocus);
@@ -1255,16 +1269,6 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
       settingsPageTitle.querySelector('h1')?.replaceChildren(document.createTextNode('Настройки CRM'));
       settingsPageTitle.querySelector('.muted')?.replaceChildren(document.createTextNode('Управление заведением, интерфейсом, безопасностью и журналом изменений.'));
     }
-    const getSettingsHashTarget = (hash = window.location.hash) => {
-      const targets = {
-        '#company': '#company-form',
-        '#settings-dashboard-modules': '#settings-dashboard-modules',
-        '#venue-layout-settings': '#venue-layout-settings',
-        '#lock-security': '#lock-security',
-        '#audit': '#audit',
-      };
-      return targets[hash] ? target.querySelector(targets[hash]) : target.querySelector('.page-title');
-    };
     const applySettingsView = (hash = window.location.hash, shouldScroll = true) => {
       const settingsView = hash || '#settings';
       const focusedView = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(settingsView) ? settingsView : '#settings';
@@ -1305,7 +1309,7 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
     content.classList.add('crm-route-enter');
     window.setTimeout(() => content.classList.remove('crm-route-enter'), 260);
   };
-  window.addEventListener('hashchange', () => {
+  const dashboardHashChangeHandler = () => {
     normalizeManagementSidebar();
     if (page === 'dashboard') {
       if (window.location.hash === '#tasks') renderTasks();
@@ -1322,7 +1326,10 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
     const nextTarget = window.location.hash ? document.querySelector(window.location.hash) : null;
     nextTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     animateRouteContent();
-  });
+  };
+  if (target._dashboardHashChangeHandler) window.removeEventListener('hashchange', target._dashboardHashChangeHandler);
+  target._dashboardHashChangeHandler = dashboardHashChangeHandler;
+  window.addEventListener('hashchange', dashboardHashChangeHandler);
   const focusedSettingsHash = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash);
   const hashTarget = window.location.hash ? (page === 'dashboard' ? (focusedSettingsHash ? target.querySelector(window.location.hash === '#company' ? '#company-form' : window.location.hash) : target.querySelector('.page-title')) : document.querySelector(window.location.hash)) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }

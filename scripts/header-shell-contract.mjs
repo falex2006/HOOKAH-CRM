@@ -21,6 +21,10 @@ for (const [file] of pages) {
   assert.match(html, /src="\/header-shell\.js\?rev=\d+"><\/script><script src="\/lock\.js/, `${file}: shared header initializes before lock controls`);
   assert.match(html, /data-user-name/, `${file}: profile remains bound to session data`);
 }
+for (const file of ['orders.html', 'delivery.html', 'integrations.html']) {
+  const html = fs.readFileSync(file, 'utf8');
+  assert.match(html, /<body class="portal velora-theme portal-page"/, `${file}: legacy route uses the shared drawer/scroll shell`);
+}
 
 assert.match(shell, /header\.dataset\.shellReady = 'true'/, 'header normalization is idempotent');
 assert.match(shell, /bell\.setAttribute\('aria-label', 'Уведомления'\)/, 'bell has one accessible meaning');
@@ -37,6 +41,9 @@ assert.match(lock, /width="18" height="18" viewBox="0 0 24 24"/, 'inline lock ic
 assert.match(css, /Shared CRM top bar contract/, 'header rules are documented as the final shared contract');
 assert.match(css, /\.velora-theme \.portal-header \.header-right>\.notification-bell[^}]*flex:0 0 44px;width:44px;height:44px/, 'portal actions keep equal desktop hit targets');
 assert.match(css, /@media\(max-width:760px\)[\s\S]*?\.header-shift-status\{display:none\}/, 'compact header hides secondary state consistently');
+assert.match(css, /\.portal\.velora-theme \.portal-shell\{height:100%;min-height:0;overflow:hidden\}/, 'legacy management shell uses the same bounded scroll frame');
+assert.match(css, /\.portal\.velora-theme \.portal-header,\.staff-theme main>header\{position:sticky;top:0;z-index:20\}/, 'management and employee action bars remain visible during workspace scrolling');
+assert.match(css, /@media\(min-width:651px\) and \(max-width:900px\)\{\.velora-theme \.portal-header\{padding-left:64px\}\}/, 'Fold portrait header reserves the floating menu button footprint');
 assert.match(css, /staff-header-user>#lock-screen-button \.lock-button-glyph\{width:18px!important;height:18px!important\}/, 'staff header uses the same lock icon size');
 assert.match(css, /@media\(max-width:650px\)\{\.staff-theme header\{[^}]*flex-wrap:wrap/, 'staff header reflows before controls can be clipped on phones');
 assert.match(icons, /<symbol id="menu-2"/, 'mobile menu control has a real icon in the shared sprite');

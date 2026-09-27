@@ -16,6 +16,8 @@ assert.match(css, /@media\(max-width:1100px\)\{[\s\S]*?\.auto-order-table-wrap t
   'replenishment view must switch to labeled cards on constrained tablet/Fold widths');
 assert.match(css, /\.inventory-stock-panel table\{display:block;width:100%;min-width:0/,
   'mobile stock cards must not retain the desktop minimum width');
+assert.match(css, /\.velora-theme \.inventory-content-grid\{grid-template-columns:minmax\(0,1fr\);gap:24px\}/,
+  'warehouse retains a single full-width track when generic Fold rules create a two-column content grid');
 assert.match(css, /\.inventory-stock-panel tbody td\{[^}]*width:100%!important[^}]*justify-self:stretch[^}]*box-sizing:border-box/,
   'stock table cells must stretch across their mobile grid and avoid character-by-character wrapping');
 assert.match(css, /inventory-stock-panel th:nth-child\(6\)\{width:15%\}/,
@@ -31,6 +33,8 @@ assert.match(css, /@media\(max-width:560px\)\{[\s\S]*?grid-template-columns:minm
 assert.doesNotMatch(portal, /class="inventory-tabs"/, 'warehouse views must not duplicate the sidebar navigation inside the page');
 assert.match(css, /@media\(min-width:651px\) and \(max-width:1000px\)\{\.velora-theme \.kpi-grid\.compact\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,
   'Fold/tablet KPI tiles must remain in a single balanced row');
+assert.match(css, /@media\(min-width:651px\) and \(max-width:760px\)\{\.velora-theme \.kpi-grid\.compact\.inventory-context-kpis\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}\}/,
+  'Fold inner-width inventory KPIs must use two equal columns before the activity card spans the row');
 assert.match(css, /@container crm-content \(min-width:961px\)[\s\S]*?inventory-page-title>\.toolbar-row\{display:flex;width:auto/,
   'warehouse title actions must stay on one line when the usable content area can support them');
 assert.match(css, /@container crm-content \(max-width:960px\)[\s\S]*?inventory-page-title>\.toolbar-row\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,

@@ -26,10 +26,14 @@ assert.match(portal, /dashboard-live-heading" data-dashboard-module="kpi"/,
   'the live KPI heading remains grouped with the dashboard KPI module');
 assert.match(portal, /getSettingsHashTarget\s*=\s*\(hash = window\.location\.hash\) =>/,
   'settings hash routes resolve to their actual visible panel instead of a generic page heading');
+assert.ok(portal.indexOf('const getSettingsHashTarget =') < portal.indexOf("const settingsHash = ['#settings'"),
+  'the settings hash target helper lives in the renderDashboard scope so both initial and subsequent route changes can call it');
 assert.match(portal, /const focusedSettingsHash = \['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'\]/,
   'direct settings child links scroll to the selected subsection');
 assert.match(portal, /const focused = \['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'\]/,
   'in-app settings child navigation scrolls to the selected subsection');
+assert.match(portal, /if \(target\._dashboardHashChangeHandler\) window\.removeEventListener\('hashchange', target\._dashboardHashChangeHandler\);\s*target\._dashboardHashChangeHandler = dashboardHashChangeHandler;\s*window\.addEventListener\('hashchange', dashboardHashChangeHandler\);/,
+  'rerendering the dashboard replaces its hash handler instead of accumulating listeners');
 assert.match(style, /\.velora-theme \.page-title\{scroll-margin-top:calc\(var\(--crm-header-height,68px\) \+ 12px\)\}/,
   'hash navigation keeps the complete eyebrow and heading clear of the fixed management header');
 assert.match(style, /\.velora-theme #company-form,.velora-theme #settings-dashboard-modules/,

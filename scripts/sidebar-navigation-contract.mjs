@@ -38,7 +38,8 @@ assert.match(css, /\.staff-theme header\{padding:0 16px;align-items:center\}/,
 assert.match(portal, /const currentUrl = new URL\(location\.href\);/);
 assert.match(portal, /href: '\/'/);
 assert.doesNotMatch(portal, /staff-workspace|href: '\/\?mode=/);
-assert.match(portal, /window\.addEventListener\('hashchange', \(\) => \{\s*normalizeManagementSidebar\(\);/s);
+assert.match(portal, /const dashboardHashChangeHandler = \(\) => \{\s*normalizeManagementSidebar\(\);[\s\S]*?target\._dashboardHashChangeHandler = dashboardHashChangeHandler;\s*window\.addEventListener\('hashchange', dashboardHashChangeHandler\);/s,
+  'dashboard hash navigation must normalize the sidebar through one replaceable listener');
 
 // Keep the canonical page tree aligned with the management sidebar's target
 // pages, so adding a link cannot silently point at a non-canonical filename.
@@ -49,6 +50,10 @@ assert.match(portal, /href: '\/admin#settings'/);
 assert.match(portal, /href: '\/integrations'/);
 assert.match(portal, /\[\['ОПЕРАЦИИ', 'operations'\]\]/,
   'multi-link operational groups must use the same collapsible pattern');
+assert.match(portal, /const controlLabel = control\.previousElementSibling;[\s\S]*controlLabel\.textContent\.trim\(\) === 'КОНТРОЛЬ'[\s\S]*controlLabel\.remove\(\)/,
+  'legacy standalone control caption must be removed when the control links move into disclosure groups');
+assert.match(css, /@media\(max-width:900px\)\{\.velora-theme \.portal-sidebar\.is-expanded \.portal-nav a\{width:100%;justify-self:stretch;box-sizing:border-box\}\}/,
+  'mobile drawer links must align to a shared full-width left edge regardless of label length');
 for (const item of [
   "{ href: '/inventory?view=products', permission: 'inventory_read', label: 'Каталог товаров', iconName: 'layout-grid' }",
   "{ href: '/inventory?view=recipes', permission: 'inventory_read', label: 'Технологические карты', iconName: 'clipboard-list' }",

@@ -2351,3 +2351,22 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 /* Keep finance expense fields and values readable inside the narrow phone workspace. */
 @media(max-width:760px){.velora-theme .finance-expenses-panel #expense-form{grid-template-columns:minmax(0,1fr);min-width:0;width:100%;box-sizing:border-box}.velora-theme .finance-expenses-panel #expense-form>.form-row{grid-template-columns:minmax(0,1fr);min-width:0;width:100%}.velora-theme .finance-expenses-panel #expense-form>.form-row>*{min-width:0}.velora-theme .finance-expenses-panel #expense-list .payment-row{align-items:flex-start;gap:12px}.velora-theme .finance-expenses-panel #expense-list .payment-row>span{display:grid;flex:1 1 auto;gap:4px;min-width:0}.velora-theme .finance-expenses-panel #expense-list .payment-row>span>b,.velora-theme .finance-expenses-panel #expense-list .payment-row>span>small{display:block}.velora-theme .finance-expenses-panel #expense-list .payment-row>span>small{line-height:1.4;overflow-wrap:anywhere}.velora-theme .finance-expenses-panel #expense-list .payment-row>strong{flex:0 0 auto;white-space:nowrap}}
+
+/* Keep the compact legacy route templates on the same scroll and drawer shell. */
+.portal.velora-theme .portal-shell{height:100%;min-height:0;overflow:hidden}
+.portal.velora-theme .portal-shell>.portal-main{height:100%;min-width:0;overflow-x:hidden;overflow-y:auto}
+
+/* The stock view has one active workspace; never reserve a hidden second grid track. */
+.velora-theme .inventory-content-grid{grid-template-columns:minmax(0,1fr);gap:24px}
+
+/* Keep the page context clear of the floating navigation button on Fold portrait. */
+@media(min-width:651px) and (max-width:900px){.velora-theme .portal-header{padding-left:64px}}
+
+/* Keep the global action bar visible while long workspaces scroll underneath. */
+.portal.velora-theme .portal-header,.staff-theme main>header{position:sticky;top:0;z-index:20}
+
+/* Fold inner width has two KPI cards on the first row and a full-width activity card below. */
+@media(min-width:651px) and (max-width:760px){.velora-theme .kpi-grid.compact.inventory-context-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Mobile navigation rows share one left edge, regardless of label length. */
+@media(max-width:900px){.velora-theme .portal-sidebar.is-expanded .portal-nav a{width:100%;justify-self:stretch;box-sizing:border-box}}
