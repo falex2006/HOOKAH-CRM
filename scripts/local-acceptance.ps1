@@ -38,6 +38,7 @@ $checks = @(
   @{ file = 'local-deploy-contract.mjs'; node = $true },
   @{ file = 'local-route-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-role-contract.mjs'; node = $true },
+  @{ file = 'role-api-matrix-runtime-qa.mjs'; node = $true },
   @{ file = 'finance-rbac-runtime-qa.mjs'; node = $true; standalone = $true },
   @{ file = 'finance-required-marker-contract.mjs'; node = $true },
   @{ file = 'finance-chart-empty-state-contract.mjs'; node = $true },

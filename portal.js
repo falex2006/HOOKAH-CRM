@@ -1272,7 +1272,7 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
         setDashboardPanelVisibility('#lock-security', true);
       }
       if (shouldScroll) {
-        const scrollTarget = focusedView === '#settings' ? target.querySelector('.settings-hub') : document.querySelector(focusedView);
+        const scrollTarget = target.querySelector('.page-title');
         scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     };
@@ -1296,6 +1296,7 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
       if (window.location.hash === '#tasks') renderTasks();
       else if (window.location.hash === '#loyalty') renderLoyalty();
       else renderDashboard();
+      if (window.location.hash) target.querySelector('.page-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       animateRouteContent();
       return;
     }
@@ -1303,7 +1304,7 @@ if (document.querySelector('#company-form')) api('/api/venue').then((data) => { 
     nextTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     animateRouteContent();
   });
-  const hashTarget = window.location.hash ? document.querySelector(window.location.hash) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const hashTarget = window.location.hash ? (page === 'dashboard' ? target.querySelector('.page-title') : document.querySelector(window.location.hash)) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderInventory() {

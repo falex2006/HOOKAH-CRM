@@ -23,5 +23,9 @@ assert.ok(staffBranch.includes(`setDashboardPanelVisibility('[data-dashboard-mod
   'staff subsection hides both the KPI cards and their separate heading');
 assert.match(portal, /dashboard-live-heading" data-dashboard-module="kpi"/,
   'the live KPI heading remains grouped with the dashboard KPI module');
+assert.match(portal, /page === 'dashboard' \? target\.querySelector\('\.page-title'\) : document\.querySelector\(window\.location\.hash\)/,
+  'direct admin hash routes preserve the page heading above the focused subsection');
+assert.match(portal, /if \(window\.location\.hash\) target\.querySelector\('\.page-title'\)\?\.scrollIntoView/,
+  'in-app admin subsection changes return the page heading to the top of the scroll area');
 
 console.log('ADMIN SECTION HEADING CONTRACT: PASS (staff title stays aligned and dashboard KPI heading is hidden in subsections)');

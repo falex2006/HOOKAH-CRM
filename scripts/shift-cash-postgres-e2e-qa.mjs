@@ -1,0 +1,115 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import fs from 'node:fs';
+
+const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
+if (!databaseUrl) throw new Error('Set MIGRATIONS_PG_TEST_DATABASE_URL to an isolated PostgreSQL test database');
+assert.match(new URL(databaseUrl).pathname, /(?:test|qa|scratch)/i,
+  'refusing test writes unless the database name clearly identifies a test/QA/scratch database');
+
+const require = createRequire(import.meta.url);
+const { Client, Pool } = require('pg');
+const setup = new Client({ connectionString: databaseUrl });
+const pool = new Pool({ connectionString: databaseUrl, max: 4 });
+const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const shiftStart = server.indexOf("if (pathname === '/api/shifts' && req.method === 'GET')");
+const shiftEnd = server.indexOf("if (pathname === '/api/venue' && req.method === 'GET')", shiftStart);
+const paymentStart = server.indexOf('const paymentPath = pathname.match(');
+const paymentEnd = server.indexOf('const orderPath = pathname.match(', paymentStart);
+assert.ok(shiftStart >= 0 && shiftEnd > shiftStart, 'shift open/close API handlers are available');
+assert.ok(paymentStart >= 0 && paymentEnd > paymentStart, 'sale/payment API handler is available');
+const shiftRoute = server.slice(shiftStart, shiftEnd);
+const paymentRoute = server.slice(paymentStart, paymentEnd);
+let venueId = null;
+let userId = null;
+let orderId = null;
+let productId = null;
+
+const callShiftApi = async ({ path, method = 'POST', body = {} }) => {
+  let response;
+  const pathname = path;
+  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts',
+    `return (async()=>{${shiftRoute}})();`)(
+    pathname, { method, user: { id: userId, name: 'Cash QA', role: 'owner' } }, {}, { pool }, venueId,
+    () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {}, [],
+  );
+  return response || result;
+};
+
+const callPaymentApi = async ({ path, method = 'POST', body = {} }) => {
+  let response;
+  const pathname = path;
+  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnless','body','json','recordAudit','requireOpenShift','orders','scaleBatchRecipeIngredients','depleteRecipeForOrder','approvedDiscountTotal','orderTotal',
+    `return (async()=>{${paymentRoute}})();`)(
+    pathname, { method, user: { id: userId, name: 'Cash QA', role: 'owner' } }, {}, { pool }, venueId,
+    () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {},
+    async () => false, [], () => [], async () => ({ lines: [], totalCost: 0 }), () => 0, () => 0,
+  );
+  return response || result;
+};
+
+try {
+  await setup.connect();
+  venueId = (await setup.query("INSERT INTO venues (name,timezone) VALUES ('Isolated shift cash E2E QA','Asia/Yekaterinburg') RETURNING id")).rows[0].id;
+  userId = (await setup.query(`INSERT INTO users (venue_id,full_name,login,role)
+    VALUES ($1,'Cash QA','shift-cash-qa-${process.pid}','owner') RETURNING id`, [venueId])).rows[0].id;
+  productId = (await setup.query("INSERT INTO products (venue_id,name,category,sale_price) VALUES ($1,'QA order','bar',300) RETURNING id", [venueId])).rows[0].id;
+  orderId = (await setup.query("INSERT INTO orders (venue_id,opened_by,status) VALUES ($1,$2,'open') RETURNING id", [venueId, userId])).rows[0].id;
+  await setup.query('INSERT INTO order_items (order_id,product_id,quantity,unit_price) VALUES ($1,$2,1,300)', [orderId, productId]);
+
+  const opened = await callShiftApi({ path: '/api/shifts', body: { openingCash: 1000 } });
+  assert.equal(opened.status, 201);
+  assert.equal(Number(opened.data.openingCash), 1000, 'opening float is persisted through the shift API');
+  const shiftId = opened.data.id;
+  const openingRead = await callShiftApi({ path: '/api/shifts', method: 'GET' });
+  assert.equal(openingRead.status, 200);
+  assert.equal(openingRead.data.current.id, shiftId, 'shift list rereads the newly opened shift from PostgreSQL');
+
+  const missingChecklist = await callShiftApi({ path: `/api/shifts/${shiftId}/close`, body: { closingCash: 1250 } });
+  assert.equal(missingChecklist.status, 400);
+  assert.equal(missingChecklist.data.error, 'shift_checklist_required');
+  assert.equal((await setup.query('SELECT closed_at FROM shifts WHERE id=$1', [shiftId])).rows[0].closed_at, null,
+    'a failed checklist validation does not change the open shift');
+
+  const payment = await callPaymentApi({ path: `/api/orders/${orderId}/payments`, body: { amount: 300, method: 'cash' } });
+  assert.equal(payment.status, 201);
+  assert.equal(payment.data.closed, true, 'full payment closes the sale');
+  assert.equal(payment.data.shiftId, shiftId, 'payment API attributes cash to the active shift');
+  const persistedOrder = await setup.query('SELECT status,closed_in_shift_id FROM orders WHERE id=$1', [orderId]);
+  assert.equal(persistedOrder.rows[0].status, 'closed');
+  assert.equal(persistedOrder.rows[0].closed_in_shift_id, shiftId);
+  const persistedPayment = await setup.query('SELECT method,amount,status,shift_id FROM payments WHERE order_id=$1', [orderId]);
+  assert.equal(persistedPayment.rowCount, 1);
+  assert.equal(Number(persistedPayment.rows[0].amount), 300);
+  assert.equal(persistedPayment.rows[0].shift_id, shiftId);
+
+  const closed = await callShiftApi({ path: `/api/shifts/${shiftId}/close`, body: { closingCash: 1250, checklistConfirmed: true } });
+  assert.equal(closed.status, 200);
+  assert.equal(Number(closed.data.openingCash), 1000);
+  assert.equal(Number(closed.data.expectedCash), 1300, 'expected cash is opening float plus cash payments explicitly linked to the shift');
+  assert.equal(Number(closed.data.closingCash), 1250);
+  assert.equal(Number(closed.data.cashVariance), -50, 'cash shortage is persisted as actual minus expected');
+
+  const finalShift = await setup.query('SELECT closed_at,opening_cash,expected_cash,closing_cash,cash_variance FROM shifts WHERE id=$1', [shiftId]);
+  assert.ok(finalShift.rows[0].closed_at);
+  assert.equal(Number(finalShift.rows[0].expected_cash), 1300);
+  assert.equal(Number(finalShift.rows[0].cash_variance), -50);
+  const repeatClose = await callShiftApi({ path: `/api/shifts/${shiftId}/close`, body: { closingCash: 1250, checklistConfirmed: true } });
+  assert.equal(repeatClose.status, 404, 'a closed shift cannot be reconciled or closed a second time');
+
+  console.log('SHIFT CASH POSTGRES E2E QA: PASS (opening float→sale/payment API→shift attribution→expected cash→required checklist→actual cash/variance→closed read; invalid checklist and repeated close rejected)');
+} finally {
+  await pool.end();
+  if (setup._connected) {
+    if (venueId) {
+      await setup.query('DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]).catch(() => {});
+      await setup.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]).catch(() => {});
+      await setup.query('DELETE FROM orders WHERE venue_id=$1', [venueId]).catch(() => {});
+      await setup.query('DELETE FROM shifts WHERE venue_id=$1', [venueId]).catch(() => {});
+      if (productId) await setup.query('DELETE FROM products WHERE id=$1', [productId]).catch(() => {});
+      if (userId) await setup.query('DELETE FROM users WHERE id=$1', [userId]).catch(() => {});
+      await setup.query('DELETE FROM venues WHERE id=$1', [venueId]).catch(() => {});
+    }
+    await setup.end();
+  }
+}

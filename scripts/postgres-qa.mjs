@@ -17,6 +17,7 @@ const checks = [
   'migrations-pg-041-recovery-concurrency-qa.mjs',
   'purchase-payment-postgres-api-qa.mjs',
   'payroll-lifecycle-postgres-api-qa.mjs',
+  'shift-cash-postgres-e2e-qa.mjs',
   'recipe-depletion-pg-runtime-qa.mjs',
 ];
 const env = {
