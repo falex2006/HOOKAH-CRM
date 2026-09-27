@@ -140,6 +140,8 @@ assert.match(css, /@media \(min-width:651px\) and \(max-width:900px\)\{[\s\S]*?\
   'the Fold sidebar opens as an overlay and does not permanently consume workspace width');
 assert.match(css, /\.portal-sidebar \.sidebar-nav-group>summary\{display:flex;min-height:44px/,
   'collapsed Fold navigation groups must match adjacent 44px touch targets');
+assert.match(css, /@media\(max-width:900px\)\{\.staff-theme \.portal-sidebar\{width:68px/,
+  'employee navigation uses a compact icon rail at Fold/tablet widths to preserve the order workspace');
 assert.match(css, /@media \(min-width:1800px\)\{\s*\.staff-theme \.portal-sidebar\{width:280px/,
   'staff sidebar must use the same deliberate width on full-screen ultrawide desktops');
 

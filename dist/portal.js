@@ -1788,7 +1788,7 @@ function renderFinance() {
   const employeeFinanceView = ['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(String(portalUser.role || '').toLowerCase());
   const canDecideFinance = portalPermissions.has('finance');
   if (employeeFinanceView) {
-    target.innerHTML = `<div class="page-title"><div><p class="eyebrow">МОЯ СМЕНА</p><h1>Оборот сегодня</h1><p class="muted">Ваш оборот за текущий рабочий день.</p></div></div><section class="panel employee-turnover-panel"><div><span class="muted">Мой оборот сегодня</span><strong id="finance-revenue">Загрузка…</strong></div><small class="muted">Сумма ваших оплаченных заказов за сегодня</small></section>`;
+    target.innerHTML = `<div class="page-title"><div><p class="eyebrow">МОЯ СМЕНА</p><h1>Оборот сегодня</h1><p class="muted">Оборот заказов, открытых вами сегодня.</p></div></div><section class="panel employee-turnover-panel"><div><span class="muted">Оборот заказов, открытых вами сегодня</span><strong id="finance-revenue">Загрузка…</strong></div><small class="muted">Сумма оплаченных заказов, которые вы открыли за сегодня</small></section>`;
     api(`/api/finance/summary?date=${encodeURIComponent(localDateKey())}`).then((summary) => { const value = document.querySelector('#finance-revenue'); if (value) value.textContent = money(summary.revenue || 0); }).catch(() => { const value = document.querySelector('#finance-revenue'); if (value) value.textContent = 'Не удалось загрузить'; });
     return;
   }
