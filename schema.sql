@@ -117,6 +117,21 @@ CREATE TABLE tables (
   layout jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 
+CREATE TABLE guest_discount_groups (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  name text NOT NULL CHECK (length(btrim(name)) BETWEEN 1 AND 80),
+  discount_percent numeric(5,2) NOT NULL DEFAULT 0 CHECK (discount_percent BETWEEN 0 AND 100),
+  bonus_percent numeric(5,2) NOT NULL DEFAULT 0 CHECK (bonus_percent BETWEEN 0 AND 100),
+  deposit_min numeric(12,2) NOT NULL DEFAULT 0 CHECK (deposit_min >= 0),
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id, id)
+);
+CREATE UNIQUE INDEX guest_discount_groups_venue_name_uq
+  ON guest_discount_groups (venue_id, lower(name));
+
 CREATE TABLE guests (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   venue_id uuid REFERENCES venues(id),
@@ -124,8 +139,13 @@ CREATE TABLE guests (
   full_name text,
   email text,
   loyalty_points int NOT NULL DEFAULT 0,
+  discount_group_id uuid,
+  deposit_balance numeric(12,2) NOT NULL DEFAULT 0 CHECK (deposit_balance >= 0),
   notes text,
   created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT guests_discount_group_fk FOREIGN KEY (venue_id, discount_group_id)
+    REFERENCES guest_discount_groups (venue_id, id)
+    ON DELETE SET NULL (discount_group_id),
   UNIQUE (venue_id, phone)
 );
 ALTER TABLE guests ADD COLUMN IF NOT EXISTS phone_numbers jsonb NOT NULL DEFAULT '[]'::jsonb;
