@@ -37,7 +37,7 @@ let otherVenueId;
 let setupConnected = false;
 const callApi = async ({ route, path, method = 'GET', body = {}, permissions = ['loyalty', 'staff_manage', 'orders'], venue = venueId }) => {
   let response;
-  const pathname = path;
+  const pathname = new URL(`http://localhost${path}`).pathname;
   const json = (_res, status, data) => { response = { status, data }; return response; };
   const denyUnlessAny = (req, res, required) => {
     if (required.some((permission) => req.user?.permissions?.includes(permission))) return false;
@@ -47,10 +47,13 @@ const callApi = async ({ route, path, method = 'GET', body = {}, permissions = [
   const clients = [];
   const discountGroups = [];
   const url = new URL(`http://localhost${path}`);
+  const recordAudit = async (req, action, entityType, entityId, beforeData, afterData) => {
+    await pool.query('INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES ($1,$2,$3,$4,$5,$6,$7)', [venue, null, action, entityType, entityId || null, beforeData || null, afterData || null]);
+  };
   const handler = new Function('pathname','url','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','hasPermission','normalizePhoneNumbers','clients','discountGroups',
     `return (async()=>{${route}})();`);
   await handler(pathname, url, { method, headers: {}, user: { id: null, role: 'owner', permissions } }, {}, { pool }, venue, denyUnlessAny,
-    async () => body, json, () => {}, hasPermission, normalizePhoneNumbers, clients, discountGroups);
+    async () => body, json, recordAudit, hasPermission, normalizePhoneNumbers, clients, discountGroups);
   return response;
 };
 
@@ -94,6 +97,19 @@ try {
   assert.deepEqual((await callApi({ route: groupRoute, path: '/api/discount-groups', venue: otherVenueId })).data.items, [],
     'guest programs are isolated by venue');
 
+  const archivedGroup = await callApi({ route: groupRoute, path: `/api/discount-groups/${created.data.id}`, method: 'PATCH', body: { active: false } });
+  assert.equal(archivedGroup.status, 200);
+  assert.equal(archivedGroup.data.active, false, 'a loyalty program can be archived without deleting its history or guest links');
+  assert.deepEqual((await callApi({ route: groupRoute, path: '/api/discount-groups' })).data.items, [], 'archived programs are not assignable in the default active list');
+  assert.equal((await callApi({ route: groupRoute, path: '/api/discount-groups?includeArchived=true', permissions: ['orders'] })).status, 403,
+    'ordinary order staff cannot browse the archive');
+  const archivedList = await callApi({ route: groupRoute, path: '/api/discount-groups?includeArchived=true', permissions: ['finance'] });
+  assert.equal(archivedList.data.items.find((item) => item.id === created.data.id).active, false);
+  const restoredGroup = await callApi({ route: groupRoute, path: `/api/discount-groups/${created.data.id}`, method: 'PATCH', body: { active: true } });
+  assert.equal(restoredGroup.status, 200);
+  assert.equal(restoredGroup.data.active, true, 'a manager can restore an archived program');
+  assert.ok((await callApi({ route: groupRoute, path: '/api/discount-groups' })).data.items.some((item) => item.id === created.data.id));
+
   const guest = await callApi({ route: guestRoute, path: '/api/clients', method: 'POST', body: {
     name: 'QA Guest', phoneNumbers: [{ number: '+79990000001', primary: true }], discountGroupId: created.data.id,
     bonusBalance: 125, depositBalance: 300,
@@ -103,6 +119,8 @@ try {
   assert.equal(Number(guest.data.loyaltyPoints), 125);
   assert.equal(Number(guest.data.depositBalance), 300);
   const guestId = guest.data.id;
+  const createAudit = await setup.query("SELECT action,entity_id FROM audit_events WHERE venue_id=$1 AND entity_type='client' AND entity_id=$2 AND action='client.created'", [venueId, guestId]);
+  assert.equal(createAudit.rows.length, 1, 'successful PostgreSQL guest creation writes its persistent audit event before returning');
   const ordersOnlyCreate = await callApi({ route: guestRoute, path: '/api/clients', method: 'POST', permissions: ['orders'], body: {
     name: 'Unauthorized QA Guest', phoneNumbers: [{ number: '+79990000009', primary: true }], discountGroupId: created.data.id,
     bonusBalance: 999, depositBalance: 50000,
@@ -151,6 +169,8 @@ try {
   assert.equal(patch.data.discountGroupId, null);
   assert.equal(Number(patch.data.loyaltyPoints), 180);
   assert.equal(Number(patch.data.depositBalance), 750);
+  const updateAudit = await setup.query("SELECT action,entity_id FROM audit_events WHERE venue_id=$1 AND entity_type='client' AND entity_id=$2 AND action='client.updated'", [venueId, guestId]);
+  assert.equal(updateAudit.rows.length, 1, 'successful PostgreSQL guest update writes its persistent audit event before returning');
   const stored = await setup.query('SELECT discount_group_id AS "discountGroupId",loyalty_points AS "loyaltyPoints",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2', [guestId, venueId]);
   assert.equal(stored.rows.length, 1);
   assert.equal(stored.rows[0].discountGroupId, null);

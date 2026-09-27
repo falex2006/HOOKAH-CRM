@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 const renderClients = portal.slice(portal.indexOf('function renderClients()'), portal.indexOf('function renderReservations()'));
+const renderLoyalty = portal.slice(portal.indexOf('function renderLoyalty()'), portal.indexOf('function renderClients()'));
 
 assert.match(renderClients, /id="new-client" aria-controls="client-editor" aria-expanded="false"/,
   'new guest action must announce and control the hidden editor');
@@ -30,5 +31,17 @@ assert.match(css, /body\[data-page="clients"\] \.client-card-person>div\{[^}]*mi
   'guest name and phone text must wrap as words when narrow, not one character per line');
 assert.match(css, /@media\(max-width:700px\)\{\.velora-theme \.client-groups\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,
   'mobile guest segments must expose all statuses in a wrapping grid rather than hide them in horizontal scrolling');
+assert.match(renderLoyalty, /id="loyalty-program-filter"[\s\S]*?Включая архивные/,
+  'managers need a direct filter for archived loyalty programs');
+assert.match(renderLoyalty, /portalConfirm\('Архивировать программу\?'/,
+  'archiving a loyalty program requires clear confirmation');
+assert.match(renderLoyalty, /JSON\.stringify\(\{ active: !active \}\)/,
+  'archive/restore must PATCH the active state rather than delete program history');
+assert.match(renderLoyalty, /Восстановить/,
+  'archived programs must expose an explicit restore action');
+assert.match(portal, /includeArchived=true/,
+  'the loyalty archive view must request inactive records explicitly');
+assert.match(css, /\.loyalty-program\.is-archived\{opacity:/,
+  'archived loyalty programs must be visibly distinct from active programs');
 
-console.log('CLIENT EDITOR CONTRACT: PASS (on-demand editor, clear close, focus, and responsive list-first layout)');
+console.log('CLIENT/LOYALTY CONTRACT: PASS (guest editor accessibility, archive confirmation, and loyalty program restore path)');
