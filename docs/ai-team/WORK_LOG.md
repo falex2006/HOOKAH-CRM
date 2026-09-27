@@ -538,3 +538,10 @@
 - KPI склада используют полное название «Технологических карт».
 - Файлы: `portal.js`, `dist/portal.js`, `SITE_TREE.md`, `SITE_MAP.md`, `scripts/sidebar-navigation-contract.mjs`, `scripts/inventory-responsive-contract.mjs`.
 - Миграций/API нет. Проверки новых contracts и общих sidebar/inventory contracts прошли. После пакета повторно выполнен полный `scripts/local-acceptance.ps1` на изолированном процессе — PASS. Свежего рендеринга пока нет, потому что доступная вкладка localhost показывает `ERR_CONNECTION_REFUSED`.
+# Package 047 — PostgreSQL QA and guest-create permission hardening (2026-09-28)
+
+- Docker Desktop Engine 29.8.0 on `desktop-linux` is available; a disposable PostgreSQL 16 QA container was used and removed after the run.
+- Closed a privilege gap on `POST /api/clients`: callers whose only relevant access is `orders` may create ordinary guest profiles, but cannot set `discountGroupId`, `bonusBalance`, `loyaltyPoints`, or `depositBalance`. Finance, staff-management, and loyalty permissions retain those fields.
+- Added PostgreSQL API regression checks for HTTP 403 and verified that denied creation persists no guest row.
+- Validation: full PostgreSQL QA passed (10 isolated suites, including 103 assertions across the inventory/recipe/sales/COGS/payroll/P&L chain); full local acceptance passed on a temporary in-memory server; `git diff --check` passed. No schema or API contract expansion, migration, distribution asset, VPS, or production change.
+- Remaining: fresh visual/Fold browser inspection is blocked by Browser Use policy for the local preview URL. Static UX audit still reports finance categories lack an archive recovery path; the finance rules panel is unrelated to that page; venue-layout settings heading conflicts with its sitemap label; one visual-rule label is stale. No fresh rendered visual evidence was captured.

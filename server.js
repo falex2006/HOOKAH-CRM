@@ -1354,7 +1354,7 @@ async function api(req, res) {
   if (pathname === '/api/discount-groups' && req.method === 'POST') {
     if (denyUnlessAny(req, res, ['staff_manage', 'finance', 'loyalty'])) return;
     const input = await body(req); const name = String(input.name || '').trim(); const discountPercent = Number(input.discountPercent ?? 0); const bonusPercent = Number(input.bonusPercent ?? 0); const depositMin = Number(input.depositMin ?? 0);
-    if (!name || name.length > 80 || ![discountPercent, bonusPercent, depositMin].every(Number.isFinite) || discountPercent < 0 || discountPercent > 100 || bonusPercent < 0 || bonusPercent > 100 || depositMin < 0) return json(res, 400, { error: 'invalid_discount_group' });
+    if (!name || name.length > 80 || ![discountPercent, bonusPercent, depositMin].every(Number.isFinite) || discountPercent < 0 || discountPercent > 100 || bonusPercent < 0 || bonusPercent > 100 || depositMin < 0 || depositMin > 9999999999.99 || Math.abs(depositMin * 100 - Math.round(depositMin * 100)) > 1e-6) return json(res, 400, { error: 'invalid_discount_group' });
     if (repositories?.pool) {
       try { const { rows } = await repositories.pool.query(`INSERT INTO guest_discount_groups (venue_id,name,discount_percent,bonus_percent,deposit_min) VALUES ($1,$2,$3,$4,$5) RETURNING id,name,discount_percent AS "discountPercent",bonus_percent AS "bonusPercent",deposit_min AS "depositMin",active`, [venueDbId, name, discountPercent, bonusPercent, depositMin]); const group = { ...rows[0], discountPercent: Number(rows[0].discountPercent), bonusPercent: Number(rows[0].bonusPercent), depositMin: Number(rows[0].depositMin) }; recordAudit(req, 'discount_group.created', 'discount_group', group.id, null, group); return json(res, 201, group); }
       catch (error) { return json(res, error.code === '23505' ? 409 : 503, { error: error.code === '23505' ? 'discount_group_name_exists' : 'discount_group_save_failed', detail: error.message }); }
@@ -1369,7 +1369,7 @@ async function api(req, res) {
     const discountPercent = input.discountPercent === undefined ? undefined : Number(input.discountPercent);
     const bonusPercent = input.bonusPercent === undefined ? undefined : Number(input.bonusPercent);
     const depositMin = input.depositMin === undefined ? undefined : Number(input.depositMin);
-    if (name !== undefined && (!name || name.length > 80) || [discountPercent, bonusPercent, depositMin].some((value) => value !== undefined && !Number.isFinite(value)) || discountPercent !== undefined && (discountPercent < 0 || discountPercent > 100) || bonusPercent !== undefined && (bonusPercent < 0 || bonusPercent > 100) || depositMin !== undefined && depositMin < 0) return json(res, 400, { error: 'invalid_discount_group' });
+    if (name !== undefined && (!name || name.length > 80) || [discountPercent, bonusPercent, depositMin].some((value) => value !== undefined && !Number.isFinite(value)) || discountPercent !== undefined && (discountPercent < 0 || discountPercent > 100) || bonusPercent !== undefined && (bonusPercent < 0 || bonusPercent > 100) || depositMin !== undefined && (depositMin < 0 || depositMin > 9999999999.99 || Math.abs(depositMin * 100 - Math.round(depositMin * 100)) > 1e-6)) return json(res, 400, { error: 'invalid_discount_group' });
     if (repositories?.pool) {
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(discountGroupProfile[1])) return json(res, 404, { error: 'discount_group_not_found' });
       const fields = []; const values = [discountGroupProfile[1], venueDbId];
@@ -1401,7 +1401,13 @@ async function api(req, res) {
   if (clientDelete && req.method === 'DELETE') { if (denyUnless(req, res, 'staff_manage')) return; if (req.user?.role !== 'owner') return json(res, 403, { error: 'client_delete_owner_required' }); const id = clientDelete[1]; const index = clients.findIndex((entry) => entry.id === id); if (index >= 0) { const [removed] = clients.splice(index, 1); recordAudit(req, 'client.deleted', 'client', id, removed, null); return json(res, 200, { id, deleted: true }); } if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(id)) { try { const { rows } = await repositories.pool.query('DELETE FROM guests WHERE id=$1 AND venue_id=$2 RETURNING id', [id, venueDbId]); if (!rows[0]) return json(res, 404, { error: 'client_not_found' }); recordAudit(req, 'client.deleted', 'client', id, { id }, null); return json(res, 200, { id, deleted: true }); } catch (error) { return json(res, 409, { error: 'client_delete_failed', detail: error.message }); } } return json(res, 404, { error: 'client_not_found' }); }
   if (pathname === '/api/clients' && req.method === 'POST') {
     if (denyUnlessAny(req, res, ['staff_manage', 'orders'])) return;
-    const input = await body(req); const name = String(input.name || '').trim();
+    const input = await body(req);
+    const protectedGuestFields = ['discountGroupId', 'bonusBalance', 'loyaltyPoints', 'depositBalance'];
+    if (process.env.AUTH_REQUIRED === 'true' && protectedGuestFields.some((field) => Object.hasOwn(input, field)
+      && !hasPermission(req, 'finance') && !hasPermission(req, 'staff_manage') && !hasPermission(req, 'loyalty'))) {
+      return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
+    }
+    const name = String(input.name || '').trim();
     if (!name || name.length > 120) return json(res, 400, { error: 'client_name_required' });
     if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+7[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
     const phoneNumbers = normalizePhoneNumbers(input.phoneNumbers);

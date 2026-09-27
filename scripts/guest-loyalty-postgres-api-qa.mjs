@@ -66,6 +66,10 @@ try {
     'guest-program list requires a relevant permission');
   assert.equal((await callApi({ route: groupRoute, path: '/api/discount-groups', method: 'POST', permissions: [], body: { name: 'Blocked' } })).status, 403,
     'guest-program creation requires a relevant permission');
+  assert.equal((await callApi({ route: groupRoute, path: '/api/discount-groups', method: 'POST', body: { name: 'Out of range', depositMin: 10000000000 } })).status, 400,
+    'deposit minimum above the PostgreSQL numeric(12,2) limit is rejected as input instead of failing on persistence');
+  assert.equal((await callApi({ route: groupRoute, path: '/api/discount-groups', method: 'POST', body: { name: 'Fractional cents', depositMin: 1.005 } })).status, 400,
+    'deposit minimum with fractional kopecks is rejected instead of being rounded differently by PostgreSQL');
 
   const created = await callApi({ route: groupRoute, path: '/api/discount-groups', method: 'POST', body: {
     name: 'VIP', discountPercent: 10, bonusPercent: 2.5, depositMin: 3000,
@@ -83,6 +87,8 @@ try {
   assert.equal(updated.status, 200);
   assert.equal(updated.data.bonusPercent, 3);
   assert.equal(updated.data.depositMin, 4500);
+  assert.equal((await callApi({ route: groupRoute, path: `/api/discount-groups/${created.data.id}`, method: 'PATCH', body: { depositMin: 10000000000 } })).status, 400,
+    'deposit-minimum range validation also applies to program edits');
   assert.equal((await callApi({ route: groupRoute, path: `/api/discount-groups/${created.data.id}`, venue: otherVenueId, method: 'PATCH', body: { name: 'Foreign edit' } })).status, 404,
     'another venue cannot edit this guest program');
   assert.deepEqual((await callApi({ route: groupRoute, path: '/api/discount-groups', venue: otherVenueId })).data.items, [],
@@ -97,6 +103,17 @@ try {
   assert.equal(Number(guest.data.loyaltyPoints), 125);
   assert.equal(Number(guest.data.depositBalance), 300);
   const guestId = guest.data.id;
+  const ordersOnlyCreate = await callApi({ route: guestRoute, path: '/api/clients', method: 'POST', permissions: ['orders'], body: {
+    name: 'Unauthorized QA Guest', phoneNumbers: [{ number: '+79990000009', primary: true }], discountGroupId: created.data.id,
+    bonusBalance: 999, depositBalance: 50000,
+  } });
+  assert.equal(ordersOnlyCreate.status, 403, 'orders-only roles cannot set protected discount, bonus, or deposit fields while creating guests');
+  const noUnauthorizedGuest = await setup.query("SELECT count(*)::int AS count FROM guests WHERE venue_id=$1 AND full_name='Unauthorized QA Guest'", [venueId]);
+  assert.equal(noUnauthorizedGuest.rows[0].count, 0, 'denied guest creation does not persist a guest or protected balances');
+  const ordersOnlyBasicCreate = await callApi({ route: guestRoute, path: '/api/clients', method: 'POST', permissions: ['orders'], body: {
+    name: 'Orders-only QA Guest', phoneNumbers: [{ number: '+79990000008', primary: true }],
+  } });
+  assert.equal(ordersOnlyBasicCreate.status, 201, 'orders-only staff may still create an ordinary guest profile for order service');
   assert.equal((await callApi({ route: guestListRoute, path: '/api/clients', permissions: [] })).status, 403,
     'guest balances are unavailable to roles without a guest/list permission');
   const guestList = await callApi({ route: guestListRoute, path: '/api/clients' });
