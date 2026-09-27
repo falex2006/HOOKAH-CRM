@@ -382,6 +382,13 @@
 - Runtime QA проверил привязку платежа к смене своего заведения, отказ для чужой смены, единственную открытую смену, связь расхода с проведённой накладной своего заведения, запрет другого source и повтор idempotency key. Все тестовые строки и временная схема откатились.
 - `migrations-pg-upgrade-qa.mjs` и `migrations-pg-runtime-qa.mjs` добавлены как повторяемые PG-проверки; требуется ещё проверить конкурентные API-платежи/открытие смены и восстановление после сбоя пути `migrate-vps.sh`. PostgreSQL тесты не затрагивали VPS.
 
+## 2026-09-27 — Восстановление Docker Desktop и настоящий failure/retry PostgreSQL
+
+- Восстановлен локальный Docker Desktop `desktop-linux`. Причиной старта оказались оставшиеся runtime socket/reparse-point папки Docker; перед переименованием проверено отсутствие работающего engine и контейнеров. Папки `Docker/run` и `docker-secrets-engine` сохранены рядом как recovery-копии, не удалялись Docker volumes/images и пользовательские данные.
+- Создан временный PostgreSQL 16.15 без постоянного volume, опубликованный только на `127.0.0.1:55432`. На нём повторно применены `schema.sql` и 42 миграции, затем replay; повторно прошли `payroll-lifecycle-migration-preflight.mjs`, `migrations-pg-upgrade-qa.mjs` и `migrations-pg-runtime-qa.mjs`.
+- Добавлен `scripts/migrate-vps-postgres-qa.sh`. Он запускает неизменённый `migrate-vps.sh` во временном каталоге; Docker Compose только адаптируется к тестовому контейнеру, а `pg_isready` и `psql` выполняются настоящим PostgreSQL. Инъекция `SELECT 1/0` после `CREATE TABLE` доказала атомарный откат всей первой миграции, остановку перед второй миграцией и CRM/seed. После удаления injected failure retry применил обе миграции в лексическом порядке и завершающие шаги; таблицы-маркеры удалены cleanup trap.
+- Проверки: повторные 42 миграции — PASS; payroll lifecycle migration — PASS; upgrade 001–038→039–042 и сохранность старых строк — PASS; runtime guards 039/041/042 — PASS; real PostgreSQL migration failure/rollback/retry — PASS. VPS не подключался; production DB, домен, HTTPS и `COOKIE_SECURE` не менялись.
+
 ## 2026-09-27 — Навигация/гости, полная локальная приёмка и PostgreSQL 16
 
 - UI-проход sidebar/гостей завершён: route-aware группы и предпочтение сворачивания сохраняются после перехода/перезагрузки; бренд не исчезает при скролле. Гостевой редактор открывается по действию/выбору, закрывается с возвратом фокуса; список показан первым. Счётчик персонала использует общий русский plural formatter.
