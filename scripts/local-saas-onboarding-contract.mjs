@@ -7,9 +7,11 @@ const createResponse = await fetch(new URL('/api/platform/organizations', base),
 const created = await createResponse.json();
 assert.equal(createResponse.status, 201, JSON.stringify(created));
 assert.equal(created.owner.login, ownerLogin);
+assert.match(created.owner.id, /^[0-9a-f-]{36}$/i, 'each in-memory bootstrap owner must get a unique stable user id');
 const loginResponse = await fetch(new URL('/api/login', base), { method:'POST', headers:{'Content-Type':'application/json', 'x-device-id': `qa-${suffix}`}, body: JSON.stringify({ username:ownerLogin, password:'Onboarding123!' }) });
 const session = await loginResponse.json();
 assert.equal(loginResponse.status, 200, JSON.stringify(session));
+assert.equal(session.user.id, created.owner.id, 'login must preserve the provisioned owner identity');
 const accountResponse = await fetch(new URL('/api/saas/account', base), { headers:{ Authorization:`Bearer ${session.token}` } });
 const account = await accountResponse.json();
 assert.equal(accountResponse.status, 200, JSON.stringify(account));

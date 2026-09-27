@@ -40,7 +40,7 @@ assert.match(css, /@media\(max-width:760px\)[\s\S]*?\.header-shift-status\{displ
 assert.match(css, /staff-header-user>#lock-screen-button \.lock-button-glyph\{width:18px!important;height:18px!important\}/, 'staff header uses the same lock icon size');
 assert.match(css, /@media\(max-width:650px\)\{\.staff-theme header\{[^}]*flex-wrap:wrap/, 'staff header reflows before controls can be clipped on phones');
 assert.match(icons, /<symbol id="menu-2"/, 'mobile menu control has a real icon in the shared sprite');
-assert.match(portal, /tabler-icons\.svg\?rev=4#\$\{name\}/, 'mobile menu references the current icon sprite');
+assert.match(portal, /tabler-icons\.svg\?rev=5#\$\{name\}/, 'mobile menu references the current icon sprite');
 assert.match(portal, /iconMarkup\('menu-2'\)/, 'mobile menu requests the implemented icon');
 
 for (const [source, target] of [['style.css', 'style.css'], ['portal.js', 'portal.js'], ['lock.js', 'lock.js'], ['header-shell.js', 'header-shell.js'], ['index.html', 'index.html'], ['assets/tabler-icons.svg', 'assets/tabler-icons.svg']]) {

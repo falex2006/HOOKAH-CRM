@@ -1,8 +1,10 @@
 FROM node:20-alpine
+ARG CRM_RELEASE_ID=unreleased
+LABEL com.territory.release-id=$CRM_RELEASE_ID
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
-COPY db.js server.js index.html admin.html login.html inventory.html finance.html finance-categories.html finance-report.html reservations.html clients.html orders.html integrations.html network.html delivery.html platform.html admin.js style.css app.js portal.js header-shell.js login.js catalog-seed.js lock.js ./
+COPY db.js server.js payroll.js recipe-depletion.js purchase-document-validation.js index.html admin.html login.html inventory.html finance.html finance-categories.html finance-report.html reservations.html clients.html orders.html integrations.html network.html delivery.html platform.html admin.js style.css app.js portal.js header-shell.js login.js catalog-seed.js lock.js ./
 COPY assets ./assets
 COPY platform.js staff-profile.js staff-audit.js staff-phone-fields.js staff-sensitive-fields.js staff-admin-card.js staff-telegram-link.js vip-deposit.js vip-deposit-ui.js ./
 COPY scripts ./scripts

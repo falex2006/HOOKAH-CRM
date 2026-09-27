@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const source = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-assert.match(source, /if \(pathname === '\/api\/tasks' && req\.method === 'POST'\) \{\s*if \(denyUnless\(req, res, 'staff_manage'\)\)/);
+assert.match(source, /if \(pathname === '\/api\/tasks' && req\.method === 'POST'\) \{\s*if \(denyUnlessAny\(req, res, \['staff_manage', 'tasks_manage'\]\)\)/,
+  'task creation must be limited to staff/task managers');
+assert.match(source, /manager: \[[^\]]*'tasks_manage'/, 'managers must be allowed to assign daily staff tasks');
+assert.match(source, /bartender: \[[^\]]*'bar_tasks'/, 'regular employees receive operational tasks but not task-management rights');
 assert.match(source, /task_update_forbidden/);
 assert.match(source, /String\(task\.assigneeId \|\| ''\) !== String\(req\.user\?\.id \|\| ''\)/);
 assert.match(source, /task_assignee_not_found/);

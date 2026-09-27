@@ -37,7 +37,7 @@ try {
     req.end();
   });
   const blocked = [
-    '/server.js', '/db.js', '/.env', '/.env.example', '/.git/config', '/.openai/hosting.json',
+    '/server.js', '/db.js', '/payroll.js', '/recipe-depletion.js', '/.env', '/.env.example', '/.git/config', '/.openai/hosting.json',
     '/package.json', '/package-lock.json', '/Dockerfile', '/docker-compose.yml', '/schema.sql',
     '/seed.sql', '/backup-postgres.sh', '/verify-backup.sh', '/scripts/migrate.js', '/dist/app.js',
     '/territory-crm.tar.gz', '/node_modules/pg/package.json', '/STATUS.md',

@@ -7,7 +7,7 @@ const css = read('style.css');
 
 const checks = [
   ['Tasks render four status lanes', /class="tasks-board"[\s\S]*data-task-column="open"[\s\S]*data-task-column="in_progress"[\s\S]*data-task-column="done"[\s\S]*data-task-column="cancelled"/, portal],
-  ['Task cards expose status control', /class=\\"task-card\\"[\s\S]*data-task-status=/, portal],
+  ['Task cards expose a status selector', /<article class="task-card">[\s\S]*?<select data-task-status=/, portal],
   ['Task board has dedicated layout', /\.velora-theme \.tasks-board\{display:grid;/, css],
   ['Task board collapses for tablet', /@media\(max-width:1100px\)\{\.velora-theme \.tasks-board\{grid-template-columns:repeat\(2/, css],
   ['Task board collapses to one column on mobile', /@media\(max-width:650px\)\{\.velora-theme \.tasks-board\{grid-template-columns:1fr/, css],

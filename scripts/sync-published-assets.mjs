@@ -3,12 +3,36 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '247';
-const portalRevision = '260';
-// Keep flat published pages in dist aligned with their source templates. Some
-// deploy targets resolve /inventory.html while others use /inventory/.
+const cssRevision = '273';
+const portalRevision = '283';
+const appRevision = '128';
+const staffProfileRevision = '6';
+const loginRevision = '90';
+const staffAdminCardRevision = '2';
+const purchaseDocumentValidationRevision = '1';
+// Keep flat pages and directory-index aliases in dist aligned with their source
+// templates. Static hosts commonly resolve /login/ to dist/login/index.html,
+// so every public route alias must receive the same safe initial markup.
 for (const name of readdirSync(root).filter((entry) => entry.endsWith('.html'))) {
   cpSync(resolve(root, name), resolve(root, 'dist', name));
+}
+const routeAliases = {
+  'admin/index.html': 'admin.html',
+  'clients/index.html': 'clients.html',
+  'delivery/index.html': 'delivery.html',
+  'finance/index.html': 'finance.html',
+  'finance/categories/index.html': 'finance-categories.html',
+  'finance/report/index.html': 'finance-report.html',
+  'integrations/index.html': 'integrations.html',
+  'inventory/index.html': 'inventory.html',
+  'login/index.html': 'login.html',
+  'network/index.html': 'network.html',
+  'orders/index.html': 'orders.html',
+  'platform/index.html': 'platform.html',
+  'reservations/index.html': 'reservations.html',
+};
+for (const [alias, source] of Object.entries(routeAliases)) {
+  cpSync(resolve(root, source), resolve(root, 'dist', alias));
 }
 const htmlFiles = [];
 const walk = (directory) => {
@@ -28,9 +52,20 @@ for (const entry of readdirSync(root, { withFileTypes: true })) {
 for (const path of htmlFiles) {
   const html = readFileSync(path, 'utf8')
     .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
-    .replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`);
-  writeFileSync(path, html);
+    .replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`)
+    .replace(/app\.js\?rev=\d+/g, `app.js?rev=${appRevision}`)
+    .replace(/staff-profile\.js\?rev=\d+/g, `staff-profile.js?rev=${staffProfileRevision}`)
+    .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`)
+    .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`);
+  const versionedHtml = html.replace(/purchase-document-validation\.js\?rev=\d+/g, `purchase-document-validation.js?rev=${purchaseDocumentValidationRevision}`);
+  writeFileSync(path, versionedHtml);
 }
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
+cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
+cpSync(resolve(root, 'staff-profile.js'), resolve(root, 'dist', 'staff-profile.js'));
+cpSync(resolve(root, 'login.js'), resolve(root, 'dist', 'login.js'));
 cpSync(resolve(root, 'style.css'), resolve(root, 'dist', 'style.css'));
-console.log(`Synced portal.js rev=${portalRevision}, style.css rev=${cssRevision} across ${htmlFiles.length} source and dist routes.`);
+cpSync(resolve(root, 'staff-admin-card.js'), resolve(root, 'dist', 'staff-admin-card.js'));
+cpSync(resolve(root, 'purchase-document-validation.js'), resolve(root, 'dist', 'purchase-document-validation.js'));
+cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'assets', 'tabler-icons.svg'));
+console.log(`Synced app.js rev=${appRevision}, portal.js rev=${portalRevision}, staff-profile.js rev=${staffProfileRevision}, login.js rev=${loginRevision}, staff-admin-card.js rev=${staffAdminCardRevision}, style.css rev=${cssRevision} across ${htmlFiles.length} source and dist routes.`);

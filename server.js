@@ -4,6 +4,8 @@ const path = require('path');
 const crypto = require('crypto');
 const { createRepositories } = require('./db');
 const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
+const { validateDataUrl: validatePurchasePaymentDocument } = require('./purchase-document-validation');
+const { isValidIsoDate, countInclusiveDays, calculatePayrollAmount, canTransitionPayroll } = require('./payroll');
 const scryptAsync = require('util').promisify(crypto.scrypt);
 const catalogSeed = require('./catalog-seed');
 
@@ -19,6 +21,7 @@ try {
   }
 } catch (_) {}
 const repositories = createRepositories();
+const firstRunSetupEnabled = process.env.FIRST_RUN_SETUP_ENABLED === 'true';
 const orderRepository = repositories?.orders || null;
 const sessionRepository = repositories?.sessions || null;
 // The selected network point is process-wide for the current local POS server.
@@ -124,7 +127,10 @@ clients.length = 0;
 const sessions = new Map();
 const loginAttempts = new Map();
 const requestBuckets = new Map();
-const API_RATE_LIMIT = 180;
+const configuredApiRateLimit = Number(process.env.API_RATE_LIMIT);
+const API_RATE_LIMIT = Number.isInteger(configuredApiRateLimit) && configuredApiRateLimit >= 30 && configuredApiRateLimit <= 10000
+  ? configuredApiRateLimit
+  : 180;
 const API_RATE_WINDOW_MS = 60_000;
 const shifts = [];
 const provisionedAccounts = [];
@@ -161,14 +167,14 @@ const staffPassportCipher = {
     } catch (_) { return null; }
   }
 };const rolePermissions = {
-  owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'settings', 'integrations', 'delivery'],
-  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'settings'],
+  owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
+  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty'],
   senior_bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
   bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
   hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
-  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'settings', 'diagnostics', 'integrations', 'delivery'],
+  developer: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'tasks_manage', 'settings', 'diagnostics', 'integrations', 'delivery'],
   platform_owner: ['platform', 'diagnostics', 'settings'],
   cleaner: ['finance_read'],
   security: ['finance_read'],
@@ -179,16 +185,17 @@ const staffPinCipher = {
   encrypt(pin) { const wrapped = staffPassportCipher.encrypt({ pin: String(pin) }); return wrapped; },
   decrypt(row) { const wrapped = staffPassportCipher.decrypt({ passport_data_encrypted: row?.pin_data_encrypted, passport_data_iv: row?.pin_data_iv, passport_data_tag: row?.pin_data_tag }); return wrapped?.pin || null; }
 };
-const permissionScopes = ['orders', 'reservations', 'inventory', 'finance', 'staff', 'delivery', 'integrations', 'settings'];
+const permissionScopes = ['orders', 'reservations', 'inventory', 'finance', 'staff', 'delivery', 'integrations', 'settings', 'loyalty'];
 const scopedPermissionMap = {
   orders: ['orders'],
   reservations: ['reservations'],
   inventory: ['inventory'],
   finance: ['finance'],
-  staff: ['staff', 'staff_manage', 'staff_view', 'staff_sensitive'],
+  staff: ['staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage'],
   delivery: ['delivery'],
   integrations: ['integrations'],
-  settings: ['settings']
+  settings: ['settings'],
+  loyalty: ['loyalty']
 };
 const normalizePermissionScopes = (value) => [...new Set((Array.isArray(value) ? value : []).map((scope) => String(scope || '').trim()).filter((scope) => permissionScopes.includes(scope)))];
 const effectivePermissions = (user) => {
@@ -250,9 +257,22 @@ const parseRecipeQuantity = (value, targetUnit, fallbackUnit = null) => {
 };
 const explicitDemoRuntime = () => process.env.DEMO_MODE === 'true' || (!repositories?.pool && process.env.AUTH_REQUIRED !== 'true' && process.env.NODE_ENV !== 'production');
 async function normalizeRecipeIngredients(input, venueId) {
-  const source = Array.isArray(input) ? input.slice(0, 50) : [];
+  if (!Array.isArray(input) || input.length === 0) throw Object.assign(new Error('recipe_ingredients_required'), { code: 'recipe_ingredients_required' });
+  if (input.length > 50) throw Object.assign(new Error('recipe_ingredients_limit_exceeded'), { code: 'recipe_ingredients_limit_exceeded' });
+  const source = input;
   const normalized = source.map((item) => typeof item === 'string' ? { name: item.trim(), quantity: '' } : { name: String(item?.name || '').trim(), ingredientId: String(item?.ingredientId || item?.inventoryItemId || '').trim() || null, quantity: String(item?.quantity ?? '').trim(), unit: String(item?.unit || '').trim() || null });
-  if (explicitDemoRuntime()) return normalized.filter((item) => item.name || item.ingredientId);
+  if (!repositories?.pool) {
+    const byId = new Map(inventory.map((item) => [String(item.id), item]));
+    const byName = new Map(inventory.map((item) => [String(item.name || '').trim().toLocaleLowerCase('ru-RU'), item]));
+    return normalized.map((item) => {
+      if (!item.name && !item.ingredientId) throw Object.assign(new Error('recipe_ingredient_required'), { code: 'recipe_ingredient_required' });
+      const stockItem = (item.ingredientId && byId.get(item.ingredientId)) || (!item.ingredientId && byName.get(item.name.toLocaleLowerCase('ru-RU')));
+      if (!stockItem) throw Object.assign(new Error('recipe_ingredient_not_found'), { code: 'recipe_ingredient_not_found', ingredient: item.name || item.ingredientId });
+      const parsed = parseRecipeQuantity(item.quantity, stockItem.unit, item.unit || null);
+      if (parsed.error) throw Object.assign(new Error(parsed.error), { code: parsed.error, sourceUnit: parsed.sourceUnit, targetUnit: parsed.targetUnit, ingredient: stockItem.name });
+      return { name: stockItem.name, ingredientId: stockItem.id, quantity: `${parsed.amount} ${parsed.sourceUnit}`, unit: parsed.sourceUnit };
+    });
+  }
   if (!repositories?.inventory) return null;
   const inventoryItems = (await repositories.inventory.list(venueId)).items;
   const byId = new Map(inventoryItems.map((item) => [String(item.id), item])); const byName = new Map(inventoryItems.map((item) => [String(item.name || '').trim().toLocaleLowerCase('ru-RU'), item]));
@@ -294,25 +314,28 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
     if (ownsTransaction) await client.query('BEGIN');
     let requirements = [];
     const cardProductIds = new Set();
-    const { rows: cards } = await client.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", rc.ingredients, rc.portion_count AS "portionCount"
+    const { rows: cards } = await client.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", rc.id AS "recipeId", rc.ingredients, rc.portion_count AS "portionCount"
       FROM order_items oi JOIN products p ON p.id=oi.product_id
       LEFT JOIN LATERAL (
-        SELECT candidate.ingredients,candidate.portion_count
+        SELECT candidate.id,candidate.ingredients,candidate.portion_count
         FROM inventory_recipe_cards candidate
-        WHERE candidate.venue_id=$2 AND candidate.active=true
+        WHERE candidate.venue_id=$2 AND candidate.active=true AND candidate.recipe_type='sale'
           AND (candidate.product_id=oi.product_id OR (candidate.product_id IS NULL AND lower(candidate.name)=lower(p.name)))
         ORDER BY (candidate.product_id=oi.product_id) DESC NULLS LAST,candidate.updated_at DESC,candidate.created_at DESC,candidate.id
         LIMIT 1
       ) rc ON true
       WHERE oi.order_id=$1`, [orderId, venueId]);
     for (const card of cards) {
-      if (!Array.isArray(card.ingredients)) continue;
+      if (!card.recipeId) continue;
       cardProductIds.add(card.productId);
-      const scaledIngredients = scaleBatchRecipeIngredients(card.ingredients, Number(card.orderQuantity), Number(card.portionCount || 1));
+      if (!Array.isArray(card.ingredients) || card.ingredients.length === 0) throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', productId: card.productId });
+      let scaledIngredients;
+      try { scaledIngredients = scaleBatchRecipeIngredients(card.ingredients, Number(card.orderQuantity), Number(card.portionCount || 1)); }
+      catch (error) { throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', detail: error.message, productId: card.productId }); }
       for (const item of scaledIngredients) {
         const name = String(item.name || '').trim(); const ingredientId = String(item.ingredientId || '').trim();
-        const quantity = Number(String(item.quantity || '').replace(',', '.').match(/\d+(?:\.\d+)?/)?.[0] || 0);
-        if (quantity > 0 && (name || /^[0-9a-f-]{36}$/i.test(ingredientId))) requirements.push({ ingredientId: /^[0-9a-f-]{36}$/i.test(ingredientId) ? ingredientId : null, name, unit: String(item.unit || ''), quantity, sourceUnit: String(item.unit || '') });
+        if (!name || !/^[0-9a-f-]{36}$/i.test(ingredientId)) throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', productId: card.productId });
+        requirements.push({ ingredientId, name, quantityText: String(item.quantity || ''), sourceUnit: String(item.unit || '') });
       }
     }
     // Older recipe rows remain a fallback only for products without an active
@@ -324,7 +347,7 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
         JOIN ingredients i ON i.id=ri.ingredient_id WHERE oi.order_id=$1 AND i.venue_id=$2
           AND NOT (oi.product_id=ANY($3::uuid[]))
         GROUP BY oi.product_id,ri.ingredient_id,i.name,i.unit`, [orderId, venueId, [...cardProductIds]]);
-      requirements.push(...legacy.rows.map((item) => ({ ...item, sourceUnit: item.unit })));
+      requirements.push(...legacy.rows.map((item) => ({ ...item, quantityText: String(item.quantity), sourceUnit: item.unit })));
     } catch (error) {
       // Some installations do not have the legacy recipe tables. Their absence
       // must not prevent current recipe cards from being applied.
@@ -348,7 +371,15 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
     const byId = new Map(stock.map((item) => [item.id, item])); const byName = new Map(stock.map((item) => [item.name.toLowerCase(), item]));
     const grouped = new Map();
     const factors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
-    for (const item of requirements) { const found = (item.ingredientId && byId.get(item.ingredientId)) || byName.get(String(item.name || '').toLowerCase()); const key = found?.id || item.ingredientId || item.name.toLowerCase(); const sourceUnit = String(item.sourceUnit || item.unit || found?.unit || '').trim(); const targetUnit = String(found?.unit || item.unit || '').trim(); const converted = factors[sourceUnit]?.[targetUnit] ? Number(item.quantity || 0) * factors[sourceUnit][targetUnit] : Number(item.quantity || 0); const previous = grouped.get(key); grouped.set(key, { ingredientId: found?.id, name: found?.name || item.name, unit: targetUnit, quantity: (previous?.quantity || 0) + converted, stock: found }); }
+    for (const item of requirements) {
+      const found = (item.ingredientId && byId.get(item.ingredientId)) || byName.get(String(item.name || '').toLowerCase());
+      if (!found) throw Object.assign(new Error('recipe_ingredient_not_found'), { code: 'recipe_ingredient_not_found', ingredient: item.name || item.ingredientId });
+      const parsed = parseRecipeQuantity(item.quantityText, found.unit, item.sourceUnit || null);
+      if (parsed.error) throw Object.assign(new Error(parsed.error), { code: parsed.error, ingredient: found.name, sourceUnit: parsed.sourceUnit, targetUnit: parsed.targetUnit });
+      const converted = Number((parsed.amount * parsed.factor).toFixed(6));
+      const previous = grouped.get(found.id);
+      grouped.set(found.id, { ingredientId: found.id, name: found.name, unit: found.unit, quantity: (previous?.quantity || 0) + converted, stock: found });
+    }
     const finalRequirements = [...grouped.values()]; const missing = finalRequirements.filter((item) => !item.stock || Number(item.stock.on_hand || 0) < Number(item.quantity));
     if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((item) => ({ ...item, onHand: Number(item.stock?.on_hand || 0) })); throw error; }
     for (const item of finalRequirements) await client.query(`INSERT INTO stock_movements (venue_id,ingredient_id,direction,quantity,reason,order_id,created_by) VALUES ($1,$2,'out',$3,$4,$5,$6)`, [venueId, item.ingredientId, item.quantity, `Списание по заказу ${orderId}`, orderId, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
@@ -373,6 +404,7 @@ const businessDateKey = (value) => { const raw = String(value || ''); if (/^\d{4
 const today = () => businessDateKey(new Date());
 const recentBusinessDates = (count = 7) => { const current = new Date(`${today()}T00:00:00Z`); return Array.from({ length: count }, (_, index) => { const date = new Date(current); date.setUTCDate(current.getUTCDate() - (count - 1 - index)); return date.toISOString().slice(0, 10); }); };
 const pendingPaymentSummary = (items = orders) => { const active = items.filter((order) => ['open', 'in_progress', 'ready'].includes(order.status)); const pendingRevenue = active.reduce((sum, order) => { const due = Math.max(Number(order.minimumOrderTotal || 0), orderNetTotal(order)); const paid = (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)).reduce((total, payment) => total + Number(payment.amount || 0), 0); return sum + Math.max(0, due - paid); }, 0); return { pendingOrders: active.length, pendingRevenue: Math.round(pendingRevenue * 100) / 100 }; };
+const isBelowInventoryMinimum = (item) => Number(item.minLevel || 0) > 0 && Number(item.onHand || 0) <= Number(item.minLevel || 0);
 const metrics = () => ({
   ...pendingPaymentSummary(),
   openOrders: orders.filter((order) => ['open', 'in_progress', 'ready'].includes(order.status)).length,
@@ -380,28 +412,39 @@ const metrics = () => ({
   discountRequests: discountRequests.filter((request) => request.status === 'requested').length,
   staffActive: staff.filter((person) => person.active).length,
   reservationsToday: reservations.filter((reservation) => reservation.date === today()).length,
-  lowStock: inventory.filter((item) => item.onHand <= item.minLevel).length
+  lowStock: inventory.filter(isBelowInventoryMinimum).length
 });
 const setMemoryTableStatus = (tableId, status) => { const table = floor.flatMap((zone) => zone.tables).find((entry) => entry.id === tableId); if (table && table.status !== 'blocked') table.status = status; };
 const releaseMemoryTableIfIdle = (tableId) => { const hasActiveOrder = orders.some((order) => order.tableId === tableId && ['open', 'in_progress', 'ready'].includes(order.status)); const hasReservation = reservations.some((reservation) => reservation.tableId === tableId && reservation.status === 'confirmed' && reservation.date === today()); if (!hasActiveOrder) setMemoryTableStatus(tableId, hasReservation ? 'reserved' : 'free'); };
-const depleteMemoryOrder = (order) => {
+const depleteMemoryOrder = (order, { reason = `Списание по заказу ${order.id}` } = {}) => {
+  if (order.recipeDepleted) return { lines: [], totalCost: Number(order.costOfGoods || 0), alreadyDepleted: true };
   const requirements = [];
   for (const orderItem of order.items || []) {
-    const recipe = recipes.find((entry) => entry.productId === orderItem.productId || String(entry.name || '').toLocaleLowerCase('ru-RU') === String(orderItem.name || '').toLocaleLowerCase('ru-RU'));
-    for (const ingredient of (recipe?.ingredients || [])) {
-      const stock = ingredient.ingredientId ? inventory.find((entry) => entry.id === ingredient.ingredientId) : inventory.find((entry) => String(entry.name || '').toLocaleLowerCase('ru-RU') === String(ingredient.name || '').trim().toLocaleLowerCase('ru-RU'));
-      if (!stock) { requirements.push({ name: ingredient.name || ingredient.ingredientId, quantity: Number.POSITIVE_INFINITY, stock: null }); continue; }
+    const productRecipes = recipes.filter((entry) => entry.active !== false && entry.recipeType !== 'premix' && entry.productId === orderItem.productId);
+    const recipe = productRecipes[0] || recipes.find((entry) => entry.active !== false && entry.recipeType !== 'premix' && !entry.productId && String(entry.name || '').toLocaleLowerCase('ru-RU') === String(orderItem.name || '').toLocaleLowerCase('ru-RU'));
+    if (!recipe) continue;
+    if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', productId: orderItem.productId });
+    let scaledIngredients;
+    try { scaledIngredients = scaleBatchRecipeIngredients(recipe.ingredients, Number(orderItem.quantity), Number(recipe.portionCount || 1)); }
+    catch (error) { throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', detail: error.message, productId: orderItem.productId }); }
+    for (const ingredient of scaledIngredients) {
+      const name = String(ingredient.name || '').trim(); const ingredientId = String(ingredient.ingredientId || '').trim();
+      if (!name || !ingredientId) throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', productId: orderItem.productId });
+      const stock = inventory.find((entry) => entry.id === ingredientId);
+      if (!stock) throw Object.assign(new Error('recipe_ingredient_not_found'), { code: 'recipe_ingredient_not_found', ingredient: name });
       const parsed = parseRecipeQuantity(ingredient.quantity, stock.unit, ingredient.unit || null);
       if (parsed.error) throw Object.assign(new Error(parsed.error), { code: parsed.error, ingredient: stock.name, sourceUnit: parsed.sourceUnit, targetUnit: parsed.targetUnit });
-      const quantity = Number(parsed.amount) * Number(parsed.factor) * Number(orderItem.quantity || 0);
+      const quantity = Number(parsed.amount) * Number(parsed.factor);
       const previous = requirements.find((entry) => entry.stock?.id === stock.id);
       if (previous) previous.quantity += quantity; else requirements.push({ name: stock.name, ingredientId: stock.id, quantity, stock });
     }
   }
   const missing = requirements.filter((entry) => !entry.stock || !Number.isFinite(entry.quantity) || Number(entry.stock.onHand || 0) < entry.quantity);
   if (missing.length) { const error = new Error('insufficient_recipe_stock'); error.missing = missing.map((entry) => ({ ...entry, onHand: Number(entry.stock?.onHand || 0) })); throw error; }
-  for (const entry of requirements) { entry.stock.onHand = Math.round((Number(entry.stock.onHand || 0) - entry.quantity) * 1000) / 1000; stockMovements.push({ id: `mov-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, itemId: entry.stock.id, itemName: entry.stock.name, direction: 'out', delta: -entry.quantity, quantity: entry.quantity, reason: `Списание при удалении заказа ${order.id}`, orderId: order.id, createdAt: new Date().toISOString() }); }
-  return { lines: requirements, totalCost: requirements.reduce((sum, entry) => sum + Number(entry.quantity) * Number(entry.stock?.cost || 0), 0) };
+  const totalCost = requirements.reduce((sum, entry) => sum + Number(entry.quantity) * Number(entry.stock?.cost || 0), 0);
+  for (const entry of requirements) { entry.stock.onHand = Math.round((Number(entry.stock.onHand || 0) - entry.quantity) * 1000) / 1000; stockMovements.push({ id: `mov-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, itemId: entry.stock.id, itemName: entry.stock.name, direction: 'out', delta: -entry.quantity, quantity: entry.quantity, reason, orderId: order.id, createdAt: new Date().toISOString() }); }
+  order.recipeDepleted = true; order.costOfGoods = totalCost;
+  return { lines: requirements, totalCost };
 };
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
@@ -484,12 +527,17 @@ async function api(req, res) {
   if (activeBucket.count > API_RATE_LIMIT) { res.setHeader('Retry-After', '60'); return json(res, 429, { error: 'rate_limited', retryAfter: 60 }); }
   if (Number(req.headers['content-length'] || 0) > 2 * 1024 * 1024) return json(res, 413, { error: 'payload_too_large', maxBytes: 2 * 1024 * 1024 });
   if (pathname === '/api/setup/status' && req.method === 'GET') {
+    if (!firstRunSetupEnabled) return json(res, 200, { required: false });
     if (repositories?.pool) {
-      try { const { rows } = await repositories.pool.query('SELECT COUNT(*)::int AS count FROM users WHERE is_active=true AND deleted_at IS NULL'); return json(res, 200, { required: Number(rows[0]?.count || 0) === 0 }); } catch (_) {}
+      try { const { rows } = await repositories.pool.query('SELECT COUNT(*)::int AS count FROM users WHERE is_active=true AND deleted_at IS NULL'); return json(res, 200, { required: Number(rows[0]?.count || 0) === 0 }); } catch (_) { return json(res, 503, { error: 'setup_status_unavailable' }); }
     }
-    return json(res, 200, { required: !provisionedAccounts.some((account) => account.role === 'owner') });
+    // First-run provisioning must only be offered when it can be persisted.
+    // A local/static test runtime without a database should remain on sign-in.
+    return json(res, 200, { required: false });
   }
   if (pathname === '/api/setup/owner' && req.method === 'POST') {
+    if (!firstRunSetupEnabled) return json(res, 404, { error: 'setup_disabled' });
+    if (!repositories?.pool) return json(res, 503, { error: 'setup_requires_database' });
     const input = await body(req);
     if (String(input.website || '').trim()) return json(res, 400, { error: 'bot_detected' });
     const venueName = String(input.venueName || '').trim();
@@ -499,12 +547,18 @@ async function api(req, res) {
     const city = String(input.city || '').trim();
     const timezone = String(input.timezone || 'Europe/Moscow');
     if (!venueName || venueName.length > 120 || !ownerName || ownerName.length > 120 || !/^[^\s@]+@[^\s@]+$/.test(ownerLogin) || ownerPassword.length < 8 || !/^[-A-Za-z_\/]+$/.test(timezone)) return json(res, 400, { error: 'valid_setup_data_required' });
-    if (repositories?.pool) {
+    {
       const client = await repositories.pool.connect();
       try {
-        const existing = await client.query('SELECT 1 FROM users WHERE login=$1 AND is_active=true LIMIT 1', [ownerLogin]);
-        if (existing.rows[0]) return json(res, 409, { error: 'owner_login_already_exists' });
         await client.query('BEGIN');
+        await client.query("SELECT pg_advisory_xact_lock(hashtext('territory_crm_first_run_setup'))");
+        const setupState = await client.query('SELECT COUNT(*)::int AS count FROM users WHERE is_active=true AND deleted_at IS NULL');
+        if (Number(setupState.rows[0]?.count || 0) > 0) {
+          await client.query('ROLLBACK');
+          return json(res, 409, { error: 'setup_already_completed' });
+        }
+        const existing = await client.query('SELECT 1 FROM users WHERE login=$1 AND is_active=true LIMIT 1', [ownerLogin]);
+        if (existing.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'owner_login_already_exists' }); }
         const orgResult = await client.query('INSERT INTO organizations (name,slug,plan,timezone) VALUES ($1,$2,$3,$4) RETURNING id', [venueName, `venue-${Date.now()}`, 'starter', timezone]);
         const organizationId = orgResult.rows[0].id;
         await client.query(`INSERT INTO organization_subscriptions (organization_id,plan,status,seats_limit,venues_limit) VALUES ($1,'starter','trialing',$2,$3)`, [organizationId, saasPlans.starter.seatsLimit, saasPlans.starter.venuesLimit]);
@@ -517,10 +571,6 @@ async function api(req, res) {
       } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'setup_failed', detail: error.message }); }
       finally { client.release(); }
     }
-    if (provisionedAccounts.some((account) => account.username === ownerLogin)) return json(res, 409, { error: 'owner_login_already_exists' });
-    const organizationId = `org-${Date.now()}`;
-    provisionedAccounts.push({ username: ownerLogin, password: ownerPassword, name: ownerName, role: 'owner', organizationId, venueId: `venue-${Date.now()}` });
-    return json(res, 201, { ok: true, owner: { name: ownerName, login: ownerLogin, role: 'owner' } });
   }
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
@@ -704,11 +754,13 @@ async function api(req, res) {
     }
     if (saasOrganizations.some((item) => item.slug === slug) || provisionedAccounts.some((item) => item.username === ownerLogin)) return json(res, 409, { error: 'slug_or_owner_login_already_exists' });
     const organizationId = `org-${Date.now()}`;
+    const ownerId = crypto.randomUUID();
+    const venueId = crypto.randomUUID();
     const item = { id: organizationId, name, slug, plan, status: 'trialing', city: String(input.city || '').trim(), venues: 1, seats: 1, createdAt: new Date().toISOString(), isActive: true, seatsLimit: saasPlans[plan].seatsLimit, venuesLimit: saasPlans[plan].venuesLimit };
     saasOrganizations.push(item);
-    provisionedAccounts.push({ username: ownerLogin, password: ownerPassword, name: ownerName, role: 'owner', organizationId, venueId: `venue-${Date.now()}` });
+    provisionedAccounts.push({ id: ownerId, username: ownerLogin, password: ownerPassword, name: ownerName, role: 'owner', organizationId, venueId });
     recordAudit(req, 'platform.organization_created', 'organization', item.id, null, { ...item, ownerLogin });
-    return json(res, 201, { ...item, owner: { name: ownerName, login: ownerLogin, role: 'owner' } });
+    return json(res, 201, { ...item, owner: { id: ownerId, name: ownerName, login: ownerLogin, role: 'owner' } });
   }
   const platformOrgSubscription = pathname.match(/^\/api\/platform\/organizations\/([^/]+)\/subscription$/);
   if (platformOrgSubscription && req.method === 'GET') {
@@ -768,14 +820,14 @@ async function api(req, res) {
   }
   if (pathname === '/api/shifts' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT s.id,s.opened_at AS "openedAt",s.closed_at AS "closedAt",s.opening_cash AS "openingCash",s.closing_cash AS "closingCash",s.expected_cash AS "expectedCash",s.cash_variance AS "cashVariance",s.opened_at + (COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at>=s.opened_at AND (s.closed_at IS NULL OR p.created_at<=s.closed_at)),0) * INTERVAL '0 second') AS "reconciliationAt" FROM shifts s WHERE s.venue_id=$1 ORDER BY s.opened_at DESC LIMIT 20`, [venueDbId]); return json(res, 200, { items: rows, current: rows.find((entry) => !entry.closedAt) || null }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT s.id,s.opened_at AS "openedAt",s.closed_at AS "closedAt",s.opening_cash AS "openingCash",s.closing_cash AS "closingCash",s.expected_cash AS "expectedCash",s.cash_variance AS "cashVariance",s.opened_at + (COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.shift_id=s.id AND p.method='cash' AND p.status IN ('paid','partially_paid')),0) * INTERVAL '0 second') AS "reconciliationAt" FROM shifts s WHERE s.venue_id=$1 ORDER BY s.opened_at DESC LIMIT 20`, [venueDbId]); return json(res, 200, { items: rows, current: rows.find((entry) => !entry.closedAt) || null }); } catch (_) {} }
     return json(res, 200, { items: shifts.slice().reverse(), current: shifts.find((entry) => !entry.closedAt) || null });
   }
   if (pathname === '/api/shifts' && req.method === 'POST') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
     const input = await body(req);
     if (!Object.prototype.hasOwnProperty.call(input, 'openingCash') || input.openingCash === '' || !Number.isFinite(Number(input.openingCash)) || Number(input.openingCash) < 0 || Number(input.openingCash) > 100000000) return json(res, 400, { error: 'opening_cash_required' });
-    if (repositories?.pool) { try { const open = await repositories.pool.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1', [venueDbId]); if (open.rows[0]) return json(res, 409, { error: 'shift_already_open' }); const openedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001'; const { rows } = await repositories.pool.query('INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,$3) RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash"', [venueDbId, openedBy, Number(input.openingCash || 0)]); recordAudit(req, 'shift.opened', 'shift', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'shift_open_failed', detail: error.message }); } }
+    if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); await client.query("SELECT pg_advisory_xact_lock(hashtext('territory_crm_open_shift'),hashtext($1::text))", [venueDbId]); const open = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1 FOR UPDATE', [venueDbId]); if (open.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'shift_already_open' }); } const openedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001'; const { rows } = await client.query('INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,$3) RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash"', [venueDbId, openedBy, Number(input.openingCash || 0)]); await client.query('COMMIT'); recordAudit(req, 'shift.opened', 'shift', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); if (error.code === '23505') return json(res, 409, { error: 'shift_already_open' }); return json(res, 409, { error: 'shift_open_failed', detail: error.message }); } finally { client?.release(); } }
     if (shifts.some((entry) => !entry.closedAt)) return json(res, 409, { error: 'shift_already_open' });
     const shift = { id: `shift-${Date.now()}`, openedAt: new Date().toISOString(), closedAt: null, openingCash: Number(input.openingCash), closingCash: null, openedBy: req.user?.name || 'сотрудник' }; shifts.push(shift); recordAudit(req, 'shift.opened', 'shift', shift.id, null, shift); return json(res, 201, shift);
   }
@@ -785,7 +837,7 @@ async function api(req, res) {
     const input = await body(req);
     if (input.checklistConfirmed !== true) return json(res, 400, { error: 'shift_checklist_required', message: 'Подтвердите чек-лист закрытия смены' });
     if (!Object.prototype.hasOwnProperty.call(input, 'closingCash') || input.closingCash === '' || !Number.isFinite(Number(input.closingCash)) || Number(input.closingCash) < 0 || Number(input.closingCash) > 100000000) return json(res, 400, { error: 'closing_cash_required' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(shiftClose[1])) { try { const expected = await repositories.pool.query(`SELECT s.opening_cash + COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at>=s.opened_at),0) AS value FROM shifts s WHERE s.id=$1 AND s.venue_id=$2 AND s.closed_at IS NULL`, [shiftClose[1], venueDbId]); if (!expected.rows[0]) return json(res, 404, { error: 'shift_not_found_or_closed' }); const expectedCash = Number(expected.rows[0].value || 0); const { rows } = await repositories.pool.query('UPDATE shifts SET closed_at=now(),closing_cash=$1::numeric,expected_cash=$2::numeric,cash_variance=$1::numeric-$2::numeric WHERE id=$3 AND venue_id=$4 AND closed_at IS NULL RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash",expected_cash AS "expectedCash",cash_variance AS "cashVariance"', [Number(input.closingCash), expectedCash, shiftClose[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'shift_not_found_or_closed' }); recordAudit(req, 'shift.closed', 'shift', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'shift_close_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(shiftClose[1])) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const { rows: shiftRows } = await client.query('SELECT id,venue_id,opening_cash AS "openingCash",opened_at AS "openedAt" FROM shifts WHERE id=$1 AND venue_id=$2 AND closed_at IS NULL FOR UPDATE', [shiftClose[1], venueDbId]); if (!shiftRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } const unresolvedLegacyCash = await client.query("SELECT COUNT(*)::int AS count, COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id IS NULL AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at >= $2 AND p.created_at < now()", [venueDbId, shiftRows[0].openedAt]); if (Number(unresolvedLegacyCash.rows[0]?.count || 0) > 0) { await client.query('ROLLBACK'); return json(res, 409, { error: 'shift_cash_attribution_unresolved', count: Number(unresolvedLegacyCash.rows[0].count), amount: Number(unresolvedLegacyCash.rows[0].amount || 0) }); } const payments = await client.query("SELECT COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id=$2 AND p.method='cash' AND p.status IN ('paid','partially_paid')", [venueDbId, shiftClose[1]]); const expectedCash = Number(shiftRows[0].openingCash || 0) + Number(payments.rows[0]?.amount || 0); const { rows } = await client.query('UPDATE shifts SET closed_at=now(),closing_cash=$1::numeric,expected_cash=$2::numeric,cash_variance=$1::numeric-$2::numeric WHERE id=$3 AND venue_id=$4 AND closed_at IS NULL RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash",expected_cash AS "expectedCash",cash_variance AS "cashVariance"', [Number(input.closingCash), expectedCash, shiftClose[1], venueDbId]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } await client.query('COMMIT'); recordAudit(req, 'shift.closed', 'shift', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'shift_close_failed', detail: error.message }); } finally { client?.release(); } }
     const shift = shifts.find((entry) => entry.id === shiftClose[1]); if (!shift || shift.closedAt) return json(res, 404, { error: 'shift_not_found_or_closed' }); const expectedCash = Number(shift.openingCash || 0); shift.closedAt = new Date().toISOString(); shift.expectedCash = expectedCash; shift.closingCash = Number(input.closingCash); shift.cashVariance = shift.closingCash - expectedCash; recordAudit(req, 'shift.closed', 'shift', shift.id, null, shift); return json(res, 200, shift);
   }
   if (pathname === '/api/venue' && req.method === 'GET') {
@@ -929,7 +981,7 @@ async function api(req, res) {
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE venue_id=$1 AND is_active=true`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM reservations WHERE venue_id=$1 AND starts_at::date=CURRENT_DATE AND status='confirmed'`, [venueDbId]),
-          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM ingredients WHERE venue_id=$1 AND on_hand <= min_level`, [venueDbId])
+          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM ingredients WHERE venue_id=$1 AND min_level > 0 AND on_hand <= min_level`, [venueDbId])
         ]);
         const orderRow = ordersMetric.rows[0] || {};
         return json(res, 200, { openOrders: Number(orderRow.open_orders || 0), pendingOrders: Number(orderRow.open_orders || 0), pendingRevenue: Number(orderRow.pending_revenue || 0), closedOrders: Number(orderRow.closed_orders || 0), discountRequests: Number(discountsMetric.rows[0]?.count || 0), staffActive: Number(staffMetric.rows[0]?.count || 0), reservationsToday: Number(reservationsMetric.rows[0]?.count || 0), lowStock: Number(stockMetric.rows[0]?.count || 0) });
@@ -943,7 +995,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/analytics' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance_read') && !hasPermission(req, 'finance')) return json(res, 403, { error: 'forbidden', permission: 'analytics' });
-    const employeeFinanceView = isOperationalEmployee(req); const requestedPeriod = employeeFinanceView ? '1' : String(url.searchParams.get('days') || '7').trim().toLowerCase(); const isAllTime = !employeeFinanceView && (requestedPeriod === 'all' || requestedPeriod === '0'); const requestedDays = Number(requestedPeriod); const analyticsDays = employeeFinanceView ? 1 : (isAllTime ? 365 : Math.min(Math.max(Number.isFinite(requestedDays) ? Math.round(requestedDays) : 7, 3), 90)); const end = new Date(); const endDate = end.toISOString().slice(0, 10); let startDate; if (isAllTime && repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COALESCE(LEAST((SELECT MIN(closed_at::date) FROM orders WHERE venue_id=$1 AND status='closed'), (SELECT MIN(expense_date) FROM expenses WHERE venue_id=$1), (SELECT MIN(created_at::date) FROM order_costs WHERE venue_id=$1)), CURRENT_DATE) AS start_date`, [venueDbId]); startDate = String(rows[0]?.start_date || endDate).slice(0, 10); } catch (_) { startDate = '2000-01-01'; } } else { const start = new Date(end); start.setDate(start.getDate() - (analyticsDays - 1)); startDate = start.toISOString().slice(0, 10); }
+    const employeeFinanceView = isOperationalEmployee(req); const requestedPeriod = employeeFinanceView ? '1' : String(url.searchParams.get('days') || '7').trim().toLowerCase(); const isAllTime = !employeeFinanceView && (requestedPeriod === 'all' || requestedPeriod === '0'); const requestedDays = Number(requestedPeriod); const analyticsDays = employeeFinanceView ? 1 : (isAllTime ? 365 : Math.min(Math.max(Number.isFinite(requestedDays) ? Math.round(requestedDays) : 7, 3), 90)); const end = new Date(); const endDate = end.toISOString().slice(0, 10); let startDate; if (isAllTime && repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COALESCE(LEAST((SELECT MIN(closed_at::date) FROM orders WHERE venue_id=$1 AND status='closed'), (SELECT MIN(expense_date) FROM expenses WHERE venue_id=$1 AND source<>'payroll'), (SELECT MIN(period_from) FROM payroll_entries WHERE venue_id=$1 AND status IN ('approved','paid')), (SELECT MIN(created_at::date) FROM order_costs WHERE venue_id=$1)), CURRENT_DATE) AS start_date`, [venueDbId]); startDate = String(rows[0]?.start_date || endDate).slice(0, 10); } catch (_) { startDate = '2000-01-01'; } } else { const start = new Date(end); start.setDate(start.getDate() - (analyticsDays - 1)); startDate = start.toISOString().slice(0, 10); }
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
@@ -953,17 +1005,20 @@ async function api(req, res) {
     }
     if (repositories?.pool) {
       try {
-        const [daily, products, hall, staffRows, stationRows, expenseRows, costRows, staffItemRows] = await Promise.all([
+        const [daily, products, hall, staffRows, stationRows, expenseRows, payrollRows, cashOutflowRows, costRows, staffItemRows] = await Promise.all([
           repositories.pool.query(`SELECT d::date AS date, COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM generate_series($2::date,$3::date,'1 day') d LEFT JOIN orders o ON o.venue_id=$1 AND o.status='closed' AND o.closed_at::date=d::date LEFT JOIN payments p ON p.order_id=o.id AND p.status IN ('paid','partially_paid') GROUP BY d::date ORDER BY d::date`, [venueDbId, startDate, endDate]),
           repositories.pool.query(`SELECT COALESCE(p.name,'Позиция') AS name, SUM(oi.quantity)::numeric AS quantity FROM order_items oi JOIN orders o ON o.id=oi.order_id JOIN products p ON p.id=oi.product_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($3::date + INTERVAL '1 day') GROUP BY p.name ORDER BY quantity DESC LIMIT 5`, [venueDbId, startDate, endDate]),
           repositories.pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE t.status IN ('occupied','reserved'))::int AS busy FROM tables t JOIN zones z ON z.id=t.zone_id WHERE z.venue_id=$1`, [venueDbId]),
           repositories.pool.query(`SELECT COALESCE(u.full_name,u.login,'Не указан') AS name, COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM orders o LEFT JOIN payments p ON p.order_id=o.id AND p.status IN ('paid','partially_paid') LEFT JOIN users u ON u.id=o.opened_by WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($3::date + INTERVAL '1 day') GROUP BY u.full_name,u.login ORDER BY revenue DESC`, [venueDbId, startDate, endDate]),
           repositories.pool.query(`SELECT COALESCE(oi.station,'other') AS station, COALESCE(SUM(oi.quantity * oi.unit_price),0) AS revenue, COUNT(DISTINCT o.id)::int AS orders FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($3::date + INTERVAL '1 day') GROUP BY oi.station ORDER BY revenue DESC`, [venueDbId, startDate, endDate]),
-          repositories.pool.query(`SELECT expense_date AS date, COALESCE(SUM(amount),0) AS amount FROM expenses WHERE venue_id=$1 AND expense_date BETWEEN $2::date AND $3::date AND (source <> 'payroll' OR id IN (SELECT expense_id FROM payroll_entries WHERE venue_id=$1 AND expense_id IS NOT NULL)) GROUP BY expense_date`, [venueDbId, startDate, endDate]), repositories.pool.query(`SELECT created_at::date AS date, COALESCE(SUM(cost),0) AS amount FROM order_costs WHERE venue_id=$1 AND created_at >= $2::date AND created_at < ($3::date + INTERVAL '1 day') GROUP BY created_at::date`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT expense_date AS date, COALESCE(SUM(amount),0) AS amount FROM expenses WHERE venue_id=$1 AND expense_date BETWEEN $2::date AND $3::date AND source NOT IN ('payroll','purchase') GROUP BY expense_date`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT d::date AS date, COALESCE(SUM(pe.amount / (pe.period_to - pe.period_from + 1)),0) AS amount FROM payroll_entries pe CROSS JOIN LATERAL generate_series(GREATEST(pe.period_from,$2::date)::timestamp,LEAST(pe.period_to,$3::date)::timestamp,INTERVAL '1 day') d WHERE pe.venue_id=$1 AND pe.status IN ('approved','paid') AND pe.period_from <= $3::date AND pe.period_to >= $2::date GROUP BY d::date`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT expense_date AS date, COALESCE(SUM(amount),0) AS amount FROM expenses e WHERE e.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND (e.source <> 'payroll' OR EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id AND pe.status='paid')) GROUP BY e.expense_date`, [venueDbId, startDate, endDate]),
+          repositories.pool.query(`SELECT created_at::date AS date, COALESCE(SUM(cost),0) AS amount FROM order_costs WHERE venue_id=$1 AND created_at >= $2::date AND created_at < ($3::date + INTERVAL '1 day') GROUP BY created_at::date`, [venueDbId, startDate, endDate]),
           repositories.pool.query(`SELECT COALESCE(u.full_name,u.login,'Не указан') AS staff_name, COALESCE(p.name,'Позиция') AS product_name, SUM(oi.quantity)::numeric AS quantity, COALESCE(SUM(oi.quantity * oi.unit_price),0)::numeric AS revenue FROM order_items oi JOIN orders o ON o.id=oi.order_id LEFT JOIN users u ON u.id=o.opened_by LEFT JOIN products p ON p.id=oi.product_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($3::date + INTERVAL '1 day') GROUP BY staff_name, product_name ORDER BY staff_name, revenue DESC`, [venueDbId, startDate, endDate])
         ]);
-        const expensesByDate = Object.fromEntries(expenseRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const costsByDate = Object.fromEntries(costRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const days = daily.rows.map((row) => { const date = String(row.date).slice(0, 10); const revenue = Number(row.revenue || 0); const expenses = expensesByDate[date] || 0; const costOfGoods = costsByDate[date] || 0; const orders = Number(row.orders || 0); return { date, revenue, expenses, costOfGoods, netProfit: revenue - expenses - costOfGoods, orders, averageCheck: orders ? revenue / orders : 0, medianCheck: orders ? revenue / orders : 0, tables: 0 }; }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalExpenses = days.reduce((sum, row) => sum + row.expenses, 0); const totalCostOfGoods = days.reduce((sum, row) => sum + row.costOfGoods, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const hallRow = hall.rows[0] || {};
-        const staffSalesMap = new Map(); for (const row of staffItemRows.rows) { const staff = String(row.staff_name || 'Не указан'); const item = { name: String(row.product_name || 'Позиция'), quantity: Number(row.quantity || 0), revenue: Number(row.revenue || 0) }; const entry = staffSalesMap.get(staff) || { name: staff, items: [], revenue: 0, orders: 0 }; entry.items.push(item); entry.revenue += item.revenue; staffSalesMap.set(staff, entry); } for (const row of staffRows.rows) { const entry = staffSalesMap.get(String(row.name || 'Не указан')) || { name: String(row.name || 'Не указан'), items: [], revenue: 0, orders: 0 }; entry.revenue = Number(row.revenue || entry.revenue); entry.orders = Number(row.orders || 0); staffSalesMap.set(entry.name, entry); } const fullAnalytics = { days, totalRevenue, totalExpenses, totalCostOfGoods, netProfit: totalRevenue - totalExpenses - totalCostOfGoods, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: products.rows.map((row) => ({ name: row.name, quantity: Number(row.quantity || 0) })), staffDynamics: staffRows.rows.map((row) => ({ name: row.name, revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })), staffSales: [...staffSalesMap.values()].sort((a, b) => b.revenue - a.revenue), medianCheck: totalOrders ? totalRevenue / totalOrders : 0, avgTablesPerDay: 0, byStation: Object.fromEntries(stationRows.rows.map((row) => [row.station, { revenue: Number(row.revenue || 0), orders: Number(row.orders || 0), averageCheck: Number(row.orders || 0) ? Number(row.revenue || 0) / Number(row.orders || 0) : 0 }])), hallLoad: { busy: Number(hallRow.busy || 0), total: Number(hallRow.total || 0) } }; if (employeeFinanceView) return json(res, 200, { employeeView: true, period: 'today', days: days.map((day) => ({ date: day.date, revenue: day.revenue, orders: day.orders, averageCheck: day.averageCheck })), totalRevenue, averageCheck: fullAnalytics.averageCheck, staffDynamics: [], staffSales: [], topProducts: [], byStation: {}, hallLoad: { busy: 0, total: 0 } }); return json(res, 200, fullAnalytics);
+        const expenseMap = Object.fromEntries(expenseRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const payrollMap = Object.fromEntries(payrollRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const cashOutflowMap = Object.fromEntries(cashOutflowRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const costsByDate = Object.fromEntries(costRows.rows.map((row) => [String(row.date).slice(0, 10), Number(row.amount || 0)])); const days = daily.rows.map((row) => { const date = String(row.date).slice(0, 10); const revenue = Number(row.revenue || 0); const expenses = (expenseMap[date] || 0) + (payrollMap[date] || 0); const cashOutflow = cashOutflowMap[date] || 0; const costOfGoods = costsByDate[date] || 0; const orders = Number(row.orders || 0); return { date, revenue, expenses, payroll: payrollMap[date] || 0, cashOutflow, costOfGoods, netProfit: revenue - expenses - costOfGoods, orders, averageCheck: orders ? revenue / orders : 0, medianCheck: orders ? revenue / orders : 0, tables: 0 }; }); const totalRevenue = days.reduce((sum, row) => sum + row.revenue, 0); const totalExpenses = days.reduce((sum, row) => sum + row.expenses, 0); const totalPayroll = days.reduce((sum, row) => sum + row.payroll, 0); const totalCashOutflow = days.reduce((sum, row) => sum + row.cashOutflow, 0); const totalCostOfGoods = days.reduce((sum, row) => sum + row.costOfGoods, 0); const totalOrders = days.reduce((sum, row) => sum + row.orders, 0); const hallRow = hall.rows[0] || {};
+        const staffSalesMap = new Map(); for (const row of staffItemRows.rows) { const staff = String(row.staff_name || 'Не указан'); const item = { name: String(row.product_name || 'Позиция'), quantity: Number(row.quantity || 0), revenue: Number(row.revenue || 0) }; const entry = staffSalesMap.get(staff) || { name: staff, items: [], revenue: 0, orders: 0 }; entry.items.push(item); entry.revenue += item.revenue; staffSalesMap.set(staff, entry); } for (const row of staffRows.rows) { const entry = staffSalesMap.get(String(row.name || 'Не указан')) || { name: String(row.name || 'Не указан'), items: [], revenue: 0, orders: 0 }; entry.revenue = Number(row.revenue || entry.revenue); entry.orders = Number(row.orders || 0); staffSalesMap.set(entry.name, entry); } const fullAnalytics = { days, totalRevenue, totalExpenses, totalPayroll, totalCashOutflow, totalCostOfGoods, netProfit: totalRevenue - totalExpenses - totalCostOfGoods, averageCheck: totalOrders ? totalRevenue / totalOrders : 0, topProducts: products.rows.map((row) => ({ name: row.name, quantity: Number(row.quantity || 0) })), staffDynamics: staffRows.rows.map((row) => ({ name: row.name, revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })), staffSales: [...staffSalesMap.values()].sort((a, b) => b.revenue - a.revenue), medianCheck: totalOrders ? totalRevenue / totalOrders : 0, avgTablesPerDay: 0, byStation: Object.fromEntries(stationRows.rows.map((row) => [row.station, { revenue: Number(row.revenue || 0), orders: Number(row.orders || 0), averageCheck: Number(row.orders || 0) ? Number(row.revenue || 0) / Number(row.orders || 0) : 0 }])), hallLoad: { busy: Number(hallRow.busy || 0), total: Number(hallRow.total || 0) } }; if (employeeFinanceView) return json(res, 200, { employeeView: true, period: 'today', days: days.map((day) => ({ date: day.date, revenue: day.revenue, orders: day.orders, averageCheck: day.orders ? day.revenue / day.orders : 0 })), totalRevenue, averageCheck: fullAnalytics.averageCheck, staffDynamics: [], staffSales: [], topProducts: [], byStation: {}, hallLoad: { busy: 0, total: 0 } }); return json(res, 200, fullAnalytics);
       } catch (_) {
         // Fall through to the zero-safe in-memory analytics response below.
       }
@@ -1075,20 +1130,57 @@ async function api(req, res) {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO product_categories (venue_id,name,department) VALUES ($1,$2,$3) RETURNING id,name,department,is_active AS active', [venueDbId, name, ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory']); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { return json(res, error.code === '23505' ? 409 : 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); } }
+    const department = String(input.department || 'inventory').trim();
+    if (!department || department.length > 48) return json(res, 400, { error: 'invalid_product_category_department' });
+    if (repositories?.pool) {
+      const departmentResult = await repositories.pool.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true', [venueDbId, department]).catch(() => null);
+      if (!departmentResult) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
+      if (!departmentResult.rows[0]) return json(res, 400, { error: 'inventory_department_not_found' });
+      try { const { rows } = await repositories.pool.query('INSERT INTO product_categories (venue_id,name,department) VALUES ($1,$2,$3) RETURNING id,name,department,is_active AS active', [venueDbId, name, department]); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); }
+    }
+    if (!['kitchen','bar','hookah','inventory'].includes(department)) return json(res, 400, { error: 'inventory_department_not_found' });
     if (productCategories.some((item) => item.active && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
-    const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, department: ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory', active: true };
+    const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, department, active: true };
     productCategories.push(category); recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category);
   }
   const productCategoryPath = pathname.match(/^\/api\/product-categories\/([^/]+)$/);
   if (productCategoryPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { const input = await body(req); const name = String(input.name || '').trim(); if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' }); try { const { rows } = await repositories.pool.query('UPDATE product_categories SET name=$1,department=$2 WHERE id=$3 AND venue_id=$4 AND is_active=true RETURNING id,name,department,is_active AS active', [name, ['kitchen','bar','hookah','inventory'].includes(input.department) ? input.department : 'inventory', productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.updated', 'product_category', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_update_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) {
+      const input = await body(req); const name = String(input.name || '').trim(); const department = String(input.department || 'inventory').trim();
+      if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
+      if (!department || department.length > 48) return json(res, 400, { error: 'invalid_product_category_department' });
+      const departmentResult = await repositories.pool.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true', [venueDbId, department]).catch(() => null);
+      if (!departmentResult) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
+      if (!departmentResult.rows[0]) return json(res, 400, { error: 'inventory_department_not_found' });
+      let client;
+      let updated;
+      let before;
+      try {
+        client = await repositories.pool.connect();
+        await client.query('BEGIN');
+        const current = await client.query('SELECT id,name,department FROM product_categories WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [productCategoryPath[1], venueDbId]);
+        before = current.rows[0];
+        if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'product_category_not_found' }); }
+        const result = await client.query('UPDATE product_categories SET name=$1,department=$2 WHERE id=$3 AND venue_id=$4 AND is_active=true RETURNING id,name,department,is_active AS active', [name, department, productCategoryPath[1], venueDbId]);
+        updated = result.rows[0];
+        if (!updated) { await client.query('ROLLBACK'); return json(res, 404, { error: 'product_category_not_found' }); }
+        if (before.name !== name || before.department !== department) {
+          await client.query('UPDATE ingredients SET category=$1,department=$2 WHERE venue_id=$3 AND category=$4 AND department=$5 AND is_marked=true', [name, department, venueDbId, before.name, before.department]);
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_update_failed', detail: error.message });
+      } finally { client?.release(); }
+      recordAudit(req, 'product_category.updated', 'product_category', updated.id, before, updated);
+      return json(res, 200, updated);
+    }
     const category = productCategories.find((item) => item.id === productCategoryPath[1]); if (!category) return json(res, 404, { error: 'product_category_not_found' });
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
     if (productCategories.some((item) => item.active && item.id !== category.id && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
-    const before = { ...category }; category.name = name; if (['kitchen','bar','hookah','inventory'].includes(input.department)) category.department = input.department; recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
+    const department = String(input.department || category.department || 'inventory').trim(); if (!['kitchen','bar','hookah','inventory'].includes(department)) return json(res, 400, { error: 'inventory_department_not_found' }); const before = { ...category }; category.name = name; category.department = department; recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
   if (productCategoryPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -1116,15 +1208,17 @@ async function api(req, res) {
     const technology = String(input.technology || '').trim(); const serve = String(input.serve || '').trim(); const recipeType = ['sale','premix'].includes(String(input.recipeType || 'sale')) ? String(input.recipeType || 'sale') : 'sale';
     const requestedProductId = input.productId === undefined || input.productId === null ? null : String(input.productId).trim() || null;
     if (!name || name.length > 120 || technology.length > 4000 || serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' });
+    if (recipeType === 'premix' && requestedProductId) return json(res, 400, { error: 'premix_product_binding_not_allowed' });
     if (requestedProductId && repositories?.pool && !/^[0-9a-f-]{36}$/i.test(requestedProductId)) return json(res, 400, { error: 'recipe_product_invalid' });
     if (requestedProductId && !repositories?.pool && !products.some((item) => item.id === requestedProductId)) return json(res, 400, { error: 'recipe_product_not_found' });
+    if (requestedProductId && repositories?.pool) { const product = await repositories.pool.query('SELECT id FROM products WHERE id=$1 AND venue_id=$2', [requestedProductId, venueDbId]); if (!product.rows[0]) return json(res, 400, { error: 'recipe_product_not_found' }); }
     if (repositories?.pool) { try { const productId = requestedProductId; const { rows } = await repositories.pool.query('INSERT INTO inventory_recipe_cards (venue_id,product_id,name,ingredients,technology,serve,yield_quantity,yield_unit,portion_count,recipe_type) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10) RETURNING id,product_id AS "productId",name,ingredients,technology,serve,yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount",recipe_type AS "recipeType",active,created_at AS "createdAt",updated_at AS "updatedAt"', [venueDbId, productId, name, JSON.stringify(ingredients), technology || null, serve || null, output.yieldQuantity, output.yieldUnit, output.portionCount, recipeType]); recordAudit(req, 'recipe.created', 'recipe', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'recipe_save_failed', detail: error.message }); } }
     const recipe = { id: 'recipe-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), productId: requestedProductId, name, ingredients, technology, serve, recipeType, ...output }; recipes.push(recipe); recordAudit(req, 'recipe.created', 'recipe', recipe.id, null, recipe); return json(res, 201, recipe);
   }
   const recipeProfile = pathname.match(/^\/api\/recipes\/([^/]+)$/);
   if (recipeProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(recipeProfile[1])) { try { const input = await body(req); if (input.ingredients !== undefined) { try { input.ingredients = await normalizeRecipeIngredients(input.ingredients, venueDbId); } catch (error) { return json(res, 400, { error: error.code || 'invalid_recipe_ingredients', ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); } if (!input.ingredients) return json(res, 503, { error: 'recipe_ingredients_unavailable' }); } let output = null; if (input.yieldQuantity !== undefined || input.yieldUnit !== undefined || input.portionCount !== undefined || input.yield !== undefined || input.portions !== undefined) { const current = await repositories.pool.query('SELECT yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount" FROM inventory_recipe_cards WHERE id=$1 AND venue_id=$2 AND active=true', [recipeProfile[1], venueDbId]); if (!current.rows[0]) return json(res, 404, { error: 'recipe_not_found' }); try { output = normalizeRecipeOutput(input, current.rows[0]); } catch (error) { return json(res, 400, { error: error.code || 'invalid_recipe_output', targetUnit: error.targetUnit }); } } const fields = []; const values = [recipeProfile[1], venueDbId]; if (input.productId !== undefined) { const productId = input.productId === null ? null : String(input.productId).trim() || null; if (productId && !/^[0-9a-f-]{36}$/i.test(productId)) return json(res, 400, { error: 'recipe_product_invalid' }); values.push(productId); fields.push(`product_id=$${values.length}`); } if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'invalid_recipe' }); values.push(name); fields.push(`name=$${values.length}`); } if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); values.push(JSON.stringify(input.ingredients.slice(0, 50))); fields.push(`ingredients=$${values.length}::jsonb`); } if (input.technology !== undefined) { const technology = String(input.technology || '').trim(); if (technology.length > 4000) return json(res, 400, { error: 'invalid_recipe' }); values.push(technology || null); fields.push(`technology=$${values.length}`); } if (input.serve !== undefined) { const serve = String(input.serve || '').trim(); if (serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' }); values.push(serve || null); fields.push(`serve=$${values.length}`); } if (output) { values.push(output.yieldQuantity, output.yieldUnit, output.portionCount); fields.push(`yield_quantity=$${values.length - 2}`, `yield_unit=$${values.length - 1}`, `portion_count=$${values.length}`); } if (input.recipeType !== undefined) { const recipeType = ['sale','premix'].includes(String(input.recipeType)) ? String(input.recipeType) : null; if (!recipeType) return json(res, 400, { error: 'invalid_recipe_type' }); values.push(recipeType); fields.push(`recipe_type=$${values.length}`); } if (!fields.length) return json(res, 400, { error: 'invalid_recipe' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE inventory_recipe_cards SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND active=true RETURNING id,product_id AS "productId",name,ingredients,technology,serve,yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount",recipe_type AS "recipeType",active,created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'recipe_not_found' }); recordAudit(req, 'recipe.updated', 'recipe', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'recipe_save_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(recipeProfile[1])) { try { const input = await body(req); const existingResult = await repositories.pool.query('SELECT product_id AS "productId",recipe_type AS "recipeType",yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount" FROM inventory_recipe_cards WHERE id=$1 AND venue_id=$2 AND active=true', [recipeProfile[1], venueDbId]); const existing = existingResult.rows[0]; if (!existing) return json(res, 404, { error: 'recipe_not_found' }); const nextType = input.recipeType === undefined ? existing.recipeType : (['sale','premix'].includes(String(input.recipeType)) ? String(input.recipeType) : null); if (!nextType) return json(res, 400, { error: 'invalid_recipe_type' }); const nextProductId = input.productId === undefined ? existing.productId : (input.productId === null ? null : String(input.productId).trim() || null); if (nextType === 'premix' && nextProductId) return json(res, 400, { error: 'premix_product_binding_not_allowed' }); if (nextProductId && !/^[0-9a-f-]{36}$/i.test(nextProductId)) return json(res, 400, { error: 'recipe_product_invalid' }); if (nextProductId) { const product = await repositories.pool.query('SELECT id FROM products WHERE id=$1 AND venue_id=$2', [nextProductId, venueDbId]); if (!product.rows[0]) return json(res, 400, { error: 'recipe_product_not_found' }); } if (input.ingredients !== undefined) { try { input.ingredients = await normalizeRecipeIngredients(input.ingredients, venueDbId); } catch (error) { return json(res, 400, { error: error.code || 'invalid_recipe_ingredients', ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); } if (!input.ingredients) return json(res, 503, { error: 'recipe_ingredients_unavailable' }); } let output = null; if (input.yieldQuantity !== undefined || input.yieldUnit !== undefined || input.portionCount !== undefined || input.yield !== undefined || input.portions !== undefined) { try { output = normalizeRecipeOutput(input, existing); } catch (error) { return json(res, 400, { error: error.code || 'invalid_recipe_output', targetUnit: error.targetUnit }); } } const fields = []; const values = [recipeProfile[1], venueDbId]; if (input.productId !== undefined) { values.push(nextProductId); fields.push(`product_id=$${values.length}`); } if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'invalid_recipe' }); values.push(name); fields.push(`name=$${values.length}`); } if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); values.push(JSON.stringify(input.ingredients.slice(0, 50))); fields.push(`ingredients=$${values.length}::jsonb`); } if (input.technology !== undefined) { const technology = String(input.technology || '').trim(); if (technology.length > 4000) return json(res, 400, { error: 'invalid_recipe' }); values.push(technology || null); fields.push(`technology=$${values.length}`); } if (input.serve !== undefined) { const serve = String(input.serve || '').trim(); if (serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' }); values.push(serve || null); fields.push(`serve=$${values.length}`); } if (output) { values.push(output.yieldQuantity, output.yieldUnit, output.portionCount); fields.push(`yield_quantity=$${values.length - 2}`, `yield_unit=$${values.length - 1}`, `portion_count=$${values.length}`); } if (input.recipeType !== undefined) { values.push(nextType); fields.push(`recipe_type=$${values.length}`); } if (!fields.length) return json(res, 400, { error: 'invalid_recipe' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE inventory_recipe_cards SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND active=true RETURNING id,product_id AS "productId",name,ingredients,technology,serve,yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount",recipe_type AS "recipeType",active,created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'recipe_not_found' }); recordAudit(req, 'recipe.updated', 'recipe', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'recipe_save_failed', detail: error.message }); } }
     const storedRecipe = recipes.find((item) => item.id === recipeProfile[1]); const recipe = storedRecipe && { ...storedRecipe }; if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
     const input = await body(req); const before = { ...recipe };
     if (input.productId !== undefined) { const productId = input.productId === null ? null : String(input.productId).trim() || null; if (productId && repositories?.pool && !/^[0-9a-f-]{36}$/i.test(productId)) return json(res, 400, { error: 'recipe_product_invalid' }); if (productId && !repositories?.pool && !products.some((item) => item.id === productId)) return json(res, 400, { error: 'recipe_product_not_found' }); recipe.productId = productId; }
@@ -1167,8 +1261,8 @@ async function api(req, res) {
     const index = products.findIndex((entry) => entry.id === productProfile[1]); if (index < 0) return json(res, 404, { error: 'product_not_found' }); const [product] = products.splice(index, 1); recordAudit(req, 'product.deactivated', 'product', product.id, { active: true }, { active: false }); return json(res, 200, { ...product, active: false });
   }
   if (pathname === '/api/discount-groups' && req.method === 'GET') return json(res, 200, { items: discountGroups.filter((group) => group.active !== false) });
-  if (pathname === '/api/discount-groups' && req.method === 'POST') { if (denyUnlessAny(req, res, ['staff_manage', 'finance'])) return; const input = await body(req); const name = String(input.name || '').trim(); const discountPercent = Number(input.discountPercent || 0); const bonusPercent = Number(input.bonusPercent || 0); const depositMin = Number(input.depositMin || 0); if (!name || name.length > 80 || ![discountPercent, bonusPercent, depositMin].every(Number.isFinite) || discountPercent < 0 || discountPercent > 100 || bonusPercent < 0 || bonusPercent > 100 || depositMin < 0) return json(res, 400, { error: 'invalid_discount_group' }); const group = { id: `discount-group-${Date.now()}`, name, discountPercent, bonusPercent, depositMin, active: true }; discountGroups.push(group); return json(res, 201, group); }
-  const discountGroupProfile = pathname.match(/^\/api\/discount-groups\/([^/]+)$/); if (discountGroupProfile && req.method === 'PATCH') { if (denyUnlessAny(req, res, ['staff_manage', 'finance'])) return; const group = discountGroups.find((entry) => entry.id === discountGroupProfile[1]); if (!group) return json(res, 404, { error: 'discount_group_not_found' }); const input = await body(req); if (input.name !== undefined) group.name = String(input.name || '').trim(); if (input.discountPercent !== undefined) group.discountPercent = Number(input.discountPercent); if (input.bonusPercent !== undefined) group.bonusPercent = Number(input.bonusPercent); if (input.depositMin !== undefined) group.depositMin = Number(input.depositMin); return json(res, 200, group); }
+  if (pathname === '/api/discount-groups' && req.method === 'POST') { if (denyUnlessAny(req, res, ['staff_manage', 'finance', 'loyalty'])) return; const input = await body(req); const name = String(input.name || '').trim(); const discountPercent = Number(input.discountPercent || 0); const bonusPercent = Number(input.bonusPercent || 0); const depositMin = Number(input.depositMin || 0); if (!name || name.length > 80 || ![discountPercent, bonusPercent, depositMin].every(Number.isFinite) || discountPercent < 0 || discountPercent > 100 || bonusPercent < 0 || bonusPercent > 100 || depositMin < 0) return json(res, 400, { error: 'invalid_discount_group' }); const group = { id: `discount-group-${Date.now()}`, name, discountPercent, bonusPercent, depositMin, active: true }; discountGroups.push(group); return json(res, 201, group); }
+  const discountGroupProfile = pathname.match(/^\/api\/discount-groups\/([^/]+)$/); if (discountGroupProfile && req.method === 'PATCH') { if (denyUnlessAny(req, res, ['staff_manage', 'finance', 'loyalty'])) return; const group = discountGroups.find((entry) => entry.id === discountGroupProfile[1]); if (!group) return json(res, 404, { error: 'discount_group_not_found' }); const input = await body(req); if (input.name !== undefined) group.name = String(input.name || '').trim(); if (input.discountPercent !== undefined) group.discountPercent = Number(input.discountPercent); if (input.bonusPercent !== undefined) group.bonusPercent = Number(input.bonusPercent); if (input.depositMin !== undefined) group.depositMin = Number(input.depositMin); return json(res, 200, group); }
   if (pathname === '/api/clients' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'staff_view') && !hasPermission(req, 'orders')) return json(res, 403, { error: 'forbidden', permission: 'clients' });
     const query = String(url.searchParams.get('q') || '').trim().toLowerCase();
@@ -1248,7 +1342,7 @@ async function api(req, res) {
   }
   const clientLoyalty = pathname.match(/^\/api\/clients\/([^/]+)\/loyalty$/);
   if (clientLoyalty && req.method === 'POST') {
-    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'staff_manage')) return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'staff_manage') && !hasPermission(req, 'loyalty')) return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
     const input = await body(req); const delta = Number(input.delta); const reason = String(input.reason || '').trim();
     if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 100000 || !reason || reason.length > 500) return json(res, 400, { error: 'invalid_loyalty_adjustment' });
     let client = clients.find((entry) => entry.id === clientLoyalty[1]);
@@ -1269,9 +1363,8 @@ async function api(req, res) {
     const product = products.find((entry) => entry.id === productImage[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); product.imageUrl = imageData; recordAudit(req, 'product.image_updated', 'product', product.id, null, { id: product.id, name: product.name, imageUrl: '[image]' }); return json(res, 200, product);
   }
   if (pathname === '/api/session') {
-    const role = url.searchParams.get('role') || 'bartender';
     const persistedSession = await sessionFromRequest(req);
-    const user = req.user || persistedSession?.user || { name: 'Демо сотрудник', role };
+    const user = req.user || persistedSession?.user || { name: 'Демо сотрудник', role: 'bartender' };
     return json(res, 200, { user, permissions: effectivePermissions(user), permissionScopes: normalizePermissionScopes(user.permissionScopes) });
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
@@ -1460,6 +1553,8 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.telegram !== undefined && input.telegram && !/^(@[A-Za-z0-9_]{5,32}|https:\/\/t\.me\/[A-Za-z0-9_]{5,32}\/?$)/.test(String(input.telegram).trim())) return json(res, 400, { error: 'invalid_telegram' });
   if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+7[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' });
   if (input.passportData !== undefined && !canManageSensitive) return json(res, 403, { error: 'sensitive_staff_permission_required' });
+  const clearPassportRequested = input.passportData?.clear === true;
+  if (clearPassportRequested && req.user?.role !== 'owner') return json(res, 403, { error: 'staff_passport_clear_owner_required' });
   if (input.avatarUrl !== undefined) {
     if (input.avatarUrl && !validImageData(input.avatarUrl)) return json(res, 400, { error: 'invalid_avatar' });
     before.avatarUrl = input.avatarUrl || null;
@@ -1481,13 +1576,15 @@ if (staffProfile && req.method === 'PATCH') {
     before.phoneNumbers = contacts;
     contactJson = JSON.stringify(contacts);
   }
-  if (input.passportData !== undefined) before.passportData = input.passportData || null;
-  const encryptedPassport = input.passportData !== undefined && canManageSensitive ? staffPassportCipher.encrypt(input.passportData) : null;
-  if (input.passportData !== undefined && repositories?.pool && canManageSensitive && !encryptedPassport) return json(res, 503, { error: 'staff_passport_key_required' });
+  const clearPassportData = clearPassportRequested && canManageSensitive;
+  const hasPassportData = input.passportData !== undefined && input.passportData && typeof input.passportData === 'object' && ['number', 'issuedAt', 'issuer'].some((key) => String(input.passportData[key] || '').trim());
+  if (clearPassportData) before.passportData = null; else if (hasPassportData) before.passportData = input.passportData;
+  const encryptedPassport = hasPassportData && canManageSensitive ? staffPassportCipher.encrypt(input.passportData) : null;
+  if (hasPassportData && repositories?.pool && canManageSensitive && !encryptedPassport) return json(res, 503, { error: 'staff_passport_key_required' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      try { await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,employment_started_at=CASE WHEN $11 THEN $12::date ELSE employment_started_at END,work_notes=CASE WHEN $13 THEN $14 ELSE work_notes END,passport_data_encrypted=COALESCE($15,passport_data_encrypted),passport_data_iv=COALESCE($16,passport_data_iv),passport_data_tag=COALESCE($17,passport_data_tag),full_name=CASE WHEN $18 THEN $19 ELSE full_name END,role=CASE WHEN $20 THEN $21 ELSE role END WHERE id=$22 AND venue_id=$23', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', input.employmentStartedAt !== undefined, input.employmentStartedAt || null, input.workNotes !== undefined, input.workNotes !== undefined ? String(input.workNotes || '').slice(0, 4000) : null, encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId]); } catch (_) {
-        await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,passport_data_encrypted=COALESCE($11,passport_data_encrypted),passport_data_iv=COALESCE($12,passport_data_iv),passport_data_tag=COALESCE($13,passport_data_tag),full_name=CASE WHEN $14 THEN $15 ELSE full_name END,role=CASE WHEN $16 THEN $17 ELSE role END WHERE id=$18 AND venue_id=$19', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId]);
+      try { await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,employment_started_at=CASE WHEN $11 THEN $12::date ELSE employment_started_at END,work_notes=CASE WHEN $13 THEN $14 ELSE work_notes END,passport_data_encrypted=CASE WHEN $24 THEN NULL ELSE COALESCE($15,passport_data_encrypted) END,passport_data_iv=CASE WHEN $24 THEN NULL ELSE COALESCE($16,passport_data_iv) END,passport_data_tag=CASE WHEN $24 THEN NULL ELSE COALESCE($17,passport_data_tag) END,full_name=CASE WHEN $18 THEN $19 ELSE full_name END,role=CASE WHEN $20 THEN $21 ELSE role END WHERE id=$22 AND venue_id=$23', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', input.employmentStartedAt !== undefined, input.employmentStartedAt || null, input.workNotes !== undefined, input.workNotes !== undefined ? String(input.workNotes || '').slice(0, 4000) : null, encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]); } catch (_) {
+        await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,passport_data_encrypted=CASE WHEN $20 THEN NULL ELSE COALESCE($11,passport_data_encrypted) END,passport_data_iv=CASE WHEN $20 THEN NULL ELSE COALESCE($12,passport_data_iv) END,passport_data_tag=CASE WHEN $20 THEN NULL ELSE COALESCE($13,passport_data_tag) END,full_name=CASE WHEN $14 THEN $15 ELSE full_name END,role=CASE WHEN $16 THEN $17 ELSE role END WHERE id=$18 AND venue_id=$19', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]);
       }
       if (input.permissionScopes !== undefined) { await repositories.pool.query('UPDATE users SET permission_scopes=$1::jsonb WHERE id=$2 AND venue_id=$3', [JSON.stringify(before.permissionScopes || []), personId, venueDbId]); }
     } catch (error) { return json(res, 409, { error: 'staff_profile_save_failed', detail: error.message }); }
@@ -1502,7 +1599,7 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/staff/schedule' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;
     const from = url.searchParams.get('from') || today(); const to = url.searchParams.get('to') || from;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT s.*,u.full_name AS "userName" FROM staff_schedules s JOIN users u ON u.id=s.user_id WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date ORDER BY s.work_date,s.planned_start', [venueDbId, from, to]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'schedule_unavailable', detail: error.message }); } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT s.*,u.full_name AS "userName" FROM staff_schedules s JOIN users u ON u.id=s.user_id AND u.venue_id=s.venue_id WHERE s.venue_id=$1 AND s.work_date BETWEEN $2::date AND $3::date ORDER BY s.work_date,s.planned_start', [venueDbId, from, to]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'schedule_unavailable', detail: error.message }); } }
     return json(res, 200, { items: [] });
   }
   if (pathname === '/api/inventory/subdepartments' && req.method === 'GET') {
@@ -1522,7 +1619,33 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const id = decodeURIComponent(inventorySubdepartmentPath[1]); const name = String(input.name || '').trim(); const departmentCode = String(input.departmentCode || '').trim();
     if (!name || name.length > 80 || !departmentCode) return json(res, 400, { error: 'invalid_inventory_subdepartment' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('UPDATE inventory_subdepartments SET name=$1,department_code=$2 WHERE venue_id=$3 AND id=$4 AND is_active=true RETURNING id,department_code AS "departmentCode",name,is_active AS active', [name, departmentCode, venueDbId, id]); if (!rows[0]) return json(res, 404, { error: 'inventory_subdepartment_not_found' }); recordAudit(req, 'inventory.subdepartment_updated', 'inventory_subdepartment', id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'inventory_subdepartment_exists' : 'inventory_subdepartment_update_failed' }); } }
+    if (repositories?.pool) {
+      const departmentResult = await repositories.pool.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true', [venueDbId, departmentCode]).catch(() => null);
+      if (!departmentResult) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
+      if (!departmentResult.rows[0]) return json(res, 400, { error: 'inventory_department_not_found' });
+      let client;
+      let updated;
+      let before;
+      try {
+        client = await repositories.pool.connect();
+        await client.query('BEGIN');
+        const current = await client.query('SELECT id,department_code AS "departmentCode",name FROM inventory_subdepartments WHERE venue_id=$1 AND id=$2 AND is_active=true FOR UPDATE', [venueDbId, id]);
+        before = current.rows[0];
+        if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_subdepartment_not_found' }); }
+        const result = await client.query('UPDATE inventory_subdepartments SET name=$1,department_code=$2 WHERE venue_id=$3 AND id=$4 AND is_active=true RETURNING id,department_code AS "departmentCode",name,is_active AS active', [name, departmentCode, venueDbId, id]);
+        updated = result.rows[0];
+        if (!updated) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_subdepartment_not_found' }); }
+        if (before.name !== name || before.departmentCode !== departmentCode) {
+          await client.query('UPDATE ingredients SET subdepartment=$1,department=$2 WHERE venue_id=$3 AND subdepartment=$4 AND department=$5 AND is_marked=true', [name, departmentCode, venueDbId, before.name, before.departmentCode]);
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        if (client) await client.query('ROLLBACK').catch(() => {});
+        return json(res, 409, { error: error.code === '23505' ? 'inventory_subdepartment_exists' : 'inventory_subdepartment_update_failed' });
+      } finally { client?.release(); }
+      recordAudit(req, 'inventory.subdepartment_updated', 'inventory_subdepartment', id, before, updated);
+      return json(res, 200, updated);
+    }
     return json(res, 200, { id, departmentCode, name, active: true });
   }
   if (inventorySubdepartmentPath && req.method === 'DELETE') {
@@ -1543,36 +1666,86 @@ if (staffProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req); const userId = String(input.userId || '').trim(); const workDate = String(input.workDate || '').trim();
     if (!userId || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return json(res, 400, { error: 'invalid_schedule_entry' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO staff_schedules (venue_id,user_id,work_date,planned_start,planned_end,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (venue_id,user_id,work_date) DO UPDATE SET planned_start=EXCLUDED.planned_start,planned_end=EXCLUDED.planned_end,note=EXCLUDED.note RETURNING *', [venueDbId, userId, workDate, input.plannedStart || null, input.plannedEnd || null, String(input.note || '').slice(0,500) || null, req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'schedule_save_failed', detail: error.message }); } }
+    if (repositories?.pool) { if (!/^[0-9a-f-]{36}$/i.test(userId)) return json(res, 400, { error: 'invalid_schedule_employee' }); try { const employee = await repositories.pool.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [userId, venueDbId]); if (!employee.rows[0]) return json(res, 404, { error: 'staff_member_not_found' }); const { rows } = await repositories.pool.query('INSERT INTO staff_schedules (venue_id,user_id,work_date,planned_start,planned_end,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (venue_id,user_id,work_date) DO UPDATE SET planned_start=EXCLUDED.planned_start,planned_end=EXCLUDED.planned_end,note=EXCLUDED.note RETURNING *', [venueDbId, userId, workDate, input.plannedStart || null, input.plannedEnd || null, String(input.note || '').slice(0,500) || null, req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'schedule_save_failed', detail: error.message }); } }
   }
   if (pathname === '/api/staff/time' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;
     const from = url.searchParams.get('from') || today(); const to = url.searchParams.get('to') || from;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT w.*,u.full_name AS "userName",EXTRACT(EPOCH FROM (COALESCE(w.ended_at,now())-w.started_at))/3600 AS hours FROM staff_work_logs w JOIN users u ON u.id=w.user_id WHERE w.venue_id=$1 AND w.started_at < ($3::date + INTERVAL \'1 day\') AND COALESCE(w.ended_at,now()) >= $2::date ORDER BY w.started_at DESC', [venueDbId, from, to]); return json(res, 200, { items: rows.map((row) => ({ ...row, hours: Number(Number(row.hours || 0).toFixed(2)) })) }); } catch (error) { return json(res, 503, { error: 'work_time_unavailable', detail: error.message }); } }
+    if (!isValidIsoDate(from) || !isValidIsoDate(to) || to < from) return json(res, 400, { error: 'invalid_work_time_period' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`WITH tz AS (SELECT COALESCE(NULLIF(org.timezone,''),'Asia/Yekaterinburg') AS name FROM venues v LEFT JOIN organizations org ON org.id=v.organization_id WHERE v.id=$1), bounds AS (SELECT ($2::date::timestamp AT TIME ZONE name) starts_at, (($3::date+1)::timestamp AT TIME ZONE name) ends_at FROM tz), clipped AS (SELECT w.*,u.full_name AS "userName",GREATEST(w.started_at,b.starts_at) starts_at,LEAST(COALESCE(w.ended_at,now()),b.ends_at) ends_at FROM bounds b JOIN staff_work_logs w ON w.venue_id=$1 AND w.started_at < b.ends_at AND COALESCE(w.ended_at,now()) > b.starts_at JOIN users u ON u.id=w.user_id), ordered AS (SELECT *,MAX(ends_at) OVER (PARTITION BY user_id ORDER BY starts_at,ends_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped), merged AS (SELECT *,GREATEST(starts_at,COALESCE(previous_end,starts_at)) effective_start FROM ordered) SELECT id,venue_id,user_id,started_at AS "started_at",ended_at AS "ended_at",source,note,created_at,"userName",COALESCE(GREATEST(0,EXTRACT(EPOCH FROM (ends_at-effective_start))/3600),0)::numeric AS hours FROM merged ORDER BY started_at DESC`, [venueDbId, from, to]); return json(res, 200, { items: rows.map((row) => ({ ...row, hours: Number(Number(row.hours || 0).toFixed(2)) })) }); } catch (error) { return json(res, 503, { error: 'work_time_unavailable', detail: error.message }); } }
     return json(res, 200, { items: [] });
   }
   if (pathname === '/api/staff/time' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req); const userId = String(input.userId || '').trim(); const startedAt = new Date(input.startedAt || ''); const endedAt = input.endedAt ? new Date(input.endedAt) : null;
-    if (!userId || Number.isNaN(startedAt.getTime()) || (endedAt && Number.isNaN(endedAt.getTime())) || (endedAt && endedAt <= startedAt)) return json(res, 400, { error: 'invalid_work_log' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source,note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null, String(input.source || 'manual'), String(input.note || '').slice(0,500) || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'work_log_save_failed', detail: error.message }); } }
+    const source = String(input.source || 'manual');
+    if (!/^[0-9a-f-]{36}$/i.test(userId) || Number.isNaN(startedAt.getTime()) || (endedAt && Number.isNaN(endedAt.getTime())) || (endedAt && endedAt <= startedAt) || !['manual','shift','device'].includes(source)) return json(res, 400, { error: 'invalid_work_log' });
+    if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const employee = await client.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL FOR UPDATE', [userId,venueDbId]); if (!employee.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_member_not_found' }); } const overlapping = await client.query(`SELECT id FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at < COALESCE($4::timestamptz,'infinity'::timestamptz) AND COALESCE(ended_at,'infinity'::timestamptz) > $3::timestamptz LIMIT 1 FOR UPDATE`, [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null]); if (overlapping.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'work_log_overlaps_existing' }); } const { rows } = await client.query('INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source,note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null,source,String(input.note || '').slice(0,500) || null]); await client.query('COMMIT'); recordAudit(req, 'staff.work_time_recorded', 'staff', rows[0].user_id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'work_log_save_failed', detail: error.message }); } finally { client?.release(); } }
   }
   if (pathname === '/api/payroll/rules' && req.method === 'GET') {
-    if (denyUnlessAny(req, res, ['finance_read', 'staff_view'])) return;
+    if (denyUnless(req, res, 'finance')) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT * FROM payroll_rules WHERE venue_id=$1 ORDER BY active DESC,name', [venueDbId]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'payroll_rules_unavailable', detail: error.message }); } }
     return json(res, 200, { items: [] });
   }
+  if (pathname === '/api/finance/purchase-payables' && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
+    if (isOperationalEmployee(req)) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
+    if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_payables_unavailable' });
+    try { return json(res, 200, { items: await repositories.purchaseDocuments.listPayables(venueDbId) }); }
+    catch (error) { return json(res, 503, { error: 'purchase_payables_unavailable', detail: error.message }); }
+  }
+  const purchasePaymentPath = pathname.match(/^\/api\/finance\/purchase-payables\/([^/]+)\/payments$/);
+  if (purchasePaymentPath && req.method === 'GET') {
+    if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
+    if (isOperationalEmployee(req)) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
+    if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_payments_unavailable' });
+    const id = decodeURIComponent(purchasePaymentPath[1]);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return json(res, 400, { error: 'invalid_purchase_document_id' });
+    try {
+      const items = await repositories.purchaseDocuments.listPayments(venueDbId, id);
+      return items === null ? json(res, 404, { error: 'purchase_document_not_found' }) : json(res, 200, { items });
+    } catch (error) { return json(res, 503, { error: 'purchase_payments_unavailable', detail: error.message }); }
+  }
+  if (purchasePaymentPath && req.method === 'POST') {
+    if (denyUnless(req, res, 'finance')) return;
+    if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_payments_unavailable' });
+    const id = decodeURIComponent(purchasePaymentPath[1]);
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return json(res, 400, { error: 'invalid_purchase_document_id' });
+    const input = await body(req);
+    const amount = Number(input.amount);
+    const paymentDate = String(input.paymentDate || '');
+    const paymentMethod = String(input.paymentMethod || '');
+    const idempotencyKey = String(input.idempotencyKey || req.headers['idempotency-key'] || '').trim();
+    const documentUrl = String(input.documentUrl || '');
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 9999999999.99 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001) return json(res, 400, { error: 'invalid_purchase_payment_amount' });
+    if (!isValidIsoDate(paymentDate)) return json(res, 400, { error: 'invalid_purchase_payment_date' });
+    if (!['cash','card','bank_transfer','other'].includes(paymentMethod)) return json(res, 400, { error: 'invalid_purchase_payment_method' });
+    if (!/^[\w:.-]{8,128}$/.test(idempotencyKey)) return json(res, 400, { error: 'purchase_payment_idempotency_key_required' });
+    const documentValidation = validatePurchasePaymentDocument(documentUrl);
+    if (!documentValidation.valid) return json(res, 400, { error: documentValidation.error });
+    try {
+      const result = await repositories.purchaseDocuments.addPayment({ id, venueId: venueDbId, amount, paymentDate, paymentMethod, documentUrl, idempotencyKey, createdBy: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null });
+      if (!result.idempotent) recordAudit(req, 'finance.purchase_payment_created', 'purchase_document', id, null, { expenseId: result.expenseId, amount: result.amount, paymentDate: result.paymentDate, paymentMethod: result.paymentMethod, totalPaid: result.totalPaid, balanceDue: result.balanceDue });
+      return json(res, result.idempotent ? 200 : 201, result);
+    } catch (error) {
+      const statuses = { purchase_document_not_found: 404, purchase_document_not_posted: 409, purchase_payment_exceeds_balance: 409, purchase_payment_idempotency_conflict: 409 };
+      return json(res, statuses[error.message] || (error.code === '23505' ? 409 : 503), { error: statuses[error.message] ? error.message : error.code === '23505' ? 'purchase_payment_idempotency_conflict' : 'purchase_payment_save_failed', detail: error.message });
+    }
+  }
   if (pathname === '/api/expenses' && req.method === 'GET') {
-    if (denyUnlessAny(req, res, ['finance_read', 'finance'])) return;
+    if (denyUnlessAny(req, res, ['finance', 'finance_read'])) return;
+    if (isOperationalEmployee(req)) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
     const from = url.searchParams.get('from') || '1900-01-01'; const to = url.searchParams.get('to') || '2999-12-31';
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT * FROM expenses WHERE venue_id=$1 AND expense_date BETWEEN $2::date AND $3::date AND (source <> \'payroll\' OR id IN (SELECT expense_id FROM payroll_entries WHERE venue_id=$1 AND expense_id IS NOT NULL)) ORDER BY expense_date DESC,created_at DESC', [venueDbId,from,to]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'expenses_unavailable', detail: error.message }); } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query("SELECT e.*, CASE WHEN e.source='payroll' THEN COALESCE((SELECT pe.status FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id ORDER BY pe.created_at DESC LIMIT 1),'legacy_unmatched') ELSE NULL END AS \"payrollStatus\", (e.source='payroll' AND NOT EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.venue_id=e.venue_id AND pe.expense_id=e.id AND pe.status='paid')) AS \"payrollNeedsReview\" FROM expenses e WHERE e.venue_id=$1 AND e.expense_date BETWEEN $2::date AND $3::date AND ($4::boolean OR e.source <> 'payroll') ORDER BY e.expense_date DESC,e.created_at DESC", [venueDbId,from,to,hasPermission(req,'finance')]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'expenses_unavailable', detail: error.message }); } }
     return json(res, 200, { items: [] });
   }
   if (pathname === '/api/expenses' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
     const input = await body(req); const category = String(input.category || '').trim(); const amount = Number(input.amount); const expenseDate = String(input.expenseDate || today());
     if (!category || category.length > 80 || !Number.isFinite(amount) || amount < 0 || !/^\d{4}-\d{2}-\d{2}$/.test(expenseDate)) return json(res, 400, { error: 'invalid_expense' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,document_url,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *', [venueDbId,category,amount,expenseDate,String(input.description || '').slice(0,1000) || null,['manual','payroll','purchase','other'].includes(input.source) ? input.source : 'manual',String(input.documentUrl || '').slice(0,500) || null,req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'expense_save_failed', detail: error.message }); } }
+    if (input.source === 'payroll') return json(res, 400, { error: 'payroll_expense_must_be_paid_through_payroll' });
+    if (input.source === 'purchase') return json(res, 400, { error: 'purchase_payment_requires_receipt_link' });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,document_url,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *', [venueDbId,category,amount,expenseDate,String(input.description || '').slice(0,1000) || null,['manual','purchase','other'].includes(input.source) ? input.source : 'manual',String(input.documentUrl || '').slice(0,500) || null,req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'expense_save_failed', detail: error.message }); } }
   }
   if (pathname === '/api/payroll/rules' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
@@ -1580,28 +1753,104 @@ if (staffProfile && req.method === 'PATCH') {
     if (!name || !['hourly','monthly','percent_revenue','per_shift'].includes(ruleType) || !Number.isFinite(rate) || rate < 0) return json(res, 400, { error: 'invalid_payroll_rule' });
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO payroll_rules (venue_id,name,rule_type,rate) VALUES ($1,$2,$3,$4) RETURNING *', [venueDbId,name,ruleType,rate]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'payroll_rule_save_failed', detail: error.message }); } }
   }
+  const payrollEntryPath = pathname.match(/^\/api\/payroll\/entries\/([^/]+)$/);
+  if ((pathname === '/api/payroll/entries' && req.method === 'GET') || (payrollEntryPath && req.method === 'GET')) {
+    if (denyUnless(req, res, 'finance')) return;
+    if (!repositories?.pool) return json(res, 503, { error: 'payroll_requires_database' });
+    const from = String(url.searchParams.get('from') || '1900-01-01'); const to = String(url.searchParams.get('to') || '2999-12-31');
+    const userId = String(url.searchParams.get('userId') || ''); const status = String(url.searchParams.get('status') || '');
+    if (!isValidIsoDate(from) || !isValidIsoDate(to) || to < from || (userId && !/^[0-9a-f-]{36}$/i.test(userId)) || (status && !['draft','approved','paid','cancelled'].includes(status))) return json(res, 400, { error: 'invalid_payroll_filter' });
+    const id = payrollEntryPath ? decodeURIComponent(payrollEntryPath[1]) : '';
+    if (id && !/^[0-9a-f-]{36}$/i.test(id)) return json(res, 400, { error: 'invalid_payroll_entry_id' });
+    try {
+      const { rows } = await repositories.pool.query(`SELECT pe.id,pe.user_id AS "userId",u.full_name AS "userName",pe.rule_id AS "ruleId",pr.name AS "ruleName",pr.rule_type AS "ruleType",pe.period_from AS "periodFrom",pe.period_to AS "periodTo",pe.amount,pe.status,pe.payment_date AS "paymentDate",pe.expense_id AS "expenseId",pe.approved_at AS "approvedAt",pe.paid_at AS "paidAt",pe.cancelled_at AS "cancelledAt",COALESCE(work.hours,0)::numeric AS hours FROM payroll_entries pe JOIN users u ON u.id=pe.user_id LEFT JOIN payroll_rules pr ON pr.id=pe.rule_id AND pr.venue_id=pe.venue_id JOIN venues v ON v.id=pe.venue_id LEFT JOIN organizations org ON org.id=v.organization_id LEFT JOIN LATERAL (WITH bounds AS (SELECT (pe.period_from::timestamp AT TIME ZONE COALESCE(NULLIF(org.timezone,''),'Asia/Yekaterinburg')) starts_at,((pe.period_to+1)::timestamp AT TIME ZONE COALESCE(NULLIF(org.timezone,''),'Asia/Yekaterinburg')) ends_at),clipped AS (SELECT GREATEST(w.started_at,b.starts_at) starts_at,LEAST(COALESCE(w.ended_at,now()),b.ends_at) ends_at FROM bounds b JOIN staff_work_logs w ON w.venue_id=pe.venue_id AND w.user_id=pe.user_id AND w.started_at < b.ends_at AND COALESCE(w.ended_at,now()) > b.starts_at),ordered AS (SELECT *,MAX(ends_at) OVER (ORDER BY starts_at,ends_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped),merged AS (SELECT *,GREATEST(starts_at,COALESCE(previous_end,starts_at)) effective_start FROM ordered) SELECT SUM(GREATEST(0,EXTRACT(EPOCH FROM (ends_at-effective_start))/3600)) hours FROM merged) work ON true WHERE pe.venue_id=$1 AND ($2::date IS NULL OR pe.period_to >= $2::date) AND ($3::date IS NULL OR pe.period_from <= $3::date) AND ($4::uuid IS NULL OR pe.user_id=$4) AND ($5::text='' OR pe.status=$5) AND ($6::uuid IS NULL OR pe.id=$6) ORDER BY pe.period_from DESC,u.full_name`, [venueDbId, from === '1900-01-01' ? null : from, to === '2999-12-31' ? null : to, userId || null, status, id || null]);
+      if (id && !rows[0]) return json(res, 404, { error: 'payroll_entry_not_found' });
+      return json(res, 200, id ? rows[0] : { items: rows.map((row) => ({ ...row, amount: Number(row.amount || 0), hours: Number(Number(row.hours || 0).toFixed(2)) })) });
+    } catch (error) { return json(res, 503, { error: 'payroll_entries_unavailable', detail: error.message }); }
+  }
   if (pathname === '/api/payroll/entries' && req.method === 'POST') {
     if (denyUnless(req, res, 'finance')) return;
+    if (!repositories?.pool) return json(res, 503, { error: 'payroll_requires_database' });
     const input = await body(req); const userId = String(input.userId || '').trim(); const periodFrom = String(input.periodFrom || '').trim(); const periodTo = String(input.periodTo || '').trim(); const ruleId = String(input.ruleId || '').trim();
-    if (!userId || !ruleId || !/^\d{4}-\d{2}-\d{2}$/.test(periodFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(periodTo) || periodTo < periodFrom) return json(res, 400, { error: 'invalid_payroll_period' });
-    if (repositories?.pool) { try {
-      const ruleResult = await repositories.pool.query('SELECT * FROM payroll_rules WHERE id=$1 AND venue_id=$2 AND active=true LIMIT 1', [ruleId, venueDbId]);
+    if (!/^[0-9a-f-]{36}$/i.test(userId) || !/^[0-9a-f-]{36}$/i.test(ruleId) || !isValidIsoDate(periodFrom) || !isValidIsoDate(periodTo) || periodTo < periodFrom || countInclusiveDays(periodFrom, periodTo) > 366) return json(res, 400, { error: 'invalid_payroll_period' });
+    try {
+      const [userResult, ruleResult] = await Promise.all([
+        repositories.pool.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [userId, venueDbId]),
+        repositories.pool.query('SELECT * FROM payroll_rules WHERE id=$1 AND venue_id=$2 AND active=true LIMIT 1', [ruleId, venueDbId]),
+      ]);
+      if (!userResult.rows[0]) return json(res, 404, { error: 'payroll_user_not_found' });
       const rule = ruleResult.rows[0]; if (!rule) return json(res, 404, { error: 'payroll_rule_not_found' });
-      const timeResult = await repositories.pool.query('SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (COALESCE(ended_at,now())-started_at))/3600),0) AS hours FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at < ($4::date + INTERVAL \'1 day\') AND COALESCE(ended_at,now()) >= $3::date', [venueDbId,userId,periodFrom,periodTo]);
-      const hours = Number(timeResult.rows[0]?.hours || 0); const amount = rule.rule_type === 'hourly' ? hours * Number(rule.rate) : Number(input.amount || 0);
-      if (!Number.isFinite(amount) || amount < 0) return json(res, 400, { error: 'invalid_payroll_amount' });
-      const { rows } = await repositories.pool.query('INSERT INTO payroll_entries (venue_id,user_id,rule_id,period_from,period_to,amount,status) VALUES ($1,$2,$3,$4,$5,$6,\'draft\') ON CONFLICT (venue_id,user_id,period_from,period_to,rule_id) DO UPDATE SET amount=EXCLUDED.amount RETURNING *', [venueDbId,userId,ruleId,periodFrom,periodTo,Math.round(amount*100)/100]);
-      const description = `Начисление сотруднику за ${periodFrom} — ${periodTo}`;
-      let expenseId = rows[0].expense_id;
-      if (expenseId) {
-        await repositories.pool.query('UPDATE expenses SET amount=$1,expense_date=$2,description=$3 WHERE id=$4 AND venue_id=$5', [Math.round(amount*100)/100,periodTo,description,expenseId,venueDbId]);
-      } else {
-        const expense = await repositories.pool.query('INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,created_by) VALUES ($1,\'Зарплата\',$2,$3,$4,\'payroll\',$5) RETURNING id', [venueDbId,Math.round(amount*100)/100,periodTo,description,req.user?.id || null]);
-        expenseId = expense.rows[0].id;
+      const timeResult = await repositories.pool.query(`WITH tz AS (SELECT COALESCE(NULLIF(org.timezone,''),'Asia/Yekaterinburg') AS name FROM venues v LEFT JOIN organizations org ON org.id=v.organization_id WHERE v.id=$1), bounds AS (SELECT ($3::date::timestamp AT TIME ZONE name) starts_at, (($4::date+1)::timestamp AT TIME ZONE name) ends_at, name FROM tz), clipped AS (SELECT GREATEST(w.started_at,b.starts_at) starts_at,LEAST(COALESCE(w.ended_at,now()),b.ends_at) ends_at,(w.started_at AT TIME ZONE b.name)::date shift_date,(w.started_at >= b.starts_at AND w.started_at < b.ends_at) is_shift_start FROM bounds b JOIN staff_work_logs w ON w.venue_id=$1 AND w.user_id=$2 AND w.started_at < b.ends_at AND COALESCE(w.ended_at,now()) > b.starts_at), ordered AS (SELECT *,MAX(ends_at) OVER (ORDER BY starts_at,ends_at ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) previous_end FROM clipped), merged AS (SELECT *,GREATEST(starts_at,COALESCE(previous_end,starts_at)) effective_start FROM ordered) SELECT COALESCE(SUM(GREATEST(0,EXTRACT(EPOCH FROM (ends_at-effective_start))/3600)),0) AS hours,COUNT(DISTINCT shift_date) FILTER (WHERE is_shift_start)::int AS shifts FROM merged`, [venueDbId,userId,periodFrom,periodTo]);
+      const hours = Number(timeResult.rows[0]?.hours || 0); const shifts = Number(timeResult.rows[0]?.shifts || 0); let revenue = 0;
+      if (rule.rule_type === 'percent_revenue') {
+        const sales = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue FROM orders o JOIN payments p ON p.order_id=o.id JOIN venues v ON v.id=o.venue_id LEFT JOIN organizations org ON org.id=v.organization_id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE COALESCE(NULLIF(org.timezone,''),'Asia/Yekaterinburg')) AND o.closed_at < (($4::date+1)::timestamp AT TIME ZONE COALESCE(NULLIF(org.timezone,''),'Asia/Yekaterinburg')) AND p.status IN ('paid','partially_paid')`, [venueDbId,userId,periodFrom,periodTo]);
+        revenue = Number(sales.rows[0]?.revenue || 0);
       }
-      const linked = await repositories.pool.query('UPDATE payroll_entries SET expense_id=$1 WHERE id=$2 RETURNING *', [expenseId, rows[0].id]);
-      return json(res, 201, { ...linked.rows[0], hours: Number(hours.toFixed(2)), amount: Number(linked.rows[0].amount), expenseId });
-    } catch (error) { return json(res, 409, { error: 'payroll_entry_save_failed', detail: error.message }); } }
+      const amount = calculatePayrollAmount({ ruleType: rule.rule_type, rate: rule.rate, hours, shifts, revenue, periodFrom, periodTo });
+      if (amount === null) return json(res, 400, { error: 'invalid_payroll_rule' });
+      const { rows } = await repositories.pool.query(`INSERT INTO payroll_entries (venue_id,user_id,rule_id,period_from,period_to,amount,status) VALUES ($1,$2,$3,$4,$5,$6,'draft') ON CONFLICT (venue_id,user_id,period_from,period_to,rule_id) DO UPDATE SET amount=EXCLUDED.amount WHERE payroll_entries.status='draft' RETURNING *`, [venueDbId,userId,ruleId,periodFrom,periodTo,amount]);
+      if (!rows[0]) return json(res, 409, { error: 'payroll_entry_not_editable' });
+      const entry = rows[0]; recordAudit(req, 'payroll.entry_drafted', 'payroll_entry', entry.id, null, { ...entry, hours });
+      return json(res, 201, { ...entry, amount: Number(entry.amount), hours: Number(hours.toFixed(2)), expenseId: entry.expense_id || null });
+    } catch (error) { return json(res, 409, { error: 'payroll_entry_save_failed', detail: error.message }); }
+  }
+  if (payrollEntryPath && req.method === 'PATCH') {
+    if (denyUnless(req, res, 'finance')) return;
+    if (!repositories?.pool) return json(res, 503, { error: 'payroll_requires_database' });
+    const id = decodeURIComponent(payrollEntryPath[1]); if (!/^[0-9a-f-]{36}$/i.test(id)) return json(res, 400, { error: 'invalid_payroll_entry_id' });
+    const input = await body(req); const action = String(input.action || '');
+    if (!['approve','pay','cancel'].includes(action)) return json(res, 400, { error: 'invalid_payroll_action' });
+    const paymentDate = String(input.paymentDate || today()); const reason = String(input.reason || '').trim();
+    if (action === 'pay' && !isValidIsoDate(paymentDate)) return json(res, 400, { error: 'invalid_payroll_payment_date' });
+    if (action === 'cancel' && (reason.length < 3 || reason.length > 500)) return json(res, 400, { error: 'payroll_cancellation_reason_required' });
+    let client; let before;
+    try {
+      client = await repositories.pool.connect(); await client.query('BEGIN');
+      const locked = await client.query('SELECT * FROM payroll_entries WHERE id=$1 AND venue_id=$2 FOR UPDATE', [id, venueDbId]); before = locked.rows[0];
+      if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'payroll_entry_not_found' }); }
+      if (!canTransitionPayroll(before.status, action)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'payroll_transition_not_allowed', status: before.status, action }); }
+      const findPayrollPeriodOverlap = async () => {
+        // Serialize approve/pay transitions for one employee and rule so two
+        // overlapping entries cannot be approved or paid at the same time.
+        await client.query("SELECT pg_advisory_xact_lock(hashtext('territory_crm_payroll_period'),hashtext($1::text || ':' || $2::text || ':' || $3::text))", [venueDbId, before.user_id, before.rule_id]);
+        return client.query(`SELECT id FROM payroll_entries
+          WHERE venue_id=$1 AND user_id=$2 AND rule_id=$3 AND id<>$4
+            AND status IN ('approved','paid')
+            AND period_from <= $6::date AND period_to >= $5::date
+          LIMIT 1`, [venueDbId, before.user_id, before.rule_id, id, before.period_from, before.period_to]);
+      };
+      let updated;
+      if (action === 'approve') {
+        const overlap = await findPayrollPeriodOverlap();
+        if (overlap.rows[0]) {
+          await client.query('ROLLBACK');
+          return json(res, 409, { error: 'payroll_period_overlap', conflictingEntryId: overlap.rows[0].id });
+        }
+        const { rows } = await client.query("UPDATE payroll_entries SET status='approved',approved_at=now(),approved_by=$3 WHERE id=$1 AND venue_id=$2 RETURNING *", [id,venueDbId,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); updated = rows[0];
+      } else if (action === 'cancel') {
+        const { rows } = await client.query("UPDATE payroll_entries SET status='cancelled',cancelled_at=now(),cancelled_by=$3,cancellation_reason=$4 WHERE id=$1 AND venue_id=$2 RETURNING *", [id,venueDbId,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,reason]); updated = rows[0];
+      } else {
+        const overlap = await findPayrollPeriodOverlap();
+        if (overlap.rows[0]) {
+          await client.query('ROLLBACK');
+          return json(res, 409, { error: 'payroll_period_overlap', conflictingEntryId: overlap.rows[0].id });
+        }
+        const description = `Выплата зарплаты за ${String(before.period_from).slice(0,10)} — ${String(before.period_to).slice(0,10)}`;
+        let expenseId = before.expense_id;
+        if (expenseId) {
+          const { rows } = await client.query("UPDATE expenses SET category='Зарплата',amount=$1,expense_date=$2,description=$3,source='payroll',created_by=COALESCE($4,created_by) WHERE id=$5 AND venue_id=$6 RETURNING id", [before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,expenseId,venueDbId]);
+          if (!rows[0]) return await client.query('ROLLBACK').then(() => json(res, 409, { error: 'payroll_expense_link_invalid' }));
+          expenseId = rows[0].id;
+        } else {
+          const { rows } = await client.query("INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,created_by) VALUES ($1,'Зарплата',$2,$3,$4,'payroll',$5) RETURNING id", [venueDbId,before.amount,paymentDate,description,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); expenseId = rows[0].id;
+        }
+        const { rows } = await client.query("UPDATE payroll_entries SET status='paid',paid_at=now(),paid_by=$3,payment_date=$4,expense_id=$5 WHERE id=$1 AND venue_id=$2 RETURNING *", [id,venueDbId,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null,paymentDate,expenseId]); updated = rows[0];
+      }
+      await client.query('COMMIT');
+      recordAudit(req, `payroll.entry_${action === 'pay' ? 'paid' : action === 'approve' ? 'approved' : 'cancelled'}`, 'payroll_entry', id, before, updated);
+      return json(res, 200, { ...updated, amount: Number(updated.amount), expenseId: updated.expense_id || null });
+    } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'payroll_entry_transition_failed', detail: error.message }); }
+    finally { client?.release(); }
   }
   if (pathname === '/api/inventory/auto-orders' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['inventory', 'inventory_read'])) return;
@@ -1720,8 +1969,8 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (pathname === '/api/inventory' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'inventory') && !hasPermission(req, 'inventory_read')) return json(res, 403, { error: 'forbidden', permission: 'inventory' });
-    if (repositories?.inventory) { try { const data = await repositories.inventory.list(venueDbId); return json(res, 200, { ...data, lowStock: data.items.filter((item) => item.onHand <= item.minLevel) }); } catch (_) { return json(res, 503, { error: 'inventory_unavailable' }); } }
-    return json(res, 200, { items: inventory, lowStock: inventory.filter((item) => item.onHand <= item.minLevel), movements: stockMovements.slice(-20).reverse() });
+    if (repositories?.inventory) { try { const data = await repositories.inventory.list(venueDbId); return json(res, 200, { ...data, lowStock: data.items.filter(isBelowInventoryMinimum) }); } catch (_) { return json(res, 503, { error: 'inventory_unavailable' }); } }
+    return json(res, 200, { items: inventory, lowStock: inventory.filter(isBelowInventoryMinimum), movements: stockMovements.slice(-20).reverse() });
   }
   if (pathname === '/api/inventory/supplies' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -1855,6 +2104,94 @@ if (staffProfile && req.method === 'PATCH') {
     recordAudit(req, 'inventory.movement', 'inventory', item.id, { onHand: item.onHand - convertedDelta }, { onHand: item.onHand, movement });
     return json(res, 201, movement);
   }
+  if (pathname === '/api/dashboard/shift-kpis' && req.method === 'GET') {
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
+    const employeeView = isOperationalEmployee(req);
+    let timezone = businessTimezone;
+    const requestedDate = url.searchParams.get('date') || '';
+    const requestedShiftId = employeeView ? '' : (url.searchParams.get('shiftId') || '');
+    if (requestedShiftId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedShiftId)) return json(res, 400, { error: 'invalid_shift_id' });
+    let reportDate = requestedDate || today();
+    if (repositories?.pool) {
+      try {
+        const venueRow = await repositories.pool.query('SELECT timezone FROM venues WHERE id=$1', [venueDbId]);
+        timezone = String(venueRow.rows[0]?.timezone || timezone);
+        try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date()); } catch (_) { timezone = businessTimezone; }
+        const currentDate = await repositories.pool.query("SELECT (now() AT TIME ZONE $1)::date::text AS date", [timezone]);
+        if (employeeView && !/^[0-9a-f-]{36}$/i.test(req.user?.id || '')) return json(res, 403, { error: 'employee_identity_required' });
+        if (employeeView || !requestedDate) reportDate = currentDate.rows[0]?.date || reportDate;
+        const dateTimestamp = Date.parse(`${reportDate}T00:00:00Z`);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate) || !Number.isFinite(dateTimestamp) || new Date(dateTimestamp).toISOString().slice(0, 10) !== reportDate) return json(res, 400, { error: 'invalid_shift_kpi_date' });
+        const selectedShiftId = requestedShiftId;
+        const shiftsResult = await repositories.pool.query(`
+          SELECT s.id, s.opened_at AS "openedAt", s.closed_at AS "closedAt",
+            COALESCE(payments.revenue,0)::numeric AS revenue,
+            COALESCE(payments.payment_count,0)::int AS "paymentCount",
+            COALESCE(payments.cash,0)::numeric AS cash,
+            COALESCE(payments.cashless,0)::numeric AS cashless,
+            COALESCE(payments.other,0)::numeric AS other,
+            COALESCE(checks.closed_orders,0)::int AS "closedOrders"
+          FROM shifts s
+          LEFT JOIN LATERAL (
+            SELECT SUM(p.amount) AS revenue,
+              COUNT(p.id)::int AS payment_count,
+              SUM(p.amount) FILTER (WHERE p.method='cash') AS cash,
+              SUM(p.amount) FILTER (WHERE p.method IN ('card','qr')) AS cashless,
+              SUM(p.amount) FILTER (WHERE p.method NOT IN ('cash','card','qr')) AS other
+            FROM payments p JOIN orders o ON o.id=p.order_id AND o.venue_id=s.venue_id
+            WHERE p.status IN ('paid','partially_paid') AND p.shift_id=s.id
+              AND ($3::uuid IS NULL OR o.opened_by=$3::uuid)
+          ) payments ON true
+          LEFT JOIN LATERAL (
+            SELECT COUNT(*)::int AS closed_orders FROM orders o
+            WHERE o.venue_id=s.venue_id AND o.status='closed' AND o.closed_in_shift_id=s.id
+              AND ($3::uuid IS NULL OR o.opened_by=$3::uuid)
+          ) checks ON true
+          WHERE s.venue_id=$1 AND (s.opened_at AT TIME ZONE $2)::date=$4::date
+          ORDER BY s.opened_at DESC`, [venueDbId, timezone, employeeView ? req.user.id : null, reportDate]);
+        const shiftsForDate = shiftsResult.rows.map((row) => ({ ...row, revenue: Number(row.revenue || 0), cash: Number(row.cash || 0), cashless: Number(row.cashless || 0), other: Number(row.other || 0), paymentCount: Number(row.paymentCount || 0), closedOrders: Number(row.closedOrders || 0) }));
+        if (selectedShiftId && !shiftsForDate.some((shift) => shift.id === selectedShiftId)) return json(res, 404, { error: 'shift_not_found_for_date' });
+        const selected = selectedShiftId ? shiftsForDate.filter((shift) => shift.id === selectedShiftId) : shiftsForDate;
+        const totals = selected.reduce((result, shift) => ({ revenue: result.revenue + shift.revenue, paymentCount: result.paymentCount + shift.paymentCount, cash: result.cash + shift.cash, cashless: result.cashless + shift.cashless, other: result.other + shift.other, closedOrders: result.closedOrders + shift.closedOrders }), { revenue: 0, paymentCount: 0, cash: 0, cashless: 0, other: 0, closedOrders: 0 });
+        const unmatchedResult = employeeView ? { rows: [{ count: 0 }] } : await repositories.pool.query(`SELECT COUNT(DISTINCT p.id)::int AS count FROM payments p JOIN orders o ON o.id=p.order_id AND o.venue_id=$1 WHERE p.status IN ('paid','partially_paid') AND p.shift_id IS NULL AND ((($4::uuid IS NULL) AND (p.created_at AT TIME ZONE $2)::date=$3::date) OR EXISTS (SELECT 1 FROM shifts s WHERE s.venue_id=$1 AND (s.opened_at AT TIME ZONE $2)::date=$3::date AND ($4::uuid IS NULL OR s.id=$4::uuid) AND p.created_at>=s.opened_at AND p.created_at<COALESCE(s.closed_at,now())))`, [venueDbId, timezone, reportDate, selectedShiftId || null]);
+        const visibleShifts = employeeView ? (shiftsForDate.length ? [{ id: 'employee-today' }] : []) : shiftsForDate;
+        return json(res, 200, { date: reportDate, timezone, employeeView, selectedShiftId: selectedShiftId || null, shifts: visibleShifts, totals, unassignedPaymentCount: Number(unmatchedResult.rows[0]?.count || 0), ambiguousPaymentCount: 0 });
+      } catch (error) { return json(res, 503, { error: 'shift_kpis_unavailable', detail: error.message }); }
+    }
+    if (employeeView) reportDate = today();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(reportDate) || !Number.isFinite(Date.parse(`${reportDate}T00:00:00Z`)) || new Date(`${reportDate}T00:00:00Z`).toISOString().slice(0, 10) !== reportDate) return json(res, 400, { error: 'invalid_shift_kpi_date' });
+    const localShifts = shifts.filter((shift) => businessDateKey(shift.openedAt) === reportDate);
+    const matches = localShifts;
+    const selectedShiftId = requestedShiftId;
+    if (selectedShiftId && !matches.some((shift) => shift.id === selectedShiftId)) return json(res, 404, { error: 'shift_not_found_for_date' });
+    const chosen = selectedShiftId ? matches.filter((shift) => shift.id === selectedShiftId) : matches;
+    const sums = { revenue: 0, paymentCount: 0, cash: 0, cashless: 0, other: 0, closedOrders: 0, ambiguousPayments: 0 };
+    const visibleOrders = orders.filter((order) => !employeeView || String(order.openedById || order.openedBy || '') === String(req.user?.id || ''));
+    for (const order of visibleOrders) {
+      if (order.status === 'closed' && order.closedAt) {
+        const closedAt = new Date(order.closedAt);
+        const closingShift = order.closedInShiftId || null;
+        if (closingShift && chosen.some((shift) => shift.id === closingShift)) sums.closedOrders += 1;
+      }
+      for (const payment of order.payments || []) {
+        if (!['paid','partially_paid'].includes(payment.status)) continue;
+        const paymentShiftId = payment.shiftId || null;
+        if (!paymentShiftId || !chosen.some((shift) => shift.id === paymentShiftId)) continue;
+        const key = payment.method === 'cash' ? 'cash' : ['card','qr'].includes(payment.method) ? 'cashless' : 'other';
+        const amount = Number(payment.amount || 0);
+        sums.revenue += amount; sums.paymentCount += 1; sums[key] += amount;
+      }
+    }
+    const safeShifts = employeeView ? (chosen.length ? [{ id: 'employee-today' }] : []) : chosen.map(({ id, openedAt, closedAt }) => ({ id, openedAt, closedAt: closedAt || null }));
+    const unmatchedPaymentCount = employeeView ? 0 : visibleOrders.reduce((count, order) => count + (order.payments || []).filter((payment) => {
+      if (!['paid', 'partially_paid'].includes(payment.status) || payment.shiftId) return false;
+      const paidAt = new Date(payment.createdAt || order.closedAt || order.createdAt || 0);
+      const relatesToDate = businessDateKey(paidAt) === reportDate;
+      const relatesToShift = chosen.some((shift) => paidAt >= new Date(shift.openedAt) && (!shift.closedAt || paidAt < new Date(shift.closedAt)));
+      return selectedShiftId ? relatesToShift : (relatesToDate || relatesToShift);
+    }).length, 0);
+    return json(res, 200, { date: reportDate, timezone, employeeView, selectedShiftId: selectedShiftId || null, shifts: safeShifts, totals: sums, unassignedPaymentCount: unmatchedPaymentCount, ambiguousPaymentCount: sums.ambiguousPayments });
+  }
   if (pathname === '/api/finance/summary' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance' });
     const employeeFinanceView = isOperationalEmployee(req); const date = employeeFinanceView ? today() : (url.searchParams.get('date') || today());
@@ -1954,19 +2291,24 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (pathname === '/api/tasks' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['orders', 'staff_view'])) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",created_at AS "createdAt",updated_at AS "updatedAt" FROM tasks WHERE venue_id=$1 ORDER BY CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,due_at NULLS LAST,created_at DESC`, [venueDbId]); return json(res, 200, { items: rows }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); } }
-    return json(res, 200, { items: tasks });
+    const ownTasksOnly = Boolean(req.user && !hasPermission(req, 'staff_manage') && !hasPermission(req, 'tasks_manage'));
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT t.id,t.title,t.description,t.status,t.priority,t.assignee_id AS "assigneeId",assigned_user.full_name AS "assigneeName",t.due_at AS "dueAt",t.created_at AS "createdAt",t.updated_at AS "updatedAt" FROM tasks t LEFT JOIN users assigned_user ON assigned_user.id=t.assignee_id AND assigned_user.venue_id=t.venue_id WHERE t.venue_id=$1 AND ($2::boolean=false OR t.assignee_id=$3) ORDER BY CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,t.due_at NULLS LAST,t.created_at DESC`, [venueDbId, ownTasksOnly, req.user?.id || null]); return json(res, 200, { items: rows }); } catch (_) { return json(res, 503, { error: 'database_unavailable' }); } }
+    const visibleTasks = ownTasksOnly ? tasks.filter((task) => String(task.assigneeId || '') === String(req.user.id)) : tasks;
+    return json(res, 200, { items: visibleTasks.map((task) => ({ ...task, assigneeName: staff.find((person) => String(person.id) === String(task.assigneeId))?.name || task.assigneeName || null })) });
   }
   if (pathname === '/api/tasks' && req.method === 'POST') {
-    if (denyUnless(req, res, 'staff_manage')) return;
+    if (denyUnlessAny(req, res, ['staff_manage', 'tasks_manage'])) return;
     const input = await body(req); const title = String(input.title || '').trim(); const description = String(input.description || '').trim(); const status = String(input.status || 'open'); const priority = String(input.priority || 'normal');
     if (!title || title.length > 160 || description.length > 2000 || !['open','in_progress','done','cancelled'].includes(status) || !['low','normal','high','urgent'].includes(priority)) return json(res, 400, { error: 'invalid_task' });
+    if (process.env.AUTH_REQUIRED === 'true' && !input.assigneeId) return json(res, 400, { error: 'task_assignee_required' });
     if (repositories?.pool) { try { if (input.assigneeId) { const assignee = await repositories.pool.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [String(input.assigneeId), venueDbId]); if (!assignee.rows[0]) return json(res, 400, { error: 'task_assignee_not_found' }); } const { rows } = await repositories.pool.query('INSERT INTO tasks (venue_id,title,description,status,priority,assignee_id,due_at,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",created_at AS "createdAt",updated_at AS "updatedAt"', [venueDbId,title,description,status,priority,input.assigneeId || null,input.dueAt || null,/^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]); recordAudit(req, 'task.created', 'task', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'task_create_failed', detail: error.message }); } }
-    const task = { id: `task-${Date.now()}`, title, description, status, priority, assigneeId: input.assigneeId || null, dueAt: input.dueAt || null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; tasks.push(task); recordAudit(req, 'task.created', 'task', task.id, null, task); return json(res, 201, task);
+    const assignedPerson = input.assigneeId ? staff.find((person) => String(person.id) === String(input.assigneeId) && person.active !== false && !person.deletedAt) : null;
+    if (input.assigneeId && process.env.AUTH_REQUIRED === 'true' && !assignedPerson) return json(res, 400, { error: 'task_assignee_not_found' });
+    const task = { id: `task-${Date.now()}`, title, description, status, priority, assigneeId: input.assigneeId || null, assigneeName: assignedPerson?.name || null, dueAt: input.dueAt || null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }; tasks.push(task); recordAudit(req, 'task.created', 'task', task.id, null, task); return json(res, 201, task);
   }
   const taskPath = pathname.match(/^\/api\/tasks\/([^/]+)$/);
   if (taskPath && req.method === 'PATCH') {
-    const input = await body(req); const canManageTasks = hasPermission(req, 'staff_manage'); const allowed = canManageTasks ? ['title','description','status','priority','assigneeId','dueAt'] : ['status'];
+    const input = await body(req); const canManageTasks = hasPermission(req, 'staff_manage') || hasPermission(req, 'tasks_manage'); const allowed = canManageTasks ? ['title','description','status','priority','assigneeId','dueAt'] : ['status'];
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(taskPath[1])) { try { const { rows: taskRows } = await repositories.pool.query('SELECT id,assignee_id AS "assigneeId" FROM tasks WHERE id=$1 AND venue_id=$2', [taskPath[1], venueDbId]); const task = taskRows[0]; if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); const fields = []; const values = [taskPath[1], venueDbId]; for (const key of allowed) if (input[key] !== undefined) { if (key === 'status' && !['open','in_progress','done','cancelled'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_status' }); if (key === 'priority' && !['low','normal','high','urgent'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_priority' }); fields.push(`${key === 'assigneeId' ? 'assignee_id' : key === 'dueAt' ? 'due_at' : key}=$${values.length + 1}`); values.push(key === 'title' || key === 'description' ? String(input[key] || '').trim() : input[key]); } if (!fields.length) return json(res, 400, { error: 'task_fields_required' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE tasks SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 RETURNING id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'task_not_found' }); recordAudit(req, 'task.updated', 'task', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'task_update_failed', detail: error.message }); } }
     const task = tasks.find((entry) => entry.id === taskPath[1]); if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); if (input.status !== undefined && !['open','in_progress','done','cancelled'].includes(String(input.status))) return json(res, 400, { error: 'invalid_task_status' }); if (input.priority !== undefined && !['low','normal','high','urgent'].includes(String(input.priority))) return json(res, 400, { error: 'invalid_task_priority' }); if (input.title !== undefined && (!String(input.title).trim() || String(input.title).length > 160)) return json(res, 400, { error: 'invalid_task_title' }); if (input.description !== undefined && String(input.description).length > 2000) return json(res, 400, { error: 'invalid_task_description' }); Object.assign(task, input, { updatedAt: new Date().toISOString() }); return json(res, 200, task);
   }
@@ -2155,21 +2497,38 @@ if (staffProfile && req.method === 'PATCH') {
           const allowed = ['open', 'in_progress', 'ready', 'closed', 'cancelled'];
           if (!allowed.includes(input.status)) return json(res, 400, { error: 'invalid_order_status' });
           if (input.status === 'closed') return json(res, 409, { error: 'order_close_requires_payment', action: 'POST /api/orders/:id/close' });
-           const { rows: currentRows } = await repositories.pool.query('SELECT id,status,table_id AS "tableId" FROM orders WHERE id=$1 AND venue_id=$2', [orderAction[1], venueDbId]);
-           if (!currentRows[0]) return json(res, 404, { error: 'order_not_found' });
-           if (!validOrderTransition(currentRows[0].status, input.status)) return json(res, 409, { error: 'invalid_order_transition', from: currentRows[0].status, to: input.status });
-           const { rows } = await repositories.pool.query('UPDATE orders SET status=$1,closed_at=CASE WHEN $1=\'closed\' THEN now() ELSE closed_at END WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.status, orderAction[1], venueDbId]);
-           if (['closed', 'cancelled'].includes(input.status) && rows[0].tableId) await repositories.pool.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved' ELSE 'free' END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN ('open','in_progress','ready'))`, [rows[0].tableId, venueDbId]);
-          recordAudit(req, 'order.status_changed', 'order', rows[0].id, { status: currentRows[0].status, tableId: rows[0].tableId }, rows[0]); return json(res, 200, rows[0]);
+            let client;
+            try {
+              client = await repositories.pool.connect();
+              await client.query('BEGIN');
+              const { rows: currentRows } = await client.query('SELECT id,status,table_id AS "tableId" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderAction[1], venueDbId]);
+              if (!currentRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+              if (!validOrderTransition(currentRows[0].status, input.status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'invalid_order_transition', from: currentRows[0].status, to: input.status }); }
+              const { rows } = await client.query('UPDATE orders SET status=$1,closed_at=CASE WHEN $1=\'closed\' THEN now() ELSE closed_at END WHERE id=$2 AND venue_id=$3 AND status=$4 RETURNING id,status,table_id AS "tableId"', [input.status, orderAction[1], venueDbId, currentRows[0].status]);
+              if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_state_changed' }); }
+              if (['closed', 'cancelled'].includes(input.status) && rows[0].tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved' ELSE 'free' END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN ('open','in_progress','ready'))`, [rows[0].tableId, venueDbId]);
+              await client.query('COMMIT');
+              recordAudit(req, 'order.status_changed', 'order', rows[0].id, { status: currentRows[0].status, tableId: rows[0].tableId }, rows[0]); return json(res, 200, rows[0]);
+            } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client?.release(); }
         }
         if (typeof input.tableId !== 'string' || !input.tableId.trim() || input.tableId.length > 80) return json(res, 400, { error: 'table_id_required' });
-        const { rows: beforeRows } = await repositories.pool.query('SELECT table_id AS "tableId",status FROM orders WHERE id=$1 AND venue_id=$2', [orderAction[1], venueDbId]);
-        const occupied = await repositories.pool.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND id<>$3 AND status IN ('open','in_progress','ready') LIMIT 1`, [venueDbId, input.tableId, orderAction[1]]);
-        if (occupied.rows[0]) return json(res, 409, { error: 'target_table_has_active_order' });
-        const { rows } = await repositories.pool.query('UPDATE orders SET table_id=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,status,table_id AS "tableId"', [input.tableId, orderAction[1], venueDbId]);
-        if (!rows[0]) return json(res, 404, { error: 'order_not_found' });
-        if (beforeRows[0]?.tableId && beforeRows[0].tableId !== rows[0].tableId) { await repositories.pool.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved' ELSE 'free' END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders WHERE table_id=$1 AND venue_id=$2 AND status IN ('open','in_progress','ready'))`, [beforeRows[0].tableId, venueDbId]); await repositories.pool.query(`UPDATE tables t SET status='occupied'::table_status FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [rows[0].tableId, venueDbId]); }
-        recordAudit(req, 'order.transferred', 'order', rows[0].id, beforeRows[0] || null, rows[0]); return json(res, 200, rows[0]);
+        let client;
+        try {
+          client = await repositories.pool.connect();
+          await client.query('BEGIN');
+          const { rows: beforeRows } = await client.query('SELECT id,status,table_id AS "tableId" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderAction[1], venueDbId]);
+          if (!beforeRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+          if (!['open', 'in_progress', 'ready'].includes(beforeRows[0].status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_transferable' }); }
+          const targetTable = await client.query("SELECT t.id FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.status <> 'blocked' FOR UPDATE OF t", [input.tableId, venueDbId]);
+          if (!targetTable.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'target_table_not_found' }); }
+          const occupied = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND id<>$3 AND status IN ('open','in_progress','ready') LIMIT 1`, [venueDbId, input.tableId, orderAction[1]]);
+          if (occupied.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'target_table_has_active_order' }); }
+          const { rows } = await client.query('UPDATE orders SET table_id=$1 WHERE id=$2 AND venue_id=$3 AND status=$4 RETURNING id,status,table_id AS "tableId"', [input.tableId, orderAction[1], venueDbId, beforeRows[0].status]);
+          if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_state_changed' }); }
+          if (beforeRows[0].tableId && beforeRows[0].tableId !== rows[0].tableId) { await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status='confirmed' AND r.starts_at::date=CURRENT_DATE) THEN 'reserved' ELSE 'free' END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM orders WHERE table_id=$1 AND venue_id=$2 AND status IN ('open','in_progress','ready'))`, [beforeRows[0].tableId, venueDbId]); await client.query(`UPDATE tables t SET status='occupied'::table_status FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [rows[0].tableId, venueDbId]); }
+          await client.query('COMMIT');
+          recordAudit(req, 'order.transferred', 'order', rows[0].id, beforeRows[0], rows[0]); return json(res, 200, rows[0]);
+        } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client?.release(); }
       } catch (error) { return json(res, 409, { error: 'order_action_failed', detail: error.message }); }
     }
     const order = orders.find((entry) => entry.id === orderAction[1]);
@@ -2287,6 +2646,9 @@ if (staffProfile && req.method === 'PATCH') {
         const persisted = orderRows[0];
         if (!persisted) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
         if (persisted.status === 'closed' || persisted.status === 'cancelled') { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_already_final' }); }
+        const { rows: shiftRows } = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
+        const activeShiftId = shiftRows[0]?.id;
+        if (!activeShiftId) { await client.query('ROLLBACK'); return json(res, 409, { error: 'open_shift_required' }); }
         const { rows: itemRows } = await client.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [paymentPath[1]]);
         const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
         const { rows: discountRows } = await client.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [paymentPath[1]]);
@@ -2295,15 +2657,15 @@ if (staffProfile && req.method === 'PATCH') {
         const { rows: paidRows } = await client.query('SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status=\'paid\'', [paymentPath[1]]);
         const paid = Number(paidRows[0]?.paid || 0);
         if (paid + amount > due + 0.01) { await client.query('ROLLBACK'); return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); }
-        const { rows } = await client.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,\'paid\') RETURNING id,method,amount,status,created_at AS "createdAt"', [paymentPath[1], method, amount]);
+        const { rows } = await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id) VALUES ($1,$2,$3,\'paid\',$4) RETURNING id,method,amount,status,shift_id AS "shiftId",created_at AS "createdAt"', [paymentPath[1], method, amount, activeShiftId]);
         const nextPaid = paid + amount;
         const closed = nextPaid >= due;
         const finalMeta = closed ? { finalTotal: due, discountTotal: discount, minimumAdjustment: Math.max(0, Number(persisted.minimumOrderTotal || 0) - (subtotal - discount)), paymentMethod: paid > 0 ? 'mixed' : method } : {};
         if (closed) {
           const depletion = await depleteRecipeForOrder(repositories.pool, paymentPath[1], venueDbId, req.user?.id, client);
-          const { rows: closedRows } = await client.query('UPDATE orders SET status=\'closed\',closed_at=now() WHERE id=$1 AND venue_id=$2 AND status NOT IN (\'closed\',\'cancelled\') RETURNING id', [paymentPath[1], venueDbId]);
+          const { rows: closedRows } = await client.query('UPDATE orders SET status=\'closed\',closed_at=now(),closed_in_shift_id=$3 WHERE id=$1 AND venue_id=$2 AND status NOT IN (\'closed\',\'cancelled\') RETURNING id', [paymentPath[1], venueDbId, activeShiftId]);
           if (!closedRows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
-          if (depletion.totalCost > 0) await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, paymentPath[1], depletion.totalCost]);
+          await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, paymentPath[1], depletion.totalCost]);
           if (persisted.tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]);
         }
         const response = { ...rows[0], due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...finalMeta };
@@ -2313,6 +2675,7 @@ if (staffProfile && req.method === 'PATCH') {
       } catch (error) {
         if (client) await client.query('ROLLBACK').catch(() => {});
         if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing });
+        if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit });
         if (error.code === 'order_already_final') return json(res, 409, { error: 'order_already_final' });
         return json(res, 409, { error: 'payment_create_failed', detail: error.message });
       } finally {
@@ -2321,7 +2684,7 @@ if (staffProfile && req.method === 'PATCH') {
     }
     const order = orders.find((entry) => entry.id === paymentPath[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); if (req.method === 'POST' && (order.status === 'closed' || order.status === 'cancelled')) return json(res, 409, { error: 'order_already_final' }); order.payments ||= []; const subtotal = orderTotal(order); const discount = approvedDiscountTotal(order.id, subtotal); const due = Math.max(subtotal - discount, Number(order.minimumOrderTotal || 0)); const paid = order.payments.reduce((sum, item) => sum + Number(item.amount), 0);
     if (req.method === 'GET') return json(res, 200, { items: order.payments, due, paid, remaining: Math.max(0, due - paid) });
-    const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' }); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', createdAt: new Date().toISOString() }; order.payments.push(payment); const nextPaid = paid + amount; const closed = nextPaid >= due; if (closed) { order.status = 'closed'; order.closedAt = payment.createdAt; order.subtotal = subtotal; order.discountTotal = discount; order.finalTotal = due; order.minimumAdjustment = Math.max(0, Number(order.minimumOrderTotal || 0) - (subtotal - discount)); order.paymentMethod = order.payments.length === 1 ? method : 'mixed'; order.paid = nextPaid; order.remaining = 0; releaseMemoryTableIfIdle(order.tableId); } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, { ...payment, orderId: order.id, paid: nextPaid, due, closed }); return json(res, 201, { ...payment, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...(closed ? { finalTotal: order.finalTotal, discountTotal: order.discountTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod } : {}) });
+    const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' }); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' }); const nextPaid = paid + amount; const closed = nextPaid >= due; let depletion = null; if (closed) { try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); } } const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', shiftId: activeShift.id, createdAt: new Date().toISOString() }; order.payments.push(payment); if (closed) { order.status = 'closed'; order.closedAt = payment.createdAt; order.closedInShiftId = activeShift.id; order.subtotal = subtotal; order.discountTotal = discount; order.finalTotal = due; order.minimumAdjustment = Math.max(0, Number(order.minimumOrderTotal || 0) - (subtotal - discount)); order.paymentMethod = order.payments.length === 1 ? method : 'mixed'; order.paid = nextPaid; order.remaining = 0; order.costOfGoods = Number(depletion?.totalCost || 0); releaseMemoryTableIfIdle(order.tableId); } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, { ...payment, orderId: order.id, paid: nextPaid, due, closed, costOfGoods: closed ? order.costOfGoods : undefined }); return json(res, 201, { ...payment, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...(closed ? { finalTotal: order.finalTotal, discountTotal: order.discountTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod, costOfGoods: order.costOfGoods } : {}) });
   }
   const orderPath = pathname.match(/^\/api\/orders\/([^/]+)\/(summary|close|split|discount-requests)$/);
   if (orderPath && req.method === 'GET' && orderPath[2] === 'summary') {
@@ -2361,6 +2724,10 @@ if (staffProfile && req.method === 'PATCH') {
           return json(res, 409, { error: 'order_already_final' });
         }
 
+        const { rows: shiftRows } = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
+        const activeShiftId = shiftRows[0]?.id;
+        if (!activeShiftId) { await client.query('ROLLBACK'); return json(res, 409, { error: 'open_shift_required' }); }
+
         const { rows: itemRows } = await client.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderPath[1]]);
         const subtotal = itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0);
         const { rows: discountRows } = await client.query('SELECT type,value FROM discounts WHERE order_id=$1 AND status=\'approved\'', [orderPath[1]]);
@@ -2372,10 +2739,10 @@ if (staffProfile && req.method === 'PATCH') {
         const remaining = Math.max(0, finalTotal - paid);
 
         const depletion = await depleteRecipeForOrder(repositories.pool, orderPath[1], venueDbId, req.user?.id, client);
-        const { rows } = await client.query('UPDATE orders SET status=$1,closed_at=now() WHERE id=$2 AND venue_id=$3 AND status NOT IN (\'closed\',\'cancelled\') RETURNING *', ['closed', orderPath[1], venueDbId]);
+        const { rows } = await client.query('UPDATE orders SET status=$1,closed_at=now(),closed_in_shift_id=$4 WHERE id=$2 AND venue_id=$3 AND status NOT IN (\'closed\',\'cancelled\') RETURNING *', ['closed', orderPath[1], venueDbId, activeShiftId]);
         if (!rows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
-        if (depletion.totalCost > 0) await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]);
-        if (remaining > 0) await client.query('INSERT INTO payments (order_id,method,amount,status) VALUES ($1,$2,$3,$4)', [orderPath[1], paymentMethod, remaining, 'paid']);
+        await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]);
+        if (remaining > 0) await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id) VALUES ($1,$2,$3,$4,$5)', [orderPath[1], paymentMethod, remaining, 'paid', activeShiftId]);
         if (persisted.tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]);
         result = { ...rows[0], subtotal, discountTotal: discount, finalTotal, paid: paid + remaining, remaining: 0, minimumAdjustment: Math.max(0, minimum - (subtotal - discount)), paymentMethod };
         await client.query('COMMIT');
@@ -2385,6 +2752,9 @@ if (staffProfile && req.method === 'PATCH') {
         if (client) await client.query('ROLLBACK').catch(() => {});
         if (error.message === 'insufficient_recipe_stock') {
           return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing });
+        }
+        if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) {
+          return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit });
         }
         if (error.code === 'order_already_final') {
           return json(res, 409, { error: 'order_already_final' });
@@ -2400,7 +2770,9 @@ if (staffProfile && req.method === 'PATCH') {
     if (['closed', 'cancelled'].includes(order.status)) return json(res, 409, { error: 'order_already_final' });
     const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
     const total = orderTotal(order); const discount = approvedDiscountTotal(order.id, total); const minimum = Number(order.minimumOrderTotal || 0);
-    order.status = 'closed'; order.closedAt = new Date().toISOString(); releaseMemoryTableIfIdle(order.tableId); order.subtotal = total; order.discountTotal = discount; order.finalTotal = Math.max(total - discount, minimum); order.payments ||= []; const alreadyPaid = order.payments.filter((payment) => payment.status === 'paid').reduce((sum, payment) => sum + Number(payment.amount || 0), 0); const remaining = Math.max(0, order.finalTotal - alreadyPaid); if (remaining > 0) order.payments.push({ id: `pay-${Date.now()}`, method: paymentMethod, amount: remaining, status: 'paid', createdAt: order.closedAt }); order.paid = alreadyPaid + remaining; order.remaining = 0; order.minimumAdjustment = Math.max(0, minimum - (total - discount)); order.paymentMethod = paymentMethod;
+    const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' });
+    let depletion; try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); }
+    order.status = 'closed'; order.closedAt = new Date().toISOString(); order.closedInShiftId = activeShift.id; releaseMemoryTableIfIdle(order.tableId); order.subtotal = total; order.discountTotal = discount; order.finalTotal = Math.max(total - discount, minimum); order.payments ||= []; const alreadyPaid = order.payments.filter((payment) => payment.status === 'paid').reduce((sum, payment) => sum + Number(payment.amount || 0), 0); const remaining = Math.max(0, order.finalTotal - alreadyPaid); if (remaining > 0) order.payments.push({ id: `pay-${Date.now()}`, method: paymentMethod, amount: remaining, status: 'paid', shiftId: activeShift.id, createdAt: order.closedAt }); order.paid = alreadyPaid + remaining; order.remaining = 0; order.minimumAdjustment = Math.max(0, minimum - (total - discount)); order.paymentMethod = paymentMethod; order.costOfGoods = Number(depletion?.totalCost || 0);
     recordAudit(req, 'order.closed', 'order', order.id, { status: 'open' }, { status: order.status, subtotal: order.subtotal, discountTotal: order.discountTotal, finalTotal: order.finalTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod });
     return json(res, 200, order);
   }
@@ -2486,6 +2858,7 @@ function staticFile(req, res) {
     ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
+    '/purchase-document-validation.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
     '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg',
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
@@ -2497,7 +2870,11 @@ function staticFile(req, res) {
   const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
   if (relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(404); return res.end('Not found'); }
   const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf' };
-  res.writeHead(200, { 'Content-Type': `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' });
+  const headers = { 'Content-Type': `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+  // The login document contains the initial setup form as a hidden alternative;
+  // never let a browser keep an older first-run document after a local release.
+  if (requestPath === '/login.html') headers['Cache-Control'] = 'no-store';
+  res.writeHead(200, headers);
   return res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(file));
 }
 

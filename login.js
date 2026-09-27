@@ -34,12 +34,9 @@ document.querySelector('#setup-password-toggle')?.addEventListener('click', (eve
 });
 
 const showSetupIfNeeded = async () => {
+  if (form && setupForm) { form.hidden = false; setupForm.hidden = true; }
   try {
     const response = await fetch('/api/setup/status', { cache: 'no-store' });
-    if (response.status === 404) {
-      if (form && setupForm) { form.hidden = true; setupForm.hidden = false; setupForm.querySelector('#setup-venue')?.focus(); }
-      return;
-    }
     const status = response.ok ? await response.json() : null;
     if (status?.required && form && setupForm) {
       form.hidden = true;

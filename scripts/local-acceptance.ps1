@@ -9,6 +9,27 @@ $root = Split-Path -Parent $PSScriptRoot
 $checks = @(
   @{ file = 'site-structure-contract.mjs'; node = $true },
   @{ file = 'visual-page-rules-contract.mjs'; node = $true },
+  @{ file = 'fold-responsive-contract.mjs'; node = $true },
+  @{ file = 'sidebar-navigation-contract.mjs'; node = $true },
+  @{ file = 'clients-editor-contract.mjs'; node = $true },
+  @{ file = 'staff-active-count-contract.mjs'; node = $true },
+  @{ file = 'dashboard-kpi-design-contract.mjs'; node = $true },
+  @{ file = 'admin-section-heading-contract.mjs'; node = $true },
+  @{ file = 'dashboard-shift-attribution-contract.mjs'; node = $true },
+  @{ file = 'header-shell-contract.mjs'; node = $true },
+  @{ file = 'inventory-context-contract.mjs'; node = $true },
+  @{ file = 'inventory-hierarchy-contract.mjs'; node = $true },
+  @{ file = 'inventory-stock-status-qa.mjs'; node = $true },
+  @{ file = 'inventory-stock-status-runtime-qa.mjs'; node = $true },
+  @{ file = 'inventory-responsive-contract.mjs'; node = $true },
+  @{ file = 'inventory-critical-state-qa.mjs'; node = $true },
+  @{ file = 'directory-rename-runtime-qa.mjs'; node = $true },
+  @{ file = 'demo-premix-unit-runtime-qa.mjs'; node = $true },
+  @{ file = 'recipe-depletion-contract-qa.mjs'; node = $true },
+  @{ file = 'recipe-depletion-runtime-qa.mjs'; node = $true },
+  @{ file = 'recipe-depletion-pg-contract.mjs'; node = $true },
+  @{ file = 'warehouse-qa.mjs'; node = $true },
+  @{ file = 'tasks-qa.mjs'; node = $true },
   @{ file = 'mode-navigation-contract.mjs'; node = $true },
   @{ file = 'local-static-boundary.mjs'; node = $true },
   @{ file = 'local-click-contract.mjs'; node = $true },
@@ -16,10 +37,16 @@ $checks = @(
   @{ file = 'local-deploy-contract.mjs'; node = $true },
   @{ file = 'local-route-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-role-contract.mjs'; node = $true },
+  @{ file = 'finance-rbac-runtime-qa.mjs'; node = $true; standalone = $true },
+  @{ file = 'finance-required-marker-contract.mjs'; node = $true },
+  @{ file = 'finance-chart-empty-state-contract.mjs'; node = $true },
   @{ file = 'local-insights-contract.mjs'; node = $true },
   @{ file = 'local-date-contract.mjs'; node = $true },
   @{ file = 'local-asset-smoke.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-login-contract.mjs'; node = $true },
+  @{ file = 'staff-pin-passport-contract.mjs'; node = $true },
+  @{ file = 'staff-pin-passport-runtime-qa.mjs'; node = $true },
+  @{ file = 'staff-worklog-runtime-qa.mjs'; node = $true },
   @{ file = 'local-lock-contract.mjs'; node = $true },
   @{ file = 'local-preferences-contract.mjs'; node = $true },
   @{ file = 'local-saas-contract.mjs'; node = $true },
@@ -27,20 +54,33 @@ $checks = @(
   @{ file = 'local-saas-onboarding-contract.mjs'; node = $true },
   @{ file = 'local-tea-catalog.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-floor-management-contract.mjs'; node = $true },
+  @{ file = '..\smoke-test.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-crud-contract.mjs'; node = $true },
   @{ file = 'local-guest-order.ps1'; args = @('-BaseUrl', $BaseUrl) },
-  # Keep the default acceptance run lightweight; use local-100-orders.ps1 -Count 100 for an explicit load pass.
-  @{ file = 'local-100-orders.ps1'; args = @('-BaseUrl', $BaseUrl, '-Count', '10') },
+  # Run local-100-orders.ps1 separately against a fresh isolated server. The production rate limit
+  # intentionally applies to loopback too, and the full acceptance suite already exercises order CRUD.
   @{ file = 'payroll-qa.mjs'; node = $true },
-  @{ file = 'order-attention-qa.mjs'; node = $true },
-  @{ file = '..\smoke-test.ps1'; args = @('-BaseUrl', $BaseUrl) }
+  @{ file = 'payroll-calculation-qa.mjs'; node = $true },
+  @{ file = 'payroll-lifecycle-runtime-qa.mjs'; node = $true },
+  @{ file = 'payroll-register-ui-contract.mjs'; node = $true },
+  @{ file = 'payroll-lifecycle-migration-preflight.mjs'; node = $true },
+  @{ file = 'purchase-payments-runtime-qa.mjs'; node = $true },
+  @{ file = 'purchase-document-validation-qa.mjs'; node = $true },
+  @{ file = 'purchase-payment-api-validation-qa.mjs'; node = $true },
+  @{ file = 'purchase-payments-contract.mjs'; node = $true },
+  @{ file = 'order-close-transaction-qa.mjs'; node = $true },
+  @{ file = 'shift-transaction-qa.mjs'; node = $true },
+  @{ file = 'shift-close-ui-qa.mjs'; node = $true },
+  @{ file = 'migrations-contract.mjs'; node = $true },
+  @{ file = 'order-attention-qa.mjs'; node = $true }
 )
 foreach ($check in $checks) {
   $path = Join-Path $PSScriptRoot $check.file
   if (-not (Test-Path $path)) { $path = Join-Path $root $check.file }
   Write-Output "RUN $($check.file)"
-  if ($check.node) { & node $path $BaseUrl }
+  if ($check.node -and $check.standalone) { & node $path }
+  elseif ($check.node) { & node $path $BaseUrl }
   else { & pwsh -NoProfile -File $path @($check.args) }
   if ($LASTEXITCODE -ne 0) { throw "Acceptance check failed: $($check.file)" }
 }
-Write-Output 'LOCAL ACCEPTANCE: PASS (routes/assets, catalog, guests, 10 orders, finance and delivery)'
+Write-Output 'LOCAL ACCEPTANCE: PASS (routes/assets, catalog, roles, staff, shifts, guest/order CRUD, payroll, supplier payments, migration contracts and delivery)'

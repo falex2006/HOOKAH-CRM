@@ -12,6 +12,8 @@ for (const file of migrations) {
 }
 if (!portal.includes('inventory-subdepartment-options')) throw new Error('inventory item form has no subdepartment options');
 if (!portal.includes('syncInventoryHierarchyOptions')) throw new Error('inventory hierarchy option sync is missing');
+if (!portal.includes("const subdepartmentSelect = document.querySelector('#inventory-subdepartment-department')") || !portal.includes('subdepartmentSelect.innerHTML = options')) throw new Error('subdepartment department options do not refresh when the department directory changes');
+if (!portal.includes('if (departmentSelect && selectedDepartment && [...departmentSelect.options].some((option) => option.value === selectedDepartment)) departmentSelect.value = selectedDepartment')) throw new Error('new category form does not inherit the currently selected department');
 if (!portal.includes('Выберите подцех из справочника выбранного цеха')) throw new Error('inventory hierarchy UX validation is missing');
 if (!server.includes('validateInventoryHierarchy')) throw new Error('inventory hierarchy API validation is missing');
 if (!server.includes("inventory_department_not_found") || !server.includes("inventory_subdepartment_not_found")) throw new Error('inventory hierarchy error contract is missing');

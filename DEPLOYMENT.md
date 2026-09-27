@@ -14,7 +14,7 @@
 
 1. На VPS установить Docker Engine и Compose plugin.
 2. Скопировать проект в отдельный каталог и создать `.env` из `.env.example`.
-3. Задать уникальные значения `POSTGRES_PASSWORD`, `DEMO_ADMIN_PASSWORD`, `DEMO_OWNER_PASSWORD`, `DEMO_STAFF_PASSWORD`, `STAFF_PASSPORT_KEY`, `SAAS_OWNER_EMAIL` и `SAAS_OWNER_PASSWORD`, домен и `AUTH_REQUIRED=true`. Для заведения в Тюмени оставить `BUSINESS_TIMEZONE=Asia/Yekaterinburg` или указать часовой пояс своего города.
+3. Задать уникальные значения `POSTGRES_PASSWORD`, `DEMO_ADMIN_PASSWORD`, `DEMO_OWNER_PASSWORD`, `DEMO_STAFF_PASSWORD`, `STAFF_PASSPORT_KEY`, `SAAS_OWNER_EMAIL` и `SAAS_OWNER_PASSWORD`, домен и `AUTH_REQUIRED=true`. Оставить `FIRST_RUN_SETUP_ENABLED=false` для тестовой и обычной рабочей среды. Включать этот флаг можно только на короткое время для первичной настройки действительно пустой БД; после создания владельца сразу вернуть `false`. Сервер дополнительно блокирует повторную настройку после появления активного пользователя. Все три настройки шифрования паспортных данных и начального владельца SaaS передаются из `.env` в CRM-контейнер. Для заведения в Тюмени оставить `BUSINESS_TIMEZONE=Asia/Yekaterinburg` или указать часовой пояс своего города.
 4. Открыть наружу только 80/443; порт PostgreSQL не публиковать.
 
 ## Запуск
@@ -76,6 +76,8 @@ docker compose ps
 ```
 
 Перед обновлением сохранить backup. Healthcheck CRM и PostgreSQL должны быть `healthy`.
+
+`deploy-vps.sh` принимает только чистый Git checkout. Compose использует имя проекта `territory-crm` (или одинаковое `COMPOSE_PROJECT_NAME` во всех checkout); блокировка лежит в `/var/lock`, поэтому разные копии репозитория не запускают параллельный выпуск одного проекта. Идентификатор выпуска вычисляется из commit SHA и HMAC-хеша конфигурации Compose с закрытым ключом на сервере; он записывается в метку Docker-контейнера. Состояние выпуска хранится в `/var/lib/territory-crm/<project>`, резервные копии — в `/var/backups/territory-crm/<project>`, поэтому разные checkout используют одну историю и один архив. Перед обновлением создаётся проверенная копия БД. Неуспешная попытка сохраняет метку своей резервной копии и повторно использует её только после сверки с реально запущенной версией; старая версия не может выдать себя за новую одним healthcheck. Уже установленный здоровый выпуск пропускается целиком. Новый commit или новая конфигурация создают отдельный выпуск и отдельную копию. Дампы сериализованы, временный файл закрыт правами и становится финальным только после проверки целостности.
 
 Перед `deploy-vps.sh` задайте в `.env` непустые production-секреты и замените все значения `change_*` и `replace-*`, включая `STAFF_PASSPORT_KEY`; скрипт проверяет наличие Docker Compose plugin, `AUTH_REQUIRED=true` и `COOKIE_SECURE=true` до запуска контейнеров.
 

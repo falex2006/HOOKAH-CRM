@@ -1,19 +1,30 @@
+name: ${COMPOSE_PROJECT_NAME:-territory-crm}
 services:
   crm:
-    build: .
+    build:
+      context: .
+      args:
+        CRM_RELEASE_ID: ${CRM_RELEASE_ID:-unreleased}
     restart: unless-stopped
     expose:
       - "3000"
     environment:
+      CRM_RELEASE_ID: ${CRM_RELEASE_ID:-unreleased}
       PORT: 3000
       AUTH_REQUIRED: ${AUTH_REQUIRED:-true}
+      FIRST_RUN_SETUP_ENABLED: ${FIRST_RUN_SETUP_ENABLED:-false}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       VENUE_ID: ${VENUE_ID:-00000000-0000-0000-0000-000000000001}
       BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Asia/Yekaterinburg}
       DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-change_me_admin}
       DEMO_OWNER_PASSWORD: ${DEMO_OWNER_PASSWORD:-change_me_owner}
       DEMO_STAFF_PASSWORD: ${DEMO_STAFF_PASSWORD:-change_me_staff}
+      STAFF_PASSPORT_KEY: ${STAFF_PASSPORT_KEY:-}
+      SAAS_OWNER_EMAIL: ${SAAS_OWNER_EMAIL:-}
+      SAAS_OWNER_PASSWORD: ${SAAS_OWNER_PASSWORD:-}
       DATABASE_URL: postgresql://crm:${POSTGRES_PASSWORD:-change_me}@db:5432/crm
+    labels:
+      com.territory.release-id: ${CRM_RELEASE_ID:-unreleased}
     depends_on:
       db:
         condition: service_healthy

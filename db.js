@@ -17,7 +17,7 @@ class OrderRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      if (input.tableId) { const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) throw new Error('table_has_active_order'); }
+      if (input.tableId) { const target = await client.query("SELECT t.id FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.status <> 'blocked' FOR UPDATE OF t", [input.tableId, input.venueId]); if (!target.rows[0]) throw new Error('table_not_found_or_unavailable'); const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) throw new Error('table_has_active_order'); }
       const { rows } = await client.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, table_id AS "tableId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt"', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0, input.notes || null]);
       if (input.tableId) await client.query(`UPDATE tables t SET status='occupied'::table_status FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [input.tableId, input.venueId]);
       await client.query('COMMIT');
@@ -161,7 +161,8 @@ class PurchaseDocumentRepository {
   }
   static mapDocument(row) {
     if (!row) return null;
-    return { ...row, lineCount: Number(row.lineCount || 0), totalCost: Number(row.totalCost || 0), lines: (row.lines || []).map((line) => ({ ...line, quantity: Number(line.quantity), packMultiplier: Number(line.packMultiplier), stockQuantity: Number(line.stockQuantity), unitCost: Number(line.unitCost), receiptUnitCost: Number(line.receiptUnitCost), lineTotal: Number(line.lineTotal) })) };
+    const totalCost = Number(row.totalCost || 0);
+    return { ...row, lineCount: Number(row.lineCount || 0), totalCost, lines: (row.lines || []).map((line) => ({ ...line, quantity: Number(line.quantity), packMultiplier: Number(line.packMultiplier), stockQuantity: Number(line.stockQuantity), unitCost: Number(line.unitCost), receiptUnitCost: Number(line.receiptUnitCost), lineTotal: Number(line.lineTotal) })) };
   }
   async list(venueId, status) {
     const params = [venueId];
@@ -175,6 +176,71 @@ class PurchaseDocumentRepository {
     const { rows } = await client.query(`SELECT d.id,d.venue_id AS "venueId",d.supplier_name AS "supplierName",d.document_number AS "documentNumber",d.document_date AS "documentDate",d.recorded_at AS "recordedAt",d.status,d.note,d.source_auto_order_id AS "sourceAutoOrderId",d.created_by AS "createdBy",d.posted_by AS "postedBy",d.posted_at AS "postedAt",COUNT(l.id)::int AS "lineCount",COALESCE(SUM(l.line_total),0) AS "totalCost",COALESCE(json_agg(json_build_object('id',l.id,'ingredientId',l.ingredient_id,'ingredientName',l.ingredient_name_snapshot,'stockUnit',l.stock_unit,'quantity',l.quantity,'unit',l.unit,'packMultiplier',l.pack_multiplier,'stockQuantity',l.stock_quantity,'unitCost',l.unit_cost,'receiptUnitCost',l.receipt_unit_cost,'lineTotal',l.line_total,'sourceMovementId',l.source_movement_id) ORDER BY l.created_at) FILTER (WHERE l.id IS NOT NULL),'[]'::json) AS lines
       FROM inventory_purchase_documents d LEFT JOIN inventory_purchase_document_lines l ON l.document_id=d.id WHERE d.id=$1 AND d.venue_id=$2 GROUP BY d.id`, [id, venueId]);
     return PurchaseDocumentRepository.mapDocument(rows[0]);
+  }
+  async listPayables(venueId) {
+    const { rows } = await this.pool.query(`SELECT d.id,d.supplier_name AS "supplierName",d.document_number AS "documentNumber",d.document_date AS "documentDate",
+      COALESCE(SUM(l.line_total),0)::numeric AS "totalCost",
+      COALESCE((SELECT SUM(e.amount) FROM expenses e WHERE e.venue_id=d.venue_id AND e.purchase_document_id=d.id AND e.source='purchase'),0)::numeric AS "totalPaid"
+      FROM inventory_purchase_documents d
+      LEFT JOIN inventory_purchase_document_lines l ON l.document_id=d.id AND l.venue_id=d.venue_id
+      WHERE d.venue_id=$1 AND d.status='posted'
+      GROUP BY d.id ORDER BY d.document_date DESC,d.recorded_at DESC`, [venueId]);
+    return rows.map((row) => {
+      const totalCost = Number(row.totalCost || 0);
+      const totalPaid = Number(row.totalPaid || 0);
+      const balanceDue = Math.max(0, Number((totalCost - totalPaid).toFixed(2)));
+      return { ...row, totalCost, totalPaid, balanceDue, paymentStatus: balanceDue <= 0.005 ? 'paid' : totalPaid > 0 ? 'partially_paid' : 'unpaid' };
+    });
+  }
+  async listPayments(venueId, documentId) {
+    const document = await this.pool.query("SELECT id FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2 AND status='posted'", [documentId, venueId]);
+    if (!document.rows[0]) return null;
+    const { rows } = await this.pool.query(`SELECT e.id,e.amount,e.expense_date AS "paymentDate",e.payment_method AS "paymentMethod",e.document_url AS "documentUrl"
+      FROM expenses e
+      WHERE e.venue_id=$1 AND e.purchase_document_id=$2 AND e.source='purchase'
+      ORDER BY e.expense_date DESC,e.created_at DESC,e.id DESC`, [venueId, documentId]);
+    return rows.map((row) => ({ ...row, amount: Number(row.amount || 0) }));
+  }
+  async addPayment(input) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const locked = await client.query(`SELECT id,supplier_name AS "supplierName",document_number AS "documentNumber",status
+        FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2 FOR UPDATE`, [input.id, input.venueId]);
+      const document = locked.rows[0];
+      if (!document) throw new Error('purchase_document_not_found');
+      if (document.status !== 'posted') throw new Error('purchase_document_not_posted');
+
+      const priorResult = await client.query(`SELECT id,purchase_document_id AS "purchaseDocumentId",amount,expense_date AS "expenseDate",payment_method AS "paymentMethod",document_url AS "documentUrl"
+        FROM expenses WHERE venue_id=$1 AND idempotency_key=$2 FOR UPDATE`, [input.venueId, input.idempotencyKey]);
+      const prior = priorResult.rows[0];
+      if (prior) {
+        const samePayload = String(prior.purchaseDocumentId) === String(input.id)
+          && Math.round(Number(prior.amount) * 100) === Math.round(input.amount * 100)
+          && String(prior.expenseDate).slice(0, 10) === input.paymentDate
+          && String(prior.paymentMethod || '') === input.paymentMethod
+          && String(prior.documentUrl || '') === String(input.documentUrl || '');
+        if (!samePayload) throw new Error('purchase_payment_idempotency_conflict');
+        const totals = await client.query(`SELECT COALESCE((SELECT SUM(line_total) FROM inventory_purchase_document_lines WHERE document_id=$1 AND venue_id=$2),0)::numeric AS "totalCost",
+          COALESCE((SELECT SUM(amount) FROM expenses WHERE purchase_document_id=$1 AND venue_id=$2 AND source='purchase'),0)::numeric AS "totalPaid"`, [input.id, input.venueId]);
+        const totalCost = Number(totals.rows[0].totalCost || 0); const totalPaid = Number(totals.rows[0].totalPaid || 0);
+        await client.query('COMMIT');
+        return { expenseId: prior.id, amount: Number(prior.amount), paymentDate: input.paymentDate, paymentMethod: prior.paymentMethod, totalCost, totalPaid, balanceDue: Math.max(0, Number((totalCost - totalPaid).toFixed(2))), idempotent: true };
+      }
+
+      const totals = await client.query(`SELECT COALESCE((SELECT SUM(line_total) FROM inventory_purchase_document_lines WHERE document_id=$1 AND venue_id=$2),0)::numeric AS "totalCost",
+        COALESCE((SELECT SUM(amount) FROM expenses WHERE purchase_document_id=$1 AND venue_id=$2 AND source='purchase'),0)::numeric AS "totalPaid"`, [input.id, input.venueId]);
+      const totalCost = Number(totals.rows[0].totalCost || 0); const previousPaid = Number(totals.rows[0].totalPaid || 0);
+      const balanceDue = Math.max(0, Number((totalCost - previousPaid).toFixed(2)));
+      if (input.amount > balanceDue + 0.005) throw new Error('purchase_payment_exceeds_balance');
+      const description = `Оплата поставки «${document.supplierName}»${document.documentNumber ? ` · № ${document.documentNumber}` : ''}`;
+      const inserted = await client.query(`INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,document_url,created_by,purchase_document_id,idempotency_key,payment_method)
+        VALUES ($1,'Закупка',$2,$3,$4,'purchase',$5,$6,$7,$8,$9)
+        RETURNING id`, [input.venueId, input.amount, input.paymentDate, description, input.documentUrl || null, input.createdBy || null, input.id, input.idempotencyKey, input.paymentMethod]);
+      const totalPaid = Number((previousPaid + input.amount).toFixed(2));
+      await client.query('COMMIT');
+      return { expenseId: inserted.rows[0].id, amount: input.amount, paymentDate: input.paymentDate, paymentMethod: input.paymentMethod, totalCost, totalPaid, balanceDue: Math.max(0, Number((totalCost - totalPaid).toFixed(2))), idempotent: false };
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client.release(); }
   }
   async saveDraft(input) {
     const client = await this.pool.connect();

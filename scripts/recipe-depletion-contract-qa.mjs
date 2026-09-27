@@ -32,6 +32,14 @@ for (const invalidIngredient of ['', '0 мл', '-2 г', '1, мл']) {
 }
 assert.throws(() => scaleBatchRecipeIngredients(null, 1, 4), /recipe_ingredients_must_be_array/);
 assert.match(server, /DESC NULLS LAST/, 'an exact product-linked recipe wins over a legacy unlinked card');
+assert.match(server, /candidate\.active=true AND candidate\.recipe_type='sale'/,
+  'only sale recipes may be depleted by a customer order; premix recipes are consumed only during production');
 assert.match(server, /SELECT cost FROM order_costs WHERE venue_id=\$1 AND order_id=\$2/, 'idempotent depletion reuses the historical cost snapshot');
+assert.match(server, /SELECT id FROM products WHERE id=\$1 AND venue_id=\$2/,
+  'production recipe bindings must reference a product in the same venue');
+assert.match(server, /premix_product_binding_not_allowed/,
+  'premix recipes cannot be bound to sale products');
+assert.doesNotMatch(server, /if \(depletion\.totalCost > 0\) await client\.query\('INSERT INTO order_costs/,
+  'closing an order must save a zero cost snapshot as well as a positive one');
 
 console.log('RECIPE DEPLETION CONTRACT QA: 14 assertions passed');

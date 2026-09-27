@@ -119,7 +119,7 @@
 - `/orders`;
 - `/clients`;
 - `/reservations`;
-- `/?mode=staff`;
+- `/` (role and permissions come from the authenticated account);
 - `/delivery`;
 - `/inventory`;
 - `/finance`;

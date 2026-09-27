@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 # Run from the CRM directory on a fresh Ubuntu/Debian VPS.
 # Do not put real passwords in this file; create .env before running it.
@@ -28,6 +29,62 @@ done
 case "${SAAS_OWNER_EMAIL}" in platform-owner@example.com|change_*|replace-*|replace_*|*@example.com) echo 'Replace placeholder in SAAS_OWNER_EMAIL' >&2; exit 1;; esac
 
 $COMPOSE config --quiet
+release_commit="$(git rev-parse --verify HEAD 2>/dev/null)" || { echo 'Deploy from a committed Git checkout' >&2; exit 1; }
+dirty_paths="$(git status --porcelain --untracked-files=all)"
+[ -z "$dirty_paths" ] || { echo 'Commit or remove all untracked and modified release files before deploying' >&2; exit 1; }
+project_name="${COMPOSE_PROJECT_NAME:-territory-crm}"
+[[ "$project_name" =~ ^[A-Za-z0-9._-]{1,63}$ ]] || { echo 'COMPOSE_PROJECT_NAME has an invalid format' >&2; exit 1; }
+export COMPOSE_PROJECT_NAME="$project_name"
+export CRM_RELEASE_ID=unreleased
+exec 8>"/var/lock/$project_name-deploy.lock"
+flock 8
+state_dir="/var/lib/territory-crm/$project_name"
+backup_dir="/var/backups/territory-crm/$project_name"
+mkdir -p "$state_dir" "$backup_dir"
+chmod 700 "$state_dir" "$backup_dir"
+key_file="$state_dir/fingerprint.key"
+if [ ! -s "$key_file" ]; then
+  key_tmp="$key_file.tmp.$$"
+  openssl rand -hex 32 > "$key_tmp"
+  chmod 600 "$key_tmp"
+  mv "$key_tmp" "$key_file"
+fi
+fingerprint_key="$(cat "$key_file")"
+[[ "$fingerprint_key" =~ ^[A-Fa-f0-9]{64}$ ]] || { echo 'Release fingerprint key is invalid; refusing deployment' >&2; exit 1; }
+config_hash="$($COMPOSE config | openssl dgst -sha256 -hmac "$fingerprint_key" | awk '{print $NF}')"
+release_fingerprint="$(printf '%s:%s' "$release_commit" "$config_hash" | sha256sum | awk '{print $1}')"
+export CRM_RELEASE_ID="$release_fingerprint"
+state_file="$state_dir/deployed-release"
+backup_label="pre-$release_fingerprint"
+state_status=""
+state_fingerprint=""
+state_backup_label=""
+if [ -f "$state_file" ]; then
+  IFS='|' read -r state_status state_fingerprint state_backup_label < "$state_file" || true
+  running_release=""
+  container_id="$($COMPOSE ps -q crm)"
+  if [ -n "$container_id" ]; then
+    running_release="$(docker inspect --format '{{ index .Config.Labels "com.territory.release-id" }}' "$container_id" 2>/dev/null || true)"
+  fi
+  if [[ "$state_fingerprint" == "$release_fingerprint" && ( "$state_status" == 'deployed' || "$state_status" == 'in-progress' ) ]]; then
+    if [ "$running_release" = "$release_fingerprint" ] && $COMPOSE exec -T crm wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"'; then
+      printf 'deployed|%s|%s\n' "$release_fingerprint" "${state_backup_label:-$backup_label}" > "$state_file.tmp.$$"
+      chmod 600 "$state_file.tmp.$$"
+      mv "$state_file.tmp.$$" "$state_file"
+      echo "Release $release_commit is already deployed and healthy; skipping duplicate deployment"
+      exit 0
+    fi
+    if [ "$state_status" = 'in-progress' ] && [ -n "$state_backup_label" ]; then
+      backup_label="$state_backup_label"
+    elif [ "$state_status" = 'deployed' ]; then
+      backup_label="pre-$release_fingerprint-recovery-$(date -u +%Y%m%dT%H%M%S%N)"
+    fi
+  fi
+fi
+printf 'in-progress|%s|%s\n' "$release_fingerprint" "$backup_label" > "$state_file.tmp.$$"
+chmod 600 "$state_file.tmp.$$"
+mv "$state_file.tmp.$$" "$state_file"
+BACKUP_DIR="$backup_dir" BACKUP_LABEL="$backup_label" ./backup-postgres.sh
 $COMPOSE pull
 $COMPOSE build --pull
 $COMPOSE up -d
@@ -36,7 +93,15 @@ $COMPOSE exec -T crm npm run db:seed-menu
 $COMPOSE restart crm
 
 for attempt in $(seq 1 30); do
-  if $COMPOSE exec -T crm wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"'; then
+  container_id="$($COMPOSE ps -q crm)"
+  running_release=""
+  if [ -n "$container_id" ]; then
+    running_release="$(docker inspect --format '{{ index .Config.Labels "com.territory.release-id" }}' "$container_id" 2>/dev/null || true)"
+  fi
+  if [ "$running_release" = "$release_fingerprint" ] && $COMPOSE exec -T crm wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"'; then
+    printf 'deployed|%s|%s\n' "$release_fingerprint" "$backup_label" > "$state_file.tmp.$$"
+    chmod 600 "$state_file.tmp.$$"
+    mv "$state_file.tmp.$$" "$state_file"
     echo 'CRM is healthy'
     exit 0
   fi

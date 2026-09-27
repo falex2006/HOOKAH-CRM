@@ -18,10 +18,12 @@ for (const file of files) {
 
 const expenses = fs.readFileSync(path.join(migrationDir, '022_expenses.sql'), 'utf8');
 const capacity = fs.readFileSync(path.join(migrationDir, '024_table_capacity_range.sql'), 'utf8');
+const shifts = fs.readFileSync(path.join(migrationDir, '041_single_open_shift.sql'), 'utf8');
 assert.match(expenses, /DO\s+\$\$[\s\S]*payroll_entries_expense_fk[\s\S]*END\s*\$\$;/, 'expense FK must be guarded');
 assert.match(capacity, /DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+tables_capacity_range_check[\s\S]*DO\s+\$\$[\s\S]*tables_capacity_range_check[\s\S]*END\s*\$\$;/, 'capacity constraint must be replay-safe');
 assert.doesNotMatch(expenses, /^ALTER\s+TABLE\s+payroll_entries\s+ADD\s+CONSTRAINT/m, 'expense FK must not be added unconditionally');
 assert.doesNotMatch(capacity, /^ALTER\s+TABLE\s+tables\s+ADD\s+CONSTRAINT/m, 'capacity constraint must not be added unconditionally');
+assert.match(shifts, /HAVING COUNT\(\*\) > 1[\s\S]*RAISE EXCEPTION[\s\S]*CREATE UNIQUE INDEX IF NOT EXISTS shifts_one_open_per_venue_idx/, 'single-open-shift migration must fail safely on duplicate data and enforce the venue invariant');
 
 const migrationRunner = fs.readFileSync(path.join(root, 'migrate-vps.sh'), 'utf8');
 assert.match(migrationRunner, /migrations\/\*\.sql/);

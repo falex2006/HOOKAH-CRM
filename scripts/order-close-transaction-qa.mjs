@@ -21,15 +21,16 @@ const at = (pattern, label) => {
 
 const begin = at(/await client\.query\('BEGIN'\)/, 'transaction begins');
 const lock = at(/SELECT id,status,table_id AS "tableId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, 'order row is locked');
+const shiftLock = at(/SELECT id FROM shifts WHERE venue_id=\$1 AND closed_at IS NULL[\s\S]*?FOR UPDATE/, 'active shift is locked');
 const depletion = at(/depleteRecipeForOrder\(repositories\.pool, orderPath\[1\], venueDbId, req\.user\?\.id, client\)/, 'depletion uses the active transaction client');
 const close = at(/UPDATE orders SET status=\$1,closed_at=now\(\)/, 'order closes transactionally');
 const orderCost = at(/INSERT INTO order_costs \(venue_id,order_id,cost\)/, 'COGS snapshot is inserted transactionally');
-const payment = at(/INSERT INTO payments \(order_id,method,amount,status\)/, 'payment is inserted transactionally');
+const payment = at(/INSERT INTO payments \(order_id,method,amount,status,shift_id\)/, 'payment is inserted transactionally and assigned to the active shift');
 const table = at(/UPDATE tables t SET status=CASE/, 'table release is transactional');
 const commit = at(/await client\.query\('COMMIT'\)/, 'transaction commits');
 const audit = at(/recordAudit\(req, 'order\.closed'/, 'audit event is emitted');
 
-assert.ok(begin < lock && lock < depletion, 'lock is acquired before stock depletion');
+assert.ok(begin < lock && lock < shiftLock && shiftLock < depletion, 'order and active shift locks are acquired before stock depletion');
 assert.ok(depletion < close && close < orderCost && orderCost < payment && payment < table && table < commit, 'all close effects occur before commit');
 assert.ok(commit < audit, 'audit is emitted only after successful commit');
 assert.match(closeRoute, /\['closed', 'cancelled'\]\.includes\(persisted\.status\)[\s\S]*?ROLLBACK[\s\S]*?json\(res, 409, \{ error: 'order_already_final' \}\)/, 'already-final orders roll back and retain the existing conflict response');
@@ -51,14 +52,15 @@ const paymentAt = (pattern, label) => {
 };
 const paymentBegin = paymentAt(/await client\.query\('BEGIN'\)/, 'payment transaction begins');
 const paymentLock = paymentAt(/SELECT id,status,table_id AS "tableId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, 'payment locks the order row');
-const paymentInsert = paymentAt(/INSERT INTO payments \(order_id,method,amount,status\)/, 'payment insert uses transaction client');
+const activeShift = paymentAt(/SELECT id FROM shifts WHERE venue_id=\$1 AND closed_at IS NULL[\s\S]*?FOR UPDATE/, 'active shift is locked inside the payment transaction');
+const paymentInsert = paymentAt(/INSERT INTO payments \(order_id,method,amount,status,shift_id\)/, 'payment insert uses transaction client and records the shift');
 const paymentDepletion = paymentAt(/depleteRecipeForOrder\(repositories\.pool, paymentPath\[1\], venueDbId, req\.user\?\.id, client\)/, 'final payment depletion uses transaction client');
 const paymentClose = paymentAt(/UPDATE orders SET status=\\'closed\\',closed_at=now\(\)/, 'final payment closes order transactionally');
 const paymentCost = paymentAt(/INSERT INTO order_costs \(venue_id,order_id,cost\)/, 'final payment records COGS transactionally');
 const paymentTable = paymentAt(/UPDATE tables t SET status=CASE/, 'final payment releases table transactionally');
 const paymentCommit = paymentAt(/await client\.query\('COMMIT'\)/, 'payment transaction commits');
 const paymentAudit = paymentAt(/recordAudit\(req, 'order\.payment_added'/, 'payment audit emits after transaction');
-assert.ok(paymentBegin < paymentLock && paymentLock < paymentInsert && paymentInsert < paymentCommit, 'payment is serialized and persisted in its transaction');
+assert.ok(paymentBegin < paymentLock && paymentLock < activeShift && activeShift < paymentInsert && paymentInsert < paymentCommit, 'payment is serialized, attributed, and persisted in its transaction');
 assert.ok(paymentInsert < paymentDepletion && paymentDepletion < paymentClose && paymentClose < paymentCost && paymentCost < paymentTable && paymentTable < paymentCommit, 'final payment, depletion, close, COGS, and table release are atomic');
 assert.ok(paymentCommit < paymentAudit, 'payment audit follows a successful commit');
 assert.match(paymentRoute, /if \(closed\) \{[\s\S]*?depleteRecipeForOrder/, 'partial payments do not trigger stock depletion');
@@ -66,5 +68,27 @@ assert.match(paymentRoute, /ROLLBACK[\s\S]*?error\.message === 'insufficient_rec
 assert.match(paymentRoute, /ROLLBACK[\s\S]*?error: 'payment_exceeds_due'/, 'overpayment rolls back and retains response contract');
 assert.match(paymentRoute, /persisted\.status === 'closed' \|\| persisted\.status === 'cancelled'[\s\S]*?ROLLBACK[\s\S]*?order_already_final/, 'finalized orders reject concurrent payment/close');
 assert.doesNotMatch(paymentPost, /repositories\.pool\.query\(/, 'payment POST has no out-of-transaction database queries');
+
+const actionStart = source.indexOf("const orderAction = pathname.match(/", 0);
+const actionEnd = source.indexOf("const order = orders.find((entry) => entry.id === orderAction[1])", actionStart);
+assert.ok(actionStart >= 0 && actionEnd > actionStart, 'order status/transfer action routes exist');
+const actionRoute = source.slice(actionStart, actionEnd);
+const statusStart = actionRoute.indexOf("if (orderAction[2] === 'status')");
+const transferStart = actionRoute.indexOf("if (typeof input.tableId !== 'string'", statusStart);
+assert.ok(statusStart >= 0 && transferStart > statusStart, 'status and transfer actions can be reviewed separately');
+const statusRoute = actionRoute.slice(statusStart, transferStart);
+const statusLock = statusRoute.indexOf('FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE');
+const statusUpdate = statusRoute.indexOf('AND status=$4 RETURNING id,status');
+const statusCommit = statusRoute.indexOf("await client.query('COMMIT')");
+const statusAudit = statusRoute.indexOf("recordAudit(req, 'order.status_changed'");
+assert.ok(statusLock >= 0 && statusLock < statusUpdate && statusUpdate < statusCommit && statusCommit < statusAudit, 'status transition locks and updates atomically before audit');
+assert.doesNotMatch(statusRoute, /repositories\.pool\.query\(/, 'status transition never escapes its transaction');
+const transferRoute = actionRoute.slice(transferStart);
+assert.match(transferRoute, /FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, 'transfer locks the order shared with payment/close');
+assert.match(transferRoute, /JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' FOR UPDATE OF t/, 'transfer target must be an available table in this venue');
+assert.match(transferRoute, /AND status=\$4 RETURNING id,status,table_id/, 'transfer uses a compare-and-set status guard');
+
+const orderRepository = readFileSync(new URL('../db.js', import.meta.url), 'utf8');
+assert.match(orderRepository, /SELECT t\.id FROM tables t JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' FOR UPDATE OF t/, 'order creation validates and locks its table in the order venue');
 
 console.log('ORDER/PAYMENT TRANSACTION QA: assertions passed');

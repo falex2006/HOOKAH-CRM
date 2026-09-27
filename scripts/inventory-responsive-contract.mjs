@@ -16,15 +16,25 @@ assert.match(css, /@media\(max-width:1100px\)\{[\s\S]*?\.auto-order-table-wrap t
   'replenishment view must switch to labeled cards on constrained tablet/Fold widths');
 assert.match(css, /\.inventory-stock-panel table\{display:block;width:100%;min-width:0/,
   'mobile stock cards must not retain the desktop minimum width');
+assert.match(css, /\.inventory-stock-panel tbody td\{[^}]*width:100%!important[^}]*justify-self:stretch[^}]*box-sizing:border-box/,
+  'stock table cells must stretch across their mobile grid and avoid character-by-character wrapping');
+assert.match(css, /inventory-stock-panel th:nth-child\(6\)\{width:15%\}/,
+  'desktop stock table must reserve width for all six columns, including actions');
+assert.match(css, /@media\(min-width:651px\) and \(max-width:740px\)\{\.velora-theme \.visual-catalog\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/,
+  'visual catalog must reduce columns on the narrow Fold inner viewport instead of overflowing');
 assert.match(css, /\.auto-order-table-wrap table\{display:block;width:100%;min-width:0/,
   'mobile replenishment cards must not retain the desktop minimum width');
+assert.match(css, /\.auto-order-table-wrap tbody td:not\(\.auto-order-check-col\)\{[^}]*width:100%!important[^}]*justify-self:stretch[^}]*box-sizing:border-box/,
+  'replenishment cells must stretch across their mobile grid and avoid character-by-character wrapping');
 assert.match(css, /@media\(max-width:560px\)\{[\s\S]*?grid-template-columns:minmax\(0,1fr\)/,
   'phone-width warehouse cards must collapse to one column');
 assert.doesNotMatch(portal, /class="inventory-tabs"/, 'warehouse views must not duplicate the sidebar navigation inside the page');
 assert.match(css, /@media\(min-width:651px\) and \(max-width:1000px\)\{\.velora-theme \.kpi-grid\.compact\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/,
   'Fold/tablet KPI tiles must remain in a single balanced row');
-assert.match(css, /@media\(min-width:901px\) and \(max-width:1400px\)\{[\s\S]*?inventory-page-title>\.toolbar-row\{display:flex;width:auto/,
-  'laptop warehouse actions should retain compact intrinsic widths');
+assert.match(css, /@container crm-content \(min-width:961px\)[\s\S]*?inventory-page-title>\.toolbar-row\{display:flex;width:auto/,
+  'warehouse title actions must stay on one line when the usable content area can support them');
+assert.match(css, /@container crm-content \(max-width:960px\)[\s\S]*?inventory-page-title>\.toolbar-row\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/,
+  'warehouse actions must wrap based on the actual available content area');
 assert.match(css, /\.sidebar-nav-group:not\(\[open\]\)>summary\.has-active-child\{color:#f3f5f7;background:#1d2027;border-radius:10px/,
   'a collapsed inventory group must still indicate that one of its child routes is active');
 assert.match(css, /\.inventory-stock-panel \.inventory-item-edit\{min-height:44px/,
@@ -35,6 +45,8 @@ assert.match(css, /td\.auto-order-check-col\{display:flex;align-items:center;jus
   'auto-order selection must be a clear touch-sized control on constrained screens');
 assert.match(css, /td\.auto-order-check-col::after\{content:'В заявку'/,
   'auto-order checkbox must explain its action on constrained screens');
+assert.match(css, /@media\(max-width:560px\)\{[\s\S]*?auto-order-table-wrap tbody td\.auto-order-item-cell\{min-width:0;padding-right:112px\}/,
+  'phone-width auto-order titles must reserve enough inline space for the positioned selection control');
 for (const requirement of ['Приёмка по документу', 'Поставщик', 'Номер документа', 'Дата накладной', 'Добавить позицию', 'Сохранить черновик', 'Провести поступление', 'purchase-documents']) {
   assert.ok(portal.includes(requirement), `documented receiving workflow is missing: ${requirement}`);
 }

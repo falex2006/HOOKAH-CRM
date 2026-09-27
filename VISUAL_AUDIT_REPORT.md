@@ -6,7 +6,7 @@
 
 ## Проверенные маршруты
 
-`/admin`, `/admin#staff`, `/admin#tasks`, `/admin#loyalty`, `/admin#settings`, `/orders`, `/clients`, `/reservations`, `/?mode=staff`, `/delivery`, `/inventory`, `/finance`, `/finance/report`, `/finance/categories`, `/integrations`, `/network`.
+`/admin`, `/admin#staff`, `/admin#tasks`, `/admin#loyalty`, `/admin#settings`, `/orders`, `/clients`, `/reservations`, `/`, `/delivery`, `/inventory`, `/finance`, `/finance/report`, `/finance/categories`, `/integrations`, `/network`.
 
 ## Результат
 

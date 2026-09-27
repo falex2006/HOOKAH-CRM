@@ -3,7 +3,7 @@
   "canonicalRoot": "/",
   "adminRoot": "/admin",
   "entries": [
-    {"path":"/","file":"index.html","mode":"staff-workspace","title":"Рабочая панель"},
+    {"path":"/","file":"index.html","mode":"authenticated-workspace","title":"Зал и заказы"},
     {"path":"/login","file":"login.html","mode":"auth","title":"Авторизация"},
     {"path":"/admin","file":"admin.html","mode":"admin","title":"Панель администратора"},
     {"path":"/orders","file":"orders.html","mode":"admin","title":"Заказы"},

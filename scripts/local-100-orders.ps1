@@ -14,6 +14,10 @@ $runId = (Get-Date).ToString('yyyyMMddHHmmss')
 $created = 0
 $closed = 0
 $product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Нагрузочный товар $runId"; category = 'bar'; price = 250 } | ConvertTo-Json)
+$shiftState = Invoke-RestMethod "$BaseUrl/api/shifts"
+if (-not $shiftState.current) {
+  Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body (@{ openingCash = 0 } | ConvertTo-Json) | Out-Null
+}
 for ($i = 1; $i -le $Count; $i++) {
   $tableId = "local-load-$runId-$i"
   $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{

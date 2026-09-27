@@ -60,6 +60,8 @@ const percentDiscount = await request(`/api/orders/${order.id}/discount-requests
 const duplicateDiscount = await requestRaw(`/api/orders/${order.id}/discount-requests`, { method: 'POST', body: body({ type: 'percent', value: 5, reason: 'Повторная заявка' }) });
 if (duplicateDiscount.status !== 409) throw new Error(`Duplicate discount was accepted: ${duplicateDiscount.status}`);
 await request(`/api/discount-requests/${percentDiscount.id}/approve`, { method: 'POST', body: body({ decidedBy: 'локальная проверка' }) });
+const shiftState = await request('/api/shifts');
+if (!shiftState.current) await request('/api/shifts', { method: 'POST', body: body({ openingCash: 0 }) });
 await request(`/api/orders/${order.id}/close`, { method: 'POST', body: body({ paymentMethod: 'cash' }) });
 const reservation = await request('/api/reservations', { method: 'POST', body: body({ guestName: `Локальный гость ${suffix}`, phone: '+79990001122', date: new Date(Date.now() + 86400000).toISOString().slice(0, 10), time: '22:00', tableId: table.id, guests: 2, deposit: 0, notes: 'Локальная проверка' }) });
 await request(`/api/reservations/${reservation.id}/cancel`, { method: 'POST', body: '{}' });

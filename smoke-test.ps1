@@ -7,8 +7,14 @@ $health = Invoke-RestMethod "$BaseUrl/api/health"
 if ($health.status -ne 'ok') { throw 'health failed' }
 $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType 'application/json' -Body '{"username":"admin","password":"admin"}'
 $authHeaders = @{ Authorization = "Bearer $($login.token)" }
+$PSDefaultParameterValues['Invoke-RestMethod:Headers'] = $authHeaders
 $authenticatedSession = Invoke-RestMethod "$BaseUrl/api/session" -Headers $authHeaders
 if ($authenticatedSession.user.role -ne 'admin' -or $authenticatedSession.permissions -notcontains 'finance') { throw 'authenticated role session failed' }
+$ownerPassword = if ($env:DEMO_OWNER_PASSWORD) { $env:DEMO_OWNER_PASSWORD } else { 'demo' }
+$ownerLogin = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/login" -ContentType 'application/json' -Body (@{ username = 'owner'; password = $ownerPassword } | ConvertTo-Json)
+$ownerHeaders = @{ Authorization = "Bearer $($ownerLogin.token)" }
+$owner = Invoke-RestMethod "$BaseUrl/api/session" -Headers $ownerHeaders
+if ($owner.user.role -ne 'owner' -or $owner.permissions -notcontains 'staff' -or $owner.permissions -notcontains 'finance') { throw 'owner permissions failed' }
 $staffLoginName = "smoke_$(Get-Date -Format 'HHmmss')"
 $createdStaff = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff" -ContentType 'application/json' -Body (@{ name = 'Smoke bartender'; login = $staffLoginName; password = 'smoke-pass'; role = 'bartender'; birthDate = '1995-05-15'; employmentStartedAt = '2026-01-15'; workNotes = 'smoke'; phoneNumbers = @(@{ label = 'Рабочий'; number = '+79990001111'; primary = $true }) } | ConvertTo-Json -Depth 5)
 if ($createdStaff.login -ne $staffLoginName) { throw 'staff creation failed' }
@@ -23,23 +29,31 @@ $staffRestored = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/staff/$($cre
 if (-not $staffRestored.active) { throw 'staff restore failed' }
 $staffDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/staff/$($createdStaff.id)"
 if ($staffDeleted.active) { throw 'staff delete/deactivate failed' }
-$staffArchived = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff/$($createdStaff.id)/archive" -ContentType 'application/json' -Body '{}'
+$staffArchived = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/staff/$($createdStaff.id)/archive" -Headers $ownerHeaders -ContentType 'application/json' -Body '{}'
 if (-not $staffArchived.archivedAt -or $staffArchived.active) { throw 'staff archive failed' }
 $staffDirectory = Invoke-RestMethod "$BaseUrl/api/staff"
 if ($staffDirectory.items.id -contains $createdStaff.id) { throw 'archived staff remains in operational directory' }
-$shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
-if (-not $shift.id) { throw 'shift open failed' }
-$closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200,"checklistConfirmed":true}'
-if (-not $closedShift.closedAt -or $closedShift.closingCash -ne 1200) { throw 'shift close failed' }
-$owner = Invoke-RestMethod "$BaseUrl/api/session?role=owner"
-if ($owner.permissions -notcontains 'staff' -or $owner.permissions -notcontains 'finance') { throw 'owner permissions failed' }
+$shiftState = Invoke-RestMethod "$BaseUrl/api/shifts"
+if ($shiftState.current) {
+  $shift = $shiftState.current
+  Write-Output 'SHIFT LIFECYCLE QA: existing open shift preserved; open/close transition skipped'
+} else {
+  $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
+  if (-not $shift.id) { throw 'shift open failed' }
+  $closedShift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts/$($shift.id)/close" -ContentType 'application/json' -Body '{"closingCash":1200,"checklistConfirmed":true}'
+  if (-not $closedShift.closedAt -or $closedShift.closingCash -ne 1200) { throw 'shift close failed' }
+  $shift = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body '{"openingCash":1000}'
+  if (-not $shift.id) { throw 'operational shift reopen failed' }
+}
 $venueBefore = Invoke-RestMethod "$BaseUrl/api/venue"
 $venueUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/venue" -ContentType 'application/json' -Body (@{ phone = '+7 (900) 123-45-67'; logoUrl = 'data:image/png;base64,AA=='; vipRoomMinimums = @{ vip_room_1 = 1600; vip_room_2 = 2600 } } | ConvertTo-Json)
 if ($venueUpdated.phone -ne '+7 (900) 123-45-67' -or $venueUpdated.vipRoomMinimums.vip_room_1 -ne 1600 -or -not $venueUpdated.logoUrl) { throw 'company settings update failed' }
 $restorePhone = if ([string]$venueBefore.phone -match '^\+?[0-9 ()-]{7,24}$') { [string]$venueBefore.phone } else { '+7 (996) 641-95-10' }
 Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/venue" -ContentType 'application/json' -Body (@{ phone = $restorePhone; logoUrl = $venueBefore.logoUrl; vipRoomMinimums = @{ vip_room_1 = 1500; vip_room_2 = 2500 } } | ConvertTo-Json) | Out-Null
-$session = Invoke-RestMethod "$BaseUrl/api/session?role=bartender"
-if ($session.permissions -notcontains 'orders' -or $session.permissions -contains 'finance') { throw 'role permissions failed' }
+$staffHeaders = @{ Authorization = "Bearer $($staffAuth.token)" }
+$session = Invoke-RestMethod "$BaseUrl/api/session" -Headers $staffHeaders
+if ($session.user.role -ne 'bartender' -or $session.permissions -notcontains 'orders' -or $session.permissions -contains 'finance') { throw 'role permissions failed' }
+$PSDefaultParameterValues['Invoke-RestMethod:Headers'] = $authHeaders
 $product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Smoke product $smokeSuffix"; category = 'Бар'; price = 399; aliases = @('smoke', 'тест') } | ConvertTo-Json)
 if (-not $product.id -or $product.category -ne 'Бар' -or $product.aliases.Count -ne 2) { throw 'product create/aliases failed' }
 $productUpdated = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/products/$($product.id)" -ContentType 'application/json' -Body (@{ price = 420; aliases = @('smoke', 'обновлённый') } | ConvertTo-Json)

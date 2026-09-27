@@ -4,14 +4,17 @@ import { readdirSync, readFileSync } from 'node:fs';
 const root = new URL('../', import.meta.url);
 const htmlFiles = readdirSync(root).filter(file => file.endsWith('.html'));
 assert.ok(htmlFiles.length >= 14, 'all application HTML routes should be present');
-const cssRevision = 247;
-const portalRevision = 260;
+const syncScript = readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8');
+const cssRevision = Number(syncScript.match(/cssRevision = '(\d+)'/)?.[1]);
+const portalRevision = Number(syncScript.match(/portalRevision = '(\d+)'/)?.[1]);
+const appRevision = Number(syncScript.match(/appRevision = '(\d+)'/)?.[1]);
+assert.ok(Number.isInteger(cssRevision) && Number.isInteger(portalRevision), 'published asset revisions must be declared in the sync script');
 for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, new RegExp(`style\\.css\\?rev=${cssRevision}`), `${file} must use current CSS cache version`);
   assert.doesNotMatch(html, /style\.css\?rev=(?:12[0-7]|1[01]\d)/, `${file} has stale CSS cache version`);
   if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, new RegExp(`portal\\.js\\?rev=${portalRevision}`), `${file} must use current portal JS cache version`);
-  if (file === 'index.html') assert.match(html, /app\.js\?rev=125/, 'index.html must use current staff app JS cache version');
+  if (file === 'index.html') assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`), 'index.html must use current staff app JS cache version');
   if (file === 'index.html') assert.match(html, /assets\/tabler-icons\.svg\?rev=3#table-layout/, 'staff workspace must use the refreshed icon sprite');
   if (file === 'platform.html') assert.match(html, /platform\.js\?rev=3/, 'platform.html must use platform JS');
 }
@@ -37,7 +40,29 @@ for (const file of htmlFiles) {
   assert.equal(readFileSync(new URL(`../dist/${file}`, import.meta.url), 'utf8'), readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'),
     `flat dist/${file} must match its current source template`);
 }
+const routeAliases = {
+  'admin/index.html': 'admin.html',
+  'clients/index.html': 'clients.html',
+  'delivery/index.html': 'delivery.html',
+  'finance/index.html': 'finance.html',
+  'finance/categories/index.html': 'finance-categories.html',
+  'finance/report/index.html': 'finance-report.html',
+  'integrations/index.html': 'integrations.html',
+  'inventory/index.html': 'inventory.html',
+  'login/index.html': 'login.html',
+  'network/index.html': 'network.html',
+  'orders/index.html': 'orders.html',
+  'platform/index.html': 'platform.html',
+  'reservations/index.html': 'reservations.html',
+};
+for (const [alias, source] of Object.entries(routeAliases)) {
+  assert.equal(readFileSync(new URL(`../dist/${alias}`, import.meta.url), 'utf8'), readFileSync(new URL(`../${source}`, import.meta.url), 'utf8'),
+    `directory route dist/${alias} must match source ${source}`);
+}
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+assert.match(portal, /staffPanel\.classList\.add\('staff-directory-only'\)/, 'staff directory must mark the drawer-only layout');
+assert.match(css, /\.staff-panel\.staff-directory-only \.staff-layout\{grid-template-columns:minmax\(0,1fr\);gap:0\}/, 'staff directory must reclaim the drawer column width');
 assert.match(css, /\.velora-theme a\.button[^}]*text-decoration:none!important/);
 assert.match(css, /\.portal-nav a[^}]*text-decoration:none/);
 for (const file of ['admin.html', 'orders.html', 'inventory.html']) {
