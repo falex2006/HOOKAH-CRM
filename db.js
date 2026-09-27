@@ -195,7 +195,7 @@ class PurchaseDocumentRepository {
   async listPayments(venueId, documentId) {
     const document = await this.pool.query("SELECT id FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2 AND status='posted'", [documentId, venueId]);
     if (!document.rows[0]) return null;
-    const { rows } = await this.pool.query(`SELECT e.id,e.amount,e.expense_date AS "paymentDate",e.payment_method AS "paymentMethod",e.document_url AS "documentUrl"
+    const { rows } = await this.pool.query(`SELECT e.id,e.amount,to_char(e.expense_date,'YYYY-MM-DD') AS "paymentDate",e.payment_method AS "paymentMethod",e.document_url AS "documentUrl"
       FROM expenses e
       WHERE e.venue_id=$1 AND e.purchase_document_id=$2 AND e.source='purchase'
       ORDER BY e.expense_date DESC,e.created_at DESC,e.id DESC`, [venueId, documentId]);
@@ -211,7 +211,7 @@ class PurchaseDocumentRepository {
       if (!document) throw new Error('purchase_document_not_found');
       if (document.status !== 'posted') throw new Error('purchase_document_not_posted');
 
-      const priorResult = await client.query(`SELECT id,purchase_document_id AS "purchaseDocumentId",amount,expense_date AS "expenseDate",payment_method AS "paymentMethod",document_url AS "documentUrl"
+      const priorResult = await client.query(`SELECT id,purchase_document_id AS "purchaseDocumentId",amount,to_char(expense_date,'YYYY-MM-DD') AS "expenseDate",payment_method AS "paymentMethod",document_url AS "documentUrl"
         FROM expenses WHERE venue_id=$1 AND idempotency_key=$2 FOR UPDATE`, [input.venueId, input.idempotencyKey]);
       const prior = priorResult.rows[0];
       if (prior) {

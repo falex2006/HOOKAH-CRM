@@ -1241,11 +1241,25 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
   .velora-theme .portal-content{padding:22px}
 }
 @media (min-width:1800px){.staff-theme .workspace,.staff-theme .tabs,.staff-theme .queue{max-width:1760px;margin-inline:auto}.staff-theme .workspace{padding-inline:56px}.staff-theme header{padding-inline:56px}.staff-theme .tables{grid-template-columns:repeat(5,minmax(125px,1fr))}}
-@media (max-width:1180px) and (min-width:761px){.staff-theme aside{width:210px;padding-inline:14px}.staff-theme header{padding-inline:28px}.staff-theme .tabs,.staff-theme .workspace,.staff-theme .queue{padding-inline:28px}.staff-theme .workspace{grid-template-columns:minmax(0,1fr) 340px}.staff-theme .tables{grid-template-columns:repeat(3,minmax(110px,1fr))}}
+@media (max-width:1180px) and (min-width:761px){.staff-theme aside{width:210px;padding-inline:14px}.staff-theme header{padding-inline:28px}.staff-theme .tabs,.staff-theme .workspace,.staff-theme .queue{padding-inline:28px}.staff-theme .workspace{grid-template-columns:minmax(0,1fr) 340px}.staff-theme .tables{grid-template-columns:repeat(12,minmax(0,1fr))}}
 @media (max-width:760px){.staff-theme header{height:68px;padding-inline:16px}.staff-theme .tabs{padding:16px 14px 12px;overflow-x:auto}.staff-theme .tabs button{flex:0 0 auto;padding:9px 14px}.staff-theme .workspace{grid-template-columns:1fr;padding:0 14px;gap:14px}.staff-theme .tables{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.staff-theme .table{height:116px;padding:13px}.staff-theme .table strong{font-size:20px}.staff-theme .table em{margin-top:10px}.staff-theme .order{padding:18px}.staff-theme .queue{padding:18px 14px 24px}}
 @media (max-width:420px){.staff-theme aside{width:58px;padding:16px 6px}.staff-theme aside .brand{padding-bottom:22px;justify-content:center}.staff-theme aside .brand div,.staff-theme aside .side-label,.staff-theme aside nav span,.staff-theme aside .user{display:none}.staff-theme header{height:62px;padding-inline:10px}.staff-theme .tabs{padding-inline:10px}.staff-theme .workspace{padding-inline:10px}.staff-theme .tables{grid-template-columns:1fr}.staff-theme .table{height:100px}.staff-theme .queue{padding-inline:10px}}
 
 .velora-theme .discount-chip{color:#f6c36b;background:#33291d;border:1px solid #6d4b28}.velora-theme .form-section-label{margin-top:8px;padding-top:12px;border-top:1px solid #2b3038;color:#ffb08f;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}.velora-theme .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.velora-theme .form-row label{min-width:0}@media(max-width:700px){.velora-theme .form-row{grid-template-columns:1fr}}
+
+/* Inactive staff rows have restore + archive actions in addition to the card button. */
+.velora-theme .staff-row.inactive{grid-template-columns:34px minmax(0,1fr) 100px max-content max-content max-content}
+.velora-theme .staff-row.inactive .staff-avatar{grid-column:1;grid-row:1}
+.velora-theme .staff-row.inactive>div{grid-column:2;grid-row:1}
+.velora-theme .staff-row.inactive>.badge{grid-column:3;grid-row:1}
+.velora-theme .staff-row.inactive .staff-edit{grid-column:4;grid-row:1;white-space:nowrap}
+.velora-theme .staff-row.inactive .staff-restore{grid-column:5;grid-row:1;white-space:nowrap}
+.velora-theme .staff-row.inactive .staff-archive{grid-column:6;grid-row:1;white-space:nowrap}
+@media(max-width:720px){
+  .velora-theme .staff-row.inactive{grid-template-columns:34px minmax(0,1fr) max-content;grid-template-areas:"avatar identity identity" "avatar status status" "avatar card restore" "avatar archive archive"}
+  .velora-theme .staff-row.inactive .staff-restore{grid-area:restore;justify-self:end}
+  .velora-theme .staff-row.inactive .staff-archive{grid-area:archive;justify-self:end}
+}
 
 .velora-theme .loyalty-program-list{display:grid;gap:10px}.velora-theme .loyalty-program{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border:1px solid #2b3038;border-radius:12px;background:#15181d}.velora-theme .loyalty-program h3{margin:0 0 5px}.velora-theme .loyalty-program small{color:#9ca5b0}.velora-theme .loyalty-summary article strong{font-variant-numeric:tabular-nums}
 
@@ -1662,7 +1676,7 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 }
 @media (min-width:760px) and (max-width:900px) and (min-aspect-ratio:3/4) and (max-aspect-ratio:4/3){
   .staff-theme .workspace{grid-template-columns:1fr}
-  .staff-theme .tables{grid-template-columns:repeat(3,minmax(0,1fr));min-height:0}
+  .staff-theme .tables{grid-template-columns:repeat(12,minmax(0,1fr));min-height:0}
   .staff-theme .order{width:100%;max-width:none}
 }
 
@@ -1711,7 +1725,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
   .velora-theme .content-grid{grid-template-columns:1fr;gap:16px}
   .velora-theme .panel{padding:20px}
   .staff-theme .workspace{grid-template-columns:1fr;padding-inline:24px}
-  .staff-theme .tables{grid-template-columns:repeat(3,minmax(110px,1fr))}
+  .staff-theme .tables{grid-template-columns:repeat(12,minmax(0,1fr))}
   .staff-theme .order{width:100%;max-width:none}
 }
 /* 10–13 inch tablets and small laptops: prevent cards and toolbars from becoming too dense. */
@@ -2082,7 +2096,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .dashboard-kpi-grid>.dashboard-revenue-card:hover{border-color:#62444f;background:linear-gradient(145deg,#252027,#1a1c22)}
 .velora-theme .dashboard-kpi-grid .dashboard-revenue-main{display:grid;align-content:center;gap:3px;min-width:0}
 .velora-theme .dashboard-kpi-grid .dashboard-revenue-main>span{color:#a5adb8;font-size:13px}
-.velora-theme .dashboard-kpi-grid>.dashboard-revenue-card .dashboard-revenue-main>strong{display:block;margin:8px 0 5px;color:#f5f6f8;font-size:clamp(34px,2.8vw,42px);line-height:1.05;letter-spacing:-.045em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.velora-theme .dashboard-kpi-grid>.dashboard-revenue-card .dashboard-revenue-main>strong{display:block;margin:8px 0 5px;color:#f5f6f8;font-size:clamp(34px,2.8vw,42px);line-height:1.05;letter-spacing:-.045em;font-variant-numeric:tabular-nums;white-space:nowrap;overflow-wrap:normal}
 .velora-theme .dashboard-kpi-grid .dashboard-revenue-main>small{max-width:none;color:#44d6a6;font-size:11px;line-height:1.4}
 .velora-theme .dashboard-kpi-grid .dashboard-revenue-pending{display:grid;align-content:center;justify-self:stretch;gap:4px;min-width:0;max-width:none;width:auto;padding:3px 0 3px 14px;border:0;border-left:1px solid #3a3038;border-radius:0;background:transparent}
 .velora-theme .dashboard-kpi-grid .dashboard-revenue-pending>span{color:#9ca5af;font-size:12px;line-height:1.35}

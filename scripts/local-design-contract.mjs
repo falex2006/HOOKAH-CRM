@@ -9,6 +9,10 @@ const cssRevision = Number(syncScript.match(/cssRevision = '(\d+)'/)?.[1]);
 const portalRevision = Number(syncScript.match(/portalRevision = '(\d+)'/)?.[1]);
 const appRevision = Number(syncScript.match(/appRevision = '(\d+)'/)?.[1]);
 assert.ok(Number.isInteger(cssRevision) && Number.isInteger(portalRevision), 'published asset revisions must be declared in the sync script');
+const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+assert.match(appSource, /Math\.floor\(rawX\/190\)\*4\)\+1/, 'floor editor pixel positions must map to spaced 12-column grid starts');
+assert.match(appSource, /Math\.floor\(rawY\/125\)\*3\)\+1/, 'floor editor pixel positions must map to spaced grid rows');
+assert.match(appSource, /Math\.round\(rawW\/50\)/, 'floor editor widths must map to three-column table spans');
 for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, new RegExp(`style\\.css\\?rev=${cssRevision}`), `${file} must use current CSS cache version`);
@@ -67,6 +71,9 @@ assert.match(css, /@media\(max-width:1180px\)\{\.platform-hero\{align-items:flex
   'the platform hero must stack before tablet content is squeezed by the persistent sidebar');
 assert.match(portal, /staffPanel\.classList\.add\('staff-directory-only'\)/, 'staff directory must mark the drawer-only layout');
 assert.match(css, /\.staff-panel\.staff-directory-only \.staff-layout\{grid-template-columns:minmax\(0,1fr\);gap:0\}/, 'staff directory must reclaim the drawer column width');
+assert.match(css, /\.velora-theme \.staff-row\.inactive\{grid-template-columns:34px minmax\(0,1fr\) 100px max-content max-content max-content\}/, 'inactive staff rows must reserve separate columns for restore and archive actions');
+assert.match(css, /@media\(max-width:720px\)[\s\S]*?\.staff-row\.inactive\{grid-template-columns:34px minmax\(0,1fr\) max-content;grid-template-areas:[^}]*"avatar archive archive"\}/, 'inactive staff actions must wrap into named, non-overlapping areas on compact screens');
+assert.match(css, /\.dashboard-kpi-grid>\.dashboard-revenue-card \.dashboard-revenue-main>strong\{[^}]*white-space:nowrap;overflow-wrap:normal\}/, 'dashboard revenue amount and currency must stay together on one line');
 assert.match(css, /\.velora-theme a\.button[^}]*text-decoration:none!important/);
 assert.match(css, /\.portal-nav a[^}]*text-decoration:none/);
 for (const file of ['admin.html', 'orders.html', 'inventory.html']) {
