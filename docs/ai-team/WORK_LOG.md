@@ -8,7 +8,7 @@
 - API/БД: существующие `/api/finance/categories` и `/api/expenses` принимают `categoryId`; migration 044. Старые маршруты не заменялись; текстовая совместимость сохранена для старых расходов.
 - Проверки: Docker Desktop Engine 29.8.0, изолированная PostgreSQL 16, schema + 44 миграции, migration upgrade/replay QA — PASS; полный PG QA — 11 suites PASS; локальный полный acceptance — PASS после актуализации контракта категории с input на select; CRUD, migration contract, JS syntax, source/dist sync и `git diff --check` — PASS. Только synthetic data.
 - Ограничения: свежий браузер/Fold screenshot QA не выполнен; VPS/production не подключались. Связанные документы расходов и фактическая финансовая приёмка остаются отдельными задачами.
-- Commit: pending.
+- Commit: `68b88f1a99e546c63c77daff8980248f81c44128` (`Persist finance categories and link expenses`).
 
 Каждый пакет изменений фиксируется координатором: цель, роли, изменённые файлы, проверки, результат и commit.
 
