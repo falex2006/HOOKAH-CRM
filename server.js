@@ -136,10 +136,10 @@ const shifts = [];
 const provisionedAccounts = [];
 const demoAccounts = [
   { username: 'admin', venueId: process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_ADMIN_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'admin'), name: 'Александр', role: 'admin', organizationId: '00000000-0000-0000-0000-000000000010' },
-  { username: 'owner', venueId: process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_OWNER_PASSWORD || 'demo', name: 'Владелец', role: 'owner', organizationId: '00000000-0000-0000-0000-000000000010' },
-  { username: 'staff', venueId: process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_STAFF_PASSWORD || 'demo', pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' },
+  { username: 'owner', venueId: process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_OWNER_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'demo'), name: 'Владелец', role: 'owner', organizationId: '00000000-0000-0000-0000-000000000010' },
+  { username: 'staff', venueId: process.env.VENUE_ID || '00000000-0000-0000-0000-000000000001', password: process.env.DEMO_STAFF_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'demo'), pin: process.env.DEMO_STAFF_PIN || (process.env.AUTH_REQUIRED === 'true' ? '' : '1234'), name: 'Мария', role: 'bartender', organizationId: '00000000-0000-0000-0000-000000000010' },
   { username: process.env.SAAS_OWNER_EMAIL || 'platform-owner@example.com', password: process.env.SAAS_OWNER_PASSWORD || (process.env.AUTH_REQUIRED === 'true' ? '' : 'saas-demo'), name: 'Владелец SaaS', role: 'platform_owner', organizationId: null }
-];
+].filter((account) => Boolean(account.password));
 
 const hashPassword = async (password) => { const salt = crypto.randomBytes(16).toString('hex'); const derived = await scryptAsync(String(password), salt, 64); return `scrypt$${salt}$${derived.toString('hex')}`; };
 const verifyPassword = async (password, stored) => {
@@ -402,6 +402,20 @@ const vipSummary = (order) => {
 const businessTimezone = process.env.BUSINESS_TIMEZONE || 'Asia/Yekaterinburg';
 const businessDateKey = (value) => { const raw = String(value || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw; const parsed = value instanceof Date ? value : new Date(value); if (Number.isNaN(parsed.getTime())) return raw.slice(0, 10); return new Intl.DateTimeFormat('en-CA', { timeZone: businessTimezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(parsed); };
 const today = () => businessDateKey(new Date());
+const isValidIanaTimezone = (value) => {
+  const timezone = String(value || '').trim();
+  if (!timezone) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(0); return true; }
+  catch (_) { return false; }
+};
+const resolveIanaTimezone = (...values) => values.map((value) => String(value || '').trim()).find(isValidIanaTimezone) || 'Asia/Yekaterinburg';
+const venueBusinessDateContext = async (pool, venueId) => {
+  const { rows } = await pool.query('SELECT v.timezone AS "venueTimezone", org.timezone AS "organizationTimezone" FROM venues v LEFT JOIN organizations org ON org.id=v.organization_id WHERE v.id=$1', [venueId]);
+  if (!rows[0]) return null;
+  const timezone = resolveIanaTimezone(rows[0].venueTimezone, rows[0].organizationTimezone);
+  const { rows: dateRows } = await pool.query('SELECT (now() AT TIME ZONE $1)::date::text AS date', [timezone]);
+  return dateRows[0]?.date ? { timezone, date: dateRows[0].date } : null;
+};
 const recentBusinessDates = (count = 7) => { const current = new Date(`${today()}T00:00:00Z`); return Array.from({ length: count }, (_, index) => { const date = new Date(current); date.setUTCDate(current.getUTCDate() - (count - 1 - index)); return date.toISOString().slice(0, 10); }); };
 const pendingPaymentSummary = (items = orders) => { const active = items.filter((order) => ['open', 'in_progress', 'ready'].includes(order.status)); const pendingRevenue = active.reduce((sum, order) => { const due = Math.max(Number(order.minimumOrderTotal || 0), orderNetTotal(order)); const paid = (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)).reduce((total, payment) => total + Number(payment.amount || 0), 0); return sum + Math.max(0, due - paid); }, 0); return { pendingOrders: active.length, pendingRevenue: Math.round(pendingRevenue * 100) / 100 }; };
 const isBelowInventoryMinimum = (item) => Number(item.minLevel || 0) > 0 && Number(item.onHand || 0) <= Number(item.minLevel || 0);
@@ -537,7 +551,6 @@ async function api(req, res) {
   }
   if (pathname === '/api/setup/owner' && req.method === 'POST') {
     if (!firstRunSetupEnabled) return json(res, 404, { error: 'setup_disabled' });
-    if (!repositories?.pool) return json(res, 503, { error: 'setup_requires_database' });
     const input = await body(req);
     if (String(input.website || '').trim()) return json(res, 400, { error: 'bot_detected' });
     const venueName = String(input.venueName || '').trim();
@@ -545,8 +558,9 @@ async function api(req, res) {
     const ownerLogin = String(input.ownerLogin || '').trim().toLowerCase();
     const ownerPassword = String(input.ownerPassword || '');
     const city = String(input.city || '').trim();
-    const timezone = String(input.timezone || 'Europe/Moscow');
-    if (!venueName || venueName.length > 120 || !ownerName || ownerName.length > 120 || !/^[^\s@]+@[^\s@]+$/.test(ownerLogin) || ownerPassword.length < 8 || !/^[-A-Za-z_\/]+$/.test(timezone)) return json(res, 400, { error: 'valid_setup_data_required' });
+    const timezone = input.timezone === undefined ? 'Europe/Moscow' : String(input.timezone).trim();
+    if (!venueName || venueName.length > 120 || !ownerName || ownerName.length > 120 || !/^[^\s@]+@[^\s@]+$/.test(ownerLogin) || ownerPassword.length < 8 || !isValidIanaTimezone(timezone)) return json(res, 400, { error: 'valid_setup_data_required' });
+    if (!repositories?.pool) return json(res, 503, { error: 'setup_requires_database' });
     {
       const client = await repositories.pool.connect();
       try {
@@ -732,17 +746,19 @@ async function api(req, res) {
     const ownerName = String(input.ownerName || '').trim();
     const ownerLogin = String(input.ownerLogin || '').trim().toLowerCase();
     const ownerPassword = String(input.ownerPassword || '');
+    const timezone = input.timezone === undefined ? 'Europe/Moscow' : String(input.timezone).trim();
     const plan = ['starter', 'growth', 'network', 'enterprise'].includes(input.plan) ? input.plan : 'starter';
     if (!name || name.length > 120 || !/^[a-z0-9][a-z0-9-]{1,48}$/.test(slug)) return json(res, 400, { error: 'valid_name_and_slug_required' });
     if (!ownerName || ownerName.length > 120 || !/^[^\s@]+@[^\s@]+$/.test(ownerLogin) || ownerPassword.length < 8) return json(res, 400, { error: 'valid_owner_credentials_required' });
+    if (!isValidIanaTimezone(timezone)) return json(res, 400, { error: 'invalid_organization_timezone' });
     if (repositories?.pool) {
       const client = await repositories.pool.connect();
       try {
         await client.query('BEGIN');
-        const org = await client.query(`INSERT INTO organizations (name,slug,plan,timezone) VALUES ($1,$2,$3,$4) RETURNING id,name,slug,plan,is_active AS "isActive",created_at AS "createdAt"`, [name, slug, plan, input.timezone || 'Europe/Moscow']);
+        const org = await client.query(`INSERT INTO organizations (name,slug,plan,timezone) VALUES ($1,$2,$3,$4) RETURNING id,name,slug,plan,is_active AS "isActive",created_at AS "createdAt"`, [name, slug, plan, timezone]);
         const organization = org.rows[0];
         await client.query(`INSERT INTO organization_subscriptions (organization_id,plan,status,seats_limit,venues_limit) VALUES ($1,$2,'trialing',$3,$4)`, [organization.id, plan, saasPlans[plan].seatsLimit, saasPlans[plan].venuesLimit]);
-        const venueRow = await client.query(`INSERT INTO venues (organization_id,name,city,address,format,timezone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [organization.id, name, String(input.city || '').trim(), String(input.address || '').trim(), 'кальян-бар', input.timezone || 'Europe/Moscow']);
+        const venueRow = await client.query(`INSERT INTO venues (organization_id,name,city,address,format,timezone) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [organization.id, name, String(input.city || '').trim(), String(input.address || '').trim(), 'кальян-бар', timezone]);
         const passwordHash = await hashPassword(ownerPassword);
         const owner = await client.query(`INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role) VALUES ($1,$2,$3,$4,$5,NULL,'owner') RETURNING id,full_name AS name,login,role`, [venueRow.rows[0].id, organization.id, ownerName, ownerLogin, passwordHash]);
         await client.query(`INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'owner','active')`, [organization.id, owner.rows[0].id]);
@@ -856,6 +872,7 @@ async function api(req, res) {
     if (input.address !== undefined && (!String(input.address).trim() || String(input.address).length > 240)) return json(res, 400, { error: 'venue_address_required' });
     if (input.format !== undefined && String(input.format).length > 80) return json(res, 400, { error: 'venue_format_too_long' });
     if (input.timezone !== undefined && String(input.timezone).length > 64) return json(res, 400, { error: 'venue_timezone_too_long' });
+    if (input.timezone !== undefined && !isValidIanaTimezone(input.timezone)) return json(res, 400, { error: 'invalid_venue_timezone' });
     if (input.phoneNumbers !== undefined && (!Array.isArray(input.phoneNumbers) || input.phoneNumbers.length > 5 || input.phoneNumbers.some((entry) => !entry || !/^\+7[0-9 ()-]{7,24}$/.test(String(entry.number || '').trim())))) return json(res, 400, { error: 'invalid_phone_numbers' }); if (input.phoneNumbers !== undefined && input.phoneNumbers.length && input.phoneNumbers.filter((entry) => entry.primary).length !== 1) return json(res, 400, { error: 'one_primary_phone_required' }); if (input.phone !== undefined && input.phone && !/^\+7[0-9 ()-]{7,24}$/.test(String(input.phone))) return json(res, 400, { error: 'invalid_phone' });
     if (input.logoUrl !== undefined && input.logoUrl !== null && !validImageData(input.logoUrl)) return json(res, 400, { error: 'invalid_logo' });
     if (input.vipRoomMinimums !== undefined) {
@@ -892,7 +909,9 @@ async function api(req, res) {
     if (!canManageVenueIdentity(req)) return json(res, 403, { error: 'venue_admin_required' });
     const input = await body(req); const name = String(input.name || '').trim(); const city = String(input.city || '').trim(); const address = String(input.address || '').trim();
     if (!name || name.length > 120 || !city || city.length > 80 || !address || address.length > 240) return json(res, 400, { error: 'venue_name_city_address_required' });
-    const item = { id: `venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, format: String(input.format || 'кальян-бар').trim().slice(0, 80), city, address, phone: String(input.phone || '').trim().slice(0, 32), timezone: String(input.timezone || venue.timezone).trim().slice(0, 64), status: 'active', isCurrent: false };
+    const timezone = input.timezone === undefined ? resolveIanaTimezone(venue.timezone) : String(input.timezone).trim();
+    if (!isValidIanaTimezone(timezone)) return json(res, 400, { error: 'invalid_venue_timezone' });
+    const item = { id: `venue-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, format: String(input.format || 'кальян-бар').trim().slice(0, 80), city, address, phone: String(input.phone || '').trim().slice(0, 32), timezone, status: 'active', isCurrent: false };
     const organizationId = requestOrganizationId(req);
     if (repositories?.pool) {
       if (requireOrganizationContext(req, res)) return;
@@ -911,6 +930,7 @@ async function api(req, res) {
       if (requireOrganizationContext(req, res)) return;
       const organizationId = requestOrganizationId(req);
       const input = await body(req);
+      if (input.timezone !== undefined && !isValidIanaTimezone(input.timezone)) return json(res, 400, { error: 'invalid_venue_timezone' });
       const fields = []; const values = [networkVenuePath[1]];
       for (const [column, key, max] of [['name', 'name', 120], ['format', 'format', 80], ['city', 'city', 80], ['address', 'address', 240], ['phone', 'phone', 32], ['timezone', 'timezone', 64]]) if (input[key] !== undefined) { fields.push(`${column}=$${values.length + 1}`); values.push(String(input[key] || '').trim().slice(0, max)); }
       if (!fields.length) return json(res, 400, { error: 'venue_name_city_address_required' });
@@ -919,6 +939,7 @@ async function api(req, res) {
     }
     const item = networkVenues.find((entry) => entry.id === networkVenuePath[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
     const input = await body(req); const before = { ...item };
+    if (input.timezone !== undefined && !isValidIanaTimezone(input.timezone)) return json(res, 400, { error: 'invalid_venue_timezone' });
     for (const [key, max] of [['name', 120], ['city', 80], ['address', 240], ['format', 80], ['phone', 32], ['timezone', 64]]) if (input[key] !== undefined) item[key] = String(input[key] || '').trim().slice(0, max);
     if (!item.name || !item.city || !item.address) return json(res, 400, { error: 'venue_name_city_address_required' });
     if (item.id === currentVenueId) Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, timezone: item.timezone, format: item.format });
@@ -2206,12 +2227,16 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (pathname === '/api/finance/summary' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance' });
-    const employeeFinanceView = isOperationalEmployee(req); const date = employeeFinanceView ? today() : (url.searchParams.get('date') || today());
+    const employeeFinanceView = isOperationalEmployee(req); const requestedDate = url.searchParams.get('date') || ''; let date = employeeFinanceView ? today() : (requestedDate || today()); let timezone = businessTimezone;
+    if (repositories?.pool) {
+      try { const context = await venueBusinessDateContext(repositories.pool, venueDbId); if (!context) return json(res, 503, { error: 'database_unavailable' }); timezone = context.timezone; if (employeeFinanceView || !requestedDate) date = context.date; }
+      catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
+    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'invalid_finance_date' });
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
-        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS closed_orders, COUNT(p.id)::int AS payment_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= $3::date AND o.closed_at < ($3::date + INTERVAL '1 day') AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date]);
+        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS closed_orders, COUNT(p.id)::int AS payment_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date, timezone]);
         const row = rows[0] || {}; return json(res, 200, { date, revenue: Number(row.revenue || 0), employeeView: true });
       } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
     }
@@ -2221,15 +2246,15 @@ if (staffProfile && req.method === 'PATCH') {
           SELECT COALESCE(SUM(p.amount), 0) AS revenue, COUNT(DISTINCT o.id)::int AS closed_orders, COUNT(p.id)::int AS payment_count
           FROM orders o JOIN payments p ON p.order_id=o.id
           WHERE o.venue_id=$1 AND o.status='closed'
-            AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day')
-            AND p.status IN ('paid','partially_paid')`, [venueDbId, date]);
+            AND o.closed_at >= ($2::date::timestamp AT TIME ZONE $3) AND o.closed_at < (($2::date + 1)::timestamp AT TIME ZONE $3)
+            AND p.status IN ('paid','partially_paid')`, [venueDbId, date, timezone]);
         const methods = await repositories.pool.query(`
           SELECT p.method, COALESCE(SUM(p.amount), 0) AS amount
           FROM orders o JOIN payments p ON p.order_id=o.id
           WHERE o.venue_id=$1 AND o.status='closed'
-            AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day')
+            AND o.closed_at >= ($2::date::timestamp AT TIME ZONE $3) AND o.closed_at < (($2::date + 1)::timestamp AT TIME ZONE $3)
             AND p.status IN ('paid','partially_paid')
-          GROUP BY p.method ORDER BY p.method`, [venueDbId, date]);
+          GROUP BY p.method ORDER BY p.method`, [venueDbId, date, timezone]);
         const pending = await repositories.pool.query(`
           SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id
           WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]);
@@ -2248,7 +2273,11 @@ if (staffProfile && req.method === 'PATCH') {
   }
   if (pathname === '/api/finance/report' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
-    const employeeFinanceView = isOperationalEmployee(req); const date = employeeFinanceView ? today() : (url.searchParams.get('date') || today());
+    const employeeFinanceView = isOperationalEmployee(req); const requestedDate = url.searchParams.get('date') || ''; let date = employeeFinanceView ? today() : (requestedDate || today()); let timezone = businessTimezone;
+    if (repositories?.pool) {
+      try { const context = await venueBusinessDateContext(repositories.pool, venueDbId); if (!context) return json(res, 503, { error: 'database_unavailable' }); timezone = context.timezone; if (employeeFinanceView || !requestedDate) date = context.date; }
+      catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
+    }
     const requestedReportType = String(url.searchParams.get('type') || 'x');
     const type = ['x', 'z', 'waiter'].includes(requestedReportType) ? requestedReportType : 'x';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'invalid_finance_date' });
@@ -2256,7 +2285,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
-        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS checks_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= $3::date AND o.closed_at < ($3::date + INTERVAL '1 day') AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date]);
+        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS checks_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date, timezone]);
         const report = { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber, checksCount: Number(rows[0]?.checks_count || 0), revenue: Number(rows[0]?.revenue || 0), employeeView: true };
         recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type: 'x', date, checksCount: report.checksCount, revenue: report.revenue });
         return json(res, 200, report);
@@ -2272,9 +2301,9 @@ if (staffProfile && req.method === 'PATCH') {
     };
     if (repositories?.pool) {
       try {
-        const { rows } = await repositories.pool.query(`SELECT o.id,o.created_at AS "createdAt",o.closed_at AS "closedAt",COALESCE(u.full_name,u.login,'Не указан') AS "createdByName",COALESCE(json_agg(json_build_object('method',p.method,'amount',p.amount,'status',p.status)) FILTER (WHERE p.id IS NOT NULL),'[]') AS payments FROM orders o LEFT JOIN payments p ON p.order_id=o.id LEFT JOIN users u ON u.id=o.opened_by WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day') GROUP BY o.id,u.full_name,u.login ORDER BY o.closed_at`, [venueDbId, date]);
+        const { rows } = await repositories.pool.query(`SELECT o.id,o.created_at AS "createdAt",o.closed_at AS "closedAt",COALESCE(u.full_name,u.login,'Не указан') AS "createdByName",COALESCE(json_agg(json_build_object('method',p.method,'amount',p.amount,'status',p.status)) FILTER (WHERE p.id IS NOT NULL),'[]') AS payments FROM orders o LEFT JOIN payments p ON p.order_id=o.id LEFT JOIN users u ON u.id=o.opened_by WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= ($2::date::timestamp AT TIME ZONE $3) AND o.closed_at < (($2::date + 1)::timestamp AT TIME ZONE $3) GROUP BY o.id,u.full_name,u.login ORDER BY o.closed_at`, [venueDbId, date, timezone]);
         closedOrders = rows.map((row) => ({ ...row, payments: row.payments || [], items: [] }));
-        const itemRows = await repositories.pool.query(`SELECT oi.order_id AS "orderId",oi.quantity,oi.unit_price AS "unitPrice",COALESCE(oi.station,'other') AS station FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= $2::date AND o.closed_at < ($2::date + INTERVAL '1 day')`, [venueDbId, date]);
+        const itemRows = await repositories.pool.query(`SELECT oi.order_id AS "orderId",oi.quantity,oi.unit_price AS "unitPrice",COALESCE(oi.station,'other') AS station FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND o.status='closed' AND o.closed_at >= ($2::date::timestamp AT TIME ZONE $3) AND o.closed_at < (($2::date + 1)::timestamp AT TIME ZONE $3)`, [venueDbId, date, timezone]);
         const itemsByOrder = new Map(); itemRows.rows.forEach((item) => { if (!itemsByOrder.has(item.orderId)) itemsByOrder.set(item.orderId, []); itemsByOrder.get(item.orderId).push(item); }); closedOrders.forEach((order) => { order.items = itemsByOrder.get(order.id) || []; addOrder(order); });
       } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
     } else { closedOrders = orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date && (!employeeFinanceView || String(order.openedBy || order.openedById || '') === String(req.user?.id || ''))); closedOrders.forEach(addOrder); }

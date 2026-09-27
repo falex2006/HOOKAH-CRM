@@ -143,6 +143,7 @@ try {
       NODE_ENV: 'test',
       API_RATE_LIMIT: '5000',
       BUSINESS_TIMEZONE: processTimezone,
+      PGOPTIONS: '-c timezone=UTC',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -289,6 +290,30 @@ try {
   previousUtcDate.setUTCDate(previousUtcDate.getUTCDate() - 1);
   const utcPreviousDayAfterLocalMidnight = `${previousUtcDate.toISOString().slice(0, 10)}T22:30:00Z`;
   await client.query('UPDATE orders SET closed_at=$2::timestamptz WHERE id=$1', [firstOrderId, utcPreviousDayAfterLocalMidnight]);
+  await client.query("UPDATE venues SET timezone='Mars/Olympus' WHERE id=$1", [venueId]);
+  const fallbackDateRows = await client.query("SELECT (now() AT TIME ZONE 'Asia/Yekaterinburg')::date::text AS date");
+  const fallbackDate = fallbackDateRows.rows[0].date;
+  const corruptedZoneSummaryResponse = await fetch(`${base}/api/finance/summary`);
+  assert.equal(corruptedZoneSummaryResponse.status, 200, 'legacy invalid venue timezone falls back instead of breaking the finance summary');
+  const corruptedZoneSummary = await corruptedZoneSummaryResponse.json();
+  assert.equal(corruptedZoneSummary.date, fallbackDate, 'corrupted venue timezone uses the established Asia/Yekaterinburg fallback'); checks += 2;
+  const corruptedZoneReportResponse = await fetch(`${base}/api/finance/report`);
+  assert.equal(corruptedZoneReportResponse.status, 200, 'legacy invalid venue timezone falls back instead of breaking the X report');
+  assert.equal((await corruptedZoneReportResponse.json()).date, fallbackDate, 'X report uses the same resilient timezone fallback'); checks += 2;
+  await client.query('UPDATE venues SET timezone=$2 WHERE id=$1', [venueId, venueTimezone]);
+  const financeSummaryResponse = await fetch(`${base}/api/finance/summary`);
+  assert.equal(financeSummaryResponse.status, 200, 'default finance summary succeeds when process and venue dates differ');
+  const financeSummary = await financeSummaryResponse.json();
+  assert.equal(financeSummary.date, currentDate, 'default finance date comes from the venue timezone, not the process timezone');
+  assert.equal(Number(financeSummary.revenue), 300, 'venue-local finance summary includes sales across the UTC date boundary');
+  assert.equal(Number(financeSummary.closedOrders), 2, 'venue-local summary counts both checks on the venue business date');
+  assert.equal(Number(financeSummary.paymentCount), 2, 'venue-local summary counts both payments across the UTC date boundary'); checks += 5;
+  const financeReportResponse = await fetch(`${base}/api/finance/report?date=${encodeURIComponent(currentDate)}&type=x`);
+  assert.equal(financeReportResponse.status, 200, 'X report succeeds for explicit venue-local business date');
+  const financeReport = await financeReportResponse.json();
+  assert.equal(financeReport.date, currentDate, 'X report preserves the requested local calendar date');
+  assert.equal(Number(financeReport.revenue), 300, 'X report uses venue-local UTC boundaries');
+  assert.equal(financeReport.checksCount, 2, 'X report includes both checks on the venue date'); checks += 4;
   const analyticsResponse = await fetch(`${base}/api/analytics?days=7`);
   assert.equal(analyticsResponse.status, 200);
   const analytics = await analyticsResponse.json();

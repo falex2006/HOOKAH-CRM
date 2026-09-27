@@ -37,6 +37,13 @@ assert.match(deploy, /config_hash=.*openssl dgst -sha256 -hmac/, 'release identi
 assert.match(deploy, /release_fingerprint=.*sha256sum/, 'release fingerprints must not truncate commit or config hashes');
 assert.match(deploy, /docker inspect --format/, 'in-progress retries must verify the running container release label');
 assert.match(compose, /CRM_RELEASE_ID:/, 'Compose must pass the release id into the service');
+for (const secret of ['DEMO_ADMIN_PASSWORD', 'DEMO_OWNER_PASSWORD', 'DEMO_STAFF_PASSWORD']) {
+  assert.ok(compose.split(/\r?\n/).some(line => line.trim() === `${secret}: \${${secret}:-}`), `${secret} must default to empty so direct Compose startup cannot expose a known demo credential`);
+  assert.match(envExample, new RegExp(`^${secret}\\s*=\\s*$`, 'm'), `${secret} in the sample environment must be blank so it cannot enable a known password`);
+}
+assert.match(server, /const demoAccounts = \[[\s\S]*?\]\.filter\(\(account\) => Boolean\(account\.password\)\)/, 'demo users without configured passwords must never be login candidates');
+assert.match(server, /DEMO_OWNER_PASSWORD \|\| \(process\.env\.AUTH_REQUIRED === 'true' \? '' : 'demo'\)/, 'protected runtime must not fall back to owner/demo');
+assert.match(server, /DEMO_STAFF_PASSWORD \|\| \(process\.env\.AUTH_REQUIRED === 'true' \? '' : 'demo'\)/, 'protected runtime must not fall back to staff/demo');
 assert.match(compose, /com\.territory\.release-id:/, 'Compose container must expose the release id label');
 assert.match(dockerfile, /LABEL com\.territory\.release-id=\$CRM_RELEASE_ID/, 'built image must identify its release');
 const dockerFiles = new Set([...dockerfile.matchAll(/^COPY (.+) \.\/$/gm)].flatMap(match => match[1].split(/\s+/)));
