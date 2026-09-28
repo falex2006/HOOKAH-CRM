@@ -17,8 +17,10 @@ class OrderRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      if (input.tableId) { const target = await client.query("SELECT t.id FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.status <> 'blocked' FOR UPDATE OF t", [input.tableId, input.venueId]); if (!target.rows[0]) throw new Error('table_not_found_or_unavailable'); const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) throw new Error('table_has_active_order'); }
-      const { rows } = await client.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, table_id AS "tableId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt"', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, input.vipMinimum || 0, input.notes || null]);
+      let tableMinimum = 0;
+      if (input.tableId) { const target = await client.query("SELECT t.id,t.min_order_total FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2 AND t.status <> 'blocked' FOR UPDATE OF t", [input.tableId, input.venueId]); if (!target.rows[0]) throw new Error('table_not_found_or_unavailable'); tableMinimum = Number(target.rows[0].min_order_total || 0); const active = await client.query(`SELECT id FROM orders WHERE venue_id=$1 AND table_id=$2 AND status IN ('open','in_progress','ready') LIMIT 1`, [input.venueId, input.tableId]); if (active.rows[0]) throw new Error('table_has_active_order'); }
+      const vipMinimum = Math.max(Number(input.vipMinimum || 0), tableMinimum);
+      const { rows } = await client.query('INSERT INTO orders (venue_id, table_id, opened_by, reservation_id, vip_minimum, notes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, table_id AS "tableId", status, vip_minimum AS "minimumOrderTotal", notes, created_at AS "createdAt"', [input.venueId, input.tableId || null, input.openedBy, input.reservationId || null, vipMinimum, input.notes || null]);
       if (input.tableId) await client.query(`UPDATE tables t SET status='occupied'::table_status FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked'`, [input.tableId, input.venueId]);
       await client.query('COMMIT');
       return rows[0];
@@ -57,7 +59,20 @@ class InventoryRepository {
     const { rows } = await this.pool.query(`UPDATE ingredients SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name,short_name AS "shortName",department,subdepartment,category,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, values);
     return rows[0] || null;
   }
-  async archive(venueId, id) { const { rows } = await this.pool.query('UPDATE ingredients SET is_marked=false WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name', [id, venueId]); return rows[0] || null; }
+  async archive(venueId, id) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const item = await client.query('SELECT id,name FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [id, venueId]);
+      if (!item.rows[0]) { await client.query('ROLLBACK'); return null; }
+      const balance = await client.query("SELECT COALESCE(SUM(CASE WHEN direction IN ('in','transfer','adjustment') THEN quantity WHEN direction IN ('out','waste') THEN -quantity ELSE 0 END),0)::numeric AS on_hand FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2", [venueId, id]);
+      if (Number(balance.rows[0]?.on_hand || 0) > 0.000001) { const error = new Error('inventory_item_has_stock'); error.code = 'inventory_item_has_stock'; throw error; }
+      const archived = await client.query('UPDATE ingredients SET is_marked=false WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name', [id, venueId]);
+      await client.query('COMMIT');
+      return archived.rows[0] || null;
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+    finally { client.release(); }
+  }
   async move(input) {
     const client = await this.pool.connect();
     try {

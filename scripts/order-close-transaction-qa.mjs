@@ -89,6 +89,7 @@ assert.match(transferRoute, /JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AN
 assert.match(transferRoute, /AND status=\$4 RETURNING id,status,table_id/, 'transfer uses a compare-and-set status guard');
 
 const orderRepository = readFileSync(new URL('../db.js', import.meta.url), 'utf8');
-assert.match(orderRepository, /SELECT t\.id FROM tables t JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' FOR UPDATE OF t/, 'order creation validates and locks its table in the order venue');
+assert.match(orderRepository, /SELECT t\.id,t\.min_order_total FROM tables t JOIN zones z ON z\.id=t\.zone_id WHERE t\.id=\$1 AND z\.venue_id=\$2 AND t\.status <> 'blocked' FOR UPDATE OF t/, 'order creation validates/locks its table and reads the server-owned minimum in the order venue');
+assert.match(orderRepository, /const vipMinimum = Math\.max\(Number\(input\.vipMinimum \|\| 0\), tableMinimum\)/, 'client input cannot lower the table minimum');
 
 console.log('ORDER/PAYMENT TRANSACTION QA: assertions passed');

@@ -127,7 +127,7 @@ try {
     'no synthetic fallback actor remains after fixture cleanup');
   await client.query('INSERT INTO venues (id,name,timezone) VALUES ($1,$2,$3)', [venueId, 'Синтетическая QA-точка', venueTimezone]);
   await client.query('INSERT INTO users (id,venue_id,full_name,login,role) VALUES ($1,$2,$3,$4,$5)', [actorId, venueId, 'QA Владелец', `qa-${venueId}`, 'owner']);
-  await client.query('INSERT INTO inventory_departments (venue_id,code,name) VALUES ($1,$2,$3)', [venueId, 'bar', 'Бар']);
+  await client.query('INSERT INTO inventory_departments (venue_id,code,name) VALUES ($1,$2,$3) ON CONFLICT (venue_id,code) DO UPDATE SET name=EXCLUDED.name', [venueId, 'bar', 'Бар']);
   await client.query('INSERT INTO zones (id,venue_id,name) VALUES ($1,$2,$3)', [zoneId, venueId, 'QA зона']);
   await client.query('INSERT INTO tables (id,zone_id,name,capacity,status) VALUES ($1,$2,$3,2,$4)', [tableId, zoneId, 'QA стол', 'free']);
 

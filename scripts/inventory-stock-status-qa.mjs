@@ -25,7 +25,8 @@ const isBelowMinimum = new Function(`return (${lowStockMatcher[1]})`)();
 assert.equal(isBelowMinimum({ onHand: 0, minLevel: 0 }), false, 'disabled monitoring must not count as low stock');
 assert.equal(isBelowMinimum({ onHand: 0, minLevel: 1 }), true, 'tracked empty stock must count as low stock');
 assert.equal(isBelowMinimum({ onHand: 2, minLevel: 2 }), true, 'stock at the threshold must prompt replenishment');
-assert.match(server, /min_level > 0 AND on_hand <= min_level/, 'PostgreSQL dashboard metrics must follow the same positive-minimum rule');
+assert.match(server, /i\.min_stock > 0 AND COALESCE\(b\.on_hand,0\) <= i\.min_stock/, 'PostgreSQL dashboard metrics must derive stock from the movement ledger and compare the persisted minimum');
+assert.match(server, /FROM stock_movements WHERE venue_id=\$1 GROUP BY venue_id,ingredient_id/, 'PostgreSQL dashboard metric must aggregate only the selected venue stock ledger');
 assert.match(portal, /Number\(x\.minLevel \|\| 0\) > 0 && Number\(x\.onHand \|\| 0\) <= Number\(x\.minLevel \|\| 0\)/, 'demo dashboard metric must exclude disabled monitoring');
 
 console.log('INVENTORY STOCK STATUS QA: PASS (row label, API/KPI rule, zero minimum, threshold and sufficient stock)');

@@ -11,17 +11,39 @@ const readJson = async (response) => {
   return payload;
 };
 const beforeMetrics = await readJson(await request('/api/metrics'));
+const qaSuffix = Date.now();
+const department = await readJson(await request('/api/inventory/departments', { method: 'POST', body: JSON.stringify({ code: `qa-stock-${qaSuffix}`, name: `QA stock ${qaSuffix}` }) }));
 const created = await readJson(await request('/api/inventory/items', {
   method: 'POST',
-  body: JSON.stringify({ name: `Контроль выключен QA ${Date.now()}`, unit: 'шт', itemType: 'ingredient', cost: 0, minLevel: 0 }),
+  body: JSON.stringify({ name: `Контроль выключен QA ${qaSuffix}`, unit: 'шт', department: department.code, itemType: 'ingredient', cost: 0, minLevel: 0 }),
 }));
+let tracked;
 try {
+  tracked = await readJson(await request('/api/inventory/items', {
+    method: 'POST',
+    body: JSON.stringify({ name: `Контроль порога QA ${qaSuffix}`, unit: 'шт', department: department.code, itemType: 'ingredient', cost: 0, minLevel: 2 }),
+  }));
   const inventory = await readJson(await request('/api/inventory'));
   const metrics = await readJson(await request('/api/metrics'));
   if ((inventory.lowStock || []).some((item) => item.id === created.id)) throw new Error('minLevel=0 unexpectedly appears in /api/inventory.lowStock');
-  if (metrics.lowStock !== beforeMetrics.lowStock) throw new Error(`minLevel=0 changed dashboard low-stock metric: ${beforeMetrics.lowStock} -> ${metrics.lowStock}`);
+  if (!(inventory.lowStock || []).some((item) => item.id === tracked.id)) throw new Error('positive minimum with zero stock is missing from /api/inventory.lowStock');
+  if (metrics.lowStock !== beforeMetrics.lowStock + 1) throw new Error(`expected only the tracked stock item to increase the dashboard KPI: ${beforeMetrics.lowStock} -> ${metrics.lowStock}`);
+  await readJson(await request('/api/inventory/movements', { method: 'POST', body: JSON.stringify({ itemId: tracked.id, delta: 3, unit: 'шт', reason: 'QA stock threshold' }) }));
+  const restocked = await readJson(await request('/api/inventory'));
+  const restockedMetrics = await readJson(await request('/api/metrics'));
+  if ((restocked.lowStock || []).some((item) => item.id === tracked.id)) throw new Error('stock at minimum should leave the low-stock list');
+  if (restockedMetrics.lowStock !== beforeMetrics.lowStock) throw new Error(`stock movement did not refresh dashboard low-stock KPI: ${beforeMetrics.lowStock} -> ${restockedMetrics.lowStock}`);
 } finally {
-  const response = await request(`/api/inventory/items/${encodeURIComponent(created.id)}`, { method: 'DELETE' });
-  if (!response.ok) throw new Error(`failed to clean up runtime QA item: ${response.status} ${await response.text()}`);
+  if (tracked) {
+    const currentInventory = await readJson(await request('/api/inventory'));
+    const currentTracked = (currentInventory.items || []).find((item) => item.id === tracked.id);
+    if (Number(currentTracked?.onHand || 0) > 0) await readJson(await request('/api/inventory/movements', { method: 'POST', body: JSON.stringify({ itemId: tracked.id, delta: -Number(currentTracked.onHand), unit: tracked.unit || 'шт', reason: 'QA cleanup' }) }));
+  }
+  for (const item of [created, tracked].filter(Boolean)) {
+    const response = await request(`/api/inventory/items/${encodeURIComponent(item.id)}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error(`failed to clean up runtime QA item: ${response.status} ${await response.text()}`);
+  }
+  const departmentResponse = await request(`/api/inventory/departments/${encodeURIComponent(department.code)}`, { method: 'DELETE' });
+  if (!departmentResponse.ok) throw new Error(`failed to clean up runtime QA department: ${departmentResponse.status} ${await departmentResponse.text()}`);
 }
-console.log('INVENTORY STOCK STATUS RUNTIME QA: PASS (disabled monitoring is excluded from inventory list and dashboard KPI)');
+console.log('INVENTORY STOCK STATUS RUNTIME QA: PASS (disabled monitoring, below-minimum tracking, stock movement and dashboard KPI refresh)');
