@@ -571,9 +571,10 @@
 .staff-theme .table strong,.staff-theme .table em,.staff-theme .table small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .staff-theme .table strong{line-height:1.1}
 /* Keep navigation visible while long pages scroll. */
-.velora-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden}
-.velora-theme .portal-sidebar{z-index:10;scrollbar-width:none;overscroll-behavior:contain}
-.velora-theme .portal-sidebar::-webkit-scrollbar{width:0;height:0;display:none}
+.velora-theme .portal-sidebar,.staff-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden;z-index:10;scrollbar-width:thin;scrollbar-color:#4a515d transparent;overscroll-behavior:contain}
+.velora-theme .portal-sidebar::-webkit-scrollbar,.staff-theme .portal-sidebar::-webkit-scrollbar{width:6px;height:6px}
+.velora-theme .portal-sidebar::-webkit-scrollbar-track,.staff-theme .portal-sidebar::-webkit-scrollbar-track{background:transparent}
+.velora-theme .portal-sidebar::-webkit-scrollbar-thumb,.staff-theme .portal-sidebar::-webkit-scrollbar-thumb{background:#4a515d;border:1px solid #17191d;border-radius:999px}
 /* Match native scrollbars to the dark Velora surface instead of the browser light default. */
 .velora-theme{scrollbar-color:#4a515d #111317;scrollbar-width:thin}
 .velora-theme *{scrollbar-color:#4a515d #111317;scrollbar-width:thin}
@@ -1880,11 +1881,34 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 /* Finance payment visualization switcher */
 .velora-theme .payment-panel-head{align-items:flex-start;gap:16px}.velora-theme .payment-panel-head .finance-chart-view{flex-wrap:wrap;justify-content:flex-end}.velora-theme .payment-list{min-height:170px}.velora-theme .payment-donut-layout{display:grid;grid-template-columns:180px 1fr;align-items:center;gap:24px;min-height:170px}.velora-theme .payment-donut{width:156px;height:156px;border-radius:50%;display:grid;place-items:center;position:relative}.velora-theme .payment-donut::after{content:"";position:absolute;inset:27px;border-radius:50%;background:#171b20}.velora-theme .payment-donut span{position:relative;z-index:1;color:#eef1f4;font-size:18px;font-weight:800}.velora-theme .payment-donut-legend{display:grid;gap:12px}.velora-theme .payment-donut-legend div,.velora-theme .payment-table-row,.velora-theme .payment-table-head{display:grid;grid-template-columns:minmax(0,1fr) 60px 100px;align-items:center;gap:12px}.velora-theme .payment-donut-legend div{grid-template-columns:12px minmax(0,1fr) auto;color:#bac2cb;font-size:13px}.velora-theme .payment-donut-legend i,.velora-theme .payment-table-row i,.velora-theme .payment-line-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}.velora-theme .payment-donut-legend b,.velora-theme .payment-table-row strong{color:#eef1f4}.velora-theme .payment-bars{display:grid;gap:16px;padding:12px 0}.velora-theme .payment-bar-row>div:first-child{display:flex;justify-content:space-between;gap:12px;color:#bac2cb;font-size:13px}.velora-theme .payment-bar-row strong{color:#eef1f4}.velora-theme .payment-bar-track{height:10px;margin-top:8px;border-radius:999px;background:#292e36;overflow:hidden}.velora-theme .payment-bar-track i{display:block;height:100%;border-radius:inherit}.velora-theme .payment-line{display:grid;gap:14px}.velora-theme .payment-line svg{width:100%;height:150px;overflow:visible;background:linear-gradient(#ffffff08 1px,transparent 1px) 0 0/100% 33.33%;border-bottom:1px solid #30343b}.velora-theme .payment-line-legend{display:flex;flex-wrap:wrap;gap:10px 18px;color:#aeb7c1;font-size:12px}.velora-theme .payment-line-legend span{display:inline-flex;align-items:center;gap:7px}.velora-theme .payment-table{display:grid;gap:0}.velora-theme .payment-table-head{padding:8px 0;color:#737d89;font-size:10px;text-transform:uppercase;letter-spacing:.08em;border-bottom:1px solid #30343b}.velora-theme .payment-table-row{padding:13px 0;color:#bac2cb;font-size:13px;border-bottom:1px solid #292e36}.velora-theme .payment-table-row span{display:flex;align-items:center;gap:8px}.velora-theme .payment-table-row b{text-align:right;color:#8f99a5}.velora-theme .payment-table-row strong{text-align:right}@media(max-width:720px){.velora-theme .payment-panel-head{display:grid}.velora-theme .payment-panel-head .finance-chart-view{justify-content:flex-start}.velora-theme .payment-donut-layout{grid-template-columns:1fr;justify-items:center}.velora-theme .payment-donut-legend{width:100%}}
 
-/* Unified route transitions: keep the old document visible while the next
-   CRM screen is prepared, avoiding the flash between sections. */
+/* Sidebar links load separate same-origin HTML documents. Preserve the outgoing
+   screen during navigation where cross-document View Transitions are supported;
+   browsers without support keep ordinary, fully functional page navigation. */
+@view-transition { navigation: auto; }
+.velora-theme .portal-sidebar,
+.staff-theme .portal-sidebar { view-transition-name: crm-sidebar; }
+.velora-theme .portal-header,
+.staff-theme main > header { view-transition-name: crm-header; }
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root),
+::view-transition-group(crm-sidebar),
+::view-transition-old(crm-sidebar),
+::view-transition-new(crm-sidebar),
+::view-transition-group(crm-header),
+::view-transition-old(crm-header),
+::view-transition-new(crm-header) {
+  animation-duration: 160ms;
+  animation-timing-function: cubic-bezier(.22,.7,.25,1);
+}
 .velora-theme #page-content.crm-route-enter { animation: crm-route-content-in 180ms cubic-bezier(.22,.7,.25,1) both; }
 @keyframes crm-route-content-in { from { opacity: .82; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-@media (prefers-reduced-motion: reduce) { .velora-theme #page-content.crm-route-enter { animation:none!important; } }
+@media (prefers-reduced-motion: reduce) {
+  .velora-theme #page-content.crm-route-enter { animation:none!important; }
+  ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root),
+  ::view-transition-group(crm-sidebar), ::view-transition-old(crm-sidebar), ::view-transition-new(crm-sidebar),
+  ::view-transition-group(crm-header), ::view-transition-old(crm-header), ::view-transition-new(crm-header) { animation:none!important; }
+}
 
 .integration-category{display:block;margin-bottom:6px;color:#ff9f87;font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.integration-card h3{margin-bottom:4px}.integration-summary{margin-bottom:14px}
 
@@ -1896,7 +1920,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 /* Give desktop navigation enough room for full Russian labels while keeping
    the workspace wide; scale gently up to ultrawide desktop sizes. */
-@media (min-width:1181px) and (max-width:1799px){
+@media (min-width:901px) and (max-width:1799px){
   .velora-theme .portal-sidebar,.staff-theme .portal-sidebar{width:clamp(210px,18vw,280px);padding-inline:clamp(14px,1.2vw,22px)}
 }
 @media (min-width:1800px){
@@ -2145,9 +2169,6 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 
 /* Keep warehouse directory names readable when category rows become narrow. */
 @media(max-width:560px){.velora-theme .inventory-departments-panel .category-row{grid-template-columns:minmax(0,1fr);align-items:start}.velora-theme .inventory-departments-panel .category-row>div:first-child{min-width:0;overflow-wrap:normal;word-break:normal}.velora-theme .inventory-departments-panel .category-row .toolbar-row{width:100%;justify-content:flex-start}}
-
-/* Preserve readable expanded labels just above the compact Fold/tablet rail. */
-@media(min-width:901px) and (max-width:950px){.velora-theme .portal-sidebar{width:clamp(228px,25vw,240px);padding-inline:16px}}
 
 /* Keep warehouse actions and section navigation balanced at laptop widths. */
 .velora-theme .inventory-page-title{align-items:flex-start}

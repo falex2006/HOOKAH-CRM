@@ -338,7 +338,8 @@ const normalizeManagementSidebar = () => {
   sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((group) => {
     const activeLink = group.querySelector('a.active');
     const summary = group.querySelector(':scope > summary');
-    if (activeLink) group.open = true;
+    // Keep the user's saved disclosure state; the active child remains marked
+    // on the group summary even when that group is intentionally collapsed.
     summary?.setAttribute('aria-expanded', String(group.open));
     summary?.classList.toggle('has-active-child', Boolean(activeLink));
     if (activeLink) summary?.setAttribute('aria-current', 'location');
@@ -898,7 +899,6 @@ document.addEventListener('submit', (event) => { const form = event.target; cons
 
 document.querySelectorAll('[data-route]').forEach((link) => {
   if (link.dataset.route === page && !location.hash) link.classList.add('active');
-  link.addEventListener('click', () => { window.location.href = link.href; });
 });
 
 Promise.allSettled([api('/api/venue'), api('/api/metrics')]).then(([venueResult, metricsResult]) => {
@@ -2333,9 +2333,8 @@ if (page === 'finance_report') renderFinanceReport();
 if (page === 'reservations') renderReservations();
 if (page === 'dashboard' && location.hash === '#tasks') renderTasks();
 
-// The first render should enter with the same motion as hash navigation, so
-// a freshly opened section never flashes from an empty container to content.
-requestAnimationFrame(() => document.querySelector('#page-content')?.classList.add('crm-route-enter'));
+// Cross-page navigation is handled by the browser's View Transition API where
+// available. Keep the content entrance animation for in-page/hash changes only.
 setupInterfacePreferences();
 setupThemePreference();
 

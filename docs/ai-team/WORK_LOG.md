@@ -633,3 +633,21 @@
 - A clean clone on the VPS exposed that deployment scripts documented as `./script.sh` were committed without executable Git modes. Marked deploy, backup, migration, post-deploy acceptance, and backup verification scripts executable so a fresh immutable checkout can run the documented release path without dirtying it.
 - No script content, API, database, migrations, or server configuration changed in this item.
 - Checks: POSIX shell syntax validation via the VPS shell and release contract.
+
+## Package 054 — Remove sidebar page-transition flicker (1/15) (2026-09-28)
+
+- Root cause: each sidebar destination is a separate HTML document, but the route-entry animation began only after the old document had unloaded and faded the new, initially empty content area. That can read as a flash instead of a transition. A click listener also redundantly assigned the same URL as the native anchor; it is removed to keep navigation fully browser-native.
+- Removed the page-load-only content animation; in-page/hash transitions retain their local motion. Keyboard activation, modifier/middle-click, and browser history continue to use ordinary anchors.
+- Added a 160 ms same-origin cross-document View Transition as progressive enhancement, with the shared sidebar/header named across admin and employee shells. Browsers without support continue normal navigation; `prefers-reduced-motion` disables the transition.
+- Updated the shared visual rule, navigation/visual contracts, and source/dist cache revisions (CSS 308, portal 297). No API, database, schema, or migrations changed.
+- Checks: sidebar navigation contract, visual page rules contract (14 pages/11 admin subsections), 28-invariant Fold contract, 11-route header-shell/source-dist contract, JS syntax, asset sync, and `git diff --check` passed. The local URL redirects to login, so an authenticated rendered CRM route was not available for browser-transition capture in this pass.
+- Release: local change only; not deployed to VPS. Per the package workflow, it is queued as `1/15` for the next validated release. If a supported browser still shows movement after the document transition, the remaining cause may be asynchronous data reflow after the transition completes.
+
+## Package 054 — Sidebar consistency polish (2/15) (2026-09-28)
+
+- Fixed an interaction conflict where clicking the active route group closed it, but route normalization immediately reopened it. Explicitly saved collapse/expand choices now remain in force across refreshes; when the active child is inside a collapsed group, the group heading keeps a visible active marker and `aria-current` state.
+- Removed the 901–950px sidebar width override that caused a sudden width change at 950/951px. Laptop and wide desktop use one fluid width rule, with compact drawer behavior retained at 900px and below.
+- Replaced the invisible management sidebar scrollbar with a thin dark-theme scrollbar; both management and employee sidebars now remain pinned and independently scroll when their content exceeds a short window.
+- Updated the visual rules and sidebar regression contract. No routes, access rules, API, database, or server settings changed.
+- Checks: sidebar navigation contract (including width continuity at 949–952px and 1179–1181px), visual page rules, Fold responsive, shared header, asset synchronization, JS syntax, and `git diff --check` passed.
+- Release: local changes only; not deployed to VPS. Authenticated local browser rendering was not available for this pass, so final pixel-level comparison on the server build remains part of release QA.

@@ -25,8 +25,15 @@ assert.match(css, /:root\{--crm-header-height:68px\}[\s\S]*?\.velora-theme \.por
   'management and employee modes must use the same responsive header-height token');
 assert.match(css, /@media\(max-width:650px\)\{\.velora-theme \.portal-app \.portal-header>\.header-context,\.velora-theme \.portal-shell \.portal-header>\.header-context\{box-sizing:border-box;margin-left:0;padding-left:50px/,
   'mobile breadcrumbs must reserve space for the menu toggle in both CRM shells');
-assert.match(css, /@media\(min-width:901px\) and \(max-width:950px\)\{\.velora-theme \.portal-sidebar\{width:clamp\(228px,25vw,240px\)/,
-  'expanded sidebar labels must retain readable space above the compact rail breakpoint');
+assert.match(css, /@media \(min-width:901px\) and \(max-width:1799px\)\{[\s\S]*?\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{width:clamp\(210px,18vw,280px\)/,
+  'desktop sidebar width must use one continuous scale across laptop and wide desktop sizes');
+assert.doesNotMatch(css, /@media\(min-width:901px\) and \(max-width:950px\)/,
+  'sidebar must not jump at the 950/951px breakpoint');
+const sidebarWidthAt = (viewport) => Math.min(280, Math.max(210, viewport * 0.18));
+for (const [left, right] of [[949, 950], [950, 951], [951, 952], [1179, 1180], [1180, 1181]]) {
+  assert.ok(Math.abs(sidebarWidthAt(right) - sidebarWidthAt(left)) < 1,
+    `desktop sidebar width must remain continuous from ${left}px to ${right}px`);
+}
 assert.match(css, /\.velora-theme \.portal-header \.header-right > \.notification-bell[^}]*width:44px;height:44px/,
   'shared header action controls must use the common 44px touch target');
 assert.match(css, /\.velora-theme \.portal-header\{padding:0 16px\}/,
@@ -47,6 +54,8 @@ for (const route of ['/admin', '/orders', '/clients', '/reservations', '/invento
   assert.ok(tree.includes(`| \`${route}\` |`), `tree missing ${route}`);
 }
 assert.match(portal, /href: '\/admin#settings'/);
+assert.doesNotMatch(portal, /link\.addEventListener\('click',\s*\(\)\s*=>\s*\{\s*window\.location\.href\s*=\s*link\.href/,
+  'native sidebar anchors must not trigger a second programmatic navigation');
 assert.match(portal, /href: '\/integrations'/);
 assert.match(portal, /\[\['ОПЕРАЦИИ', 'operations'\]\]/,
   'multi-link operational groups must use the same collapsible pattern');
@@ -93,6 +102,10 @@ assert.match(portal, /const defaultGroupOpen = \(key\) => \{[\s\S]*?return false
   'sidebar groups must default to the current route and prefer an explicit saved choice');
 assert.doesNotMatch(portal, /activeGroup\.open = true/,
   'loading a route must not override a saved collapsed group');
+assert.doesNotMatch(portal, /if \(activeLink\) group\.open = true/,
+  'an active route must not silently reopen a group that the user explicitly collapsed');
+assert.match(portal, /summary\?\.classList\.toggle\('has-active-child', Boolean\(activeLink\)\)[\s\S]*?if \(activeLink\) summary\?\.setAttribute\('aria-current', 'location'\)/,
+  'a collapsed group must still identify the section that contains the current route');
 assert.doesNotMatch(portal, /activeGroup\?\.open[\s\S]{0,180}scrollIntoView/,
   'route normalization must not auto-scroll the sidebar away from its brand');
 assert.match(portal, /mainNav\.after\(disclosureRoot\);\s*disclosureRoot\.replaceChildren\(\.\.\.\['operations', 'menu', 'inventory', 'finance', 'team', 'system'\]/,
@@ -122,8 +135,8 @@ assert.ok(operationOrder.every((position) => position >= 0), 'every operational 
 assert.deepEqual(operationOrder, [...operationOrder].sort((a, b) => a - b), 'operational menu order must follow the service flow');
 assert.match(portal, /else \{ link\.dataset\.permission = item\.permission; link\.innerHTML = `\$\{iconMarkup\(item\.iconName\)\}<span>\$\{item\.label\}<\/span>`; \}/,
   'existing static links must be updated with the canonical permission, label and icon');
-assert.match(portal, /const activeLink = group\.querySelector\('a\.active'\);[\s\S]*?if \(activeLink\) group\.open = true;[\s\S]*?aria-expanded', String\(group\.open\)/,
-  'the group containing the active route must stay open so its active item is visible');
+assert.match(portal, /const activeLink = group\.querySelector\('a\.active'\);[\s\S]*?summary\?\.classList\.toggle\('has-active-child', Boolean\(activeLink\)\)[\s\S]*?summary\?\.setAttribute\('aria-current', 'location'\)/,
+  'a collapsed group must remain visibly identified when it contains the active route');
 for (const entry of [
   "{ href: '/finance', permission: 'finance_read', label: 'Обзор финансов', iconName: 'chart-bar', navigationModule: 'finance' }",
   "{ href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'id-badge' }",
@@ -151,12 +164,17 @@ assert.match(css, /\.velora-theme \.portal-sidebar \.sidebar-nav-group \.portal-
   'expanded child links do not repeat decorative icons already represented by the group heading');
 assert.match(css, /@media\(max-width:900px\)\{[\s\S]*?\.portal-sidebar\.is-expanded \.sidebar-nav-group>summary \.icon\{display:block\}[\s\S]*?\.portal-sidebar\.is-expanded \.sidebar-nav-group \.portal-nav a\{gap:0;padding-left:39px\}/,
   'drawer keeps one icon at the group heading and aligns text-only children beneath its caption');
-assert.match(css, /@media \(min-width:1181px\) and \(max-width:1799px\)\{[\s\S]*?\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{width:clamp\(210px,18vw,280px\)/,
+assert.match(css, /@media \(min-width:901px\) and \(max-width:1799px\)\{[\s\S]*?\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{width:clamp\(210px,18vw,280px\)/,
   'desktop sidebar width must scale smoothly from the compact desktop breakpoint to ultrawide width in both modes');
 assert.match(css, /@media \(min-width:651px\) and \(max-width:900px\)\{[\s\S]*?\.portal-sidebar\{position:fixed;z-index:25;left:0;top:0;bottom:0;width:280px;transform:translateX\(-100%\)/,
   'the Fold sidebar opens as an overlay and does not permanently consume workspace width');
 assert.match(css, /\.portal-sidebar \.sidebar-nav-group>summary\{display:flex;min-height:44px/,
   'collapsed Fold navigation groups must match adjacent 44px touch targets');
+assert.match(css, /\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden;z-index:10;scrollbar-width:thin;scrollbar-color:#4a515d transparent/,
+  'both CRM sidebars must stay visible and expose a subtle dark-theme scrollbar when their content overflows');
+assert.match(css, /\.velora-theme \.portal-sidebar::\-webkit-scrollbar,\.staff-theme \.portal-sidebar::\-webkit-scrollbar\{width:6px;height:6px\}/);
+assert.doesNotMatch(css, /\.velora-theme \.portal-sidebar\{z-index:10;scrollbar-width:none/,
+  'the navigation scrollbar must not be hidden when lower groups overflow');
 assert.match(css, /@media\(max-width:900px\)\{\.staff-theme \.portal-sidebar\{width:68px/,
   'employee navigation uses a compact icon rail at Fold/tablet widths to preserve the order workspace');
 assert.match(css, /@media \(min-width:1800px\)\{\s*\.staff-theme \.portal-sidebar\{width:280px/,
