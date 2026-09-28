@@ -603,3 +603,27 @@
 - Local browser spot checks at about 451px wide covered dashboard, orders, clients, inventory and settings; the updated department form was visually checked after stacking. This is not a screenshot-per-route audit or physical Fold acceptance.
 - Corrected `COMPLETION_MATRIX.md`: X/Z reporting and schedule→actual time→payroll are partial, not fully verified. `FINAL_ACCEPTANCE_REPORT.md` now lists current test evidence, explicitly skips owner-excluded item 34, and does not claim production readiness. `VISUAL_AUDIT_REPORT.md` records the limited screenshot scope.
 - No schema migration or new API endpoint. Existing finance summary/analytics responses were corrected. VPS/production were not accessed. Package is currently uncommitted and unpushed; working-tree changes remain reviewable.
+
+# Package 053 — Sidebar visual polish (1/15) (2026-09-28)
+
+- Refined the narrow-screen sidebar drawer: softened the backdrop so the workspace remains recognizable, aligned the close button to the actual drawer width, raised the menu toggle to a consistent 44×44 touch target, and accounted for device safe areas and dynamic viewport height.
+- Kept route, permission, drawer focus/keyboard, and desktop navigation behavior unchanged. No API or database changes.
+- Synchronized `style.css` revision 306 across source and `dist/**` (41 route templates).
+- Checks: sidebar navigation contract, 27-invariant Fold responsive contract, 11-route header shell contract, JavaScript syntax for changed checks/sync script, and `git diff --check` all passed.
+- Visual boundary: the current screenshot showed the drawer in a narrow viewport; source-level visual fix and responsive contracts are verified. A pixel screenshot of the updated production page has not yet been captured because this local Windows session currently has no Docker Desktop Linux engine.
+- VPS remains on its current release until the validated sidebar change is included in the next publishable package.
+
+## Package 053 — Sidebar submenu clarity (2/15) (2026-09-28)
+
+- Removed repeated decorative icons from links inside expandable sidebar groups. Group icons remain the visual anchor in desktop and compact drawers; child labels align under the group title at both widths. Route links, permissions, active states, and tooltips are unchanged.
+- Recorded the navigation visual rule in `VISUAL_PAGE_RULES.md`, `SITE_TREE.md`, and `site-map.json`; extended sidebar, Fold, and visual-rule contracts.
+- Advanced shared CSS cache revision to 307 and synchronized all 41 static route templates and `dist/style.css`.
+- Checks: sidebar navigation, 28-invariant Fold responsiveness, header shell, visual-page rules, site structure, changed-script syntax, `dist/style.css` parity, and `git diff --check` all passed.
+- Visual screenshot remains unavailable in this checkout; the browser blocked local-file preview, and Docker Desktop's Linux engine is not connected. No VPS deployment was performed.
+
+## Package 053 — Explicit HTTP release mode (3/15) (2026-09-28)
+
+- The owner requested deploying the sidebar update to the existing HTTP VPS while keeping `COOKIE_SECURE=false`. The standard deploy gate previously required HTTPS and rejected this authorized setup.
+- Added a one-invocation opt-in `ALLOW_HTTP_DEPLOY_ONCE=true` for this release; it is captured before `.env` is loaded and is not persisted. Authentication remains required, default HTTPS mode is unchanged, and each later HTTP release needs its own explicit opt-in.
+- No API, database, schema, or migration changes. The cookie setting and TLS configuration remain unchanged.
+- Checks before release: deploy contract, shell syntax, sidebar/Fold/header/site-tree checks and source/dist parity. VPS state and backup are checked before deployment.

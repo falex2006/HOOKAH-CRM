@@ -104,8 +104,12 @@ assert.match(portal, /toggle\.setAttribute\('aria-controls', sidebar\.id\)[\s\S]
   'phone drawer must support accessible state, outside/route close, Escape and background isolation');
 assert.match(portal, /if \(opening && isDrawerViewport\(\)\) requestAnimationFrame\(\(\) => focusableInDrawer\(\)\[1\]/,
   'opening a compact-width drawer must move focus inside it');
-assert.match(css, /@media\(max-width:650px\)\{[\s\S]*?\.portal-app>\.portal-main\{[^}]*flex:1 1 100%;width:100%[\s\S]*?\.sidebar-backdrop:not\(\[hidden\]\)\{position:fixed;z-index:55;inset:0;display:block;background:rgba\(4,7,11,\.7\)/,
-  'phone drawer overlays the page without shrinking the main content');
+assert.match(css, /@media\(max-width:650px\)\{[\s\S]*?\.portal-app>\.portal-main\{[^}]*flex:1 1 100%;width:100%[\s\S]*?\.sidebar-backdrop:not\(\[hidden\]\)\{position:fixed;z-index:55;inset:0;display:block;background:rgba\(4,7,11,\.56\)/,
+  'phone drawer overlays the page gently without shrinking the main content');
+assert.match(css, /sidebar-mobile-toggle\{[^}]*width:44px;height:44px/,
+  'the compact navigation toggle keeps a finger-friendly 44px target');
+assert.match(css, /sidebar-mobile-toggle\[aria-expanded="true"\]\{left:calc\(min\(280px,100vw - 48px\) - 58px\);top:calc\(10px \+ env\(safe-area-inset-top\)\)/,
+  'the drawer close control stays aligned to the actual drawer edge and device safe area');
 
 const operationOrder = [
   "{ href: '/', permission: 'floor', label: 'Зал', iconName: 'table-layout' }",
@@ -141,6 +145,12 @@ assert.match(css, /\.velora-theme \.portal-sidebar \.portal-nav a\{[^}]*font-wei
 assert.match(css, /\.velora-theme \.portal-sidebar \.portal-nav a\.active\{font-weight:500\}/);
 assert.match(css, /\.velora-theme \.portal-sidebar \.sidebar-nav-group \.portal-nav a\{[^}]*font-size:15px/,
   'nested sidebar labels use a consistent compact size to avoid unnecessary wrapping');
+assert.match(css, /\.velora-theme \.portal-sidebar \.sidebar-nav-group \.portal-nav a\{[^}]*gap:0;[^}]*padding:0 13px 0 37px/,
+  'desktop child links align text under the disclosure group caption');
+assert.match(css, /\.velora-theme \.portal-sidebar \.sidebar-nav-group \.portal-nav a>\.icon\{display:none\}/,
+  'expanded child links do not repeat decorative icons already represented by the group heading');
+assert.match(css, /@media\(max-width:900px\)\{[\s\S]*?\.portal-sidebar\.is-expanded \.sidebar-nav-group>summary \.icon\{display:block\}[\s\S]*?\.portal-sidebar\.is-expanded \.sidebar-nav-group \.portal-nav a\{gap:0;padding-left:39px\}/,
+  'drawer keeps one icon at the group heading and aligns text-only children beneath its caption');
 assert.match(css, /@media \(min-width:1181px\) and \(max-width:1799px\)\{[\s\S]*?\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{width:clamp\(210px,18vw,280px\)/,
   'desktop sidebar width must scale smoothly from the compact desktop breakpoint to ultrawide width in both modes');
 assert.match(css, /@media \(min-width:651px\) and \(max-width:900px\)\{[\s\S]*?\.portal-sidebar\{position:fixed;z-index:25;left:0;top:0;bottom:0;width:280px;transform:translateX\(-100%\)/,

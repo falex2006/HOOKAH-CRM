@@ -2,6 +2,11 @@
   "version": 1,
   "canonicalRoot": "/",
   "adminRoot": "/admin",
+  "navigationPresentation": {
+    "expandableGroupIcon": "summary-only",
+    "childLinks": "text-only",
+    "childTextAlignment": "group-label"
+  },
   "entries": [
     {"path":"/","file":"index.html","mode":"authenticated-workspace","title":"Зал и заказы"},
     {"path":"/login","file":"login.html","mode":"auth","title":"Авторизация"},

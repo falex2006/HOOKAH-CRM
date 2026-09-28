@@ -4,6 +4,8 @@ umask 077
 
 # Run from the CRM directory on a fresh Ubuntu/Debian VPS.
 # Do not put real passwords in this file; create .env before running it.
+allow_http_deploy_once="${ALLOW_HTTP_DEPLOY_ONCE:-}"
+unset ALLOW_HTTP_DEPLOY_ONCE
 command -v docker >/dev/null || { echo 'Docker is required'; exit 1; }
 
 if docker compose version >/dev/null 2>&1; then
@@ -19,7 +21,17 @@ set -a
 . ./.env
 set +a
 [ "${AUTH_REQUIRED:-}" = 'true' ] || { echo 'AUTH_REQUIRED=true is required on VPS' >&2; exit 1; }
-[ "${COOKIE_SECURE:-}" = 'true' ] || { echo 'COOKIE_SECURE=true is required on VPS' >&2; exit 1; }
+case "${COOKIE_SECURE:-}" in
+  true) ;;
+  false)
+    [ "$allow_http_deploy_once" = 'true' ] || {
+      echo 'COOKIE_SECURE=false requires the one-time ALLOW_HTTP_DEPLOY_ONCE=true shell opt-in for this authorized HTTP-only deployment' >&2
+      exit 1
+    }
+    echo 'WARNING: deploying with non-secure session cookies over HTTP by explicit configuration' >&2
+    ;;
+  *) echo 'Set COOKIE_SECURE=true, or explicitly invoke this release once with ALLOW_HTTP_DEPLOY_ONCE=true when COOKIE_SECURE=false' >&2; exit 1 ;;
+esac
 for secret_name in POSTGRES_PASSWORD DEMO_ADMIN_PASSWORD DEMO_OWNER_PASSWORD DEMO_STAFF_PASSWORD STAFF_PASSPORT_KEY SAAS_OWNER_PASSWORD; do
   secret_value="${!secret_name:-}"
   [ -n "$secret_value" ] || { echo "$secret_name is required" >&2; exit 1; }

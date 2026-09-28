@@ -26,7 +26,13 @@ for (const secret of ['STAFF_PASSPORT_KEY', 'SAAS_OWNER_EMAIL', 'SAAS_OWNER_PASS
 assert.match(deploy, /\*@example\.com/);
 assert.match(deploy, /replace-with|replace-\*/, 'replace placeholders must be rejected');
 assert.match(deploy, /AUTH_REQUIRED=true/);
-assert.match(deploy, /COOKIE_SECURE=true/);
+assert.match(deploy, /allow_http_deploy_once="\$\{ALLOW_HTTP_DEPLOY_ONCE:-\}"[\s\S]*?unset ALLOW_HTTP_DEPLOY_ONCE/);
+assert.match(deploy, /COOKIE_SECURE=true, or explicitly invoke this release once with ALLOW_HTTP_DEPLOY_ONCE=true/);
+assert.match(deploy, /COOKIE_SECURE=false/);
+assert.match(deploy, /\[ "\$allow_http_deploy_once" = 'true' \]/);
+assert.ok(deploy.indexOf('allow_http_deploy_once=') < deploy.indexOf('. ./.env'), 'one-time HTTP opt-in must be captured before loading persistent environment');
+assert.ok(deploy.indexOf('COOKIE_SECURE=false requires') < deploy.indexOf('BACKUP_DIR='), 'HTTP opt-in gate must run before backup or deployment changes');
+assert.match(deploy, /WARNING: deploying with non-secure session cookies over HTTP by explicit configuration/);
 assert.match(migrate, /psql --single-transaction -v ON_ERROR_STOP=1/, 'each VPS migration file must commit or roll back atomically');
 assert.match(migrate, /export LC_ALL=C/, 'VPS migration order must match the Node migration runner');
 assert.match(deploy, /git rev-parse --verify HEAD/, 'deployments must identify a committed release');

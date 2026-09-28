@@ -15,6 +15,13 @@ for (const text of ['Остатки', 'Поставки и списания', '�
   assert.ok(warehousePrompt.includes(text), `warehouse prompt missing rule: ${text}`);
 }
 assert.match(rules, /WAREHOUSE_PAGE_PROMPT\.md/);
+assert.match(rules, /значок стоит у заголовка группы; вложенные ссылки остаются текстовыми/,
+  'visual rules must keep expanded sidebar groups calm and readable');
+assert.deepEqual(map.navigationPresentation, {
+  expandableGroupIcon: 'summary-only', childLinks: 'text-only', childTextAlignment: 'group-label'
+}, 'the site map must document the canonical sidebar visual hierarchy');
+assert.match(tree, /каждый раскрываемый раздел имеет свой значок в заголовке, а вложенные маршруты показываются текстом/,
+  'the site tree must record the shared sidebar presentation rule');
 for (const entry of map.entries) {
   assert.ok(rules.includes('### `' + entry.path + '`'), `missing page rule ${entry.path}`);
   assert.ok(tree.includes('| `' + entry.path + '` |'), `page absent from site tree ${entry.path}`);
