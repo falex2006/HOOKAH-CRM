@@ -8,7 +8,7 @@
 
 Свежий локальный браузерный проход при 1280×720 охватил канонические маршруты, 7 представлений склада и 11 разделов админки: выполнена прокрутка основного содержимого/внутренних областей до конца, в измеренной ширине страницы горизонтального переполнения не найдено. Отдельно осмотрены кадры главной и списка техкарт. Это не скриншотная проверка каждого состояния и не аппаратная приёмка Samsung Fold; остальные размеры подтверждены структурными responsive-контрактами, физическое устройство не проверялось.
 
-Файлы: `server.js`, `portal.js`, `scripts/finance-shift-analytics-postgres-qa.mjs`, `scripts/postgres-qa.mjs`, `scripts/sync-published-assets.mjs`, синхронизированные HTML/JS в `dist/`, `FINAL_ACCEPTANCE_REPORT.md`, `VISUAL_AUDIT_REPORT.md`, `docs/ai-team/WORK_LOG.md`. API: уточнены ответы существующих `GET /api/finance/summary` и `GET /api/analytics`; новых API и миграций нет. VPS/production не затрагивались.
+Файлы: `server.js`, `portal.js`, `scripts/finance-shift-analytics-postgres-qa.mjs`, `scripts/postgres-qa.mjs`, `scripts/sync-published-assets.mjs`, синхронизированные HTML/JS в `dist/`, `FINAL_ACCEPTANCE_REPORT.md`, `VISUAL_AUDIT_REPORT.md`, `docs/ai-team/WORK_LOG.md`. API: уточнены ответы существующих `GET /api/finance/summary` и `GET /api/analytics`; новых API и миграций нет. Кодовый пакет зафиксирован и опубликован в `origin/main` коммитом `ad6fe6443762abdc8b45d42962899032784ad53d`; VPS/production не затрагивались.
 
 ## Источник и границы 34 требований
 
