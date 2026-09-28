@@ -627,3 +627,9 @@
 - Added a one-invocation opt-in `ALLOW_HTTP_DEPLOY_ONCE=true` for this release; it is captured before `.env` is loaded and is not persisted. Authentication remains required, default HTTPS mode is unchanged, and each later HTTP release needs its own explicit opt-in.
 - No API, database, schema, or migration changes. The cookie setting and TLS configuration remain unchanged.
 - Checks before release: deploy contract, shell syntax, sidebar/Fold/header/site-tree checks and source/dist parity. VPS state and backup are checked before deployment.
+
+## Package 053 — Executable VPS release scripts (4/15) (2026-09-28)
+
+- A clean clone on the VPS exposed that deployment scripts documented as `./script.sh` were committed without executable Git modes. Marked deploy, backup, migration, post-deploy acceptance, and backup verification scripts executable so a fresh immutable checkout can run the documented release path without dirtying it.
+- No script content, API, database, migrations, or server configuration changed in this item.
+- Checks: POSIX shell syntax validation via the VPS shell and release contract.
