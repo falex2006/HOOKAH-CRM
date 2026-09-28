@@ -151,7 +151,42 @@ try {
   const reread = await request('/api/tasks', { token: manager.token });
   assert.equal(reread.data.items.find((item) => item.id === task.data.id)?.status, 'done', 'task status persists and is visible to manager');
 
-  console.log('ROLE API MATRIX RUNTIME QA: PASS (unauthenticated denial; 10 read routes × bartender/manager; redacted employee metrics and shift history; 5 forbidden writes; employee finance payload; task assignment, constrained update and reread)');
+  // A valid 100% discount closes a check with finalTotal=0 and no payment
+  // records. Finance fallback paths must preserve that explicit zero.
+  const freeProduct = await request('/api/products', {
+    method: 'POST', token: adminToken,
+    body: { name: `QA free check ${suffix}`, category: 'bar', price: 500 },
+  });
+  expectStatus(freeProduct, 201, 'admin creates zero-total regression product');
+  const freeOrder = await request('/api/orders', {
+    method: 'POST', token: adminToken,
+    body: { tableId: `qa-free-${suffix}` },
+  });
+  expectStatus(freeOrder, 201, 'admin opens zero-total regression order');
+  expectStatus(await request(`/api/orders/${encodeURIComponent(freeOrder.data.id)}/items`, {
+    method: 'POST', token: adminToken, body: { productId: freeProduct.data.id, quantity: 1 },
+  }), 201, 'admin adds item to zero-total regression order');
+  const discountRequest = await request(`/api/orders/${encodeURIComponent(freeOrder.data.id)}/discount-requests`, {
+    method: 'POST', token: adminToken,
+    body: { type: 'percent', value: 100, reason: 'QA approved complimentary order' },
+  });
+  expectStatus(discountRequest, 201, 'admin requests full discount');
+  expectStatus(await request(`/api/discount-requests/${encodeURIComponent(discountRequest.data.id)}/approve`, {
+    method: 'POST', token: adminToken, body: {},
+  }), 200, 'admin approves full discount');
+  const freeClose = await request(`/api/orders/${encodeURIComponent(freeOrder.data.id)}/close`, {
+    method: 'POST', token: adminToken, body: { paymentMethod: 'cash' },
+  });
+  expectStatus(freeClose, 200, 'admin closes fully discounted order');
+  assert.equal(freeClose.data.finalTotal, 0, 'fully discounted order stores explicit zero final total');
+  assert.deepEqual(freeClose.data.payments, [], 'zero balance does not create a fake payment');
+  const freeSummary = await request('/api/finance/summary', { token: adminToken });
+  assert.equal(freeSummary.data.revenue, 0, 'memory finance summary does not replace zero with gross order total');
+  const freeReport = await request('/api/finance/report?type=waiter', { token: adminToken });
+  assert.equal(freeReport.data.revenue, 0, 'memory finance report does not replace zero with gross order total');
+  assert.equal(freeReport.data.byStaff.Administrator || 0, 0, 'waiter report does not attribute gross revenue to zero-total order');
+
+  console.log('ROLE API MATRIX RUNTIME QA: PASS (unauthenticated denial; 10 read routes × bartender/manager; redacted employee metrics and shift history; 5 forbidden writes; employee finance payload; task assignment, constrained update and reread; zero-total finance regression)');
 } finally {
   if (baseUrl && adminToken) {
     for (const id of createdStaffIds) {

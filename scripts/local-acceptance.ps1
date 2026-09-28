@@ -10,6 +10,8 @@ $checks = @(
   @{ file = 'site-structure-contract.mjs'; node = $true },
   @{ file = 'final-acceptance-matrix-contract.mjs'; node = $true },
   @{ file = 'visual-page-rules-contract.mjs'; node = $true },
+  @{ file = 'visual-live-defects-contract.mjs'; node = $true },
+  @{ file = 'finance-api-consistency-contract.mjs'; node = $true },
   @{ file = 'fold-responsive-contract.mjs'; node = $true },
   @{ file = 'sidebar-navigation-contract.mjs'; node = $true },
   @{ file = 'clients-editor-contract.mjs'; node = $true },

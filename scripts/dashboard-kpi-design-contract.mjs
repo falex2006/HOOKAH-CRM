@@ -81,3 +81,8 @@ const sidebarContrast = (luminance(sidebarTextColor) + 0.05) / (luminance('#1719
 assert.ok(sidebarContrast >= 4.5, `sidebar group label contrast must meet WCAG AA for normal text, got ${sidebarContrast.toFixed(2)}:1`);
 assert.match(rules, /Не использовать декоративные графики без реальных рядов данных/);
 console.log('DASHBOARD KPI DESIGN CONTRACT: PASS (meaning, hierarchy, consistent styling, and responsive layout)');
+
+const financeRevenueStart = portal.indexOf('class="kpi dashboard-revenue-card finance-revenue-card"');
+assert.notEqual(financeRevenueStart, -1, 'finance revenue KPI exists');
+const financeRevenueMarkup = portal.slice(financeRevenueStart, portal.indexOf('</article>', financeRevenueStart));
+assert.doesNotMatch(financeRevenueMarkup, /dashboard-revenue-spark/, 'finance revenue has no synthetic trend bars without real time-series data');

@@ -3,12 +3,12 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '303';
-const portalRevision = '294';
+const cssRevision = '305';
+const portalRevision = '296';
 const appRevision = '130';
 const staffProfileRevision = '6';
 const loginRevision = '92';
-const staffAdminCardRevision = '2';
+const staffAdminCardRevision = '4';
 const purchaseDocumentValidationRevision = '1';
 // Keep flat pages and directory-index aliases in dist aligned with their source
 // templates. Static hosts commonly resolve /login/ to dist/login/index.html,
