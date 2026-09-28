@@ -59,7 +59,7 @@ const customDepartment = 'qa-bar-special-17';
 const createdCategory = await runCategoryRoute(postRoute, { method: 'POST', department: customDepartment, name: 'QA custom category' });
 assert.equal(createdCategory.response.status, 201);
 assert.equal(createdCategory.response.payload.department, customDepartment);
-assert.deepEqual(createdCategory.calls.map((call) => call.params), [['venue-qa', customDepartment], ['venue-qa', 'QA custom category', customDepartment]]);
+assert.deepEqual(createdCategory.calls.filter((call) => call.params.length).map((call) => call.params), [['venue-qa', customDepartment], ['venue-qa', 'QA custom category', customDepartment]]);
 const updatedCategory = await runCategoryRoute(patchRoute, { method: 'PATCH', id: '11111111-1111-4111-8111-111111111111', department: customDepartment, name: 'QA custom category updated' });
 assert.equal(updatedCategory.response.status, 200);
 assert.equal(updatedCategory.response.payload.department, customDepartment);

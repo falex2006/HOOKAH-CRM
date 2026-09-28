@@ -10,6 +10,18 @@ assert.match(source, /bartender: \[[^\]]*'bar_tasks'/, 'regular employees receiv
 assert.match(source, /task_update_forbidden/);
 assert.match(source, /String\(task\.assigneeId \|\| ''\) !== String\(req\.user\?\.id \|\| ''\)/);
 assert.match(source, /task_assignee_not_found/);
+const taskPatchStart = source.indexOf("if (taskPath && req.method === 'PATCH') {");
+const taskPatchEnd = source.indexOf("if (pathname === '/api/reservations' && req.method === 'GET')", taskPatchStart);
+assert.ok(taskPatchStart >= 0 && taskPatchEnd > taskPatchStart, 'task PATCH handler is available');
+const taskPatchRoute = source.slice(taskPatchStart, taskPatchEnd);
+assert.match(taskPatchRoute, /denyUnlessAny\(req, res, \['orders', 'staff_view', 'staff_manage', 'tasks_manage'\]\)/,
+  'task updates require permission to use the tasks area');
+  assert.match(taskPatchRoute, /invalid_task_title/);
+  assert.match(taskPatchRoute, /invalid_task_description/);
+  assert.match(taskPatchRoute, /invalid_task_due_at/);
+  assert.match(taskPatchRoute, /assigneeId: input\.assigneeId === undefined \? task\.assigneeId : input\.assigneeId === '' \? null : input\.assigneeId/);
+assert.match(source, /inventory_hierarchy_unavailable/);
+assert.match(source, /inventory_department_not_found/);
 
 const port = 3217;
 const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), AUTH_REQUIRED: 'false', DATABASE_URL: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -19,7 +31,11 @@ try {
   const created = await request('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Проверка пустой базы', description: 'Smoke', priority: 'high' }) });
   assert.equal(created.title, 'Проверка пустой базы');
   const listed = await request('/api/tasks'); assert.ok(listed.items.some((task) => task.id === created.id));
+  const assigned = await request(`/api/tasks/${created.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigneeId: 'qa-demo-assignee' }) });
+  assert.equal(assigned.assigneeId, 'qa-demo-assignee');
+  const cleared = await request(`/api/tasks/${created.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ assigneeId: '' }) });
+  assert.equal(cleared.assigneeId, null, 'in-memory mode normalizes a cleared assignee to null');
   const updated = await request(`/api/tasks/${created.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'done' }) });
   assert.equal(updated.status, 'done');
-  console.log('TASKS QA: 3 checks passed');
+  console.log('TASKS QA: 5 checks passed');
 } finally { child.kill('SIGTERM'); }

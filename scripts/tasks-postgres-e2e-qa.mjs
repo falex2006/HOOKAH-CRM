@@ -68,6 +68,8 @@ try {
   const manager = await createUser(venueId, 'Tasks QA Manager', 'manager', 'manager');
   const employeeA = await createUser(venueId, 'Tasks QA Employee A', 'bartender', 'employee-a');
   const employeeB = await createUser(venueId, 'Tasks QA Employee B', 'bartender', 'employee-b');
+  const inactiveEmployee = await createUser(venueId, 'Tasks QA Inactive Employee', 'bartender', 'employee-inactive');
+  await setup.query('UPDATE users SET is_active=false WHERE id=$1', [inactiveEmployee.id]);
   const otherManager = await createUser(otherVenueId, 'Tasks QA Other Manager', 'manager', 'other-manager');
   const identity = (person, permissions) => ({ id: person.id, name: person.name, role: person.role, permissions });
 
@@ -99,6 +101,32 @@ try {
   const deniedChangeByB = await callApi({ venueId, user: identity(employeeB, staffPermissions), path: `/api/tasks/${assignedA.data.id}`, method: 'PATCH', body: { status: 'done' } });
   assert.equal(deniedChangeByB.status, 403, 'another employee cannot change A\'s task');
 
+  const deniedPatchWithoutTaskPermission = await callApi({ venueId, user: identity(employeeA, []), path: `/api/tasks/${assignedA.data.id}`, method: 'PATCH', body: { status: 'done' } });
+  assert.equal(deniedPatchWithoutTaskPermission.status, 403, 'task update requires access to the tasks area');
+
+  for (const [body, expectedError] of [
+    [{ title: ' '.repeat(2) }, 'invalid_task_title'],
+    [{ title: 'x'.repeat(161) }, 'invalid_task_title'],
+    [{ description: 'x'.repeat(2001) }, 'invalid_task_description'],
+    [{ dueAt: 'not-a-date' }, 'invalid_task_due_at'],
+  ]) {
+    const invalidUpdate = await callApi({ venueId, user: identity(manager, managerPermissions), path: `/api/tasks/${assignedA.data.id}`, method: 'PATCH', body });
+    assert.equal(invalidUpdate.status, 400, `invalid task data should be rejected: ${expectedError}`);
+    assert.equal(invalidUpdate.data.error, expectedError);
+  }
+
+  const rejectForeignAssignee = await callApi({ venueId, user: identity(manager, managerPermissions), path: `/api/tasks/${assignedA.data.id}`, method: 'PATCH', body: { assigneeId: otherManager.id } });
+  assert.equal(rejectForeignAssignee.status, 400, 'a task cannot be assigned to a user from another venue');
+  assert.equal(rejectForeignAssignee.data.error, 'task_assignee_not_found');
+  const rejectInactiveAssignee = await callApi({ venueId, user: identity(manager, managerPermissions), path: `/api/tasks/${assignedA.data.id}`, method: 'PATCH', body: { assigneeId: inactiveEmployee.id } });
+  assert.equal(rejectInactiveAssignee.status, 400, 'a task cannot be assigned to an inactive employee');
+  assert.equal(rejectInactiveAssignee.data.error, 'task_assignee_not_found');
+  const clearAssignee = await callApi({ venueId, user: identity(manager, managerPermissions), path: `/api/tasks/${assignedA.data.id}`, method: 'PATCH', body: { assigneeId: '' } });
+  assert.equal(clearAssignee.status, 200, JSON.stringify(clearAssignee));
+  assert.equal(clearAssignee.data.assigneeId, null, 'an empty assignee clears the assignment instead of reaching PostgreSQL as an invalid UUID');
+  const restoreAssignee = await callApi({ venueId, user: identity(manager, managerPermissions), path: `/api/tasks/${assignedA.data.id}`, method: 'PATCH', body: { assigneeId: employeeA.id } });
+  assert.equal(restoreAssignee.status, 200, JSON.stringify(restoreAssignee));
+
   const completedByA = await callApi({ venueId, user: identity(employeeA, staffPermissions), path: `/api/tasks/${assignedA.data.id}`, method: 'PATCH', body: { status: 'done' } });
   assert.equal(completedByA.status, 200, JSON.stringify(completedByA));
   assert.equal(completedByA.data.status, 'done');
@@ -120,7 +148,7 @@ try {
   const unchangedAfterCrossTenantAttempt = await setup.query('SELECT status FROM tasks WHERE id=$1', [assignedA.data.id]);
   assert.equal(unchangedAfterCrossTenantAttempt.rows[0].status, 'done', 'cross-tenant attempt leaves task unchanged');
 
-  console.log('TASKS POSTGRES E2E QA: PASS (manager assignment, employee-scoped reads, assignee completion, manager reread, durable PostgreSQL status, tenant isolation)');
+  console.log('TASKS POSTGRES E2E QA: PASS (permissions, validation, same-venue active assignees, employee-scoped reads, completion persistence, tenant isolation)');
 } finally {
   await pool.end();
   if (setupConnected) {

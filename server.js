@@ -1245,7 +1245,7 @@ async function api(req, res) {
   }
   if (inventoryDepartmentPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
-    const code = decodeURIComponent(inventoryDepartmentPath[1]); if (repositories?.pool) { try { const used = await repositories.pool.query('SELECT EXISTS(SELECT 1 FROM product_categories WHERE venue_id=$1 AND department=$2 AND is_active=true) AS used', [venueDbId, code]); if (used.rows[0]?.used) return json(res, 409, { error: 'inventory_department_in_use' }); const { rows } = await repositories.pool.query('UPDATE inventory_departments SET is_active=false WHERE venue_id=$1 AND code=$2 AND is_active=true RETURNING code AS id,code,name,is_active AS active', [venueDbId, code]); if (!rows[0]) return json(res, 404, { error: 'inventory_department_not_found' }); recordAudit(req, 'inventory.department_archived', 'inventory_department', code, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'inventory_department_archive_failed' }); } }
+    const code = decodeURIComponent(inventoryDepartmentPath[1]); if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const department = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, code]); if (!department.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_department_not_found' }); } const used = await client.query('SELECT EXISTS(SELECT 1 FROM product_categories WHERE venue_id=$1 AND department=$2 AND is_active=true) OR EXISTS(SELECT 1 FROM inventory_subdepartments WHERE venue_id=$1 AND department_code=$2 AND is_active=true) AS used', [venueDbId, code]); if (used.rows[0]?.used) { await client.query('ROLLBACK'); return json(res, 409, { error: 'inventory_department_in_use' }); } const { rows } = await client.query('UPDATE inventory_departments SET is_active=false WHERE venue_id=$1 AND code=$2 AND is_active=true RETURNING code AS id,code,name,is_active AS active', [venueDbId, code]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_department_not_found' }); } await client.query('COMMIT'); recordAudit(req, 'inventory.department_archived', 'inventory_department', code, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'inventory_department_archive_failed' }); } finally { client?.release(); } }
     return json(res, 200, { id: code, code, active: false });
   }
   if (pathname === '/api/product-categories' && req.method === 'GET') {
@@ -1259,12 +1259,7 @@ async function api(req, res) {
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
     const department = String(input.department || 'inventory').trim();
     if (!department || department.length > 48) return json(res, 400, { error: 'invalid_product_category_department' });
-    if (repositories?.pool) {
-      const departmentResult = await repositories.pool.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true', [venueDbId, department]).catch(() => null);
-      if (!departmentResult) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
-      if (!departmentResult.rows[0]) return json(res, 400, { error: 'inventory_department_not_found' });
-      try { const { rows } = await repositories.pool.query('INSERT INTO product_categories (venue_id,name,department) VALUES ($1,$2,$3) RETURNING id,name,department,is_active AS active', [venueDbId, name, department]); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); }
-    }
+    if (repositories?.pool) { let client; let checkingParent = true; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, department]); checkingParent = false; if (!departmentResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_department_not_found' }); } const { rows } = await client.query('INSERT INTO product_categories (venue_id,name,department) VALUES ($1,$2,$3) RETURNING id,name,department,is_active AS active', [venueDbId, name, department]); await client.query('COMMIT'); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); if (checkingParent) return json(res, 503, { error: 'inventory_hierarchy_unavailable' }); return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); } finally { client?.release(); } }
     if (!['kitchen','bar','hookah','inventory'].includes(department)) return json(res, 400, { error: 'inventory_department_not_found' });
     if (productCategories.some((item) => item.active && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
     const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, department, active: true };
@@ -1277,15 +1272,16 @@ async function api(req, res) {
       const input = await body(req); const name = String(input.name || '').trim(); const department = String(input.department || 'inventory').trim();
       if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
       if (!department || department.length > 48) return json(res, 400, { error: 'invalid_product_category_department' });
-      const departmentResult = await repositories.pool.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true', [venueDbId, department]).catch(() => null);
-      if (!departmentResult) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
-      if (!departmentResult.rows[0]) return json(res, 400, { error: 'inventory_department_not_found' });
       let client;
       let updated;
       let before;
+      let checkingParent = true;
       try {
         client = await repositories.pool.connect();
         await client.query('BEGIN');
+        const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, department]);
+        checkingParent = false;
+        if (!departmentResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_department_not_found' }); }
         const current = await client.query('SELECT id,name,department FROM product_categories WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [productCategoryPath[1], venueDbId]);
         before = current.rows[0];
         if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'product_category_not_found' }); }
@@ -1298,6 +1294,7 @@ async function api(req, res) {
         await client.query('COMMIT');
       } catch (error) {
         if (client) await client.query('ROLLBACK').catch(() => {});
+        if (checkingParent) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
         return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_update_failed', detail: error.message });
       } finally { client?.release(); }
       recordAudit(req, 'product_category.updated', 'product_category', updated.id, before, updated);
@@ -1830,25 +1827,26 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/inventory/subdepartments' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = String(input.name || '').trim(); const departmentCode = String(input.departmentCode || '').trim();
-    if (!name || name.length > 80 || !departmentCode) return json(res, 400, { error: 'invalid_inventory_subdepartment' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('INSERT INTO inventory_subdepartments (venue_id,department_code,name) VALUES ($1,$2,$3) RETURNING id,department_code AS "departmentCode",name,is_active AS active', [venueDbId, departmentCode, name]); recordAudit(req, 'inventory.subdepartment_created', 'inventory_subdepartment', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: error.code === '23505' ? 'inventory_subdepartment_exists' : 'inventory_subdepartment_create_failed' }); } }
+    if (!name || name.length > 80 || !departmentCode || departmentCode.length > 48) return json(res, 400, { error: 'invalid_inventory_subdepartment' });
+    if (repositories?.pool) { let client; let checkingParent = true; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, departmentCode]); checkingParent = false; if (!departmentResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_department_not_found' }); } const { rows } = await client.query('INSERT INTO inventory_subdepartments (venue_id,department_code,name) VALUES ($1,$2,$3) RETURNING id,department_code AS "departmentCode",name,is_active AS active', [venueDbId, departmentCode, name]); await client.query('COMMIT'); recordAudit(req, 'inventory.subdepartment_created', 'inventory_subdepartment', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); if (checkingParent) return json(res, 503, { error: 'inventory_hierarchy_unavailable' }); return json(res, 409, { error: error.code === '23505' ? 'inventory_subdepartment_exists' : 'inventory_subdepartment_create_failed' }); } finally { client?.release(); } }
     return json(res, 201, { id: `subdepartment-${Date.now()}`, departmentCode, name, active: true });
   }
   const inventorySubdepartmentPath = pathname.match(/^\/api\/inventory\/subdepartments\/([^/]+)$/);
   if (inventorySubdepartmentPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const id = decodeURIComponent(inventorySubdepartmentPath[1]); const name = String(input.name || '').trim(); const departmentCode = String(input.departmentCode || '').trim();
-    if (!name || name.length > 80 || !departmentCode) return json(res, 400, { error: 'invalid_inventory_subdepartment' });
+    if (!name || name.length > 80 || !departmentCode || departmentCode.length > 48) return json(res, 400, { error: 'invalid_inventory_subdepartment' });
     if (repositories?.pool) {
-      const departmentResult = await repositories.pool.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true', [venueDbId, departmentCode]).catch(() => null);
-      if (!departmentResult) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
-      if (!departmentResult.rows[0]) return json(res, 400, { error: 'inventory_department_not_found' });
       let client;
       let updated;
       let before;
+      let checkingParent = true;
       try {
         client = await repositories.pool.connect();
         await client.query('BEGIN');
+        const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, departmentCode]);
+        checkingParent = false;
+        if (!departmentResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_department_not_found' }); }
         const current = await client.query('SELECT id,department_code AS "departmentCode",name FROM inventory_subdepartments WHERE venue_id=$1 AND id=$2 AND is_active=true FOR UPDATE', [venueDbId, id]);
         before = current.rows[0];
         if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_subdepartment_not_found' }); }
@@ -1861,6 +1859,7 @@ if (staffProfile && req.method === 'PATCH') {
         await client.query('COMMIT');
       } catch (error) {
         if (client) await client.query('ROLLBACK').catch(() => {});
+        if (checkingParent) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
         return json(res, 409, { error: error.code === '23505' ? 'inventory_subdepartment_exists' : 'inventory_subdepartment_update_failed' });
       } finally { client?.release(); }
       recordAudit(req, 'inventory.subdepartment_updated', 'inventory_subdepartment', id, before, updated);
@@ -2583,9 +2582,16 @@ if (staffProfile && req.method === 'PATCH') {
   }
   const taskPath = pathname.match(/^\/api\/tasks\/([^/]+)$/);
   if (taskPath && req.method === 'PATCH') {
+    if (denyUnlessAny(req, res, ['orders', 'staff_view', 'staff_manage', 'tasks_manage'])) return;
     const input = await body(req); const canManageTasks = hasPermission(req, 'staff_manage') || hasPermission(req, 'tasks_manage'); const allowed = canManageTasks ? ['title','description','status','priority','assigneeId','dueAt'] : ['status'];
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(taskPath[1])) { try { const { rows: taskRows } = await repositories.pool.query('SELECT id,assignee_id AS "assigneeId" FROM tasks WHERE id=$1 AND venue_id=$2', [taskPath[1], venueDbId]); const task = taskRows[0]; if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); const fields = []; const values = [taskPath[1], venueDbId]; for (const key of allowed) if (input[key] !== undefined) { if (key === 'status' && !['open','in_progress','done','cancelled'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_status' }); if (key === 'priority' && !['low','normal','high','urgent'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_priority' }); fields.push(`${key === 'assigneeId' ? 'assignee_id' : key === 'dueAt' ? 'due_at' : key}=$${values.length + 1}`); values.push(key === 'title' || key === 'description' ? String(input[key] || '').trim() : input[key]); } if (!fields.length) return json(res, 400, { error: 'task_fields_required' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE tasks SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 RETURNING id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'task_not_found' }); recordAudit(req, 'task.updated', 'task', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'task_update_failed', detail: error.message }); } }
-    const task = tasks.find((entry) => entry.id === taskPath[1]); if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); if (input.status !== undefined && !['open','in_progress','done','cancelled'].includes(String(input.status))) return json(res, 400, { error: 'invalid_task_status' }); if (input.priority !== undefined && !['low','normal','high','urgent'].includes(String(input.priority))) return json(res, 400, { error: 'invalid_task_priority' }); if (input.title !== undefined && (!String(input.title).trim() || String(input.title).length > 160)) return json(res, 400, { error: 'invalid_task_title' }); if (input.description !== undefined && String(input.description).length > 2000) return json(res, 400, { error: 'invalid_task_description' }); Object.assign(task, input, { updatedAt: new Date().toISOString() }); return json(res, 200, task);
+    const invalidTaskTitle = input.title !== undefined && (!String(input.title).trim() || String(input.title).trim().length > 160);
+    const invalidTaskDescription = input.description !== undefined && String(input.description).length > 2000;
+    const invalidTaskDueAt = input.dueAt !== undefined && input.dueAt !== null && input.dueAt !== '' && (typeof input.dueAt !== 'string' || !Number.isFinite(Date.parse(input.dueAt)));
+    if (invalidTaskTitle) return json(res, 400, { error: 'invalid_task_title' });
+    if (invalidTaskDescription) return json(res, 400, { error: 'invalid_task_description' });
+    if (invalidTaskDueAt) return json(res, 400, { error: 'invalid_task_due_at' });
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(taskPath[1])) { try { const { rows: taskRows } = await repositories.pool.query('SELECT id,assignee_id AS "assigneeId" FROM tasks WHERE id=$1 AND venue_id=$2', [taskPath[1], venueDbId]); const task = taskRows[0]; if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); const fields = []; const values = [taskPath[1], venueDbId]; for (const key of allowed) if (input[key] !== undefined) { if (key === 'status' && !['open','in_progress','done','cancelled'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_status' }); if (key === 'priority' && !['low','normal','high','urgent'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_priority' }); if (key === 'assigneeId' && input[key] !== null && input[key] !== '') { const assignee = await repositories.pool.query('SELECT 1 FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [String(input[key]), venueDbId]); if (!assignee.rows[0]) return json(res, 400, { error: 'task_assignee_not_found' }); } fields.push(`${key === 'assigneeId' ? 'assignee_id' : key === 'dueAt' ? 'due_at' : key}=$${values.length + 1}`); values.push(key === 'title' || key === 'description' ? String(input[key] || '').trim() : key === 'dueAt' && input[key] === '' || key === 'assigneeId' && input[key] === '' ? null : input[key]); } if (!fields.length) return json(res, 400, { error: 'task_fields_required' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE tasks SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 RETURNING id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'task_not_found' }); recordAudit(req, 'task.updated', 'task', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'task_update_failed', detail: error.message }); } }
+    const task = tasks.find((entry) => entry.id === taskPath[1]); if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); if (input.status !== undefined && !['open','in_progress','done','cancelled'].includes(String(input.status))) return json(res, 400, { error: 'invalid_task_status' }); if (input.priority !== undefined && !['low','normal','high','urgent'].includes(String(input.priority))) return json(res, 400, { error: 'invalid_task_priority' }); if (input.assigneeId && process.env.AUTH_REQUIRED === 'true' && !staff.some((person) => String(person.id) === String(input.assigneeId) && person.active !== false && !person.deletedAt)) return json(res, 400, { error: 'task_assignee_not_found' }); Object.assign(task, input, { assigneeId: input.assigneeId === undefined ? task.assigneeId : input.assigneeId === '' ? null : input.assigneeId, updatedAt: new Date().toISOString() }); return json(res, 200, task);
   }
   if (pathname === '/api/reservations' && req.method === 'GET') {
     if (denyUnless(req, res, 'reservations')) return;

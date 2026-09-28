@@ -1726,6 +1726,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
   .velora-theme .panel{padding:20px}
   .staff-theme .workspace{grid-template-columns:1fr;padding-inline:24px}
   .staff-theme .tables{grid-template-columns:repeat(12,minmax(0,1fr))}
+  .staff-theme .table{grid-column:var(--table-x)/span var(--table-w);grid-row:var(--table-y)/span var(--table-h)}
   .staff-theme .order{width:100%;max-width:none}
 }
 /* 10–13 inch tablets and small laptops: prevent cards and toolbars from becoming too dense. */
@@ -2138,6 +2139,9 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 /* Reserve the floating menu button's footprint in both real CRM shells. */
 @media(max-width:650px){.velora-theme .portal-app .portal-header>.header-context,.velora-theme .portal-shell .portal-header>.header-context{box-sizing:border-box;margin-left:0;padding-left:50px;max-width:42%}}
 @media(max-width:420px){.velora-theme .portal-app .portal-header>.header-context,.velora-theme .portal-shell .portal-header>.header-context{max-width:38%}}
+
+/* Keep warehouse directory names readable when category rows become narrow. */
+@media(max-width:560px){.velora-theme .inventory-departments-panel .category-row{grid-template-columns:minmax(0,1fr);align-items:start}.velora-theme .inventory-departments-panel .category-row>div:first-child{min-width:0;overflow-wrap:normal;word-break:normal}.velora-theme .inventory-departments-panel .category-row .toolbar-row{width:100%;justify-content:flex-start}}
 
 /* Preserve readable expanded labels just above the compact Fold/tablet rail. */
 @media(min-width:901px) and (max-width:950px){.velora-theme .portal-sidebar{width:clamp(228px,25vw,240px);padding-inline:16px}}

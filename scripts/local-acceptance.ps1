@@ -21,6 +21,7 @@ $checks = @(
   @{ file = 'header-shell-contract.mjs'; node = $true },
   @{ file = 'inventory-context-contract.mjs'; node = $true },
   @{ file = 'inventory-hierarchy-contract.mjs'; node = $true },
+  @{ file = 'inventory-subdepartment-api-qa.mjs'; node = $true },
   @{ file = 'inventory-stock-status-qa.mjs'; node = $true },
   @{ file = 'inventory-stock-status-runtime-qa.mjs'; node = $true },
   @{ file = 'inventory-responsive-contract.mjs'; node = $true },

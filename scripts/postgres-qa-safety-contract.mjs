@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { assertQaDatabaseIdentity, validateQaDatabaseUrl } from './postgres-qa-safety.mjs';
+import { assertQaDatabaseIdentity, isDisposableLoopbackQaContainer, validateQaDatabaseUrl } from './postgres-qa-safety.mjs';
 
 const local = validateQaDatabaseUrl('postgresql://qa:qa@127.0.0.1:55432/territory_qa', 'qa target');
 assert.equal(local.database, 'territory_qa');
@@ -28,4 +28,19 @@ assert.throws(() => assertQaDatabaseIdentity({ ...safeIdentity, address: '10.0.0
 assert.throws(() => assertQaDatabaseIdentity({ ...safeIdentity, port: 5432 }, 'territory_qa', 55432), /port does not match/);
 assert.throws(() => assertQaDatabaseIdentity({ ...safeIdentity, superuser: false }, 'territory_qa', 55432), /QA superuser/);
 
-console.log('POSTGRESQL QA SAFETY CONTRACT: PASS (loopback URL and server identity, dedicated QA database, superuser preflight)');
+const disposableContainer = {
+  State: { Running: true },
+  Config: { Image: 'postgres:16-alpine' },
+  HostConfig: { AutoRemove: true },
+  Mounts: [],
+  NetworkSettings: {
+    Networks: { bridge: { IPAddress: '172.17.0.2' } },
+    Ports: { '5432/tcp': [{ HostIp: '127.0.0.1', HostPort: '55432' }] },
+  },
+};
+assert.equal(isDisposableLoopbackQaContainer(disposableContainer, '172.17.0.2/32', 5432, 55432), true);
+assert.equal(isDisposableLoopbackQaContainer({ ...disposableContainer, HostConfig: { AutoRemove: false } }, '172.17.0.2/32', 5432, 55432), false);
+assert.equal(isDisposableLoopbackQaContainer({ ...disposableContainer, Mounts: [{ Type: 'bind', Destination: '/var/lib/postgresql/data' }] }, '172.17.0.2/32', 5432, 55432), false);
+assert.equal(isDisposableLoopbackQaContainer({ ...disposableContainer, NetworkSettings: { ...disposableContainer.NetworkSettings, Ports: { '5432/tcp': [{ HostIp: '0.0.0.0', HostPort: '55432' }] } } }, '172.17.0.2/32', 5432, 55432), false);
+
+console.log('POSTGRESQL QA SAFETY CONTRACT: PASS (loopback URL/server identity and verified disposable localhost-only Docker container)');
