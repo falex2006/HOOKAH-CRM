@@ -37,6 +37,7 @@ const checks = [
   'tasks-postgres-e2e-qa.mjs',
   'finance-employee-postgres-qa.mjs',
   'shift-cash-postgres-e2e-qa.mjs',
+  'finance-shift-analytics-postgres-qa.mjs',
   'recipe-depletion-pg-runtime-qa.mjs',
 ];
 const env = {
