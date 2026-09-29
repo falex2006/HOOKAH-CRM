@@ -20,6 +20,24 @@ assert.match(portalSource, /field\.max !== undefined && Number\(data\[field\.nam
 assert.match(portalSource, /const canAddObjects = zones\.length > 0; for \(const button of \[root\.querySelector\('#new-floor-table'\), root\.querySelector\('#new-vip-room'\)\]\) \{ button\.disabled = !canAddObjects;/, 'table and VIP creation must not masquerade as hall creation when no hall exists');
 assert.match(portalSource, /if \(zones\.some\(\(zone\) => zone\.id === selectedZoneId\)\) roomZone\.value = selectedZoneId/, 'refreshing halls must retain the target zone selected in the open table form');
 assert.match(portalSource, /validate: \(data\) => Number\(data\.maxCapacity\) < Number\(data\.minCapacity\) \? 'Максимум гостей не может быть меньше минимума'/, 'the room editor must keep an invalid guest range visible and explain it before saving');
+assert.match(portalSource, /label>Зал и место<select id="reservation-table" required>/, 'reservation should ask the operator to select a hall and place explicitly');
+assert.match(portalSource, /select\.innerHTML = renderReservationTableOptions\(zones\)/, 'reservation choices must be rendered from persisted halls and grouped by their zone');
+assert.match(portalSource, /select\.disabled = !tables\.some\(\(table\) => table\.status !== 'blocked'\)/, 'reloading floor data must re-enable the reservation selector when a bookable table appears');
+assert.match(portalSource, /if \(tables\.some\(\(table\) => table\.id === selectedId && table\.status !== 'blocked'\)\) select\.value = selectedId/, 'refreshing reservations must preserve a still-bookable selected table');
+const reservationOptionHelpers = portalSource.match(/const reservationTableCapacityLabel = \(table\) => \{[\s\S]*?\n\};\nconst renderReservationTableOptions = \(zones\) => \{[\s\S]*?\n\};/)?.[0];
+if (!reservationOptionHelpers) throw new Error('Could not isolate reservation hall/table option rendering helpers');
+const reservationOptionApi = new Function('esc', 'money', 'pluralRu', `${reservationOptionHelpers}; return { reservationTableCapacityLabel, renderReservationTableOptions };`)(
+  (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
+  (value) => `${Number(value).toLocaleString('ru-RU')} ₽`,
+  (value, one, few, many) => { const n = Math.abs(Number(value)) % 100; const last = n % 10; return n > 10 && n < 20 ? many : last > 1 && last < 5 ? few : last === 1 ? one : many; }
+);
+const reservationOptions = reservationOptionApi.renderReservationTableOptions([
+  { id: 'hall-a', name: 'Основной зал', tables: [{ id: 'table-a', name: 'Стол 1', minCapacity: 2, maxCapacity: 4, status: 'free' }, { id: 'table-blocked', name: 'Стол 2', capacity: 2, status: 'blocked' }] },
+  { id: 'hall-b', name: 'VIP-зал', tables: [{ id: 'room-a', name: 'Стол 1', capacity: 6, status: 'free', minimumOrderTotal: 3500 }] },
+]);
+for (const expected of ['<optgroup label="Основной зал">', '<optgroup label="VIP-зал">', '2–4 гостя', '6 гостей', 'депозит 3 500 ₽', 'disabled', 'value="table-a"', 'value="room-a"']) if (!reservationOptions.includes(expected)) throw new Error(`Reservation place selector is missing expected group/detail: ${expected}`);
+if (!reservationOptionApi.renderReservationTableOptions([{ name: 'Пустой зал', tables: [] }]).includes('В залах ещё нет столов')) throw new Error('An empty floor should explain why there are no places to book');
+if (!reservationOptionApi.renderReservationTableOptions([{ name: 'Закрытый зал', tables: [{ id: 'closed', status: 'blocked' }] }]).includes('Нет доступных столов')) throw new Error('A fully blocked floor should explain that no places can be booked');
 assert.match(staffSource, /const minCapacity=Number\(t\.minCapacity\|\|t\.capacity\|\|2\);const maxCapacity=Number\(t\.maxCapacity\|\|t\.capacity\|\|4\);const capacityText=minCapacity===maxCapacity\?`\$\{maxCapacity\} \$\{pluralRu\(maxCapacity,'гость','гостя','гостей'\)\}`:`\$\{minCapacity\}–\$\{maxCapacity\} \$\{pluralRu\(maxCapacity,'гость','гостя','гостей'\)\}`/, 'the staff floor must show the saved guest range with correct Russian pluralization');
 assert.match(staffSource, /const normalizeTableId=\(value\)=>\{const raw=String\(value\|\|''\)\.trim\(\);return raw\.startsWith\('table-'\)\?raw:\(\/\^\\d\+\$\/\.test\(raw\)\?`table-\$\{raw\}`:raw\);\};/, 'UUID table ids from PostgreSQL must remain unchanged while numeric demo ids keep their prefix');
 assert.match(staffSource, /JSON\.stringify\(\{tableId,minimumOrderTotal:tableMinimums\[tableId\]\|\|0\}\)/, 'opening an order must submit the original saved table id without adding a second prefix');

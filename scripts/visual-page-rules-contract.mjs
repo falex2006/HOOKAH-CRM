@@ -43,6 +43,10 @@ assert.match(rules, /В `venue-layout-settings` сначала создаётс�
   'the venue layout rule must preserve the hall-first table workflow');
 assert.match(tree, /В `admin#venue-layout-settings` зал\/этаж создаётся первым; сохранение сразу предлагает добавить в него стол/,
   'the site tree must document the hall-to-table handoff');
+assert.match(rules, /Выбор места сгруппирован по залам; у стола видны вместимость и депозит/,
+  'reservation design rules must keep hall context and capacity visible while selecting a table');
+assert.match(tree, /В форме бронирования столы сгруппированы по залам; рядом указаны вместимость и депозит/,
+  'the site tree must document the hall-aware reservation selector');
 for (const entry of map.entries) {
   assert.ok(rules.includes('### `' + entry.path + '`'), `missing page rule ${entry.path}`);
   assert.ok(tree.includes('| `' + entry.path + '` |'), `page absent from site tree ${entry.path}`);
