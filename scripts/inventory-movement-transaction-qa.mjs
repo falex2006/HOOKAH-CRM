@@ -39,7 +39,7 @@ assert.equal(pool.balance, 3);
 const receipt = await inventory.receive({ venueId: 'venue-1', ingredientId: 'ingredient-1', stockUnit: 'кг', quantity: 4, conversionFactor: 1, unitCost: 6 });
 assert.equal(receipt.onHandBefore, 3);
 assert.equal(receipt.onHandAfter, 7);
-assert.equal(receipt.weightedCost, 4.29);
+assert.equal(receipt.weightedCost, 4.2857, 'preserve four-decimal weighted unit cost: (3 kg × 2 + 4 kg × 6) / 7 kg');
 assert.equal(pool.balance, 7);
 assert.equal(pool.queries.filter((query) => query === 'COMMIT').length, 2);
 assert.ok(pool.queries.every((query) => query === 'RELEASE' || ['BEGIN', 'COMMIT', 'ROLLBACK'].includes(query) || query.includes('FOR UPDATE') || query.includes('SELECT COALESCE') || query.includes('INSERT INTO stock_movements') || query.startsWith('UPDATE ingredients SET cost=')),

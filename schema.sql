@@ -178,7 +178,9 @@ CREATE TABLE products (
   sale_price numeric(12,2) NOT NULL DEFAULT 0 CHECK (sale_price >= 0),
   image_url text,
   is_active boolean NOT NULL DEFAULT true,
-  search_aliases text[] NOT NULL DEFAULT '{}'
+  search_aliases text[] NOT NULL DEFAULT '{}',
+  inventory_mode text NOT NULL DEFAULT 'tracked'
+    CHECK (inventory_mode IN ('tracked','non_stock','needs_review'))
 );
 ALTER TABLE products ADD COLUMN IF NOT EXISTS image_url text;
 

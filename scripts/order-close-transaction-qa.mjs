@@ -10,7 +10,7 @@ const closeRoute = source.slice(start, end);
 const cardsStart = source.indexOf('LEFT JOIN LATERAL (', source.indexOf('async function depleteRecipeForOrder'));
 const cardsEnd = source.indexOf(') rc ON true', cardsStart);
 const recipeLookup = source.slice(cardsStart, cardsEnd);
-assert.match(recipeLookup, /candidate\.product_id=oi\.product_id OR \(candidate\.product_id IS NULL AND lower\(candidate\.name\)=lower\(p\.name\)\)/, 'name fallback cannot select a card linked to another product');
+assert.match(recipeLookup, /candidate\.product_id=oi\.product_id OR \(candidate\.product_id IS NULL AND lower\(btrim\(candidate\.name\)\)=lower\(btrim\(p\.name\)\)\)/, 'name fallback cannot select a card linked to another product and ignores accidental surrounding spaces');
 assert.match(recipeLookup, /ORDER BY \(candidate\.product_id=oi\.product_id\) DESC/, 'exact product-linked cards take precedence over name fallback');
 
 const at = (pattern, label) => {

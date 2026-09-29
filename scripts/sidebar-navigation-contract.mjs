@@ -106,8 +106,20 @@ assert.doesNotMatch(portal, /if \(activeLink\) group\.open = true/,
   'an active route must not silently reopen a group that the user explicitly collapsed');
 assert.match(portal, /summary\?\.classList\.toggle\('has-active-child', Boolean\(activeLink\)\)[\s\S]*?if \(activeLink\) summary\?\.setAttribute\('aria-current', 'location'\)/,
   'a collapsed group must still identify the section that contains the current route');
-assert.doesNotMatch(portal, /activeGroup\?\.open[\s\S]{0,180}scrollIntoView/,
-  'route normalization must not auto-scroll the sidebar away from its brand');
+assert.match(portal, /const revealActiveSidebarLink = \(details\) => \{[\s\S]*?const scroller = details\.closest\('\.sidebar-nav-groups'\)[\s\S]*?const target = details\.open \? activeLink : details\.querySelector\(':scope > summary'\)[\s\S]*?scroller\.scrollTop/,
+  'only an expanded group reveals its active child; a collapsed group reveals its summary inside the nav pane without opening');
+assert.match(portal, /if \(!activeLink \|\| !target \|\| !scroller \|\| !target\.getClientRects\(\)\.length\) return;/,
+  'resize and disclosure updates must not scroll unrelated collapsed groups over the active route');
+assert.match(portal, /if \(activeLink\) requestAnimationFrame\(\(\) => revealActiveSidebarLink\(group\)\)/,
+  'route normalization reveals the active child when expanded or the active group heading when collapsed');
+assert.match(portal, /requestAnimationFrame\(\(\) => revealActiveSidebarLink\(details\)\)/,
+  'expanding/collapsing an active group reveals its visible active target without changing saved state');
+assert.match(portal, /sidebar\._activeNavigationResizeHandler = \(\) => \{[\s\S]*?sidebar\.querySelectorAll\('details\.sidebar-nav-group'\)\.forEach\(revealActiveSidebarLink\)/,
+  'the active target must remain visible when the viewport height changes');
+assert.match(css, /\.portal\.velora-theme \.portal-sidebar>\.sidebar-nav-groups\{[\s\S]*?flex:1 1 0;[\s\S]*?min-height:0;[\s\S]*?overflow-y:auto/,
+  'navigation groups scroll in their own flexible pane while the brand, home and sign-out remain anchored');
+assert.match(css, /@media\(prefers-reduced-motion:reduce\)\{\.velora-theme \.portal-sidebar \.sidebar-nav-group>summary::after\{transition:none!important\}\}/,
+  'sidebar disclosure indicators respect reduced-motion preferences');
 assert.match(portal, /mainNav\.after\(disclosureRoot\);\s*disclosureRoot\.replaceChildren\(\.\.\.\['operations', 'menu', 'inventory', 'finance', 'team', 'system'\]/,
   'all collapsible sidebar sections must share one ordered container and spacing system');
 assert.match(portal, /summary\.innerHTML = `\$\{iconMarkup\(key === 'operations' \? 'clipboard-list' : 'chart-bar'\)\}<span>/,

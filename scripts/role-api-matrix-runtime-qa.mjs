@@ -155,7 +155,7 @@ try {
   // records. Finance fallback paths must preserve that explicit zero.
   const freeProduct = await request('/api/products', {
     method: 'POST', token: adminToken,
-    body: { name: `QA free check ${suffix}`, category: 'bar', price: 500 },
+    body: { name: `QA free check ${suffix}`, category: 'bar', price: 500, inventoryMode: 'non_stock' },
   });
   expectStatus(freeProduct, 201, 'admin creates zero-total regression product');
   const freeOrder = await request('/api/orders', {

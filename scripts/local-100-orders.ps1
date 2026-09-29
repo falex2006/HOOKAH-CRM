@@ -13,7 +13,7 @@ if ($health.status -ne 'ok') { throw "Local CRM is not healthy: $BaseUrl" }
 $runId = (Get-Date).ToString('yyyyMMddHHmmss')
 $created = 0
 $closed = 0
-$product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Нагрузочный товар $runId"; category = 'bar'; price = 250 } | ConvertTo-Json)
+$product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Нагрузочный товар $runId"; category = 'bar'; price = 250; inventoryMode = 'non_stock' } | ConvertTo-Json)
 $shiftState = Invoke-RestMethod "$BaseUrl/api/shifts"
 if (-not $shiftState.current) {
   Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/shifts" -ContentType 'application/json' -Body (@{ openingCash = 0 } | ConvertTo-Json) | Out-Null

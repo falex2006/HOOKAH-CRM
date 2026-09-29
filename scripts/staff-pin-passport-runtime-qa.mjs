@@ -121,6 +121,25 @@ async function noKeyPinScenario() {
     const updatedProfile = await request(baseUrl, admin, `/api/staff/${id}/profile`);
     assert.equal(updatedProfile.payload.name, 'QA сотрудник с PIN');
     assert.equal(updatedProfile.payload.pinConfigured, true);
+
+    const employee = await login(baseUrl, `qa_no_key`, 'test-pass');
+    const firstUnlock = await request(baseUrl, employee, '/api/session/unlock', 'POST', { pin: '2468' });
+    assert.equal(firstUnlock.status, 200, 'four-digit PIN unlocks the still-active HTTP session');
+    const selfPinUpdate = await request(baseUrl, employee, `/api/staff/${id}/pin`, 'PATCH', { pin: '9753' });
+    assert.equal(selfPinUpdate.status, 200, 'employee may change their own PIN without passport encryption');
+    const staleUnlock = await request(baseUrl, employee, '/api/session/unlock', 'POST', { pin: '2468' });
+    assert.equal(staleUnlock.status, 401, 'old PIN must stop working immediately in the same authenticated session');
+    const currentUnlock = await request(baseUrl, employee, '/api/session/unlock', 'POST', { pin: '9753' });
+    assert.equal(currentUnlock.status, 200, 'new PIN unlocks without asking for the account password again');
+    const stillSignedIn = await request(baseUrl, employee, '/api/session/preferences');
+    assert.equal(stillSignedIn.status, 200, 'changing/unlocking PIN preserves the main server session');
+    const staffList = await request(baseUrl, admin, '/api/staff');
+    assert.equal(staffList.payload.items.find((person) => person.id === id).pinConfigured, true,
+      'staff listing reports the PIN as configured');
+
+    const wrongAttempts = [];
+    for (let index = 0; index < 5; index += 1) wrongAttempts.push(await request(baseUrl, employee, '/api/session/unlock', 'POST', { pin: '1111' }));
+    assert.deepEqual(wrongAttempts.map((result) => result.status), [401, 401, 401, 401, 429], 'repeated guesses are rate limited');
   } finally {
     child.kill();
   }
@@ -128,4 +147,4 @@ async function noKeyPinScenario() {
 
 await configuredKeyScenario();
 await noKeyPinScenario();
-console.log('STAFF PIN/PASSPORT RUNTIME QA: PASS (admin denied clear, empty payload preserves data, owner clear works, PIN saves without passport key)');
+console.log('STAFF PIN/PASSPORT RUNTIME QA: PASS (passport isolation, HTTP PIN setup, same-session PIN change/unlock, preserved login, staff-list state, PIN guessing limit)');

@@ -41,5 +41,18 @@ assert.match(server, /premix_product_binding_not_allowed/,
   'premix recipes cannot be bound to sale products');
 assert.doesNotMatch(server, /if \(depletion\.totalCost > 0\) await client\.query\('INSERT INTO order_costs/,
   'closing an order must save a zero cost snapshot as well as a positive one');
+assert.match(server, /inventoryMode === 'non_stock'\) continue/, 'only an explicitly non-stock item may bypass depletion');
+assert.match(server, /product_inventory_mode_required/, 'legacy product classification is required before a sale can close');
+assert.match(server, /product_recipe_required/, 'tracked products cannot close without a sale recipe');
+assert.match(server, /product_recipe_ambiguous/, 'ambiguous recipe-to-product matches block finalization');
+assert.match(server, /JOIN recipe_items legacy_item ON legacy_item\.product_id=legacy_recipe\.product_id/, 'legacy recipe header alone is not accepted as a valid recipe');
+assert.match(server, /FOR UPDATE/, 'catalog mode transitions and recipe/order writes serialize on the product row');
+assert.match(server, /non_stock_product_has_recipe/, 'non-stock products cannot be assigned a sale recipe');
+assert.match(server, /inventory_mode AS "inventoryMode"/, 'PostgreSQL product reads expose the accounting mode');
+assert.match(fs.readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'), /inventory_mode text NOT NULL DEFAULT 'tracked'/, 'fresh schema gives new products an explicit tracked mode');
+assert.match(fs.readFileSync(new URL('../migrations/049_product_inventory_mode.sql', import.meta.url), 'utf8'), /needs_review/, 'legacy products without an unambiguous recipe are marked for review');
+const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+assert.match(portal, /id="product-inventory-mode" required/, 'catalog editor requires an explicit inventory choice');
+assert.match(portal, /Нужно проверить складской учёт/, 'legacy review state is visible on the product card');
 
-console.log('RECIPE DEPLETION CONTRACT QA: 14 assertions passed');
+console.log('RECIPE DEPLETION CONTRACT QA: 18 assertions passed');

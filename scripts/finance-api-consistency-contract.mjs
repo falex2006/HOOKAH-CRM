@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const sliceBetween = (start, end) => {
   const from = server.indexOf(start);
   const to = server.indexOf(end, from);
@@ -39,6 +40,12 @@ assert.match(report, /order\.finalTotal !== undefined && order\.finalTotal !== n
   'memory finance report preserves explicit zero final totals instead of substituting gross sales');
 assert.match(report, /GREATEST\(0,GREATEST\(COALESCE\(o\.vip_minimum,0\),COALESCE\(i\.subtotal,0\)-COALESCE\(d\.discount,0\)\)\) AS "finalTotal"/,
   'PostgreSQL finance report derives the zero-total fallback from persisted order items and approved discounts');
+assert.match(analytics, /manualExpenses\.filter\(\(expense\) => expense\.date === date && !\['purchase', 'payroll'\]\.includes\(expense\.source\)\)/,
+  'memory-backed server analytics includes ordinary operating expenses while separating purchase/payroll treatment');
+assert.match(portal, /const totalPayroll = days\.reduce\(\(sum, row\) => sum \+ Number\(row\.payroll \|\| 0\), 0\)/,
+  'demo analytics exposes paid payroll separately and includes it in total expenses');
+assert.match(portal, /netProfit: totalRevenue - totalExpenses - totalCostOfGoods/,
+  'demo analytics net profit subtracts both expenses and cost of goods');
 assert.match(subscription, /UPDATE organizations SET plan=\$1,updated_at=now\(\)/,
   'organization plan changes update the organization modification timestamp');
 

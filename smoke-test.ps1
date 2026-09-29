@@ -62,7 +62,7 @@ $productImage = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products/$($pr
 if (-not $productImage.imageUrl) { throw 'product image update failed' }
 $productDeleted = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/api/products/$($product.id)"
 if ($productDeleted.active -ne $false) { throw 'product deactivation failed' }
-$orderProduct = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Smoke order product $smokeSuffix"; category = 'Бар'; price = 250; aliases = @('order-smoke') } | ConvertTo-Json)
+$orderProduct = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Smoke order product $smokeSuffix"; category = 'Бар'; price = 250; inventoryMode = 'non_stock'; aliases = @('order-smoke') } | ConvertTo-Json)
 if (-not $orderProduct.id) { throw 'order product create failed' }
 $orderProductId = [string]$orderProduct.id
 $removableProduct = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Smoke removable product $smokeSuffix"; category = 'Бар'; price = 180; aliases = @('remove-smoke') } | ConvertTo-Json)

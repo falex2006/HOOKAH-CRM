@@ -9,6 +9,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $checks = @(
   @{ file = 'site-structure-contract.mjs'; node = $true },
   @{ file = 'final-acceptance-matrix-contract.mjs'; node = $true },
+  @{ file = 'hookah-additional-acceptance-contract.mjs'; node = $true },
   @{ file = 'visual-page-rules-contract.mjs'; node = $true },
   @{ file = 'visual-live-defects-contract.mjs'; node = $true },
   @{ file = 'finance-api-consistency-contract.mjs'; node = $true },
@@ -28,6 +29,7 @@ $checks = @(
   @{ file = 'inventory-stock-status-runtime-qa.mjs'; node = $true },
   @{ file = 'inventory-responsive-contract.mjs'; node = $true },
   @{ file = 'inventory-critical-state-qa.mjs'; node = $true },
+  @{ file = 'inventory-movement-transaction-qa.mjs'; node = $true },
   @{ file = 'directory-rename-runtime-qa.mjs'; node = $true },
   @{ file = 'demo-premix-unit-runtime-qa.mjs'; node = $true },
   @{ file = 'recipe-depletion-contract-qa.mjs'; node = $true },
@@ -78,6 +80,7 @@ $checks = @(
   @{ file = 'postgres-qa-safety-contract.mjs'; node = $true },
   @{ file = 'purchase-payments-runtime-qa.mjs'; node = $true },
   @{ file = 'purchase-document-validation-qa.mjs'; node = $true },
+  @{ file = 'purchase-document-date-contract.mjs'; node = $true },
   @{ file = 'purchase-payment-api-validation-qa.mjs'; node = $true },
   @{ file = 'purchase-payments-contract.mjs'; node = $true },
   @{ file = 'order-close-transaction-qa.mjs'; node = $true },

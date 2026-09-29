@@ -21,7 +21,7 @@ const subdepartmentRoute = isolate(
 
 function createDatabase({ categoryConflict = false, subdepartmentConflict = false } = {}) {
   const state = {
-    category: { id: '11111111-1111-4111-8111-111111111111', name: 'Сиропы', department: 'bar', active: true },
+    category: { id: '11111111-1111-4111-8111-111111111111', name: 'Сиропы', department: 'bar', subdepartmentId: null, active: true },
     subdepartment: { id: 'sub-1', name: 'Холодный цех', departmentCode: 'kitchen', active: true },
     ingredients: [
       { venueId: 'venue-a', name: 'Сироп маракуйя', category: 'Сиропы', department: 'bar', subdepartment: 'Барная зона', isMarked: true },
@@ -48,10 +48,10 @@ function createDatabase({ categoryConflict = false, subdepartmentConflict = fals
       return { rows: [] };
     }
     if (normalized.startsWith('SELECT 1 FROM inventory_departments')) return { rows: [{ '?column?': 1 }] };
-    if (normalized.startsWith('SELECT id,name,department FROM product_categories')) return { rows: [{ ...state.category }] };
+    if (normalized.startsWith('SELECT id,name,department,subdepartment_id')) return { rows: [{ ...state.category }] };
     if (normalized.startsWith('UPDATE product_categories SET name=')) {
       if (categoryConflict) throw Object.assign(new Error('unique category conflict'), { code: '23505' });
-      state.category = { ...state.category, name: params[0], department: params[1] };
+      state.category = { ...state.category, name: params[0], department: params[1], subdepartmentId: params[2] };
       return { rows: [{ ...state.category }] };
     }
     if (normalized.startsWith('UPDATE ingredients SET category=')) {
@@ -82,7 +82,7 @@ async function runRoute(route, { db, kind, body }) {
   const isCategory = kind === 'category';
   const result = await new Function(
     'req', 'res', 'pathname', 'productCategoryPath', 'inventorySubdepartmentPath',
-    'repositories', 'venueDbId', 'denyUnless', 'body', 'json', 'recordAudit', 'productCategories',
+    'repositories', 'venueDbId', 'denyUnless', 'body', 'json', 'recordAudit', 'productCategories', 'inventorySubdepartments',
     `return (async () => { ${route} })();`,
   )(
     { method: 'PATCH' }, {},
@@ -91,7 +91,7 @@ async function runRoute(route, { db, kind, body }) {
     isCategory ? null : ['', db.state.subdepartment.id],
     { pool: db.pool }, 'venue-a', () => false, async () => body,
     (_res, status, payload) => { response = { status, payload }; return response; },
-    (_req, action, entity, id, before, after) => db.state.audits.push({ action, entity, id, before, after }), [],
+    (_req, action, entity, id, before, after) => db.state.audits.push({ action, entity, id, before, after }), [], [],
   );
   return response || result;
 }

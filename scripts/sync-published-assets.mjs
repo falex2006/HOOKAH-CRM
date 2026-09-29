@@ -3,9 +3,10 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '309';
-const portalRevision = '298';
-const appRevision = '130';
+const cssRevision = '314';
+const portalRevision = '304';
+const lockRevision = '14';
+const appRevision = '131';
 const staffProfileRevision = '6';
 const loginRevision = '92';
 const staffAdminCardRevision = '4';
@@ -53,6 +54,7 @@ for (const path of htmlFiles) {
   const html = readFileSync(path, 'utf8')
     .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
     .replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`)
+    .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)
     .replace(/app\.js\?rev=\d+/g, `app.js?rev=${appRevision}`)
     .replace(/staff-profile\.js\?rev=\d+/g, `staff-profile.js?rev=${staffProfileRevision}`)
     .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`)
@@ -61,6 +63,7 @@ for (const path of htmlFiles) {
   writeFileSync(path, versionedHtml);
 }
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
+cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
 cpSync(resolve(root, 'staff-profile.js'), resolve(root, 'dist', 'staff-profile.js'));
 cpSync(resolve(root, 'login.js'), resolve(root, 'dist', 'login.js'));
@@ -68,4 +71,4 @@ cpSync(resolve(root, 'style.css'), resolve(root, 'dist', 'style.css'));
 cpSync(resolve(root, 'staff-admin-card.js'), resolve(root, 'dist', 'staff-admin-card.js'));
 cpSync(resolve(root, 'purchase-document-validation.js'), resolve(root, 'dist', 'purchase-document-validation.js'));
 cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'assets', 'tabler-icons.svg'));
-console.log(`Synced app.js rev=${appRevision}, portal.js rev=${portalRevision}, staff-profile.js rev=${staffProfileRevision}, login.js rev=${loginRevision}, staff-admin-card.js rev=${staffAdminCardRevision}, style.css rev=${cssRevision} across ${htmlFiles.length} source and dist routes.`);
+console.log(`Synced app.js rev=${appRevision}, portal.js rev=${portalRevision}, lock.js rev=${lockRevision}, staff-profile.js rev=${staffProfileRevision}, login.js rev=${loginRevision}, staff-admin-card.js rev=${staffAdminCardRevision}, style.css rev=${cssRevision} across ${htmlFiles.length} source and dist routes.`);

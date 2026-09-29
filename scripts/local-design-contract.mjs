@@ -65,6 +65,10 @@ for (const [alias, source] of Object.entries(routeAliases)) {
 }
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+assert.match(portal, /finance-categories-panel[\s\S]*?finance-category-filters/, 'finance category controls must have a page-specific responsive wrapper');
+assert.match(css, /\.velora-theme \.finance-category-filters\{display:grid;grid-template-columns:minmax\(0,1\.35fr\) minmax\(180px,1fr\)/, 'finance category controls must share the available panel width');
+assert.match(css, /@media\(max-width:900px\)\{\.velora-theme \.finance-categories-panel>\.panel-head\{display:grid;grid-template-columns:minmax\(0,1fr\)/, 'finance category panel header must stack on Fold-sized viewports');
+assert.match(css, /@media\(max-width:520px\)\{\.velora-theme \.finance-category-filters\{grid-template-columns:minmax\(0,1fr\)\}/, 'finance category controls must become a single column on phone widths');
 assert.match(css, /\.platform-main>\.platform-content\{[^}]*width:100%[^}]*min-width:0[^}]*box-sizing:border-box/,
   'the platform workspace must respect the available width beside its sidebar');
 assert.match(css, /@media\(max-width:1180px\)\{\.platform-hero\{align-items:flex-start;flex-direction:column\}\}/,

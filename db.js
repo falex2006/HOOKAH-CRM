@@ -39,24 +39,24 @@ class InventoryRepository {
       FROM stock_movements sm JOIN ingredients i ON i.id=sm.ingredient_id WHERE sm.venue_id=$1 ORDER BY sm.created_at DESC LIMIT 20`, [venueId]);
     return { items: rows.map((row) => ({ ...row, onHand: Number(row.onHand), minLevel: Number(row.minLevel), cost: Number(row.cost || 0), packMultiplier: Number(row.packMultiplier || 1) })), movements: movements.rows };
   }
-  async create(venueId, input) {
-    const { rows } = await this.pool.query(`INSERT INTO ingredients (venue_id,name,short_name,department,subdepartment,category,item_type,unit,purchase_unit,pack_multiplier,cost,min_stock,supplier,barcode,note,is_marked)
+  async create(venueId, input, client = this.pool) {
+    const { rows } = await client.query(`INSERT INTO ingredients (venue_id,name,short_name,department,subdepartment,category,item_type,unit,purchase_unit,pack_multiplier,cost,min_stock,supplier,barcode,note,is_marked)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,true)
       RETURNING id,name,short_name AS "shortName",department,subdepartment,category,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, [venueId, input.name, input.shortName || null, input.department || 'inventory', input.subdepartment || '', input.category || 'Без категории', input.itemType || 'ingredient', input.unit, input.purchaseUnit || null, input.packMultiplier || 1, input.cost || 0, input.minLevel || 0, input.supplier || null, input.barcode || null, input.note || null]);
     return rows[0];
   }
-  async update(venueId, id, input) {
+  async update(venueId, id, input, client = this.pool) {
     if (input.unit !== undefined) {
-      const existing = await this.pool.query('SELECT unit FROM ingredients WHERE id=$1 AND venue_id=$2', [id, venueId]);
+      const existing = await client.query('SELECT unit FROM ingredients WHERE id=$1 AND venue_id=$2', [id, venueId]);
       if (existing.rows[0] && existing.rows[0].unit !== input.unit) {
-        const history = await this.pool.query('SELECT 1 FROM stock_movements WHERE ingredient_id=$1 AND venue_id=$2 LIMIT 1', [id, venueId]);
+        const history = await client.query('SELECT 1 FROM stock_movements WHERE ingredient_id=$1 AND venue_id=$2 LIMIT 1', [id, venueId]);
         if (history.rowCount) throw new Error('inventory_unit_has_movements');
       }
     }
     const fields = []; const values = [id, venueId]; const allowed = [['name','name'],['shortName','short_name'],['department','department'],['subdepartment','subdepartment'],['category','category'],['itemType','item_type'],['unit','unit'],['purchaseUnit','purchase_unit'],['packMultiplier','pack_multiplier'],['cost','cost'],['minLevel','min_stock'],['supplier','supplier'],['barcode','barcode'],['note','note']];
     for (const [key, column] of allowed) if (input[key] !== undefined) { values.push(input[key]); fields.push(`${column}=$${values.length}`); }
     if (!fields.length) return null;
-    const { rows } = await this.pool.query(`UPDATE ingredients SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name,short_name AS "shortName",department,subdepartment,category,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, values);
+    const { rows } = await client.query(`UPDATE ingredients SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_marked=true RETURNING id,name,short_name AS "shortName",department,subdepartment,category,item_type AS "itemType",unit,purchase_unit AS "purchaseUnit",pack_multiplier AS "packMultiplier",cost,min_stock AS "minLevel",supplier,barcode,note`, values);
     return rows[0] || null;
   }
   async archive(venueId, id) {
@@ -185,7 +185,7 @@ class PurchaseDocumentRepository {
     const statusClause = status ? ` AND d.status=$${params.push(status)}` : '';
     const { rows } = await this.pool.query(`SELECT d.id,d.venue_id AS "venueId",d.supplier_name AS "supplierName",d.document_number AS "documentNumber",d.document_date AS "documentDate",d.recorded_at AS "recordedAt",d.status,d.note,d.source_auto_order_id AS "sourceAutoOrderId",d.created_by AS "createdBy",d.posted_by AS "postedBy",d.posted_at AS "postedAt",COUNT(l.id)::int AS "lineCount",COALESCE(SUM(l.line_total),0) AS "totalCost",COALESCE(json_agg(json_build_object('id',l.id,'ingredientId',l.ingredient_id,'ingredientName',l.ingredient_name_snapshot,'stockUnit',l.stock_unit,'quantity',l.quantity,'unit',l.unit,'packMultiplier',l.pack_multiplier,'stockQuantity',l.stock_quantity,'unitCost',l.unit_cost,'receiptUnitCost',l.receipt_unit_cost,'lineTotal',l.line_total,'sourceMovementId',l.source_movement_id) ORDER BY l.created_at) FILTER (WHERE l.id IS NOT NULL),'[]'::json) AS lines
       FROM inventory_purchase_documents d LEFT JOIN inventory_purchase_document_lines l ON l.document_id=d.id
-      WHERE d.venue_id=$1${statusClause} GROUP BY d.id ORDER BY d.document_date DESC,d.recorded_at DESC`, params);
+      WHERE d.venue_id=$1${statusClause} GROUP BY d.id ORDER BY d.document_date DESC NULLS LAST,d.recorded_at DESC`, params);
     return rows.map(PurchaseDocumentRepository.mapDocument);
   }
   async get(venueId, id, client = this.pool) {
@@ -200,7 +200,7 @@ class PurchaseDocumentRepository {
       FROM inventory_purchase_documents d
       LEFT JOIN inventory_purchase_document_lines l ON l.document_id=d.id AND l.venue_id=d.venue_id
       WHERE d.venue_id=$1 AND d.status='posted'
-      GROUP BY d.id ORDER BY d.document_date DESC,d.recorded_at DESC`, [venueId]);
+      GROUP BY d.id ORDER BY d.document_date DESC NULLS LAST,d.recorded_at DESC`, [venueId]);
     return rows.map((row) => {
       const totalCost = Number(row.totalCost || 0);
       const totalPaid = Number(row.totalPaid || 0);
@@ -303,6 +303,23 @@ class PurchaseDocumentRepository {
       return document;
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client.release(); }
   }
+  async voidDraft(venueId, id) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const current = await client.query('SELECT id,status FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2 FOR UPDATE', [id, venueId]);
+      if (!current.rows[0]) throw new Error('purchase_document_not_found');
+      if (current.rows[0].status !== 'draft') {
+        const error = new Error('purchase_document_not_voidable');
+        error.status = current.rows[0].status;
+        throw error;
+      }
+      await client.query("UPDATE inventory_purchase_documents SET status='voided' WHERE id=$1 AND venue_id=$2", [id, venueId]);
+      const document = await this.get(venueId, id, client);
+      await client.query('COMMIT');
+      return document;
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client.release(); }
+  }
   async post(venueId, id, actorId) {
     const client = await this.pool.connect();
     try {
@@ -360,24 +377,24 @@ class PurchaseDocumentRepository {
 class ProductRepository {
   constructor(pool) { this.pool = pool; }
   async list(venueId) {
-    const { rows } = await this.pool.query(`SELECT id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl"
+    const { rows } = await this.pool.query(`SELECT id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl",inventory_mode AS "inventoryMode"
       FROM products WHERE venue_id=$1 AND is_active=true ORDER BY name`, [venueId]);
     return rows.map((row) => ({ ...row, price: Number(row.price), aliases: row.aliases || [] }));
   }
   async create(input) {
-    const { rows } = await this.pool.query(`INSERT INTO products (venue_id,name,category,sale_price,search_aliases,image_url)
-      VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl"`,
-      [input.venueId, input.name, input.category, input.price, input.aliases, input.imageUrl || null]);
+    const { rows } = await this.pool.query(`INSERT INTO products (venue_id,name,category,sale_price,search_aliases,image_url,inventory_mode)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl",inventory_mode AS "inventoryMode"`,
+      [input.venueId, input.name, input.category, input.price, input.aliases, input.imageUrl || null, input.inventoryMode || 'tracked']);
     return rows[0] ? { ...rows[0], price: Number(rows[0].price), aliases: rows[0].aliases || [] } : null;
   }
-  async update(venueId, id, input) {
+  async update(venueId, id, input, client = this.pool) {
     const fields = []; const values = [id, venueId];
-    for (const [column, value] of [['name', input.name], ['category', input.category], ['sale_price', input.price], ['search_aliases', input.aliases], ['image_url', input.imageUrl]]) {
+    for (const [column, value] of [['name', input.name], ['category', input.category], ['sale_price', input.price], ['search_aliases', input.aliases], ['image_url', input.imageUrl], ['inventory_mode', input.inventoryMode]]) {
       if (value !== undefined) { values.push(value); fields.push(`${column}=$${values.length}`); }
     }
     if (!fields.length) return null;
-    const { rows } = await this.pool.query(`UPDATE products SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_active=true
-      RETURNING id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl"`, values);
+    const { rows } = await client.query(`UPDATE products SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND is_active=true
+      RETURNING id,name,category,sale_price AS price,category AS station,search_aliases AS aliases,image_url AS "imageUrl",inventory_mode AS "inventoryMode"`, values);
     return rows[0] ? { ...rows[0], price: Number(rows[0].price), aliases: rows[0].aliases || [] } : null;
   }
   async deactivate(venueId, id) {

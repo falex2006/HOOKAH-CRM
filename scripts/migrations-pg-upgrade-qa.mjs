@@ -25,6 +25,8 @@ try {
   await client.query(`CREATE SCHEMA ${quotedSchema}`);
   await client.query(`SET LOCAL search_path TO ${quotedSchema}, public`);
   await client.query(fs.readFileSync(path.join(root, 'schema.sql'), 'utf8'));
+  await client.query('CREATE TABLE unrelated_constraint_name_collision (id integer)');
+  await client.query('ALTER TABLE unrelated_constraint_name_collision ADD CONSTRAINT product_categories_subdepartment_fk CHECK (id IS NULL OR id > 0)');
 
   const migrations = fs.readdirSync(path.join(root, 'migrations'))
     .filter((file) => file.endsWith('.sql') && Number(file.slice(0, 3)) <= 38)
@@ -32,6 +34,10 @@ try {
   for (const file of migrations) {
     await client.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
   }
+
+  // schema.sql describes a fresh install and includes the current product mode;
+  // remove it here to model a real pre-049 database before loading legacy rows.
+  await client.query('ALTER TABLE products DROP COLUMN IF EXISTS inventory_mode');
 
   const venue = (await client.query("INSERT INTO venues (name) VALUES ('Legacy migration QA') RETURNING id")).rows[0].id;
   const user = (await client.query(
@@ -62,10 +68,33 @@ try {
   const oldDocument = (await client.query(
     "INSERT INTO inventory_purchase_documents (venue_id,supplier_name,document_number,document_date,status) VALUES ($1,'Legacy supplier','LEGACY-1','2026-08-01','posted') RETURNING id", [venue],
   )).rows[0].id;
+  const linkedProduct = (await client.query("INSERT INTO products (venue_id,name,category) VALUES ($1,'Legacy linked card','bar') RETURNING id", [venue])).rows[0].id;
+  const unboundProduct = (await client.query("INSERT INTO products (venue_id,name,category) VALUES ($1,'Legacy unbound card','bar') RETURNING id", [venue])).rows[0].id;
+  const legacyRecipeProduct = (await client.query("INSERT INTO products (venue_id,name,category) VALUES ($1,'Legacy recipe table','bar') RETURNING id", [venue])).rows[0].id;
+  const emptyLegacyRecipeProduct = (await client.query("INSERT INTO products (venue_id,name,category) VALUES ($1,'Legacy empty recipe','bar') RETURNING id", [venue])).rows[0].id;
+  const duplicateGenericA = (await client.query("INSERT INTO products (venue_id,name,category) VALUES ($1,'Legacy duplicate generic','bar') RETURNING id", [venue])).rows[0].id;
+  const duplicateGenericB = (await client.query("INSERT INTO products (venue_id,name,category) VALUES ($1,'Legacy duplicate generic','bar') RETURNING id", [venue])).rows[0].id;
+  const duplicateDirectProduct = (await client.query("INSERT INTO products (venue_id,name,category) VALUES ($1,'Legacy duplicate direct','bar') RETURNING id", [venue])).rows[0].id;
+  const reviewProduct = (await client.query("INSERT INTO products (venue_id,name,category) VALUES ($1,'Legacy unclassified','bar') RETURNING id", [venue])).rows[0].id;
+  const recipeIngredient = (await client.query("INSERT INTO ingredients (venue_id,name,unit) VALUES ($1,'Legacy recipe QA ingredient','мл') RETURNING id,name", [venue])).rows[0];
+  const validCardIngredients = JSON.stringify([{ ingredientId: recipeIngredient.id, name: recipeIngredient.name, quantity: '1 мл', unit: 'мл' }]);
+  await client.query("INSERT INTO inventory_recipe_cards (venue_id,product_id,name,ingredients,recipe_type) VALUES ($1,$2,'Legacy linked card',$3::jsonb,'sale'),($1,NULL,'Legacy unbound card',$3::jsonb,'sale'),($1,NULL,'Legacy duplicate generic',$3::jsonb,'sale'),($1,$4,'Legacy duplicate direct',$3::jsonb,'sale'),($1,$4,'Legacy duplicate direct second',$3::jsonb,'sale')", [venue, linkedProduct, validCardIngredients, duplicateDirectProduct]);
+  await client.query('INSERT INTO recipes (product_id) VALUES ($1)', [legacyRecipeProduct]);
+  await client.query('INSERT INTO recipe_items (product_id,ingredient_id,quantity) VALUES ($1,$2,1)', [legacyRecipeProduct, recipeIngredient.id]);
+  await client.query('INSERT INTO recipes (product_id) VALUES ($1)', [emptyLegacyRecipeProduct]);
+  const certainSubdepartment = (await client.query("INSERT INTO inventory_subdepartments (venue_id,department_code,name) VALUES ($1,'bar','Certain legacy subdepartment') RETURNING id", [venue])).rows[0].id;
+  await client.query("INSERT INTO product_categories (venue_id,name,department) VALUES ($1,'Certain legacy category','bar')", [venue]);
+  await client.query("INSERT INTO ingredients (venue_id,name,category,department,subdepartment,unit,cost,is_marked) VALUES ($1,'Certain legacy item 1','Certain legacy category','bar','Certain legacy subdepartment','ml',0,true),($1,'Certain legacy item 2','Certain legacy category','bar','Certain legacy subdepartment','ml',0,true)", [venue]);
+  await client.query("INSERT INTO inventory_subdepartments (venue_id,department_code,name) VALUES ($1,'bar','Ambiguous legacy subdepartment')", [venue]);
+  await client.query("INSERT INTO product_categories (venue_id,name,department) VALUES ($1,'Ambiguous legacy category','bar')", [venue]);
+  await client.query("INSERT INTO ingredients (venue_id,name,category,department,subdepartment,unit,cost,is_marked) VALUES ($1,'Ambiguous legacy item 1','Ambiguous legacy category','bar','Certain legacy subdepartment','ml',0,true),($1,'Ambiguous legacy item 2','Ambiguous legacy category','bar','Ambiguous legacy subdepartment','ml',0,true)", [venue]);
 
   const latest = fs.readdirSync(path.join(root, 'migrations'))
     .filter((file) => file.endsWith('.sql') && Number(file.slice(0, 3)) >= 39)
     .sort();
+  // These synthetic legacy rows model already-committed data from earlier app versions.
+  // Flush any deferrable fixture checks before running DDL migrations in this transaction.
+  await client.query('SET CONSTRAINTS ALL IMMEDIATE');
   for (const file of latest) {
     await client.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
   }
@@ -80,13 +109,32 @@ try {
   assert.equal((await client.query('SELECT category_id FROM expenses WHERE id=$1', [oldExpense])).rows[0].category_id, null,
     '044 preserves legacy expense category labels rather than guessing category identities');
   assert.equal((await client.query('SELECT id FROM inventory_purchase_documents WHERE id=$1 AND status=\'posted\'', [oldDocument])).rowCount, 1);
+  assert.equal((await client.query('SELECT subdepartment_id FROM product_categories WHERE venue_id=$1 AND name=\'Certain legacy category\'', [venue])).rows[0].subdepartment_id, certainSubdepartment,
+    'migration 048 backfills a legacy category only where all of its items agree on one subdepartment');
+  assert.equal((await client.query('SELECT subdepartment_id FROM product_categories WHERE venue_id=$1 AND name=\'Ambiguous legacy category\'', [venue])).rows[0].subdepartment_id, null,
+    'migration 048 leaves ambiguous legacy category assignments untouched');
+  assert.equal((await client.query("SELECT COUNT(*)::int AS count FROM pg_constraint WHERE conname='product_categories_subdepartment_fk' AND conrelid='product_categories'::regclass")).rows[0].count, 1,
+    'migration 048 creates its category FK even when another table has a constraint with the same name');
+  const undatedDocument = (await client.query("INSERT INTO inventory_purchase_documents (venue_id,supplier_name,status) VALUES ($1,'Undated legacy supplier','draft') RETURNING document_date,recorded_at", [venue])).rows[0];
+  assert.equal(undatedDocument.document_date, null, 'migration 047 permits a true NULL supplier document date');
+  assert.ok(undatedDocument.recorded_at, 'the system receipt timestamp remains independent of an unknown supplier date');
+  const productModes = await client.query('SELECT id,inventory_mode FROM products WHERE id=ANY($1::uuid[])', [[linkedProduct,unboundProduct,legacyRecipeProduct,emptyLegacyRecipeProduct,duplicateGenericA,duplicateGenericB,duplicateDirectProduct,reviewProduct]]);
+  const modeById = new Map(productModes.rows.map((row) => [row.id, row.inventory_mode]));
+  assert.equal(modeById.get(linkedProduct), 'tracked', '049 classifies a product with a directly bound sale card as tracked');
+  assert.equal(modeById.get(unboundProduct), 'tracked', '049 classifies one unique unbound legacy card by exact name');
+  assert.equal(modeById.get(legacyRecipeProduct), 'tracked', '049 preserves a legacy recipe with a valid same-venue component as tracked');
+  assert.equal(modeById.get(emptyLegacyRecipeProduct), 'needs_review', '049 does not treat an empty legacy recipe header as usable stock accounting');
+  assert.equal(modeById.get(duplicateGenericA), 'needs_review', '049 leaves one unbound card ambiguous when same-name products exist');
+  assert.equal(modeById.get(duplicateGenericB), 'needs_review', '049 leaves every duplicate-name product ambiguous');
+  assert.equal(modeById.get(duplicateDirectProduct), 'needs_review', '049 leaves products with multiple active direct cards for review');
+  assert.equal(modeById.get(reviewProduct), 'needs_review', '049 never guesses that an unlinked legacy product is a service');
 
   for (const file of latest) {
     await client.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
   }
   assert.deepEqual((await client.query('SELECT id,status,amount FROM payroll_entries ORDER BY period_from')).rows,
     legacyPayrollIds, 'replaying latest migrations preserves legacy payroll');
-  console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline migrations + ${latest.length} new migrations; legacy NULL cash attribution and old payroll/expense/receipt records preserved; latest migrations replayed; schema rolled back)`);
+  console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline migrations + ${latest.length} new migrations; legacy records preserved; 047 nullable dates, 048 conservative hierarchy, 049 explicit product accounting modes verified; latest migrations replayed; schema rolled back)`);
 } finally {
   if (transaction) await client.query('ROLLBACK').catch(() => {});
   if (client._connected) await client.end();

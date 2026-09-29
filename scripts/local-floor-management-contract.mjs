@@ -15,6 +15,12 @@ const raw = async (path, options = {}) => {
 const suffix = Date.now();
 const zone = await request('/api/floor/zones', { method: 'POST', body: body({ name: `Тестовый этаж ${suffix}` }) });
 if (!zone.id || zone.name !== `Тестовый этаж ${suffix}`) throw new Error('Zone creation returned incomplete data');
+const floorBeforeTable = await request('/api/floor');
+const visibleEmptyZone = (floorBeforeTable.zones || []).find((entry) => entry.id === zone.id);
+if (!visibleEmptyZone || visibleEmptyZone.tables.length !== 0) throw new Error('New empty zone must remain visible before a table is created');
+const table = await request('/api/floor/tables', { method: 'POST', body: body({ zoneId: zone.id, name: `Стол проверки ${suffix}`, capacity: 2 }) });
+const floorAfterTable = await request('/api/floor');
+if (!(floorAfterTable.zones || []).find((entry) => entry.id === zone.id)?.tables.some((entry) => entry.id === table.id)) throw new Error('A table in a newly created zone must remain visible after reloading the floor');
 const room = await request('/api/floor/tables', { method: 'POST', body: body({ zoneId: zone.id, name: `VIP-комната тест ${suffix}`, capacity: 8, minimumOrderTotal: 3500 }) });
 if (!room.id || Number(room.capacity) !== 8 || Number(room.minimumOrderTotal) !== 3500) throw new Error('Room creation returned incomplete data');
 const updated = await request(`/api/floor/tables/${encodeURIComponent(room.id)}`, { method: 'PATCH', body: body({ name: `VIP-комната обновлена ${suffix}`, capacity: 10, minimumOrderTotal: 4000 }) });
@@ -22,9 +28,10 @@ if (updated.name !== `VIP-комната обновлена ${suffix}` || Number
 const protectedZone = await raw(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'DELETE' });
 if (protectedZone.status !== 409 || protectedZone.payload?.error !== 'zone_not_empty') throw new Error('Non-empty zone deletion was not protected');
 await request(`/api/floor/tables/${encodeURIComponent(room.id)}`, { method: 'DELETE' });
+await request(`/api/floor/tables/${encodeURIComponent(table.id)}`, { method: 'DELETE' });
 await request(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'DELETE' });
 const floor = await request('/api/floor');
 if ((floor.zones || []).some((entry) => entry.id === zone.id)) throw new Error('Deleted zone remains in floor response');
 const floorObjects = (floor.zones || []).flatMap((entry) => entry.tables || []);
 if (floorObjects.some((entry) => !Number.isInteger(Number(entry.capacity)) || Number(entry.capacity) < 1)) throw new Error('Floor response contains an object without a valid capacity');
-console.log(`LOCAL FLOOR MANAGEMENT CONTRACT: PASS (zone=${zone.id}, room=${room.id})`);
+console.log(`LOCAL FLOOR MANAGEMENT CONTRACT: PASS (empty zone reload→table creation→reload, room=${room.id})`);

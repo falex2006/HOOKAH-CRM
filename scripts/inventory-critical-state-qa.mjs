@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const categoryMigration = readFileSync(new URL('../migrations/015_product_category_departments.sql', import.meta.url), 'utf8');
+const categorySubdepartmentMigration = readFileSync(new URL('../migrations/048_product_category_subdepartments.sql', import.meta.url), 'utf8');
 
 // Category API keeps the selected venue-specific department code end to end.
 const postStart = server.indexOf("if (pathname === '/api/product-categories' && req.method === 'POST')");
@@ -17,8 +18,8 @@ for (const [name, route] of [['create', postRoute], ['update', patchRoute]]) {
   assert.match(route, /\[venueDbId, department\]/, `${name} must validate the exact selected department code`);
   assert.doesNotMatch(route, /\['kitchen','bar','hookah','inventory'\]\.includes\(input\.department\) \? input\.department : 'inventory'/, `${name} must not rewrite custom departments to inventory`);
 }
-assert.match(postRoute, /\[venueDbId, name, department\]/, 'create must persist the exact department code');
-assert.match(patchRoute, /\[name, department, productCategoryPath\[1\], venueDbId\]/, 'update must persist the exact department code');
+assert.match(postRoute, /\[venueDbId, name, department, subdepartmentId\]/, 'create must persist the exact department and optional subdepartment');
+assert.match(patchRoute, /\[name, department, subdepartmentId, productCategoryPath\[1\], venueDbId\]/, 'update must persist the exact department and optional subdepartment');
 const demoPostStart = portal.indexOf("if (path === '/api/product-categories' && method === 'POST')");
 const demoPatchStart = portal.indexOf('const demoProductCategory =', demoPostStart);
 const demoCategoryRoutes = portal.slice(demoPostStart, demoPatchStart);
@@ -30,7 +31,10 @@ assert.ok(demoCategoryRoutes.includes("const department = String(input.departmen
 assert.ok(demoCategoryUpdate.includes("const department = String(input.department ?? category.department ?? 'inventory').trim()") && demoCategoryUpdate.includes('category.department = department'),
   'demo update must retain the selected department identifier');
 assert.match(categoryMigration, /department text NOT NULL DEFAULT 'inventory'/,
-  'existing schema already supports arbitrary department codes; no schema migration is required');
+  'base schema stores category department codes');
+assert.match(categorySubdepartmentMigration, /subdepartment_id uuid/);
+assert.match(categorySubdepartmentMigration, /product_categories_subdepartment_fk/,
+  'category subdepartment links are protected by a same-venue and same-department foreign key');
 
 const runCategoryRoute = async (source, { method, department, name, id }) => {
   const calls = [];
@@ -39,10 +43,10 @@ const runCategoryRoute = async (source, { method, department, name, id }) => {
   const executeQuery = async (sql, params = []) => {
     calls.push({ sql, params });
     if (sql.startsWith('SELECT 1 FROM inventory_departments')) return { rows: [{ exists: true }] };
-    if (sql.startsWith('INSERT INTO product_categories')) return { rows: [{ id: 'qa-category', name: params[1], department: params[2], active: true }] };
+    if (sql.startsWith('INSERT INTO product_categories')) return { rows: [{ id: 'qa-category', name: params[1], department: params[2], subdepartmentId: params[3], active: true }] };
     if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
-    if (sql.startsWith('SELECT id,name,department FROM product_categories')) return { rows: [{ ...category }] };
-    if (sql.startsWith('UPDATE product_categories')) { category = { ...category, id: params[2], name: params[0], department: params[1] }; return { rows: [{ ...category }] }; }
+    if (sql.startsWith('SELECT id,name,department,subdepartment_id')) return { rows: [{ ...category }] };
+    if (sql.startsWith('UPDATE product_categories')) { category = { ...category, id: params[3], name: params[0], department: params[1], subdepartmentId: params[2] }; return { rows: [{ ...category }] }; }
     if (sql.startsWith('UPDATE ingredients SET category=')) return { rows: [] };
     throw new Error(`Unexpected category SQL: ${sql}`);
   };
@@ -50,24 +54,24 @@ const runCategoryRoute = async (source, { method, department, name, id }) => {
     query: executeQuery,
     connect: async () => ({ query: executeQuery, release() {} }),
   };
-  const execute = new Function('req', 'res', 'pathname', 'productCategoryPath', 'repositories', 'venueDbId', 'denyUnless', 'body', 'json', 'recordAudit', 'productCategories', `return (async () => { ${source} })();`);
+  const execute = new Function('req', 'res', 'pathname', 'productCategoryPath', 'repositories', 'venueDbId', 'denyUnless', 'body', 'json', 'recordAudit', 'productCategories', 'inventorySubdepartments', `return (async () => { ${source} })();`);
   await execute({ method }, {}, method === 'POST' ? '/api/product-categories' : `/api/product-categories/${id}`, id ? [`/api/product-categories/${id}`, id] : null,
-    { pool }, 'venue-qa', () => false, async () => ({ name, department }), (_res, status, payload) => { response = { status, payload }; return response; }, () => {}, []);
+    { pool }, 'venue-qa', () => false, async () => ({ name, department, subdepartmentId: null }), (_res, status, payload) => { response = { status, payload }; return response; }, () => {}, [], []);
   return { calls, response };
 };
 const customDepartment = 'qa-bar-special-17';
 const createdCategory = await runCategoryRoute(postRoute, { method: 'POST', department: customDepartment, name: 'QA custom category' });
 assert.equal(createdCategory.response.status, 201);
 assert.equal(createdCategory.response.payload.department, customDepartment);
-assert.deepEqual(createdCategory.calls.filter((call) => call.params.length).map((call) => call.params), [['venue-qa', customDepartment], ['venue-qa', 'QA custom category', customDepartment]]);
+assert.deepEqual(createdCategory.calls.filter((call) => call.params.length).map((call) => call.params), [['venue-qa', customDepartment], ['venue-qa', 'QA custom category', customDepartment, null]]);
 const updatedCategory = await runCategoryRoute(patchRoute, { method: 'PATCH', id: '11111111-1111-4111-8111-111111111111', department: customDepartment, name: 'QA custom category updated' });
 assert.equal(updatedCategory.response.status, 200);
 assert.equal(updatedCategory.response.payload.department, customDepartment);
 assert.deepEqual(updatedCategory.calls.filter((call) => call.params.length).map((call) => call.params), [
   ['venue-qa', customDepartment],
   ['11111111-1111-4111-8111-111111111111', 'venue-qa'],
-  ['QA custom category updated', customDepartment, '11111111-1111-4111-8111-111111111111', 'venue-qa'],
-  ['QA custom category updated', customDepartment, 'venue-qa', 'Старая категория', 'inventory'],
+  ['QA custom category updated', customDepartment, null, '11111111-1111-4111-8111-111111111111', 'venue-qa'],
+  ['QA custom category updated', customDepartment, 'venue-qa', 'Старая категория', 'inventory', null, null],
 ]);
 assert.ok(updatedCategory.calls.findIndex((call) => call.sql === 'BEGIN') < updatedCategory.calls.findIndex((call) => call.sql.startsWith('UPDATE ingredients SET category=')), 'category rename and stock reference propagation use the same transaction');
 assert.ok(updatedCategory.calls.findIndex((call) => call.sql === 'COMMIT') > updatedCategory.calls.findIndex((call) => call.sql.startsWith('UPDATE ingredients SET category=')), 'transaction commits after stock reference propagation');

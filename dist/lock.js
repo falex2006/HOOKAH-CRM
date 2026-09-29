@@ -4,8 +4,11 @@
   let user = {};
   try { user = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); } catch (_) {}
 
+  const activeToken = token;
+  const sessionEventKey = 'crm_session_event';
   const identityKey = String(user.id || user.login || user.name || 'user').trim().toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '_').slice(0, 80) || 'user';
   const timeoutKey = `crm_lock_timeout_user_${identityKey}`;
+  const lockStateKey = `crm_screen_locked_user_${identityKey}`;
   const timeoutOptions = [0, 1, 5, 10, 15, 30];
   const readTimeout = () => { const accountValue = Number(user.preferences?.lockTimeoutMinutes); if (timeoutOptions.includes(accountValue)) return accountValue; try { const value = Number(localStorage.getItem(timeoutKey)); return timeoutOptions.includes(value) ? value : 5; } catch (_) { return 5; } };
   let timeoutMinutes = readTimeout();
@@ -16,8 +19,12 @@
   let unlockRequest = null;
 
   const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('crm_session_token') || ''}`, 'Content-Type': 'application/json' });
+  const redirectToLogin = () => { clearTimeout(timer); location.replace('/login'); };
+  window.__broadcastSessionEnd = () => { try { localStorage.setItem(sessionEventKey, JSON.stringify({ action: 'logout', userId: String(user.id || ''), at: Date.now() })); } catch (_) {} };
   const logout = async () => {
     try { await fetch('/api/logout', { method: 'POST', headers: headers() }); } catch (_) {}
+    window.__broadcastSessionEnd();
+    try { localStorage.removeItem(lockStateKey); } catch (_) {}
     localStorage.removeItem('crm_session_token');
     localStorage.removeItem('crm_session_user');
     location.replace('/login');
@@ -51,7 +58,9 @@
   const setMessage = (text, kind = '') => { message.textContent = text; message.className = `screen-lock-message ${kind}`; };
   const lock = (reason = 'manual') => {
     if (locked) return;
+    if (!user.pinConfigured) { window.__openLockSettings?.(); return; }
     locked = true;
+    try { localStorage.setItem(lockStateKey, 'locked'); } catch (_) {}
     clearTimeout(timer);
     overlay.dataset.reason = reason;
     overlay.setAttribute('aria-hidden', 'false');
@@ -67,11 +76,12 @@
     unlockRequest = fetch('/api/session/unlock', { method: 'POST', headers: headers(), body: JSON.stringify({ pin: pinInput.value }) }).then(async (response) => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) { const error = new Error(payload.error || 'unlock_failed'); error.status = response.status; throw error; }
-      locked = false; overlay.setAttribute('aria-hidden', 'true'); document.body.classList.remove('screen-locked'); setMessage(''); schedule();
+      locked = false; try { localStorage.setItem(lockStateKey, `unlocked:${Date.now()}`); } catch (_) {} overlay.setAttribute('aria-hidden', 'true'); document.body.classList.remove('screen-locked'); setMessage(''); schedule();
     }).catch((error) => {
       pinInput.value = '';
       if (error.message === 'pin_not_configured') setMessage('PIN не настроен. Выйдите и обратитесь к администратору.', 'error');
       else if (error.message === 'invalid_pin') setMessage('Неверный PIN. Попробуйте ещё раз.', 'error');
+      else if (error.message === 'too_many_pin_attempts') setMessage('Слишком много попыток. Подождите минуту и попробуйте снова.', 'error');
       else setMessage('Не удалось проверить PIN. Проверьте соединение.', 'error');
     }).finally(() => { unlockRequest = null; });
     await unlockRequest;
@@ -96,6 +106,30 @@
   document.body.append(settingsDialog);
   const syncSettings = () => { settingsDialog.querySelector('#lock-timeout-select').value = String(timeoutMinutes); };
   const settingsButton = document.createElement('button'); settingsButton.type = 'button'; settingsButton.className = 'lock-settings-button'; settingsButton.title = 'Настройки автоблокировки'; settingsButton.setAttribute('aria-label', 'Настройки автоблокировки'); settingsButton.innerHTML = icon('settings'); const openLockSettings = () => { syncSettings(); settingsDialog.showModal(); }; window.__openLockSettings = openLockSettings; settingsButton.addEventListener('click', openLockSettings);
+  window.addEventListener('storage', (event) => {
+    if (event.key === sessionEventKey && event.newValue) {
+      try { const notice = JSON.parse(event.newValue); if (notice.action === 'logout' && String(notice.userId || '') === String(user.id || '')) redirectToLogin(); } catch (_) {}
+      return;
+    }
+    if (event.key === 'crm_session_token' && event.newValue !== activeToken) { redirectToLogin(); return; }
+    if (event.key === 'crm_session_user') {
+      if (!event.newValue) { redirectToLogin(); return; }
+      try {
+        const nextUser = JSON.parse(event.newValue);
+        if (String(nextUser.id || '') !== String(user.id || '')) { redirectToLogin(); return; }
+        user = { ...user, ...nextUser };
+        autoLockEnabled = Boolean(user.pinConfigured);
+        settingsDialog.querySelector('#lock-pin-state').textContent = user.pinConfigured ? 'Настроен' : 'Не задан';
+        clearTimeout(timer);
+        schedule();
+      } catch (_) {}
+      return;
+    }
+    if (event.key !== lockStateKey) return;
+    if (event.newValue === 'locked' && user.pinConfigured) lock('manual');
+    else if (event.newValue?.startsWith('unlocked:') && locked) { locked = false; clearTimeout(timer); overlay.setAttribute('aria-hidden', 'true'); document.body.classList.remove('screen-locked'); setMessage(''); schedule(); }
+  });
+  try { if (localStorage.getItem(lockStateKey) === 'locked' && user.pinConfigured) requestAnimationFrame(() => lock('manual')); } catch (_) {}
   const lockHost = document.querySelector('.header-right') || document.querySelector('.staff-header-user') || document.querySelector('.user');
   addLockButton(lockHost);
   if (lockHost && !document.querySelector('#lock-settings-button')) { settingsButton.id = 'lock-settings-button'; lockHost.prepend(settingsButton); }

@@ -103,13 +103,13 @@ assert.equal(categoryCreated.status, 201);
 
 const categoryUpdated = await call({ route: categoryPatchRoute, pathname: '/api/product-categories/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', method: 'PATCH', pool: mockPool(async (sql) => {
   if (sql.startsWith('SELECT 1 FROM inventory_departments')) { assert.match(sql, /FOR UPDATE/); return { rows: [{ '?column?': 1 }] }; }
-  if (sql.startsWith('SELECT id,name,department FROM product_categories')) return { rows: [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'Сиропы', department: 'bar' }] };
+  if (sql.startsWith('SELECT id,name,department,subdepartment_id')) return { rows: [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'Сиропы', department: 'bar', subdepartmentId: null }] };
   if (sql.startsWith('UPDATE product_categories SET name=')) return { rows: [{ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'Безалкогольные сиропы', department: 'bar', active: true }] };
   if (sql.startsWith('UPDATE ingredients SET category=')) return { rows: [] };
   throw new Error(`Unexpected product-category update query: ${sql}`);
 }), input: { name: 'Безалкогольные сиропы', department: 'bar' } });
 assert.equal(categoryUpdated.status, 200);
-assert.match(categoryPatchRoute, /SELECT 1 FROM inventory_departments[^;]+FOR UPDATE[\s\S]+SELECT id,name,department FROM product_categories[^;]+FOR UPDATE/,
+assert.match(categoryPatchRoute, /SELECT 1 FROM inventory_departments[^;]+FOR UPDATE[\s\S]+SELECT id,name,department,subdepartment_id[^;]+FOR UPDATE/,
   'product-category update locks target parent before the category row');
 
 let archiveQueries = 0;

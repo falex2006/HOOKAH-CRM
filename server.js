@@ -52,6 +52,7 @@ const products = [
   { id: 'lemonade-berry', name: 'Лимонад Лесные ягоды', price: 320, station: 'bar', aliases: ['ягоды', 'лесные ягоды', 'лимонад'], imageUrl: 'data:image/png;base64,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' },
   { id: 'hookah-mint', name: 'Кальян — Mint Mix', price: 1100, station: 'hookah', aliases: ['кальян', 'мята', 'mint'], imageUrl: 'data:image/png;base64,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' }
 ];
+const inventorySubdepartments = [];
 products.forEach((product) => { product.category = product.category || (product.station === 'bar' ? 'Бар' : 'Кальянная зона'); });
 products.push(...catalogSeed.products);
 // The hosted demo starts with an empty business workspace. Technology cards
@@ -69,6 +70,7 @@ const importedProductCategoryNames = [...new Set(catalogSeed.products.map((item)
 for (const name of importedProductCategoryNames) if (!productCategories.some((item) => item.name === name)) productCategories.push({ id: 'seed-category-' + name.toLowerCase().replace(/[^a-z0-9а-яё]+/gi, '-').slice(0, 32), name, active: true });
 productCategories.length = 0;
 const recipes = (catalogSeed.recipes || []).map((recipe, index) => ({ ...recipe, id: recipe.id || 'recipe-' + (index + 1), ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [] }));
+products.forEach((product) => { if (!product.inventoryMode) { const normalizedName = String(product.name || '').trim().toLocaleLowerCase('ru-RU'); const directRecipes = recipes.filter((recipe) => recipe.active !== false && recipe.recipeType !== 'premix' && String(recipe.productId || '') === String(product.id)); const genericRecipes = recipes.filter((recipe) => recipe.active !== false && recipe.recipeType !== 'premix' && !recipe.productId && String(recipe.name || '').trim().toLocaleLowerCase('ru-RU') === normalizedName); const sameNameProducts = products.filter((candidate) => candidate.active !== false && String(candidate.name || '').trim().toLocaleLowerCase('ru-RU') === normalizedName); product.inventoryMode = directRecipes.length === 1 ? 'tracked' : !directRecipes.length && genericRecipes.length === 1 && sameNameProducts.length === 1 ? 'tracked' : 'needs_review'; } });
 const floor = [
   { id: 'hall', name: 'Зал', tables: Array.from({ length: 12 }, (_, i) => {
     const n = i + 1;
@@ -127,6 +129,7 @@ const clients = [
 clients.length = 0;
 const sessions = new Map();
 const loginAttempts = new Map();
+const pinUnlockAttempts = new Map();
 const requestBuckets = new Map();
 const configuredApiRateLimit = Number(process.env.API_RATE_LIMIT);
 const API_RATE_LIMIT = Number.isInteger(configuredApiRateLimit) && configuredApiRateLimit >= 30 && configuredApiRateLimit <= 10000
@@ -315,18 +318,33 @@ async function depleteRecipeForOrder(pool, orderId, venueId, actorId, transactio
     if (ownsTransaction) await client.query('BEGIN');
     let requirements = [];
     const cardProductIds = new Set();
-    const { rows: cards } = await client.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", rc.id AS "recipeId", rc.ingredients, rc.portion_count AS "portionCount"
+    const { rows: cards } = await client.query(`SELECT oi.product_id AS "productId", oi.quantity AS "orderQuantity", p.name AS "productName", p.inventory_mode AS "inventoryMode",
+        EXISTS (SELECT 1 FROM recipes legacy_recipe JOIN recipe_items legacy_item ON legacy_item.product_id=legacy_recipe.product_id
+          JOIN ingredients legacy_ingredient ON legacy_ingredient.id=legacy_item.ingredient_id AND legacy_ingredient.venue_id=p.venue_id
+          WHERE legacy_recipe.product_id=oi.product_id AND legacy_item.quantity>0) AS "hasLegacyRecipe",
+        (SELECT COUNT(*)::int FROM inventory_recipe_cards direct_card WHERE direct_card.venue_id=$2 AND direct_card.active=true AND direct_card.recipe_type='sale' AND direct_card.product_id=oi.product_id) AS "directRecipeCount",
+        (SELECT COUNT(*)::int FROM inventory_recipe_cards generic_card WHERE generic_card.venue_id=$2 AND generic_card.active=true AND generic_card.recipe_type='sale' AND generic_card.product_id IS NULL AND lower(btrim(generic_card.name))=lower(btrim(p.name))) AS "unboundRecipeCount",
+        (SELECT COUNT(*)::int FROM products same_name_product WHERE same_name_product.venue_id=$2 AND same_name_product.is_active=true AND lower(btrim(same_name_product.name))=lower(btrim(p.name))) AS "sameNameProductCount",
+        rc.id AS "recipeId", rc.ingredients, rc.portion_count AS "portionCount", (rc.product_id IS NOT NULL) AS "directlyBound"
       FROM order_items oi JOIN products p ON p.id=oi.product_id
       LEFT JOIN LATERAL (
-        SELECT candidate.id,candidate.ingredients,candidate.portion_count
+        SELECT candidate.id,candidate.ingredients,candidate.portion_count,candidate.product_id
         FROM inventory_recipe_cards candidate
         WHERE candidate.venue_id=$2 AND candidate.active=true AND candidate.recipe_type='sale'
-          AND (candidate.product_id=oi.product_id OR (candidate.product_id IS NULL AND lower(candidate.name)=lower(p.name)))
+          AND (candidate.product_id=oi.product_id OR (candidate.product_id IS NULL AND lower(btrim(candidate.name))=lower(btrim(p.name))))
         ORDER BY (candidate.product_id=oi.product_id) DESC NULLS LAST,candidate.updated_at DESC,candidate.created_at DESC,candidate.id
         LIMIT 1
       ) rc ON true
       WHERE oi.order_id=$1`, [orderId, venueId]);
     for (const card of cards) {
+      if (card.inventoryMode === 'non_stock') continue;
+      if (card.inventoryMode === 'needs_review') throw Object.assign(new Error('product_inventory_mode_required'), { code: 'product_inventory_mode_required', productId: card.productId, productName: card.productName });
+      if (card.inventoryMode !== 'tracked') throw Object.assign(new Error('product_inventory_mode_invalid'), { code: 'product_inventory_mode_invalid', productId: card.productId, productName: card.productName });
+      if (Number(card.directRecipeCount || 0) > 1 || (!Number(card.directRecipeCount || 0) && Number(card.unboundRecipeCount || 0) > 0
+        && (Number(card.unboundRecipeCount) !== 1 || Number(card.sameNameProductCount) !== 1))) {
+        throw Object.assign(new Error('product_recipe_ambiguous'), { code: 'product_recipe_ambiguous', productId: card.productId, productName: card.productName });
+      }
+      if (!card.recipeId && !card.hasLegacyRecipe) throw Object.assign(new Error('product_recipe_required'), { code: 'product_recipe_required', productId: card.productId, productName: card.productName });
       if (!card.recipeId) continue;
       cardProductIds.add(card.productId);
       if (!Array.isArray(card.ingredients) || card.ingredients.length === 0) throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', productId: card.productId });
@@ -461,9 +479,18 @@ const depleteMemoryOrder = (order, { reason = `Списание по заказ�
   if (order.recipeDepleted) return { lines: [], totalCost: Number(order.costOfGoods || 0), alreadyDepleted: true };
   const requirements = [];
   for (const orderItem of order.items || []) {
-    const productRecipes = recipes.filter((entry) => entry.active !== false && entry.recipeType !== 'premix' && entry.productId === orderItem.productId);
-    const recipe = productRecipes[0] || recipes.find((entry) => entry.active !== false && entry.recipeType !== 'premix' && !entry.productId && String(entry.name || '').toLocaleLowerCase('ru-RU') === String(orderItem.name || '').toLocaleLowerCase('ru-RU'));
-    if (!recipe) continue;
+    const product = products.find((entry) => String(entry.id) === String(orderItem.productId));
+    const inventoryMode = product?.inventoryMode || 'needs_review';
+    if (inventoryMode === 'non_stock') continue;
+    if (inventoryMode === 'needs_review') throw Object.assign(new Error('product_inventory_mode_required'), { code: 'product_inventory_mode_required', productId: orderItem.productId, productName: product?.name || orderItem.name });
+    if (inventoryMode !== 'tracked') throw Object.assign(new Error('product_inventory_mode_invalid'), { code: 'product_inventory_mode_invalid', productId: orderItem.productId, productName: product?.name || orderItem.name });
+    const normalizedName = String(product?.name || orderItem.name || '').trim().toLocaleLowerCase('ru-RU');
+    const productRecipes = recipes.filter((entry) => entry.active !== false && entry.recipeType !== 'premix' && String(entry.productId || '') === String(orderItem.productId));
+    const genericRecipes = recipes.filter((entry) => entry.active !== false && entry.recipeType !== 'premix' && !entry.productId && String(entry.name || '').trim().toLocaleLowerCase('ru-RU') === normalizedName);
+    const sameNameProducts = products.filter((entry) => entry.active !== false && String(entry.name || '').trim().toLocaleLowerCase('ru-RU') === normalizedName);
+    if (productRecipes.length > 1 || (!productRecipes.length && genericRecipes.length && (genericRecipes.length !== 1 || sameNameProducts.length !== 1))) throw Object.assign(new Error('product_recipe_ambiguous'), { code: 'product_recipe_ambiguous', productId: orderItem.productId, productName: product?.name || orderItem.name });
+    const recipe = productRecipes[0] || genericRecipes[0];
+    if (!recipe) throw Object.assign(new Error('product_recipe_required'), { code: 'product_recipe_required', productId: orderItem.productId, productName: product?.name || orderItem.name });
     if (!Array.isArray(recipe.ingredients) || recipe.ingredients.length === 0) throw Object.assign(new Error('recipe_invalid'), { code: 'recipe_invalid', productId: orderItem.productId });
     let scaledIngredients;
     try { scaledIngredients = scaleBatchRecipeIngredients(recipe.ingredients, Number(orderItem.quantity), Number(recipe.portionCount || 1)); }
@@ -514,9 +541,12 @@ const inventoryUnitFactors = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 
 const normalizePurchaseInput = (input) => {
   const supplierName = String(input.supplierName || 'Не указан').trim();
   const documentNumber = String(input.documentNumber || '').trim() || null;
-  const documentDate = String(input.documentDate || today());
+  const rawDocumentDate = input.documentDate === undefined || input.documentDate === null ? '' : String(input.documentDate).trim();
+  const documentDate = rawDocumentDate || null;
   const note = String(input.note || '').trim() || null;
-  if (!supplierName || supplierName.length > 160 || (documentNumber && documentNumber.length > 80) || !/^\d{4}-\d{2}-\d{2}$/.test(documentDate) || (note && note.length > 2000)) { const error = new Error('invalid_purchase_document'); throw error; }
+  const parsedDocumentDate = documentDate ? new Date(`${documentDate}T00:00:00.000Z`) : null;
+  const validDocumentDate = !documentDate || (/^\d{4}-\d{2}-\d{2}$/.test(documentDate) && !Number.isNaN(parsedDocumentDate.getTime()) && parsedDocumentDate.toISOString().slice(0, 10) === documentDate);
+  if (!supplierName || supplierName.length > 160 || (documentNumber && documentNumber.length > 80) || !validDocumentDate || (note && note.length > 2000)) { const error = new Error('invalid_purchase_document'); throw error; }
   if (input.sourceAutoOrderId !== undefined && input.sourceAutoOrderId !== null && input.sourceAutoOrderId !== '' && !/^[0-9a-f-]{36}$/i.test(String(input.sourceAutoOrderId))) { const error = new Error('invalid_source_auto_order'); throw error; }
   if (input.lines !== undefined && !Array.isArray(input.lines)) { const error = new Error('invalid_purchase_lines'); throw error; }
   const lines = (input.lines || []).map((entry) => {
@@ -690,12 +720,27 @@ async function api(req, res) {
     const input = await body(req); const pin = String(input.pin || '').trim();
     if (!/^\d{4}$/.test(pin)) return json(res, 400, { error: 'invalid_staff_pin_format' });
     const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
+    const identity = String(req.user?.id || ''); const address = String(req.socket?.remoteAddress || 'unknown'); const attemptKey = `${identity}:${address}`;
+    const attempt = pinUnlockAttempts.get(attemptKey);
+    if (attempt?.blockedUntil > Date.now()) return json(res, 429, { error: 'too_many_pin_attempts', retryAfter: Math.ceil((attempt.blockedUntil - Date.now()) / 1000) });
     const memorySession = sessions.get(token); let unlockHash = memorySession?.unlockHash || null; let pinConfigured = Boolean(memorySession?.user?.pinConfigured);
-    if (!unlockHash && repositories?.pool && /^[0-9a-f-]{36}$/i.test(req.user?.id || '')) {
-      try { const { rows } = await repositories.pool.query('SELECT pin_hash AS "pinHash",pin_updated_at AS "pinUpdatedAt",is_active AS active FROM users WHERE id=$1 LIMIT 1', [req.user.id]); if (rows[0]?.active && rows[0]?.pinUpdatedAt) { unlockHash = rows[0].pinHash; pinConfigured = true; } } catch (error) { return json(res, 503, { error: 'unlock_unavailable', detail: error.message }); }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(identity)) {
+      try {
+        const { rows } = await repositories.pool.query('SELECT pin_hash AS "pinHash",pin_updated_at AS "pinUpdatedAt",is_active AS active FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [identity, memorySession?.user?.venueId || venueDbId]);
+        unlockHash = rows[0]?.active && rows[0]?.pinUpdatedAt ? rows[0].pinHash : null;
+        pinConfigured = Boolean(unlockHash);
+      } catch (error) { return json(res, 503, { error: 'unlock_unavailable', detail: error.message }); }
     }
     if (!pinConfigured || !unlockHash) return json(res, 409, { error: 'pin_not_configured' });
-    if (!(await verifyPassword(pin, unlockHash))) return json(res, 401, { error: 'invalid_pin' });
+    if (!(await verifyPassword(pin, unlockHash))) {
+      const withinWindow = attempt && Date.now() - attempt.firstAt < 60_000;
+      const next = withinWindow ? { count: attempt.count + 1, firstAt: attempt.firstAt } : { count: 1, firstAt: Date.now() };
+      if (next.count >= 5) next.blockedUntil = Date.now() + 60_000;
+      pinUnlockAttempts.set(attemptKey, next);
+      return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_pin_attempts' : 'invalid_pin', ...(next.blockedUntil ? { retryAfter: 60 } : {}) });
+    }
+    pinUnlockAttempts.delete(attemptKey);
+    if (memorySession) { memorySession.unlockHash = unlockHash; memorySession.user.pinConfigured = true; }
     return json(res, 200, { ok: true });
   }
   if (pathname === '/api/session/preferences' && (req.method === 'GET' || req.method === 'PATCH')) {
@@ -1153,7 +1198,8 @@ async function api(req, res) {
       const revenue = checks.reduce((sum, value) => sum + value, 0);
       const costOfGoods = closed.reduce((sum, order) => sum + Number(order.costOfGoods || 0), 0);
       const medianCheck = checks.length ? (checks.length % 2 ? checks[(checks.length - 1) / 2] : (checks[checks.length / 2 - 1] + checks[checks.length / 2]) / 2) : 0;
-      return { date, revenue, expenses: 0, costOfGoods, netProfit: revenue - costOfGoods, orders: closed.length, averageCheck: closed.length ? revenue / closed.length : 0, medianCheck, tables: new Set(closed.map((order) => order.tableId).filter(Boolean)).size };
+      const expenses = manualExpenses.filter((expense) => expense.date === date && !['purchase', 'payroll'].includes(expense.source)).reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+      return { date, revenue, expenses, payroll: 0, costOfGoods, netProfit: revenue - expenses - costOfGoods, orders: closed.length, averageCheck: closed.length ? revenue / closed.length : 0, medianCheck, tables: new Set(closed.map((order) => order.tableId).filter(Boolean)).size };
     });
     const counts = new Map();
     employeeOrders.filter((order) => order.status === 'closed' && dayDates.includes(dayKey(order.closedAt || order.createdAt))).flatMap((order) => order.items || []).forEach((item) => { const name = item.name || item.productName || item.productId || 'Позиция'; counts.set(name, (counts.get(name) || 0) + Number(item.quantity || 0)); });
@@ -1246,7 +1292,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/floor') {
     if (denyUnless(req, res, 'floor')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,CASE WHEN t.status='blocked'::table_status THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' ELSE t.status END AS status,t.capacity,t.min_capacity,t.max_capacity,t.min_order_total,t.layout FROM zones z JOIN tables t ON t.zone_id=z.id WHERE z.venue_id=$1 ORDER BY z.sort_order,CASE WHEN regexp_replace(t.name, '\\D', '', 'g') ~ '^[0-9]{1,9}$' THEN regexp_replace(t.name, '\\D', '', 'g')::int END NULLS LAST,t.name`, [venueDbId]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minCapacity: Number(row.min_capacity || row.capacity), maxCapacity: Number(row.max_capacity || row.capacity), minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {} }); } return json(res, 200, { zones }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,CASE WHEN t.status='blocked'::table_status THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' ELSE t.status END AS status,t.capacity,t.min_capacity,t.max_capacity,t.min_order_total,t.layout FROM zones z LEFT JOIN tables t ON t.zone_id=z.id WHERE z.venue_id=$1 ORDER BY z.sort_order,CASE WHEN regexp_replace(t.name, '\\D', '', 'g') ~ '^[0-9]{1,9}$' THEN regexp_replace(t.name, '\\D', '', 'g')::int END NULLS LAST,t.name`, [venueDbId]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } if (row.id) zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minCapacity: Number(row.min_capacity || row.capacity), maxCapacity: Number(row.max_capacity || row.capacity), minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {} }); } return json(res, 200, { zones }); } catch (_) {} }
     const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.map((table) => { const reservation = reservations.find((entry) => entry.tableId === table.id && entry.status === 'confirmed' && entry.date === today()); const occupied = orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)); return { ...table, status: table.status === 'blocked' ? 'blocked' : (occupied ? 'occupied' : reservation ? 'reserved' : table.status), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, date: reservation.date, time: reservation.time, createdByName: reservation.createdByName || 'Сотрудник', createdByRole: reservation.createdByRole || 'Сотрудник' } : null }; }) }));
     return json(res, 200, { zones: derivedFloor });
   }
@@ -1271,13 +1317,13 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (inventoryDepartmentPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
-    const code = decodeURIComponent(inventoryDepartmentPath[1]); if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const department = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, code]); if (!department.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_department_not_found' }); } const used = await client.query('SELECT EXISTS(SELECT 1 FROM product_categories WHERE venue_id=$1 AND department=$2 AND is_active=true) OR EXISTS(SELECT 1 FROM inventory_subdepartments WHERE venue_id=$1 AND department_code=$2 AND is_active=true) AS used', [venueDbId, code]); if (used.rows[0]?.used) { await client.query('ROLLBACK'); return json(res, 409, { error: 'inventory_department_in_use' }); } const { rows } = await client.query('UPDATE inventory_departments SET is_active=false WHERE venue_id=$1 AND code=$2 AND is_active=true RETURNING code AS id,code,name,is_active AS active', [venueDbId, code]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_department_not_found' }); } await client.query('COMMIT'); recordAudit(req, 'inventory.department_archived', 'inventory_department', code, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'inventory_department_archive_failed' }); } finally { client?.release(); } }
+    const code = decodeURIComponent(inventoryDepartmentPath[1]); if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const department = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, code]); if (!department.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_department_not_found' }); } const used = await client.query('SELECT EXISTS(SELECT 1 FROM product_categories WHERE venue_id=$1 AND department=$2 AND is_active=true) OR EXISTS(SELECT 1 FROM inventory_subdepartments WHERE venue_id=$1 AND department_code=$2 AND is_active=true) OR EXISTS(SELECT 1 FROM ingredients WHERE venue_id=$1 AND department=$2 AND is_marked=true) AS used', [venueDbId, code]); if (used.rows[0]?.used) { await client.query('ROLLBACK'); return json(res, 409, { error: 'inventory_department_in_use' }); } const { rows } = await client.query('UPDATE inventory_departments SET is_active=false WHERE venue_id=$1 AND code=$2 AND is_active=true RETURNING code AS id,code,name,is_active AS active', [venueDbId, code]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_department_not_found' }); } await client.query('COMMIT'); recordAudit(req, 'inventory.department_archived', 'inventory_department', code, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'inventory_department_archive_failed' }); } finally { client?.release(); } }
     return json(res, 200, { id: code, code, active: false });
   }
   if (pathname === '/api/product-categories' && req.method === 'GET') {
     if (denyUnless(req, res, 'inventory_read')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,name,department,is_active AS active FROM product_categories WHERE venue_id=$1 AND is_active=true ORDER BY name', [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
-    return json(res, 200, { items: productCategories.filter((item) => item.active) });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT c.id,c.name,c.department,c.subdepartment_id AS "subdepartmentId",s.name AS "subdepartmentName",c.is_active AS active FROM product_categories c LEFT JOIN inventory_subdepartments s ON s.id=c.subdepartment_id AND s.venue_id=c.venue_id WHERE c.venue_id=$1 AND c.is_active=true ORDER BY c.department,s.name NULLS FIRST,c.name', [venueDbId]); return json(res, 200, { items: rows }); } catch (error) { return json(res, 503, { error: 'product_categories_unavailable', detail: error.message }); } }
+    return json(res, 200, { items: productCategories.filter((item) => item.active).map((item) => ({ ...item, subdepartmentName: inventorySubdepartments.find((entry) => entry.id === item.subdepartmentId)?.name || null })) });
   }
   if (pathname === '/api/product-categories' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -1285,19 +1331,24 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
     const department = String(input.department || 'inventory').trim();
     if (!department || department.length > 48) return json(res, 400, { error: 'invalid_product_category_department' });
-    if (repositories?.pool) { let client; let checkingParent = true; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, department]); checkingParent = false; if (!departmentResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_department_not_found' }); } const { rows } = await client.query('INSERT INTO product_categories (venue_id,name,department) VALUES ($1,$2,$3) RETURNING id,name,department,is_active AS active', [venueDbId, name, department]); await client.query('COMMIT'); const category = rows[0]; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); if (checkingParent) return json(res, 503, { error: 'inventory_hierarchy_unavailable' }); return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); } finally { client?.release(); } }
+    const subdepartmentId = String(input.subdepartmentId || '').trim() || null;
+    if (repositories?.pool && subdepartmentId && !/^[0-9a-f-]{36}$/i.test(subdepartmentId)) return json(res, 400, { error: 'invalid_product_category_subdepartment' });
+    if (repositories?.pool) { let client; let checkingParent = true; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, department]); checkingParent = false; if (!departmentResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_department_not_found' }); } let subdepartmentName = null; if (subdepartmentId) { const subdepartment = await client.query('SELECT id,name FROM inventory_subdepartments WHERE venue_id=$1 AND department_code=$2 AND id=$3 AND is_active=true FOR UPDATE', [venueDbId, department, subdepartmentId]); if (!subdepartment.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_subdepartment_not_found' }); } subdepartmentName = subdepartment.rows[0].name; } const { rows } = await client.query('INSERT INTO product_categories (venue_id,name,department,subdepartment_id) VALUES ($1,$2,$3,$4) RETURNING id,name,department,subdepartment_id AS "subdepartmentId",is_active AS active', [venueDbId, name, department, subdepartmentId]); await client.query('COMMIT'); const category = { ...rows[0], subdepartmentName }; recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); if (checkingParent) return json(res, 503, { error: 'inventory_hierarchy_unavailable' }); return json(res, 409, { error: error.code === '23505' ? 'product_category_exists' : 'product_category_create_failed', detail: error.message }); } finally { client?.release(); } }
     if (!['kitchen','bar','hookah','inventory'].includes(department)) return json(res, 400, { error: 'inventory_department_not_found' });
     if (productCategories.some((item) => item.active && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
-    const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, department, active: true };
+    const subdepartment = subdepartmentId && inventorySubdepartments.find((item) => item.id === subdepartmentId && item.departmentCode === department && item.active !== false);
+    if (subdepartmentId && !subdepartment) return json(res, 400, { error: 'inventory_subdepartment_not_found' });
+    const category = { id: `product-category-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, department, subdepartmentId, subdepartmentName: subdepartment?.name || null, active: true };
     productCategories.push(category); recordAudit(req, 'product_category.created', 'product_category', category.id, null, category); return json(res, 201, category);
   }
   const productCategoryPath = pathname.match(/^\/api\/product-categories\/([^/]+)$/);
   if (productCategoryPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) {
-      const input = await body(req); const name = String(input.name || '').trim(); const department = String(input.department || 'inventory').trim();
+      const input = await body(req); const name = String(input.name || '').trim(); const department = String(input.department || 'inventory').trim(); const subdepartmentId = String(input.subdepartmentId || '').trim() || null;
       if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
       if (!department || department.length > 48) return json(res, 400, { error: 'invalid_product_category_department' });
+      if (subdepartmentId && !/^[0-9a-f-]{36}$/i.test(subdepartmentId)) return json(res, 400, { error: 'invalid_product_category_subdepartment' });
       let client;
       let updated;
       let before;
@@ -1308,16 +1359,19 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, department]);
         checkingParent = false;
         if (!departmentResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_department_not_found' }); }
-        const current = await client.query('SELECT id,name,department FROM product_categories WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [productCategoryPath[1], venueDbId]);
+        let subdepartmentName = null;
+        if (subdepartmentId) { const subdepartment = await client.query('SELECT id,name FROM inventory_subdepartments WHERE venue_id=$1 AND department_code=$2 AND id=$3 AND is_active=true FOR UPDATE', [venueDbId, department, subdepartmentId]); if (!subdepartment.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_subdepartment_not_found' }); } subdepartmentName = subdepartment.rows[0].name; }
+        const current = await client.query('SELECT id,name,department,subdepartment_id AS "subdepartmentId" FROM product_categories WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [productCategoryPath[1], venueDbId]);
         before = current.rows[0];
         if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'product_category_not_found' }); }
-        const result = await client.query('UPDATE product_categories SET name=$1,department=$2 WHERE id=$3 AND venue_id=$4 AND is_active=true RETURNING id,name,department,is_active AS active', [name, department, productCategoryPath[1], venueDbId]);
+        const result = await client.query('UPDATE product_categories SET name=$1,department=$2,subdepartment_id=$3 WHERE id=$4 AND venue_id=$5 AND is_active=true RETURNING id,name,department,subdepartment_id AS "subdepartmentId",is_active AS active', [name, department, subdepartmentId, productCategoryPath[1], venueDbId]);
         updated = result.rows[0];
         if (!updated) { await client.query('ROLLBACK'); return json(res, 404, { error: 'product_category_not_found' }); }
-        if (before.name !== name || before.department !== department) {
-          await client.query('UPDATE ingredients SET category=$1,department=$2 WHERE venue_id=$3 AND category=$4 AND department=$5 AND is_marked=true', [name, department, venueDbId, before.name, before.department]);
+        if (before.name !== name || before.department !== department || String(before.subdepartmentId || '') !== String(subdepartmentId || '')) {
+          await client.query(`UPDATE ingredients SET category=$1,department=$2,subdepartment=CASE WHEN $6::uuid IS NOT NULL THEN $7 WHEN $2<>$5 THEN '' ELSE subdepartment END WHERE venue_id=$3 AND category=$4 AND department=$5 AND is_marked=true`, [name, department, venueDbId, before.name, before.department, subdepartmentId, subdepartmentName]);
         }
         await client.query('COMMIT');
+        updated.subdepartmentName = subdepartmentName;
       } catch (error) {
         if (client) await client.query('ROLLBACK').catch(() => {});
         if (checkingParent) return json(res, 503, { error: 'inventory_hierarchy_unavailable' });
@@ -1330,7 +1384,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const input = await body(req); const name = String(input.name || '').trim();
     if (!name || name.length > 80) return json(res, 400, { error: 'invalid_product_category' });
     if (productCategories.some((item) => item.active && item.id !== category.id && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'product_category_exists' });
-    const department = String(input.department || category.department || 'inventory').trim(); if (!['kitchen','bar','hookah','inventory'].includes(department)) return json(res, 400, { error: 'inventory_department_not_found' }); const before = { ...category }; category.name = name; category.department = department; recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
+    const department = String(input.department || category.department || 'inventory').trim(); if (!['kitchen','bar','hookah','inventory'].includes(department)) return json(res, 400, { error: 'inventory_department_not_found' }); const subdepartmentId = String(input.subdepartmentId || '').trim() || null; const subdepartment = subdepartmentId && inventorySubdepartments.find((item) => item.id === subdepartmentId && item.departmentCode === department && item.active); if (subdepartmentId && !subdepartment) return json(res, 400, { error: 'inventory_subdepartment_not_found' }); const before = { ...category }; Object.assign(category, { name, department, subdepartmentId, subdepartmentName: subdepartment?.name || null }); recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
   if (productCategoryPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -1361,14 +1415,92 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (recipeType === 'premix' && requestedProductId) return json(res, 400, { error: 'premix_product_binding_not_allowed' });
     if (requestedProductId && repositories?.pool && !/^[0-9a-f-]{36}$/i.test(requestedProductId)) return json(res, 400, { error: 'recipe_product_invalid' });
     if (requestedProductId && !repositories?.pool && !products.some((item) => item.id === requestedProductId)) return json(res, 400, { error: 'recipe_product_not_found' });
+    if (requestedProductId && !repositories?.pool && recipeType === 'sale') {
+      const targetProduct = products.find((item) => item.id === requestedProductId);
+      if (targetProduct?.inventoryMode === 'non_stock') return json(res, 409, { error: 'non_stock_product_has_recipe' });
+      if (recipes.some((item) => item.active !== false && item.recipeType !== 'premix' && String(item.productId || '') === requestedProductId)) return json(res, 409, { error: 'product_recipe_ambiguous' });
+    }
     if (requestedProductId && repositories?.pool) { const product = await repositories.pool.query('SELECT id FROM products WHERE id=$1 AND venue_id=$2', [requestedProductId, venueDbId]); if (!product.rows[0]) return json(res, 400, { error: 'recipe_product_not_found' }); }
-    if (repositories?.pool) { try { const productId = requestedProductId; const { rows } = await repositories.pool.query('INSERT INTO inventory_recipe_cards (venue_id,product_id,name,ingredients,technology,serve,yield_quantity,yield_unit,portion_count,recipe_type) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10) RETURNING id,product_id AS "productId",name,ingredients,technology,serve,yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount",recipe_type AS "recipeType",active,created_at AS "createdAt",updated_at AS "updatedAt"', [venueDbId, productId, name, JSON.stringify(ingredients), technology || null, serve || null, output.yieldQuantity, output.yieldUnit, output.portionCount, recipeType]); const recipe = normalizeRecipeCard(rows[0]); recordAudit(req, 'recipe.created', 'recipe', recipe.id, null, recipe); return json(res, 201, recipe); } catch (error) { return json(res, 409, { error: 'recipe_save_failed', detail: error.message }); } }
+
+    if (repositories?.pool) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        if (requestedProductId && recipeType === 'sale') {
+          const product = await client.query('SELECT id,inventory_mode AS "inventoryMode" FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [requestedProductId, venueDbId]);
+          if (!product.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'recipe_product_not_found' }); }
+          if (product.rows[0].inventoryMode === 'non_stock') { await client.query('ROLLBACK'); return json(res, 409, { error: 'non_stock_product_has_recipe' }); }
+          const duplicate = await client.query("SELECT 1 FROM inventory_recipe_cards WHERE venue_id=$1 AND product_id=$2 AND active=true AND recipe_type='sale' LIMIT 1", [venueDbId, requestedProductId]);
+          if (duplicate.rowCount) { await client.query('ROLLBACK'); return json(res, 409, { error: 'product_recipe_ambiguous' }); }
+        } else if (requestedProductId) {
+          const product = await client.query('SELECT id FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [requestedProductId, venueDbId]);
+          if (!product.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'recipe_product_not_found' }); }
+        }
+        const { rows } = await client.query('INSERT INTO inventory_recipe_cards (venue_id,product_id,name,ingredients,technology,serve,yield_quantity,yield_unit,portion_count,recipe_type) VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10) RETURNING id,product_id AS "productId",name,ingredients,technology,serve,yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount",recipe_type AS "recipeType",active,created_at AS "createdAt",updated_at AS "updatedAt"', [venueDbId, requestedProductId, name, JSON.stringify(ingredients), technology || null, serve || null, output.yieldQuantity, output.yieldUnit, output.portionCount, recipeType]);
+        await client.query('COMMIT');
+        const recipe = normalizeRecipeCard(rows[0]);
+        recordAudit(req, 'recipe.created', 'recipe', recipe.id, null, recipe);
+        return json(res, 201, recipe);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'recipe_save_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
     const recipe = { id: 'recipe-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7), productId: requestedProductId, name, ingredients, technology, serve, recipeType, ...output }; recipes.push(recipe); recordAudit(req, 'recipe.created', 'recipe', recipe.id, null, recipe); return json(res, 201, recipe);
   }
   const recipeProfile = pathname.match(/^\/api\/recipes\/([^/]+)$/);
   if (recipeProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(recipeProfile[1])) { try { const input = await body(req); const existingResult = await repositories.pool.query('SELECT product_id AS "productId",recipe_type AS "recipeType",yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount" FROM inventory_recipe_cards WHERE id=$1 AND venue_id=$2 AND active=true', [recipeProfile[1], venueDbId]); const existing = existingResult.rows[0]; if (!existing) return json(res, 404, { error: 'recipe_not_found' }); const nextType = input.recipeType === undefined ? existing.recipeType : (['sale','premix'].includes(String(input.recipeType)) ? String(input.recipeType) : null); if (!nextType) return json(res, 400, { error: 'invalid_recipe_type' }); const nextProductId = input.productId === undefined ? existing.productId : (input.productId === null ? null : String(input.productId).trim() || null); if (nextType === 'premix' && nextProductId) return json(res, 400, { error: 'premix_product_binding_not_allowed' }); if (nextProductId && !/^[0-9a-f-]{36}$/i.test(nextProductId)) return json(res, 400, { error: 'recipe_product_invalid' }); if (nextProductId) { const product = await repositories.pool.query('SELECT id FROM products WHERE id=$1 AND venue_id=$2', [nextProductId, venueDbId]); if (!product.rows[0]) return json(res, 400, { error: 'recipe_product_not_found' }); } if (input.ingredients !== undefined) { try { input.ingredients = await normalizeRecipeIngredients(input.ingredients, venueDbId); } catch (error) { return json(res, 400, { error: error.code || 'invalid_recipe_ingredients', ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); } if (!input.ingredients) return json(res, 503, { error: 'recipe_ingredients_unavailable' }); } let output = null; if (input.yieldQuantity !== undefined || input.yieldUnit !== undefined || input.portionCount !== undefined || input.yield !== undefined || input.portions !== undefined) { try { output = normalizeRecipeOutput(input, existing); } catch (error) { return json(res, 400, { error: error.code || 'invalid_recipe_output', targetUnit: error.targetUnit }); } } const fields = []; const values = [recipeProfile[1], venueDbId]; if (input.productId !== undefined) { values.push(nextProductId); fields.push(`product_id=$${values.length}`); } if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) return json(res, 400, { error: 'invalid_recipe' }); values.push(name); fields.push(`name=$${values.length}`); } if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); values.push(JSON.stringify(input.ingredients.slice(0, 50))); fields.push(`ingredients=$${values.length}::jsonb`); } if (input.technology !== undefined) { const technology = String(input.technology || '').trim(); if (technology.length > 4000) return json(res, 400, { error: 'invalid_recipe' }); values.push(technology || null); fields.push(`technology=$${values.length}`); } if (input.serve !== undefined) { const serve = String(input.serve || '').trim(); if (serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' }); values.push(serve || null); fields.push(`serve=$${values.length}`); } if (output) { values.push(output.yieldQuantity, output.yieldUnit, output.portionCount); fields.push(`yield_quantity=$${values.length - 2}`, `yield_unit=$${values.length - 1}`, `portion_count=$${values.length}`); } if (input.recipeType !== undefined) { values.push(nextType); fields.push(`recipe_type=$${values.length}`); } if (!fields.length) return json(res, 400, { error: 'invalid_recipe' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE inventory_recipe_cards SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND active=true RETURNING id,product_id AS "productId",name,ingredients,technology,serve,yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount",recipe_type AS "recipeType",active,created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'recipe_not_found' }); const updated = normalizeRecipeCard(rows[0]); recordAudit(req, 'recipe.updated', 'recipe', updated.id, null, updated); return json(res, 200, updated); } catch (error) { return json(res, 409, { error: 'recipe_save_failed', detail: error.message }); } }
+
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(recipeProfile[1])) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const input = await body(req);
+        const existingResult = await client.query('SELECT product_id AS "productId",recipe_type AS "recipeType",yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount" FROM inventory_recipe_cards WHERE id=$1 AND venue_id=$2 AND active=true FOR UPDATE', [recipeProfile[1], venueDbId]);
+        const existing = existingResult.rows[0];
+        if (!existing) { await client.query('ROLLBACK'); return json(res, 404, { error: 'recipe_not_found' }); }
+        const nextType = input.recipeType === undefined ? existing.recipeType : (['sale','premix'].includes(String(input.recipeType)) ? String(input.recipeType) : null);
+        if (!nextType) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_recipe_type' }); }
+        const nextProductId = input.productId === undefined ? existing.productId : (input.productId === null ? null : String(input.productId).trim() || null);
+        if (nextType === 'premix' && nextProductId) { await client.query('ROLLBACK'); return json(res, 400, { error: 'premix_product_binding_not_allowed' }); }
+        if (nextProductId && !/^[0-9a-f-]{36}$/i.test(nextProductId)) { await client.query('ROLLBACK'); return json(res, 400, { error: 'recipe_product_invalid' }); }
+        if (nextProductId && nextType === 'sale') {
+          const product = await client.query('SELECT id,inventory_mode AS "inventoryMode" FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [nextProductId, venueDbId]);
+          if (!product.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'recipe_product_not_found' }); }
+          if (product.rows[0].inventoryMode === 'non_stock') { await client.query('ROLLBACK'); return json(res, 409, { error: 'non_stock_product_has_recipe' }); }
+          const duplicate = await client.query("SELECT 1 FROM inventory_recipe_cards WHERE venue_id=$1 AND product_id=$2 AND active=true AND recipe_type='sale' AND id<>$3 LIMIT 1", [venueDbId, nextProductId, recipeProfile[1]]);
+          if (duplicate.rowCount) { await client.query('ROLLBACK'); return json(res, 409, { error: 'product_recipe_ambiguous' }); }
+        } else if (nextProductId) {
+          const product = await client.query('SELECT id FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [nextProductId, venueDbId]);
+          if (!product.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'recipe_product_not_found' }); }
+        }
+        if (input.ingredients !== undefined) {
+          if (!Array.isArray(input.ingredients) || !input.ingredients.length) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_recipe' }); }
+          try { input.ingredients = await normalizeRecipeIngredients(input.ingredients, venueDbId); }
+          catch (error) { await client.query('ROLLBACK'); return json(res, 400, { error: error.code || 'invalid_recipe_ingredients', ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); }
+          if (!input.ingredients) { await client.query('ROLLBACK'); return json(res, 503, { error: 'recipe_ingredients_unavailable' }); }
+        }
+        let output = null;
+        if (input.yieldQuantity !== undefined || input.yieldUnit !== undefined || input.portionCount !== undefined || input.yield !== undefined || input.portions !== undefined) {
+          try { output = normalizeRecipeOutput(input, existing); }
+          catch (error) { await client.query('ROLLBACK'); return json(res, 400, { error: error.code || 'invalid_recipe_output', targetUnit: error.targetUnit }); }
+        }
+        const fields = []; const values = [recipeProfile[1], venueDbId];
+        if (input.productId !== undefined) { values.push(nextProductId); fields.push(`product_id=$${values.length}`); }
+        if (input.name !== undefined) { const name = String(input.name || '').trim(); if (!name || name.length > 120) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_recipe' }); } values.push(name); fields.push(`name=$${values.length}`); }
+        if (input.ingredients !== undefined) { values.push(JSON.stringify(input.ingredients.slice(0, 50))); fields.push(`ingredients=$${values.length}::jsonb`); }
+        if (input.technology !== undefined) { const technology = String(input.technology || '').trim(); if (technology.length > 4000) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_recipe' }); } values.push(technology || null); fields.push(`technology=$${values.length}`); }
+        if (input.serve !== undefined) { const serve = String(input.serve || '').trim(); if (serve.length > 1000) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_recipe' }); } values.push(serve || null); fields.push(`serve=$${values.length}`); }
+        if (output) { values.push(output.yieldQuantity, output.yieldUnit, output.portionCount); fields.push(`yield_quantity=$${values.length - 2}`, `yield_unit=$${values.length - 1}`, `portion_count=$${values.length}`); }
+        if (input.recipeType !== undefined) { values.push(nextType); fields.push(`recipe_type=$${values.length}`); }
+        if (!fields.length) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_recipe' }); }
+        fields.push('updated_at=now()');
+        const { rows } = await client.query(`UPDATE inventory_recipe_cards SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 AND active=true RETURNING id,product_id AS "productId",name,ingredients,technology,serve,yield_quantity AS "yieldQuantity",yield_unit AS "yieldUnit",portion_count AS "portionCount",recipe_type AS "recipeType",active,created_at AS "createdAt",updated_at AS "updatedAt"`, values);
+        if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'recipe_not_found' }); }
+        await client.query('COMMIT');
+        const updated = normalizeRecipeCard(rows[0]); recordAudit(req, 'recipe.updated', 'recipe', updated.id, null, updated); return json(res, 200, updated);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'recipe_save_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
     const storedRecipe = recipes.find((item) => item.id === recipeProfile[1]); const recipe = storedRecipe && { ...storedRecipe }; if (!recipe) return json(res, 404, { error: 'recipe_not_found' });
     const input = await body(req); const before = { ...recipe };
     if (input.productId !== undefined) { const productId = input.productId === null ? null : String(input.productId).trim() || null; if (productId && repositories?.pool && !/^[0-9a-f-]{36}$/i.test(productId)) return json(res, 400, { error: 'recipe_product_invalid' }); if (productId && !repositories?.pool && !products.some((item) => item.id === productId)) return json(res, 400, { error: 'recipe_product_not_found' }); recipe.productId = productId; }
@@ -1376,7 +1508,9 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (input.ingredients !== undefined) { if (!Array.isArray(input.ingredients)) return json(res, 400, { error: 'invalid_recipe' }); try { recipe.ingredients = await normalizeRecipeIngredients(input.ingredients, venueDbId); } catch (error) { return json(res, 400, { error: error.code || 'invalid_recipe_ingredients', ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); } if (!recipe.ingredients) return json(res, 503, { error: 'recipe_ingredients_unavailable' }); }
     if (input.technology !== undefined) { recipe.technology = String(input.technology || '').trim(); if (recipe.technology.length > 4000) return json(res, 400, { error: 'invalid_recipe' }); }
     if (input.serve !== undefined) { recipe.serve = String(input.serve || '').trim(); if (recipe.serve.length > 1000) return json(res, 400, { error: 'invalid_recipe' }); } if (input.recipeType !== undefined) { if (!['sale','premix'].includes(String(input.recipeType))) return json(res, 400, { error: 'invalid_recipe_type' }); recipe.recipeType = String(input.recipeType); }
+    if (recipe.recipeType === 'premix' && recipe.productId) return json(res, 400, { error: 'premix_product_binding_not_allowed' });
     if (input.yieldQuantity !== undefined || input.yieldUnit !== undefined || input.portionCount !== undefined || input.yield !== undefined || input.portions !== undefined) { try { Object.assign(recipe, normalizeRecipeOutput(input, { yieldQuantity: recipe.yieldQuantity || 1, yieldUnit: recipe.yieldUnit || 'порция', portionCount: recipe.portionCount || 1 })); } catch (error) { return json(res, 400, { error: error.code || 'invalid_recipe_output', targetUnit: error.targetUnit }); } }
+    if (recipe.productId && recipe.recipeType !== 'premix') { const targetProduct = products.find((item) => item.id === recipe.productId); if (!targetProduct) return json(res, 400, { error: 'recipe_product_not_found' }); if (targetProduct.inventoryMode === 'non_stock') return json(res, 409, { error: 'non_stock_product_has_recipe' }); if (recipes.some((item) => item.id !== recipe.id && item.active !== false && item.recipeType !== 'premix' && String(item.productId || '') === String(recipe.productId))) return json(res, 409, { error: 'product_recipe_ambiguous' }); }
     Object.assign(storedRecipe, recipe); recordAudit(req, 'recipe.updated', 'recipe', recipe.id, before, recipe); return json(res, 200, recipe);
   }
   if (recipeProfile && req.method === 'DELETE') {
@@ -1387,23 +1521,42 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/products' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
-    const input = await body(req); const name = String(input.name || '').trim(); const category = String(input.category || input.station || '').trim(); const price = Number(input.price);
+    const input = await body(req); const name = String(input.name || '').trim(); const category = String(input.category || input.station || '').trim(); const price = Number(input.price); const inventoryMode = String(input.inventoryMode || 'tracked');
     const aliases = Array.isArray(input.aliases) ? input.aliases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : [];
-    if (!name || name.length > 120 || !category || category.length > 80 || !Number.isFinite(price) || price < 0 || price > 10000000) return json(res, 400, { error: 'invalid_product' });
+    if (!name || name.length > 120 || !category || category.length > 80 || !Number.isFinite(price) || price < 0 || price > 10000000 || !['tracked','non_stock'].includes(inventoryMode)) return json(res, 400, { error: 'invalid_product' });
     if (input.imageUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(input.imageUrl)) || String(input.imageUrl).length > 1500000)) return json(res, 400, { error: 'invalid_image' });
-    if (repositories?.products) { try { const product = await repositories.products.create({ venueId: venueDbId, name, category, price, aliases, imageUrl: input.imageUrl }); recordAudit(req, 'product.created', 'product', product.id, null, product); return json(res, 201, product); } catch (error) { return json(res, 409, { error: 'product_create_failed', detail: error.message }); } }
-    const product = { id: `product-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, category, station: category, price, aliases, imageUrl: input.imageUrl || null };
+    if (repositories?.products) { try { const product = await repositories.products.create({ venueId: venueDbId, name, category, price, aliases, imageUrl: input.imageUrl, inventoryMode }); recordAudit(req, 'product.created', 'product', product.id, null, product); return json(res, 201, product); } catch (error) { return json(res, 409, { error: 'product_create_failed', detail: error.message }); } }
+    const product = { id: `product-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, category, station: category, price, aliases, imageUrl: input.imageUrl || null, inventoryMode };
     products.push(product); recordAudit(req, 'product.created', 'product', product.id, null, product); return json(res, 201, product);
   }
   const productProfile = pathname.match(/^\/api\/products\/([^/]+)$/);
   if (productProfile && req.method === 'PATCH') {
     if (denyUnless(req, res, 'inventory')) return;
-    const input = await body(req); const name = input.name === undefined ? undefined : String(input.name || '').trim(); const category = input.category === undefined && input.station === undefined ? undefined : String(input.category ?? input.station ?? '').trim(); const price = input.price === undefined ? undefined : Number(input.price);
+    const input = await body(req); const name = input.name === undefined ? undefined : String(input.name || '').trim(); const category = input.category === undefined && input.station === undefined ? undefined : String(input.category ?? input.station ?? '').trim(); const price = input.price === undefined ? undefined : Number(input.price); const inventoryMode = input.inventoryMode === undefined ? undefined : String(input.inventoryMode);
     const aliases = input.aliases === undefined ? undefined : (Array.isArray(input.aliases) ? input.aliases.map(String).map((item) => item.trim()).filter(Boolean).slice(0, 30) : null);
-    if (name !== undefined && (!name || name.length > 120) || category !== undefined && (!category || category.length > 80) || price !== undefined && (!Number.isFinite(price) || price < 0 || price > 10000000) || aliases === null) return json(res, 400, { error: 'invalid_product' });
+    if (name !== undefined && (!name || name.length > 120) || category !== undefined && (!category || category.length > 80) || price !== undefined && (!Number.isFinite(price) || price < 0 || price > 10000000) || aliases === null || inventoryMode !== undefined && !['tracked','non_stock','needs_review'].includes(inventoryMode)) return json(res, 400, { error: 'invalid_product' });
     if (input.imageUrl !== undefined && input.imageUrl && (!/^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(input.imageUrl)) || String(input.imageUrl).length > 1500000)) return json(res, 400, { error: 'invalid_image' });
-    if (repositories?.products) { try { const before = (await repositories.products.list(venueDbId)).find((entry) => entry.id === productProfile[1]); if (!before) return json(res, 404, { error: 'product_not_found' }); const product = await repositories.products.update(venueDbId, productProfile[1], { name, category, price, aliases, imageUrl: input.imageUrl }); recordAudit(req, 'product.updated', 'product', product.id, before, product); return json(res, 200, product); } catch (error) { return json(res, 409, { error: 'product_update_failed', detail: error.message }); } }
-    const product = products.find((entry) => entry.id === productProfile[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); const before = { ...product }; if (name !== undefined) product.name = name; if (category !== undefined) { product.category = category; product.station = category; } if (price !== undefined) product.price = price; if (aliases !== undefined) product.aliases = aliases; if (input.imageUrl !== undefined) product.imageUrl = input.imageUrl || null; recordAudit(req, 'product.updated', 'product', product.id, before, product); return json(res, 200, product);
+    if (repositories?.products) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const { rows } = await client.query('SELECT id,name,category,sale_price AS price,search_aliases AS aliases,image_url AS "imageUrl",inventory_mode AS "inventoryMode" FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [productProfile[1], venueDbId]);
+        const before = rows[0] && { ...rows[0], price: Number(rows[0].price), aliases: rows[0].aliases || [] };
+        if (!before) { await client.query('ROLLBACK'); return json(res, 404, { error: 'product_not_found' }); }
+        if (inventoryMode === 'non_stock') {
+          const recipe = await client.query(`SELECT 1 FROM inventory_recipe_cards c WHERE c.venue_id=$1 AND c.active=true AND c.recipe_type='sale' AND (c.product_id=$2 OR (c.product_id IS NULL AND lower(btrim(c.name))=lower(btrim($3)))) UNION ALL SELECT 1 FROM recipes r JOIN recipe_items ri ON ri.product_id=r.product_id JOIN ingredients i ON i.id=ri.ingredient_id AND i.venue_id=$1 WHERE r.product_id=$2 AND ri.quantity>0 LIMIT 1`, [venueDbId, productProfile[1], name || before.name]);
+          if (recipe.rowCount) { await client.query('ROLLBACK'); return json(res, 409, { error: 'non_stock_product_has_recipe' }); }
+          const openOrder = await client.query("SELECT 1 FROM order_items oi JOIN orders o ON o.id=oi.order_id WHERE o.venue_id=$1 AND oi.product_id=$2 AND o.status IN ('open','in_progress','ready') LIMIT 1", [venueDbId, productProfile[1]]);
+          if (openOrder.rowCount) { await client.query('ROLLBACK'); return json(res, 409, { error: 'product_has_open_orders' }); }
+        }
+        const product = await repositories.products.update(venueDbId, productProfile[1], { name, category, price, aliases, imageUrl: input.imageUrl, inventoryMode }, client);
+        await client.query('COMMIT');
+        recordAudit(req, 'product.updated', 'product', product.id, before, product);
+        return json(res, 200, product);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'product_update_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
+    const product = products.find((entry) => entry.id === productProfile[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); if (inventoryMode === 'non_stock') { const nextName = name || product.name; if (recipes.some((recipe) => recipe.active !== false && recipe.recipeType !== 'premix' && (recipe.productId === product.id || (!recipe.productId && String(recipe.name || '').toLocaleLowerCase('ru-RU') === String(nextName).toLocaleLowerCase('ru-RU'))))) return json(res, 409, { error: 'non_stock_product_has_recipe' }); if (orders.some((order) => ['open','in_progress','ready'].includes(order.status) && (order.items || []).some((item) => item.productId === product.id))) return json(res, 409, { error: 'product_has_open_orders' }); } const before = { ...product }; if (name !== undefined) product.name = name; if (category !== undefined) { product.category = category; product.station = category; } if (price !== undefined) product.price = price; if (aliases !== undefined) product.aliases = aliases; if (inventoryMode !== undefined) product.inventoryMode = inventoryMode; if (input.imageUrl !== undefined) product.imageUrl = input.imageUrl || null; recordAudit(req, 'product.updated', 'product', product.id, before, product); return json(res, 200, product);
   }
   if (productProfile && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -1612,7 +1765,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
     return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { person.pinConfigured = Boolean(person.pinCode || person.pinHash || person.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!canSeeStaffPhoto(req)) delete person.photoUrl; if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
@@ -1707,6 +1860,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (memoryPerson) {
       if (!memoryPerson.active || memoryPerson.deletedAt) return json(res, 404, { error: 'staff_not_found' });
       memoryPerson.pinHash = await hashPassword(pin); memoryPerson.pinCode = null; memoryPerson.pinConfigured = true; memoryPerson.pinUpdatedAt = new Date().toISOString();
+      for (const session of sessions.values()) if (String(session.user?.id || '') === personId) { session.unlockHash = memoryPerson.pinHash; session.user.pinConfigured = true; }
       const notification = { id: `staff-pin-${Date.now()}`, type: 'staff_pin_updated', staffId: personId, staffName: memoryPerson.name, actor: req.user?.name || 'сотрудник', createdAt: memoryPerson.pinUpdatedAt, notificationRecipients: ['owner', 'admin'] };
       staffNotifications.push(notification); recordAudit(req, 'staff.pin_updated', 'staff', personId, { pinConfigured: true }, { pinConfigured: true, notificationRecipients: ['owner', 'admin'] });
       return json(res, 200, { id: personId, pinConfigured: true, pinUpdatedAt: memoryPerson.pinUpdatedAt });
@@ -1717,6 +1871,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         // optional passport encryption is not configured for the venue.
         const { rows } = await repositories.pool.query('UPDATE users SET pin_hash=$1,pin_data_encrypted=NULL,pin_data_iv=NULL,pin_data_tag=NULL,pin_updated_at=now() WHERE id=$2 AND venue_id=$3 AND is_active=true AND deleted_at IS NULL RETURNING id,full_name AS name,pin_updated_at AS "pinUpdatedAt"', [await hashPassword(pin), personId, venueDbId]);
         if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
+        for (const session of sessions.values()) if (String(session.user?.id || '') === personId) { session.unlockHash = null; session.user.pinConfigured = true; }
         recordAudit(req, 'staff.pin_updated', 'staff', personId, { pinConfigured: true }, { pinConfigured: true, notificationRecipients: ['owner', 'admin'] });
         return json(res, 200, { id: rows[0].id, pinConfigured: true, pinUpdatedAt: rows[0].pinUpdatedAt });
       } catch (error) { return json(res, 409, { error: 'staff_pin_save_failed', detail: error.message }); }
@@ -1848,14 +2003,15 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/inventory/subdepartments' && req.method === 'GET') {
     if (denyUnless(req, res, 'inventory_read')) return;
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT id,department_code AS "departmentCode",name,is_active AS active FROM inventory_subdepartments WHERE venue_id=$1 AND is_active=true ORDER BY department_code,name', [venueDbId]); return json(res, 200, { items: rows }); } catch (_) {} }
-    return json(res, 200, { items: [] });
+    return json(res, 200, { items: inventorySubdepartments.filter((item) => item.active) });
   }
   if (pathname === '/api/inventory/subdepartments' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
     const input = await body(req); const name = String(input.name || '').trim(); const departmentCode = String(input.departmentCode || '').trim();
     if (!name || name.length > 80 || !departmentCode || departmentCode.length > 48) return json(res, 400, { error: 'invalid_inventory_subdepartment' });
     if (repositories?.pool) { let client; let checkingParent = true; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR UPDATE', [venueDbId, departmentCode]); checkingParent = false; if (!departmentResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'inventory_department_not_found' }); } const { rows } = await client.query('INSERT INTO inventory_subdepartments (venue_id,department_code,name) VALUES ($1,$2,$3) RETURNING id,department_code AS "departmentCode",name,is_active AS active', [venueDbId, departmentCode, name]); await client.query('COMMIT'); recordAudit(req, 'inventory.subdepartment_created', 'inventory_subdepartment', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); if (checkingParent) return json(res, 503, { error: 'inventory_hierarchy_unavailable' }); return json(res, 409, { error: error.code === '23505' ? 'inventory_subdepartment_exists' : 'inventory_subdepartment_create_failed' }); } finally { client?.release(); } }
-    return json(res, 201, { id: `subdepartment-${Date.now()}`, departmentCode, name, active: true });
+    if (inventorySubdepartments.some((item) => item.active && item.departmentCode === departmentCode && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'inventory_subdepartment_exists' });
+    const created = { id: `subdepartment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, departmentCode, name, active: true }; inventorySubdepartments.push(created); return json(res, 201, created);
   }
   const inventorySubdepartmentPath = pathname.match(/^\/api\/inventory\/subdepartments\/([^/]+)$/);
   if (inventorySubdepartmentPath && req.method === 'PATCH') {
@@ -1880,6 +2036,7 @@ if (staffProfile && req.method === 'PATCH') {
         updated = result.rows[0];
         if (!updated) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_subdepartment_not_found' }); }
         if (before.name !== name || before.departmentCode !== departmentCode) {
+          if (before.departmentCode !== departmentCode) await client.query('UPDATE product_categories SET department=$1 WHERE venue_id=$2 AND subdepartment_id=$3 AND is_active=true', [departmentCode, venueDbId, id]);
           await client.query('UPDATE ingredients SET subdepartment=$1,department=$2 WHERE venue_id=$3 AND subdepartment=$4 AND department=$5 AND is_marked=true', [name, departmentCode, venueDbId, before.name, before.departmentCode]);
         }
         await client.query('COMMIT');
@@ -1891,12 +2048,19 @@ if (staffProfile && req.method === 'PATCH') {
       recordAudit(req, 'inventory.subdepartment_updated', 'inventory_subdepartment', id, before, updated);
       return json(res, 200, updated);
     }
-    return json(res, 200, { id, departmentCode, name, active: true });
+    const memoryItem = inventorySubdepartments.find((item) => item.id === id && item.active);
+    if (!memoryItem) return json(res, 404, { error: 'inventory_subdepartment_not_found' });
+    if (inventorySubdepartments.some((item) => item.active && item.id !== id && item.departmentCode === departmentCode && item.name.toLocaleLowerCase('ru-RU') === name.toLocaleLowerCase('ru-RU'))) return json(res, 409, { error: 'inventory_subdepartment_exists' });
+    const before = { ...memoryItem };
+    Object.assign(memoryItem, { departmentCode, name });
+    for (const category of productCategories) if (category.active && category.subdepartmentId === id) category.department = departmentCode;
+    for (const item of inventory) if (item.department === before.departmentCode && item.subdepartment === before.name) Object.assign(item, { department: departmentCode, subdepartment: name });
+    return json(res, 200, memoryItem);
   }
   if (inventorySubdepartmentPath && req.method === 'DELETE') {
     if (denyUnless(req, res, 'inventory')) return;
-    const id = decodeURIComponent(inventorySubdepartmentPath[1]); if (repositories?.pool) { try { const used = await repositories.pool.query('SELECT EXISTS(SELECT 1 FROM ingredients WHERE venue_id=$1 AND subdepartment=(SELECT name FROM inventory_subdepartments WHERE id=$2) AND is_marked=true) AS used', [venueDbId, id]); if (used.rows[0]?.used) return json(res, 409, { error: 'inventory_subdepartment_in_use' }); const { rows } = await repositories.pool.query('UPDATE inventory_subdepartments SET is_active=false WHERE venue_id=$1 AND id=$2 AND is_active=true RETURNING id,name,is_active AS active', [venueDbId, id]); if (!rows[0]) return json(res, 404, { error: 'inventory_subdepartment_not_found' }); recordAudit(req, 'inventory.subdepartment_archived', 'inventory_subdepartment', id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (_) { return json(res, 409, { error: 'inventory_subdepartment_archive_failed' }); } }
-    return json(res, 200, { id, active: false });
+    const id = decodeURIComponent(inventorySubdepartmentPath[1]); if (repositories?.pool) { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const current = await client.query('SELECT id,department_code AS "departmentCode",name FROM inventory_subdepartments WHERE venue_id=$1 AND id=$2 AND is_active=true FOR UPDATE', [venueDbId, id]); if (!current.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_subdepartment_not_found' }); } const used = await client.query('SELECT EXISTS(SELECT 1 FROM ingredients WHERE venue_id=$1 AND department=$2 AND subdepartment=$3 AND is_marked=true) OR EXISTS(SELECT 1 FROM product_categories WHERE venue_id=$1 AND subdepartment_id=$4 AND is_active=true) AS used', [venueDbId, current.rows[0].departmentCode, current.rows[0].name, id]); if (used.rows[0]?.used) { await client.query('ROLLBACK'); return json(res, 409, { error: 'inventory_subdepartment_in_use' }); } const { rows } = await client.query('UPDATE inventory_subdepartments SET is_active=false WHERE venue_id=$1 AND id=$2 AND is_active=true RETURNING id,name,is_active AS active', [venueDbId, id]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_subdepartment_not_found' }); } await client.query('COMMIT'); recordAudit(req, 'inventory.subdepartment_archived', 'inventory_subdepartment', id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (_) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'inventory_subdepartment_archive_failed' }); } finally { client.release(); } }
+    const memoryItem = inventorySubdepartments.find((item) => item.id === id && item.active); if (!memoryItem) return json(res, 404, { error: 'inventory_subdepartment_not_found' }); if (productCategories.some((item) => item.active && item.subdepartmentId === id) || inventory.some((item) => item.department === memoryItem.departmentCode && item.subdepartment === memoryItem.name)) return json(res, 409, { error: 'inventory_subdepartment_in_use' }); memoryItem.active = false; return json(res, 200, { id, active: false });
   }
   const recipeCostPath = pathname.match(/^\/api\/recipes\/([^/]+)\/cost$/);
   if (recipeCostPath && req.method === 'GET') {
@@ -2210,18 +2374,49 @@ if (staffProfile && req.method === 'PATCH') {
     return json(res, 200, request);
   }
   const inventoryItemPath = pathname.match(/^\/api\/inventory\/items\/([^/]+)$/);
-  const validateInventoryHierarchy = async (department, subdepartment) => {
+  const validateInventoryHierarchy = async (department, subdepartment, client = repositories?.pool) => {
     if (!repositories?.pool) return null;
     const departmentCode = String(department || '').trim(); const subdepartmentName = String(subdepartment || '').trim();
     try {
-      const departmentResult = await repositories.pool.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true', [venueDbId, departmentCode]);
+      const departmentResult = await client.query('SELECT 1 FROM inventory_departments WHERE venue_id=$1 AND code=$2 AND is_active=true FOR SHARE', [venueDbId, departmentCode]);
       if (!departmentResult.rows[0]) return 'inventory_department_not_found';
       if (subdepartmentName) {
-        const subdepartmentResult = await repositories.pool.query('SELECT 1 FROM inventory_subdepartments WHERE venue_id=$1 AND department_code=$2 AND name=$3 AND is_active=true', [venueDbId, departmentCode, subdepartmentName]);
+        const subdepartmentResult = await client.query('SELECT 1 FROM inventory_subdepartments WHERE venue_id=$1 AND department_code=$2 AND name=$3 AND is_active=true FOR SHARE', [venueDbId, departmentCode, subdepartmentName]);
         if (!subdepartmentResult.rows[0]) return 'inventory_subdepartment_not_found';
       }
       return null;
     } catch (error) { if (error?.code === '42P01') return 'inventory_hierarchy_unavailable'; throw error; }
+  };
+  const validateInventoryCategorySubdepartment = async (department, subdepartment, categoryName, client = repositories?.pool) => {
+    if (!repositories?.pool || !String(categoryName || '').trim()) return null;
+    try {
+      const result = await client.query(`SELECT c.department,s.name AS "subdepartmentName" FROM product_categories c
+        LEFT JOIN inventory_subdepartments s ON s.id=c.subdepartment_id AND s.venue_id=c.venue_id
+        WHERE c.venue_id=$1 AND lower(btrim(c.name))=lower(btrim($2)) AND c.is_active=true FOR SHARE OF c`, [venueDbId, String(categoryName).trim()]);
+      const rows = result.rows;
+      const selected = rows.find((row) => row.department === String(department || '').trim());
+      if (!selected && rows.length) return 'inventory_category_department_mismatch';
+      if (String(categoryName).trim() !== 'Без категории' && !selected) return 'inventory_category_not_found';
+      const requiredSubdepartment = selected?.subdepartmentName;
+      if (requiredSubdepartment && String(subdepartment || '').trim() !== requiredSubdepartment) return 'inventory_category_subdepartment_mismatch';
+      return null;
+    } catch (error) { if (error?.code === '42P01' || error?.code === '42703') return 'inventory_hierarchy_unavailable'; throw error; }
+  };
+  const withInventoryHierarchyTransaction = async (department, subdepartment, categoryName, write) => {
+    const client = await repositories.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const hierarchyError = await validateInventoryHierarchy(department, subdepartment, client);
+      if (hierarchyError) { await client.query('ROLLBACK'); return { error: hierarchyError }; }
+      const categoryError = await validateInventoryCategorySubdepartment(department, subdepartment, categoryName, client);
+      if (categoryError) { await client.query('ROLLBACK'); return { error: categoryError }; }
+      const value = await write(client);
+      await client.query('COMMIT');
+      return { value };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally { client.release(); }
   };
   if (pathname === '/api/inventory/items' && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -2236,9 +2431,8 @@ if (staffProfile && req.method === 'PATCH') {
     if (!allowedUnits.includes(unit) || !['ingredient', 'product', 'consumable', 'equipment'].includes(itemType)) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
     if (!Number.isFinite(cost) || cost < 0 || !Number.isFinite(minLevel) || minLevel < 0 || !Number.isFinite(packMultiplier) || packMultiplier <= 0) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
     if (String(input.subdepartment || '').length > 80 || String(input.category || '').length > 80 || String(input.supplier || '').length > 160 || String(input.barcode || '').length > 64 || String(input.note || '').length > 500) return json(res, 400, { error: 'inventory_item_field_too_long' });
-    if (repositories?.pool) { try { const hierarchyError = await validateInventoryHierarchy(department, input.subdepartment); if (hierarchyError) return json(res, hierarchyError === 'inventory_hierarchy_unavailable' ? 503 : 400, { error: hierarchyError }); } catch (_) { return json(res, 503, { error: 'inventory_hierarchy_unavailable' }); } }
     const clean = { name, shortName: String(input.shortName || '').trim().slice(0, 80) || null, department, subdepartment: String(input.subdepartment || '').trim().slice(0, 80), category: String(input.category || 'Без категории').trim().slice(0, 80) || 'Без категории', itemType, unit, purchaseUnit: String(input.purchaseUnit || '').trim().slice(0, 30) || null, packMultiplier, cost, minLevel, supplier: String(input.supplier || '').trim().slice(0, 160) || null, barcode: String(input.barcode || '').trim().slice(0, 64) || null, note: String(input.note || '').trim().slice(0, 500) || null };
-    if (repositories?.inventory) { try { const item = await repositories.inventory.create(venueDbId, clean); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, { ...item, onHand: 0 }); } catch (error) { return json(res, 409, { error: 'inventory_item_create_failed', detail: error.message }); } }
+    if (repositories?.inventory) { try { const result = repositories?.pool ? await withInventoryHierarchyTransaction(department, clean.subdepartment, clean.category, (client) => repositories.inventory.create(venueDbId, clean, client)) : { value: await repositories.inventory.create(venueDbId, clean) }; if (result.error) return json(res, result.error === 'inventory_hierarchy_unavailable' ? 503 : 400, { error: result.error }); const item = result.value; recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, { ...item, onHand: 0 }); } catch (error) { return json(res, 409, { error: 'inventory_item_create_failed', detail: error.message }); } }
     const item = { id: `ing-${Date.now()}`, ...clean, onHand: 0, active: true }; inventory.push(item); recordAudit(req, 'inventory.item_created', 'inventory', item.id, null, item); return json(res, 201, item);
   }
   if (inventoryItemPath && req.method === 'PATCH') {
@@ -2251,7 +2445,37 @@ if (staffProfile && req.method === 'PATCH') {
     if (input.unit !== undefined && !allowedUnits.includes(String(input.unit))) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
     if (input.itemType !== undefined && !['ingredient', 'product', 'consumable', 'equipment'].includes(String(input.itemType))) return json(res, 400, { error: 'invalid_inventory_item_measurement' });
     for (const key of ['cost', 'minLevel', 'packMultiplier']) if (input[key] !== undefined && (!Number.isFinite(Number(input[key])) || Number(input[key]) < (key === 'packMultiplier' ? 0.01 : 0))) return json(res, 400, { error: 'invalid_inventory_item_numbers' });
-    if (repositories?.inventory) { try { if (repositories?.pool && (input.department !== undefined || input.subdepartment !== undefined)) { const currentResult = await repositories.pool.query('SELECT department,subdepartment FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [inventoryItemPath[1], venueDbId]); if (!currentResult.rows[0]) return json(res, 404, { error: 'inventory_item_not_found' }); const hierarchyError = await validateInventoryHierarchy(input.department !== undefined ? input.department : currentResult.rows[0].department, input.subdepartment !== undefined ? input.subdepartment : currentResult.rows[0].subdepartment); if (hierarchyError) return json(res, hierarchyError === 'inventory_hierarchy_unavailable' ? 503 : 400, { error: hierarchyError }); } const item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], input); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item); } catch (error) { return json(res, 409, { error: 'inventory_item_update_failed', detail: error.message }); } }
+    if (repositories?.inventory) {
+      try {
+        let item;
+        if (repositories?.pool) {
+          const client = await repositories.pool.connect();
+          try {
+            await client.query('BEGIN');
+            const current = await client.query('SELECT department,subdepartment,category FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true', [inventoryItemPath[1], venueDbId]);
+            if (!current.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_item_not_found' }); }
+            const observed = current.rows[0];
+            const nextDepartment = input.department !== undefined ? input.department : observed.department;
+            const nextSubdepartment = input.subdepartment !== undefined ? input.subdepartment : observed.subdepartment;
+            const nextCategory = input.category !== undefined ? input.category : observed.category;
+            const hierarchyError = await validateInventoryHierarchy(nextDepartment, nextSubdepartment, client);
+            if (hierarchyError) { await client.query('ROLLBACK'); return json(res, hierarchyError === 'inventory_hierarchy_unavailable' ? 503 : 400, { error: hierarchyError }); }
+            const categoryChanged = input.category !== undefined || input.department !== undefined || input.subdepartment !== undefined;
+            const categoryError = categoryChanged ? await validateInventoryCategorySubdepartment(nextDepartment, nextSubdepartment, nextCategory, client) : null;
+            if (categoryError) { await client.query('ROLLBACK'); return json(res, categoryError === 'inventory_hierarchy_unavailable' ? 503 : 400, { error: categoryError }); }
+            const locked = await client.query('SELECT department,subdepartment,category FROM ingredients WHERE id=$1 AND venue_id=$2 AND is_marked=true FOR UPDATE', [inventoryItemPath[1], venueDbId]);
+            if (!locked.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'inventory_item_not_found' }); }
+            if (locked.rows[0].department !== observed.department || locked.rows[0].subdepartment !== observed.subdepartment || locked.rows[0].category !== observed.category) { await client.query('ROLLBACK'); return json(res, 409, { error: 'inventory_item_changed_retry' }); }
+            item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], input, client);
+            await client.query('COMMIT');
+          } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+          finally { client.release(); }
+        } else item = await repositories.inventory.update(venueDbId, inventoryItemPath[1], input);
+        if (!item) return json(res, 404, { error: 'inventory_item_not_found' });
+        recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item);
+        return json(res, 200, item);
+      } catch (error) { return json(res, 409, { error: 'inventory_item_update_failed', detail: error.message }); }
+    }
     const item = inventory.find((entry) => entry.id === inventoryItemPath[1]); if (!item) return json(res, 404, { error: 'inventory_item_not_found' }); if (input.unit !== undefined && input.unit !== item.unit && stockMovements.some((movement) => movement.itemId === item.id)) return json(res, 409, { error: 'inventory_unit_has_movements' }); Object.assign(item, input); recordAudit(req, 'inventory.item_updated', 'inventory', item.id, null, item); return json(res, 200, item);
   }
   if (inventoryItemPath && req.method === 'DELETE') {
@@ -2284,6 +2508,7 @@ if (staffProfile && req.method === 'PATCH') {
   }
   const purchaseDocumentPath = pathname.match(/^\/api\/inventory\/purchase-documents\/([^/]+)$/);
   const purchaseDocumentPostPath = pathname.match(/^\/api\/inventory\/purchase-documents\/([^/]+)\/post$/);
+  const purchaseDocumentVoidPath = pathname.match(/^\/api\/inventory\/purchase-documents\/([^/]+)\/void$/);
   if (pathname === '/api/inventory/purchase-documents' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['inventory_read', 'inventory'])) return;
     if (!repositories?.purchaseDocuments) return json(res, 200, { items: [] });
@@ -2315,6 +2540,18 @@ if (staffProfile && req.method === 'PATCH') {
       recordAudit(req, 'inventory.purchase_document_updated', 'purchase_document', updated.id, null, updated);
       return json(res, 200, updated);
     } catch (error) { const status = ['purchase_document_not_found', 'purchase_document_not_draft'].includes(error.message) ? 409 : 400; return json(res, status, { error: ['purchase_ingredient_not_found', 'invalid_purchase_unit', 'invalid_source_auto_order'].includes(error.message) ? error.message : 'purchase_document_update_failed', ingredientId: error.ingredientId, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit, detail: error.message }); }
+  }
+  if (purchaseDocumentVoidPath && req.method === 'POST') {
+    if (denyUnless(req, res, 'inventory')) return;
+    if (!repositories?.purchaseDocuments) return json(res, 503, { error: 'purchase_documents_unavailable' });
+    try {
+      const cancelled = await repositories.purchaseDocuments.voidDraft(venueDbId, purchaseDocumentVoidPath[1]);
+      recordAudit(req, 'inventory.purchase_document_voided', 'purchase_document', cancelled.id, null, cancelled);
+      return json(res, 200, cancelled);
+    } catch (error) {
+      const status = error.message === 'purchase_document_not_found' ? 404 : error.message === 'purchase_document_not_voidable' ? 409 : 400;
+      return json(res, status, { error: ['purchase_document_not_found', 'purchase_document_not_voidable'].includes(error.message) ? error.message : 'purchase_document_void_failed', status: error.status, detail: error.message });
+    }
   }
   if (purchaseDocumentPostPath && req.method === 'POST') {
     if (denyUnless(req, res, 'inventory')) return;
@@ -2785,13 +3022,13 @@ if (staffProfile && req.method === 'PATCH') {
         const notification = { type: 'order_deleted', orderId: rows[0].id, comment, writeoff: Boolean(input.writeoff), deletedItems: itemRows, totalCost: Number(depletion.totalCost || 0), createdAt: new Date().toISOString(), notificationRecipients: ['owner', 'admin', 'manager'] };
         recordAudit(req, 'order.deleted', 'order', rows[0].id, { status: persisted.status, items: itemRows }, { ...rows[0], ...notification });
         return json(res, 200, { ...rows[0], deleted: true, comment, writeoff: Boolean(input.writeoff), totalCost: Number(depletion.totalCost || 0), notification });
-      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: error.message === 'insufficient_recipe_stock' ? 'insufficient_recipe_stock' : 'order_delete_failed', missing: error.missing, detail: error.message }); } finally { client.release(); }
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); return json(res, 409, { error: error.message === 'insufficient_recipe_stock' ? 'insufficient_recipe_stock' : 'order_delete_failed', missing: error.missing, detail: error.message }); } finally { client.release(); }
     }
     const order = orders.find((entry) => entry.id === orderDelete[1]);
     if (!order) return json(res, 404, { error: 'order_not_found' });
     if (!['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_deletable', status: order.status });
     let depletion = { totalCost: 0 };
-    try { if (input.writeoff) depletion = depleteMemoryOrder(order); } catch (error) { return json(res, 409, { error: error.message === 'insufficient_recipe_stock' ? 'insufficient_recipe_stock' : 'order_delete_failed', missing: error.missing, detail: error.message }); }
+    try { if (input.writeoff) depletion = depleteMemoryOrder(order); } catch (error) { if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); return json(res, 409, { error: error.message === 'insufficient_recipe_stock' ? 'insufficient_recipe_stock' : 'order_delete_failed', missing: error.missing, detail: error.message }); }
     const notification = { type: 'order_deleted', orderId: order.id, comment, writeoff: Boolean(input.writeoff), deletedItems: order.items || [], totalCost: Number(depletion.totalCost || 0), createdAt: new Date().toISOString(), notificationRecipients: ['owner', 'admin', 'manager'] };
     order.status = 'cancelled'; order.notes = `${String(order.notes || '').trim()}${order.notes ? '\n' : ''}Удаление: ${comment}`.slice(0, 4000); order.closedAt = notification.createdAt;
     releaseMemoryTableIfIdle(order.tableId); staffNotifications.push({ id: `order-deleted-${Date.now()}`, ...notification }); recordAudit(req, 'order.deleted', 'order', order.id, { status: 'open', items: order.items || [] }, notification);
@@ -2871,7 +3108,7 @@ if (staffProfile && req.method === 'PATCH') {
         const { rows: orderRows } = await client.query('SELECT id,status FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [itemMatch[1], venueDbId]);
         if (!orderRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
         if (!['open', 'in_progress', 'ready'].includes(orderRows[0].status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_editable' }); }
-        const { rows: productRows } = await client.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true', [input.productId, venueDbId]);
+        const { rows: productRows } = await client.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [input.productId, venueDbId]);
         const product = productRows[0];
         if (!product) { await client.query('ROLLBACK'); return json(res, 400, { error: 'product_not_found' }); }
         const { rows: existingRows } = await client.query('SELECT id,product_id AS "productId",quantity,unit_price AS "unitPrice",station FROM order_items WHERE order_id=$1 AND product_id=$2 AND unit_price=$3 ORDER BY id LIMIT 1', [itemMatch[1], product.id, product.unitPrice]);
@@ -2989,6 +3226,7 @@ if (staffProfile && req.method === 'PATCH') {
       } catch (error) {
         if (client) await client.query('ROLLBACK').catch(() => {});
         if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing });
+        if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName });
         if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit });
         if (error.code === 'order_already_final') return json(res, 409, { error: 'order_already_final' });
         return json(res, 409, { error: 'payment_create_failed', detail: error.message });
@@ -2998,7 +3236,7 @@ if (staffProfile && req.method === 'PATCH') {
     }
     const order = orders.find((entry) => entry.id === paymentPath[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); if (req.method === 'POST' && (order.status === 'closed' || order.status === 'cancelled')) return json(res, 409, { error: 'order_already_final' }); order.payments ||= []; const subtotal = orderTotal(order); const discount = approvedDiscountTotal(order.id, subtotal); const due = Math.max(subtotal - discount, Number(order.minimumOrderTotal || 0)); const paid = order.payments.reduce((sum, item) => sum + Number(item.amount), 0);
     if (req.method === 'GET') return json(res, 200, { items: order.payments, due, paid, remaining: Math.max(0, due - paid) });
-    const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' }); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' }); const nextPaid = paid + amount; const closed = nextPaid >= due; let depletion = null; if (closed) { try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); } } const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', shiftId: activeShift.id, createdAt: new Date().toISOString() }; order.payments.push(payment); if (closed) { order.status = 'closed'; order.closedAt = payment.createdAt; order.closedInShiftId = activeShift.id; order.subtotal = subtotal; order.discountTotal = discount; order.finalTotal = due; order.minimumAdjustment = Math.max(0, Number(order.minimumOrderTotal || 0) - (subtotal - discount)); order.paymentMethod = order.payments.length === 1 ? method : 'mixed'; order.paid = nextPaid; order.remaining = 0; order.costOfGoods = Number(depletion?.totalCost || 0); releaseMemoryTableIfIdle(order.tableId); } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, { ...payment, orderId: order.id, paid: nextPaid, due, closed, costOfGoods: closed ? order.costOfGoods : undefined }); return json(res, 201, { ...payment, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...(closed ? { finalTotal: order.finalTotal, discountTotal: order.discountTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod, costOfGoods: order.costOfGoods } : {}) });
+    const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!Number.isFinite(amount) || amount <= 0 || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' }); if (paid + amount > due + 0.01) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' }); const nextPaid = paid + amount; const closed = nextPaid >= due; let depletion = null; if (closed) { try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); } } const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', shiftId: activeShift.id, createdAt: new Date().toISOString() }; order.payments.push(payment); if (closed) { order.status = 'closed'; order.closedAt = payment.createdAt; order.closedInShiftId = activeShift.id; order.subtotal = subtotal; order.discountTotal = discount; order.finalTotal = due; order.minimumAdjustment = Math.max(0, Number(order.minimumOrderTotal || 0) - (subtotal - discount)); order.paymentMethod = order.payments.length === 1 ? method : 'mixed'; order.paid = nextPaid; order.remaining = 0; order.costOfGoods = Number(depletion?.totalCost || 0); releaseMemoryTableIfIdle(order.tableId); } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, { ...payment, orderId: order.id, paid: nextPaid, due, closed, costOfGoods: closed ? order.costOfGoods : undefined }); return json(res, 201, { ...payment, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...(closed ? { finalTotal: order.finalTotal, discountTotal: order.discountTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod, costOfGoods: order.costOfGoods } : {}) });
   }
   const orderPath = pathname.match(/^\/api\/orders\/([^/]+)\/(summary|close|split|discount-requests)$/);
   if (orderPath && req.method === 'GET' && orderPath[2] === 'summary') {
@@ -3067,6 +3305,7 @@ if (staffProfile && req.method === 'PATCH') {
         if (error.message === 'insufficient_recipe_stock') {
           return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing });
         }
+        if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName });
         if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) {
           return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit });
         }
@@ -3085,7 +3324,7 @@ if (staffProfile && req.method === 'PATCH') {
     const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
     const total = orderTotal(order); const discount = approvedDiscountTotal(order.id, total); const minimum = Number(order.minimumOrderTotal || 0);
     const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' });
-    let depletion; try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); }
+    let depletion; try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); }
     order.status = 'closed'; order.closedAt = new Date().toISOString(); order.closedInShiftId = activeShift.id; releaseMemoryTableIfIdle(order.tableId); order.subtotal = total; order.discountTotal = discount; order.finalTotal = Math.max(total - discount, minimum); order.payments ||= []; const alreadyPaid = order.payments.filter((payment) => payment.status === 'paid').reduce((sum, payment) => sum + Number(payment.amount || 0), 0); const remaining = Math.max(0, order.finalTotal - alreadyPaid); if (remaining > 0) order.payments.push({ id: `pay-${Date.now()}`, method: paymentMethod, amount: remaining, status: 'paid', shiftId: activeShift.id, createdAt: order.closedAt }); order.paid = alreadyPaid + remaining; order.remaining = 0; order.minimumAdjustment = Math.max(0, minimum - (total - discount)); order.paymentMethod = paymentMethod; order.costOfGoods = Number(depletion?.totalCost || 0);
     recordAudit(req, 'order.closed', 'order', order.id, { status: 'open' }, { status: order.status, subtotal: order.subtotal, discountTotal: order.discountTotal, finalTotal: order.finalTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod });
     return json(res, 200, order);
@@ -3199,5 +3438,3 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
-
-

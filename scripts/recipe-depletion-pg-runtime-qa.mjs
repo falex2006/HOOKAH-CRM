@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
+import { randomBytes, scryptSync } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,6 +33,18 @@ async function req(base, url, method = 'GET', data, expected = 200) {
   const response = await fetch(`${base}${url}`, {
     method,
     headers: { 'Content-Type': 'application/json' },
+    body: data === undefined ? undefined : JSON.stringify(data),
+  });
+  const result = await response.json();
+  assert.equal(response.status, expected, `${method} ${url}: ${JSON.stringify(result)}`);
+  checks++;
+  return result;
+}
+
+async function authenticatedReq(base, token, url, method = 'GET', data, expected = 200) {
+  const response = await fetch(`${base}${url}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: data === undefined ? undefined : JSON.stringify(data),
   });
   const result = await response.json();
@@ -126,7 +139,11 @@ try {
   assert.equal((await client.query('SELECT id FROM users WHERE id=$1', [actorId])).rowCount, 0,
     'no synthetic fallback actor remains after fixture cleanup');
   await client.query('INSERT INTO venues (id,name,timezone) VALUES ($1,$2,$3)', [venueId, 'Синтетическая QA-точка', venueTimezone]);
-  await client.query('INSERT INTO users (id,venue_id,full_name,login,role) VALUES ($1,$2,$3,$4,$5)', [actorId, venueId, 'QA Владелец', `qa-${venueId}`, 'owner']);
+  const passwordSalt = randomBytes(16).toString('hex');
+  const passwordHash = `scrypt$${passwordSalt}$${scryptSync('qa-owner-password', passwordSalt, 64).toString('hex')}`;
+  const pinSalt = randomBytes(16).toString('hex');
+  const pinHash = `scrypt$${pinSalt}$${scryptSync('2468', pinSalt, 64).toString('hex')}`;
+  await client.query('INSERT INTO users (id,venue_id,full_name,login,password_hash,pin_hash,pin_updated_at,role) VALUES ($1,$2,$3,$4,$5,$6,now(),$7)', [actorId, venueId, 'QA Владелец', `qa-${venueId}`, passwordHash, pinHash, 'owner']);
   await client.query('INSERT INTO inventory_departments (venue_id,code,name) VALUES ($1,$2,$3) ON CONFLICT (venue_id,code) DO UPDATE SET name=EXCLUDED.name', [venueId, 'bar', 'Бар']);
   await client.query('INSERT INTO zones (id,venue_id,name) VALUES ($1,$2,$3)', [zoneId, venueId, 'QA зона']);
   await client.query('INSERT INTO tables (id,zone_id,name,capacity,status) VALUES ($1,$2,$3,2,$4)', [tableId, zoneId, 'QA стол', 'free']);
@@ -162,6 +179,35 @@ try {
 
   const health = await req(base, '/api/health');
   assert.equal(health.database, 'postgres', 'test exercises the actual PostgreSQL repository path'); checks++;
+  const loginResponse = await fetch(`${base}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: `qa-${venueId}`, password: 'qa-owner-password' }) });
+  const loginData = await loginResponse.json();
+  assert.equal(loginResponse.status, 200, 'PostgreSQL QA owner can create a real server session');
+  const sessionToken = loginData.token;
+  assert.ok(sessionToken, 'login response contains the bearer session');
+  checks += 2;
+  assert.equal((await authenticatedReq(base, sessionToken, '/api/session/unlock', 'POST', { pin: '2468' })).ok, true,
+    'PIN unlock reads and verifies the current PostgreSQL PIN hash');
+  assert.equal((await authenticatedReq(base, sessionToken, `/api/staff/${actorId}/pin`, 'PATCH', { pin: '9753' })).pinConfigured, true,
+    'authenticated owner changes PIN in PostgreSQL without logging out');
+  await authenticatedReq(base, sessionToken, '/api/session/unlock', 'POST', { pin: '2468' }, 401);
+  assert.equal((await authenticatedReq(base, sessionToken, '/api/session/unlock', 'POST', { pin: '9753' })).ok, true,
+    'the same HTTP session accepts the new PIN and rejects the old PIN immediately');
+  const staffWithPin = await authenticatedReq(base, sessionToken, '/api/staff');
+  assert.equal(staffWithPin.items.find((entry) => entry.id === actorId)?.pinConfigured, true,
+    'PostgreSQL staff list exposes PIN configured state without exposing the hash');
+  const preservedSessionPreferences = await authenticatedReq(base, sessionToken, '/api/session/preferences');
+  assert.deepEqual(preservedSessionPreferences.preferences, {}, 'PIN unlock and rotation leave the authenticated account session usable');
+  const emptyZone = await req(base, '/api/floor/zones', 'POST', { name: `QA пустой зал ${venueId.slice(0, 8)}` }, 201);
+  const floorBeforeTable = await req(base, '/api/floor');
+  const listedEmptyZone = floorBeforeTable.zones.find((zone) => zone.id === emptyZone.id);
+  assert.ok(listedEmptyZone, 'a newly created PostgreSQL hall remains visible before any table is assigned');
+  assert.deepEqual(listedEmptyZone.tables, [], 'an empty hall is returned with an empty table list, not a phantom table'); checks += 2;
+  const floorTable = await req(base, '/api/floor/tables', 'POST', { zoneId: emptyZone.id, name: 'Стол QA', capacity: 2 }, 201);
+  const floorAfterTable = await req(base, '/api/floor');
+  assert.ok(floorAfterTable.zones.find((zone) => zone.id === emptyZone.id)?.tables.some((table) => table.id === floorTable.id),
+    'a table attached to a new PostgreSQL hall remains visible after refreshing the floor'); checks++;
+  await req(base, `/api/floor/tables/${encodeURIComponent(floorTable.id)}`, 'DELETE', undefined, 200);
+  await req(base, `/api/floor/zones/${encodeURIComponent(emptyZone.id)}`, 'DELETE', undefined, 200);
   await req(base, '/api/shifts', 'POST', { openingCash: 100 }, 201);
 
   const currentDate = await getBusinessDate();
@@ -226,7 +272,46 @@ try {
     return order.id;
   }
 
+  async function createOrderFor(productId) {
+    const dedicatedTable = await req(base, '/api/floor/tables', 'POST', { zoneId, name: `QA раздельный стол ${randomUUID().slice(0, 8)}`, capacity: 2 }, 201);
+    const order = await req(base, '/api/orders', 'POST', { tableId: dedicatedTable.id }, 201);
+    await req(base, `/api/orders/${order.id}/items`, 'POST', { productId, quantity: 1 }, 201);
+    return order.id;
+  }
+
   const firstOrderId = await createOrder();
+
+  const unconfiguredProduct = await req(base, '/api/products', 'POST', {
+    name: `QA tracked without recipe ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
+  }, 201);
+  assert.equal(unconfiguredProduct.inventoryMode, 'tracked', 'new PostgreSQL catalog products expose explicit tracked mode'); checks++;
+  const unconfiguredCloseId = await createOrderFor(unconfiguredProduct.id);
+  const blockedClose = await req(base, `/api/orders/${unconfiguredCloseId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+  assert.equal(blockedClose.error, 'product_recipe_required', 'manual close rejects tracked sale product with no recipe'); checks++;
+  let rejectedState = await client.query(`SELECT o.status,
+      (SELECT count(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
+      (SELECT count(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs
+    FROM orders o WHERE o.id=$1`, [unconfiguredCloseId]);
+  assert.deepEqual(rejectedState.rows[0], { status: 'open', payments: 0, cogs: 0 }, 'rejected missing-recipe close has no payment, COGS or status mutation'); checks++;
+
+  const unconfiguredPaymentId = await createOrderFor(unconfiguredProduct.id);
+  await req(base, `/api/orders/${unconfiguredPaymentId}/payments`, 'POST', { amount: 50, method: 'cash' }, 201);
+  const blockedFinalPayment = await req(base, `/api/orders/${unconfiguredPaymentId}/payments`, 'POST', { amount: 100, method: 'cash' }, 409);
+  assert.equal(blockedFinalPayment.error, 'product_recipe_required', 'final installment rejects a tracked product without recipe'); checks++;
+  rejectedState = await client.query(`SELECT o.status,
+      (SELECT count(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
+      (SELECT COALESCE(SUM(p.amount),0)::numeric FROM payments p WHERE p.order_id=o.id) AS paid,
+      (SELECT count(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs
+    FROM orders o WHERE o.id=$1`, [unconfiguredPaymentId]);
+  assert.deepEqual(rejectedState.rows[0], { status: 'open', payments: 1, paid: '50.00', cogs: 0 }, 'failed final installment rolls back its payment, leaving only the earlier partial payment'); checks++;
+
+  const reviewProduct = await req(base, '/api/products', 'POST', {
+    name: `QA legacy needs review ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
+  }, 201);
+  await req(base, `/api/products/${reviewProduct.id}`, 'PATCH', { inventoryMode: 'needs_review' }, 200);
+  const reviewOrderId = await createOrderFor(reviewProduct.id);
+  const blockedReview = await req(base, `/api/orders/${reviewOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+  assert.equal(blockedReview.error, 'product_inventory_mode_required', 'unclassified product requires review before sale finalization'); checks++;
   const firstClose = await req(base, `/api/orders/${firstOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
   assert.equal(firstClose.status, 'closed');
   assert.equal(await getOrderCost(firstOrderId), 26, '1 l at 20 RUB/l plus 200 ml at 30 RUB/l costs 26 RUB and is persisted as COGS'); checks += 2;
@@ -405,7 +490,155 @@ try {
   assert.ok(Math.abs(Number(afterPayroll.netProfit) - 3.3) < 0.001, 'profit equals 300 revenue − 78.7 COGS − 18 operating cost − 200 salary');
   assert.ok(Math.abs(Number(afterPayrollAnalytics.netProfit) - 3.3) < 0.001, 'period P&L reconciles to the independently expected result'); checks += 11;
 
-  console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase document/payment→stock→two-component recipe→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
+  await req(base, '/api/product-categories', 'POST', { name: 'Табаки', department: 'hookah' }, 201);
+  const tobacco = await req(base, '/api/inventory/items', 'POST', {
+    name: 'QA tobacco 100g pack', unit: 'г', purchaseUnit: 'пачка', packMultiplier: 100,
+    itemType: 'ingredient', cost: 0, department: 'hookah', category: 'Табаки',
+  }, 201);
+  const tobaccoReceipt = await req(base, '/api/inventory/purchase-documents', 'POST', {
+    supplierName: 'Synthetic tobacco supplier', documentNumber: '', documentDate: '',
+    lines: [{ ingredientId: tobacco.id, quantity: 1, unit: 'пачка', unitCost: 120 }],
+  }, 201);
+  assert.equal(tobaccoReceipt.documentNumber, null, 'supplier invoice number is genuinely optional');
+  assert.equal(tobaccoReceipt.documentDate, null, 'blank supplier invoice date stays NULL and is not replaced with today');
+  assert.ok(tobaccoReceipt.recordedAt, 'system creation timestamp remains separate from the nullable supplier date');
+  assert.equal(Number(tobaccoReceipt.totalCost), 120, 'purchase value is price per 100g pack, not per gram');
+  assert.equal(Number(tobaccoReceipt.lines[0].stockQuantity), 100, 'one 100g tobacco pack adds exactly 100g to stock');
+  assert.equal(Number(tobaccoReceipt.lines[0].receiptUnitCost), 1.2, 'pack purchase price normalizes to 1.20 RUB per stock gram'); checks += 6;
+  await req(base, `/api/inventory/purchase-documents/${tobaccoReceipt.id}/post`, 'POST', {}, 200);
+  assert.equal(await getBalance(tobacco.id), 100, 'posting the pack receipt writes 100g to the stock ledger'); checks++;
+  const tobaccoProduct = await req(base, '/api/products', 'POST', { name: 'QA hookah card', category: 'Кальян', price: 500 }, 201);
+  await req(base, '/api/recipes', 'POST', {
+    productId: tobaccoProduct.id, name: tobaccoProduct.name,
+    ingredients: [{ ingredientId: tobacco.id, name: tobacco.name, quantity: '18 г' }],
+    yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+  }, 201);
+  const tobaccoOrder = await req(base, '/api/orders', 'POST', { tableId }, 201);
+  await req(base, `/api/orders/${tobaccoOrder.id}/items`, 'POST', { productId: tobaccoProduct.id, quantity: 1 }, 201);
+  await req(base, `/api/orders/${tobaccoOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  assert.equal(await getBalance(tobacco.id), 82, 'one sold hookah card debits exactly 18g from the 100g pack');
+  assert.equal(await getOrderCost(tobaccoOrder.id), 21.6, '18g at 1.20 RUB/g produces 21.60 RUB historical recipe COGS'); checks += 5;
+
+  await req(base, '/api/product-categories', 'POST', { name: 'Крепкий алкоголь', department: 'bar' }, 201);
+  const spirit = await req(base, '/api/inventory/items', 'POST', {
+    name: 'QA spirit 700ml bottle', unit: 'мл', purchaseUnit: 'бутылка', packMultiplier: 700,
+    itemType: 'ingredient', cost: 0, department: 'bar', category: 'Крепкий алкоголь',
+  }, 201);
+  const spiritReceipt = await req(base, '/api/inventory/purchase-documents', 'POST', {
+    supplierName: 'Synthetic spirit supplier', documentNumber: `QA-BOTTLE-${venueId.slice(0, 8)}`,
+    documentDate: currentDate, lines: [{ ingredientId: spirit.id, quantity: 1, unit: 'бутылка', unitCost: 350 }],
+  }, 201);
+  assert.equal(Number(spiritReceipt.lines[0].stockQuantity), 700, 'one 700ml bottle converts to 700ml of stock');
+  assert.equal(Number(spiritReceipt.lines[0].receiptUnitCost), 0.5, 'bottle cost normalizes to 0.50 RUB per ml'); checks += 2;
+  await req(base, `/api/inventory/purchase-documents/${spiritReceipt.id}/post`, 'POST', {}, 200);
+  const spiritProduct = await req(base, '/api/products', 'POST', { name: 'QA cocktail', category: 'Коктейли', price: 300 }, 201);
+  await req(base, '/api/recipes', 'POST', {
+    productId: spiritProduct.id, name: spiritProduct.name,
+    ingredients: [{ ingredientId: spirit.id, name: spirit.name, quantity: '50 мл' }],
+    yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+  }, 201);
+  const spiritOrder = await req(base, '/api/orders', 'POST', { tableId }, 201);
+  await req(base, `/api/orders/${spiritOrder.id}/items`, 'POST', { productId: spiritProduct.id, quantity: 1 }, 201);
+  await req(base, `/api/orders/${spiritOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  assert.equal(await getBalance(spirit.id), 650, 'one 50ml cocktail leaves 650ml in a 700ml bottle');
+  assert.equal(await getOrderCost(spiritOrder.id), 25, '50ml at 0.50 RUB/ml produces 25 RUB historical recipe COGS'); checks += 4;
+  const nonStockProduct = await req(base, '/api/products', 'POST', {
+    name: `QA explicit non-stock service ${venueId.slice(0, 8)}`, category: 'Услуги', price: 150, inventoryMode: 'non_stock',
+  }, 201);
+  const nonStockOrderId = await createOrderFor(nonStockProduct.id);
+  const nonStockClose = await req(base, `/api/orders/${nonStockOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  assert.equal(nonStockClose.status, 'closed', 'explicit non-stock service can close without a recipe');
+  assert.equal(await getOrderCost(nonStockOrderId), 0, 'explicit non-stock service persists an honest zero COGS snapshot'); checks += 2;
+  const nonStockRecipeBinding = await req(base, '/api/recipes', 'POST', {
+    productId: nonStockProduct.id, name: nonStockProduct.name,
+    ingredients: [{ ingredientId: spirit.id, name: spirit.name, quantity: '10 мл' }],
+    yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+  }, 409);
+  assert.equal(nonStockRecipeBinding.error, 'non_stock_product_has_recipe', 'non-stock products cannot silently carry ignored sale recipes'); checks++;
+
+  const emptyLegacyProduct = await req(base, '/api/products', 'POST', {
+    name: `QA empty legacy recipe ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
+  }, 201);
+  await client.query('INSERT INTO recipes (product_id) VALUES ($1)', [emptyLegacyProduct.id]);
+  const emptyLegacyOrderId = await createOrderFor(emptyLegacyProduct.id);
+  const emptyLegacyClose = await req(base, `/api/orders/${emptyLegacyOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+  assert.equal(emptyLegacyClose.error, 'product_recipe_required', 'an empty legacy recipe header is not accepted as a stock recipe'); checks++;
+  rejectedState = await client.query(`SELECT o.status,
+      (SELECT count(*)::int FROM payments p WHERE p.order_id=o.id) AS payments,
+      (SELECT count(*)::int FROM order_costs c WHERE c.order_id=o.id) AS cogs
+    FROM orders o WHERE o.id=$1`, [emptyLegacyOrderId]);
+  assert.deepEqual(rejectedState.rows[0], { status: 'open', payments: 0, cogs: 0 }, 'empty legacy recipe rejection leaves the order untouched'); checks++;
+  const modeBlockedByOpenOrder = await req(base, `/api/products/${emptyLegacyProduct.id}`, 'PATCH', { inventoryMode: 'non_stock' }, 409);
+  assert.equal(modeBlockedByOpenOrder.error, 'product_has_open_orders', 'a live order prevents changing the stock-accounting mode'); checks++;
+  await req(base, `/api/orders/${emptyLegacyOrderId}`, 'DELETE', { comment: 'QA resolve empty legacy recipe', writeoff: false }, 200);
+  const emptyLegacyResolved = await req(base, `/api/products/${emptyLegacyProduct.id}`, 'PATCH', { inventoryMode: 'non_stock' }, 200);
+  assert.equal(emptyLegacyResolved.inventoryMode, 'non_stock', 'an unusable legacy recipe header does not block explicit non-stock classification'); checks++;
+  const resolvedLegacyOrderId = await createOrderFor(emptyLegacyProduct.id);
+  const resolvedLegacyClose = await req(base, `/api/orders/${resolvedLegacyOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  assert.equal(resolvedLegacyClose.status, 'closed', 'a legacy item can close after its inventory mode is explicitly resolved'); checks++;
+
+  const sameName = `QA ambiguous generic ${venueId.slice(0, 8)}`;
+  const genericA = await req(base, '/api/products', 'POST', { name: sameName, category: 'Бар', price: 150 }, 201);
+  const genericB = await req(base, '/api/products', 'POST', { name: sameName, category: 'Бар', price: 150 }, 201);
+  await req(base, '/api/recipes', 'POST', {
+    name: sameName,
+    ingredients: [{ ingredientId: spirit.id, name: spirit.name, quantity: '10 мл' }],
+    yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+  }, 201);
+  for (const duplicateProduct of [genericA, genericB]) {
+    const duplicateOrderId = await createOrderFor(duplicateProduct.id);
+    const duplicateClose = await req(base, `/api/orders/${duplicateOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+    assert.equal(duplicateClose.error, 'product_recipe_ambiguous', 'one name-only recipe cannot be assigned to duplicate product names'); checks++;
+  }
+
+  const duplicateDirectProduct = await req(base, '/api/products', 'POST', {
+    name: `QA multiple direct cards ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
+  }, 201);
+  const duplicateCardIngredients = JSON.stringify([{ ingredientId: spirit.id, name: spirit.name, quantity: '10 мл', unit: 'мл' }]);
+  await client.query("INSERT INTO inventory_recipe_cards (venue_id,product_id,name,ingredients,recipe_type) VALUES ($1,$2,$3,$4::jsonb,'sale'),($1,$2,$3 || ' copy',$4::jsonb,'sale')", [venueId, duplicateDirectProduct.id, duplicateDirectProduct.name, duplicateCardIngredients]);
+  const duplicateDirectOrderId = await createOrderFor(duplicateDirectProduct.id);
+  const duplicateDirectClose = await req(base, `/api/orders/${duplicateDirectOrderId}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+  assert.equal(duplicateDirectClose.error, 'product_recipe_ambiguous', 'multiple active directly-bound sale cards fail closed instead of choosing the latest'); checks++;
+
+  const raceProduct = await req(base, '/api/products', 'POST', {
+    name: `QA mode/order race ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
+  }, 201);
+  const raceTable = await req(base, '/api/floor/tables', 'POST', { zoneId, name: `QA race table ${randomUUID().slice(0, 8)}`, capacity: 2 }, 201);
+  const raceOrder = await req(base, '/api/orders', 'POST', { tableId: raceTable.id }, 201);
+  const [raceModeResponse, raceItemResponse] = await Promise.all([
+    fetch(`${base}/api/products/${raceProduct.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inventoryMode: 'non_stock' }) }),
+    fetch(`${base}/api/orders/${raceOrder.id}/items`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: raceProduct.id, quantity: 1 }) }),
+  ]);
+  const [raceMode, raceItem] = await Promise.all([raceModeResponse.json(), raceItemResponse.json()]);
+  assert.ok([200, 409].includes(raceModeResponse.status), `mode transition race returned ${raceModeResponse.status}: ${JSON.stringify(raceMode)}`);
+  assert.equal(raceItemResponse.status, 201, `serialized order-item insertion succeeds: ${JSON.stringify(raceItem)}`);
+  const raceState = (await client.query('SELECT p.inventory_mode,o.status FROM products p JOIN order_items oi ON oi.product_id=p.id JOIN orders o ON o.id=oi.order_id WHERE p.id=$1 AND o.id=$2', [raceProduct.id, raceOrder.id])).rows[0];
+  assert.ok((raceModeResponse.status === 200 && raceState.inventory_mode === 'non_stock') || (raceModeResponse.status === 409 && raceState.inventory_mode === 'tracked'), 'mode update and order-item insertion serialize on the product row'); checks += 3;
+  if (raceState.inventory_mode === 'non_stock') {
+    assert.equal((await req(base, `/api/orders/${raceOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 200)).status, 'closed', 'order started after explicit non-stock mode may close');
+  } else {
+    assert.equal((await req(base, `/api/orders/${raceOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 409)).error, 'product_recipe_required', 'tracked item cannot close without its recipe after rejected mode transition');
+  }
+
+  const recipeRaceProduct = await req(base, '/api/products', 'POST', {
+    name: `QA mode/recipe race ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
+  }, 201);
+  const recipeRacePayload = {
+    productId: recipeRaceProduct.id, name: recipeRaceProduct.name,
+    ingredients: [{ ingredientId: spirit.id, name: spirit.name, quantity: '10 мл' }],
+    yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1,
+  };
+  const [recipeRaceModeResponse, recipeRaceCardResponse] = await Promise.all([
+    fetch(`${base}/api/products/${recipeRaceProduct.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inventoryMode: 'non_stock' }) }),
+    fetch(`${base}/api/recipes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(recipeRacePayload) }),
+  ]);
+  const [recipeRaceMode, recipeRaceCard] = await Promise.all([recipeRaceModeResponse.json(), recipeRaceCardResponse.json()]);
+  assert.ok((recipeRaceModeResponse.status === 200 && recipeRaceCardResponse.status === 409)
+    || (recipeRaceModeResponse.status === 409 && recipeRaceCardResponse.status === 201),
+  `mode transition and sale-recipe binding serialize; mode=${recipeRaceModeResponse.status} ${JSON.stringify(recipeRaceMode)}, recipe=${recipeRaceCardResponse.status} ${JSON.stringify(recipeRaceCard)}`);
+  assert.equal(recipeRaceModeResponse.status === 200 ? recipeRaceCard.error : recipeRaceMode.error, 'non_stock_product_has_recipe', 'only one of the competing stock-mode and recipe-binding changes may commit'); checks += 2;
+
+  console.log(`RECIPE DEPLETION POSTGRES API QA: PASS (${checks} assertions; venue-local work log→purchase/payment→stock→pack/bottle conversions→tobacco and cocktail recipes→sale/depletion→COGS→payroll→P&L/cashflow; all data is synthetic)`);
 } finally {
   if (server && server.exitCode === null) {
     server.kill();

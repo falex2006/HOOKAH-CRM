@@ -22,6 +22,10 @@ const routeStart = server.indexOf("if (pathname === '/api/finance/purchase-payab
 const routeEnd = server.indexOf("if (pathname === '/api/expenses' && req.method === 'GET')", routeStart);
 assert.ok(routeStart >= 0 && routeEnd > routeStart, 'supplier payable/payment API handlers are available');
 const route = server.slice(routeStart, routeEnd);
+const voidRouteStart = server.indexOf("if (purchaseDocumentVoidPath && req.method === 'POST')");
+const voidRouteEnd = server.indexOf("if (purchaseDocumentPostPath && req.method === 'POST')", voidRouteStart);
+assert.ok(voidRouteStart >= 0 && voidRouteEnd > voidRouteStart, 'draft receipt cancellation API handler is available');
+const voidRoute = server.slice(voidRouteStart, voidRouteEnd);
 const isValidIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 let venueId = null;
 let otherVenueId = null;
@@ -47,6 +51,22 @@ const callApi = async ({ path, method = 'GET', body = {}, permissions = ['financ
   );
   return response || result;
 };
+const callVoidApi = async (id, permissions = ['inventory']) => {
+  let response;
+  const json = (_res, status, data) => { response = { status, data }; return response; };
+  const denyUnless = (req, res, required) => {
+    if (req.user?.permissions?.includes(required)) return false;
+    json(res, 403, { error: 'forbidden', permissions: [required] });
+    return true;
+  };
+  const audit = [];
+  await new Function('pathname','req','res','repositories','venueDbId','denyUnless','json','recordAudit',
+    `return (async()=>{ const purchaseDocumentVoidPath=pathname.match(/^\\/api\\/inventory\\/purchase-documents\\/([^/]+)\\/void$/); ${voidRoute} })();`)(
+    `/api/inventory/purchase-documents/${id}/void`, { method: 'POST', user: { id: null, permissions } }, {},
+    { purchaseDocuments: new PurchaseDocumentRepository(pool) }, venueId, denyUnless, json,
+    (_req, action, entity, entityId, before, after) => audit.push({ action, entity, entityId, before, after }));
+  return { ...response, audit };
+};
 
 try {
   await setup.connect();
@@ -63,6 +83,36 @@ try {
   assert.equal(draft.status, 'draft');
   assert.equal(draft.totalCost, 200);
   assert.equal(draft.lines[0].stockQuantity, 2000, 'purchase packaging converts to stock units');
+  const voidable = await repository.saveDraft({
+    venueId, supplierName: 'QA cancellable draft', documentNumber: '', documentDate: null,
+    lines: [{ ingredientId, quantity: 3, unit: 'bottle', unitCost: 100 }],
+  });
+  const deniedVoid = await callVoidApi(voidable.id, []);
+  assert.equal(deniedVoid.status, 403, 'unauthorized roles cannot cancel receipt drafts');
+  const apiVoid = await callVoidApi(voidable.id);
+  assert.equal(apiVoid.status, 200, 'draft cancellation API returns success');
+  assert.equal(apiVoid.data.status, 'voided', 'a draft can be cancelled and remains in document history');
+  assert.equal(apiVoid.audit[0]?.action, 'inventory.purchase_document_voided', 'draft cancellation is auditable');
+  assert.equal(Number((await setup.query('SELECT COUNT(*)::int AS count FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2', [venueId, ingredientId])).rows[0].count), 0,
+    'cancelling a draft never changes stock');
+  assert.equal((await callVoidApi(voidable.id)).status, 409, 'a cancelled receipt cannot be cancelled again');
+  const undated = await repository.saveDraft({
+    venueId, supplierName: 'QA supplier without invoice date', documentNumber: '', documentDate: null,
+    lines: [{ ingredientId, quantity: 1, unit: 'bottle', unitCost: 100 }],
+  });
+  assert.equal(undated.documentDate, null, 'an omitted supplier document date remains NULL in the document model');
+  const undatedStored = await setup.query('SELECT document_date,recorded_at FROM inventory_purchase_documents WHERE id=$1 AND venue_id=$2', [undated.id, venueId]);
+  assert.equal(undatedStored.rows[0].document_date, null, 'database stores an unknown supplier date as NULL');
+  assert.ok(undatedStored.rows[0].recorded_at, 'system record timestamp remains present independently');
+  await repository.updateDraft({
+    id: undated.id, venueId, supplierName: 'QA supplier without invoice date', documentNumber: '', documentDate: null,
+    lines: [{ ingredientId, quantity: 1, unit: 'bottle', unitCost: 100 }],
+  });
+  const orderedDocuments = await repository.list(venueId);
+  const firstUndatedIndex = orderedDocuments.findIndex((document) => !document.documentDate);
+  assert.ok(firstUndatedIndex >= 0 && orderedDocuments.some((document) => document.id === undated.id), 'undated document remains in the sorted list');
+  assert.ok(orderedDocuments.slice(0, firstUndatedIndex).every((document) => Boolean(document.documentDate)), 'dated documents sort before undated documents');
+  assert.ok(orderedDocuments.slice(firstUndatedIndex).every((document) => !document.documentDate), 'undated documents remain grouped last, ordered by system record time');
   const unposted = await callApi({ path: `/api/finance/purchase-payables/${draft.id}/payments`, method: 'POST', body: {
     amount: 1, paymentDate: '2026-09-27', paymentMethod: 'cash', idempotencyKey: `qa:draft:${process.pid}`,
   } });
@@ -74,6 +124,8 @@ try {
   assert.equal(posted.movementIds.length, 1, 'posting creates a stock movement from the receipt');
   const onHand = await setup.query("SELECT COALESCE(SUM(CASE WHEN direction IN ('in','transfer','adjustment') THEN quantity ELSE -quantity END),0)::numeric AS amount FROM stock_movements WHERE venue_id=$1 AND ingredient_id=$2", [venueId, ingredientId]);
   assert.equal(Number(onHand.rows[0].amount), 2000, 'posted receipt updates the stock ledger');
+  assert.equal((await callVoidApi(draft.id)).status, 409,
+    'a posted receipt cannot be cancelled without an explicit stock reversal');
 
   let payables = await callApi({ path: '/api/finance/purchase-payables' });
   assert.equal(payables.status, 200);
@@ -193,7 +245,7 @@ try {
   assert.equal(replayHistory.data.items.length, 1, 'parallel retry produces one history item');
   assert.equal(Number(replayHistory.data.items[0].amount), 40);
 
-  console.log('PURCHASE PAYMENT POSTGRES API QA: PASS (real PostgreSQL receipt → stock → payables; partial/full settlement; distinct-key final-balance race; identical-key concurrent replay; tenant/status/history checks)');
+  console.log('PURCHASE PAYMENT POSTGRES API QA: PASS (real PostgreSQL nullable supplier dates + independent record timestamp; receipt → stock → payables; partial/full settlement; concurrent balance/idempotency checks)');
 } finally {
   await pool.end();
   if (setup._connected) {

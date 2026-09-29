@@ -4,6 +4,7 @@ import fs from 'node:fs';
 const migration = fs.readFileSync(new URL('../migrations/038_inventory_purchase_documents.sql', import.meta.url), 'utf8');
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const repository = fs.readFileSync(new URL('../db.js', import.meta.url), 'utf8');
+const portal = fs.readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 
 for (const field of [
   'OLD.document_id IS DISTINCT FROM NEW.document_id',
@@ -26,13 +27,18 @@ for (const route of [
   "'/api/inventory/purchase-documents' && req.method === 'GET'",
   "'/api/inventory/purchase-documents' && req.method === 'POST'",
   "purchaseDocumentPath && req.method === 'PATCH'",
-  "purchaseDocumentPostPath && req.method === 'POST'"
+  "purchaseDocumentPostPath && req.method === 'POST'",
+  "purchaseDocumentVoidPath && req.method === 'POST'"
 ]) assert.match(server, new RegExp(route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+assert.match(repository, /async voidDraft\(venueId, id\)[\s\S]*?FOR UPDATE[\s\S]*?purchase_document_not_voidable[\s\S]*?status='voided'/,
+  'only a locked draft may be voided, without creating stock movements');
 for (const contract of ['purchase_document_not_postable', 'purchase_document_empty', 'source_movement_id', 'stock_movements', 'receipt_unit_cost', 'inventory.purchase_document_posted', 'invalid_source_auto_order', 'FOR UPDATE OF l,i', 'purchase_document_required', 'purchase_item_not_in_auto_order', 'purchase_quantity_exceeds_auto_order', 'partially_received', 'receivedQuantity', 'auto_order_has_draft_receipts', 'has_drafts']) assert.match(`${server}\n${repository}`, new RegExp(contract.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 assert.match(repository, /assertAutoOrderAllocation\(client, sourceOrder, input\.venueId/,
   'draft receipts must reserve only the quantity still expected in their auto-order');
 assert.match(repository, /UPDATE inventory_auto_orders SET status=\$1,lines=\$2::jsonb/,
   'posting a linked receipt must update received quantities and auto-order status transactionally');
+assert.match(portal, /item\.cost = Number\(\(after > 0[\s\S]{0,240}line\.receiptUnitCost\)\.toFixed\(4\)\)/,
+  'demo receipt valuation must preserve the same four-decimal weighted unit-cost precision as PostgreSQL');
 assert.match(server, /SELECT id,status,lines FROM inventory_auto_orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE[\s\S]*?SELECT EXISTS\(SELECT 1 FROM inventory_purchase_documents WHERE source_auto_order_id=\$1 AND venue_id=\$2 AND status='draft'\)/,
   'cancelling an auto-order must serialize with draft creation/posting and reject linked drafts');
 console.log('PURCHASE DOCUMENTS CONTRACT: PASS');

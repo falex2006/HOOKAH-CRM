@@ -29,7 +29,7 @@ const body = (value) => JSON.stringify(value);
 const suffix = Date.now();
 
 const category = await request('/api/product-categories', { method: 'POST', body: body({ name: `Локальная проверка ${suffix}` }) });
-const product = await request('/api/products', { method: 'POST', body: body({ name: `Локальная позиция ${suffix}`, category: category.name, price: 123, aliases: ['проверка', 'test'], imageUrl: 'data:image/png;base64,AA==' }) });
+const product = await request('/api/products', { method: 'POST', body: body({ name: `Локальная позиция ${suffix}`, category: category.name, price: 123, inventoryMode: 'non_stock', aliases: ['проверка', 'test'], imageUrl: 'data:image/png;base64,AA==' }) });
 await request(`/api/products/${product.id}`, { method: 'PATCH', body: body({ price: 130, aliases: ['обновлённая позиция'] }) });
 await request(`/api/products/${product.id}/image`, { method: 'POST', body: body({ imageData: 'data:image/png;base64,AA==' }) });
 

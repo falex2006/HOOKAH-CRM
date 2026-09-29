@@ -72,7 +72,11 @@ try {
   await req('/api/inventory/movements', 'POST', { itemId: stockItem.id, delta: 1000, unit: 'мл', reason: 'Recipe runtime QA supply' }, 201);
   const product = await req('/api/products', 'POST', { name: `QA recipe sale ${Date.now()}`, category: 'bar', price: 100 }, 201);
   await req('/api/recipes', 'POST', { productId: product.id, name: product.name, ingredients: [], yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1 }, 400);
-  await req('/api/recipes', 'POST', { productId: product.id, name: product.name, ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' }], yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1 }, 201);
+  const saleRecipe = await req('/api/recipes', 'POST', { productId: product.id, name: product.name, ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '1 л' }], yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1 }, 201);
+  const invalidRecipeRebind = await req(`/api/recipes/${saleRecipe.id}`, 'PATCH', { recipeType: 'premix' }, 400);
+  assert.equal(invalidRecipeRebind.error, 'premix_product_binding_not_allowed', 'memory mode rejects turning a product-bound sale recipe into a premix'); checks++;
+  const unchangedSaleRecipe = (await req('/api/recipes')).items.find((item) => item.id === saleRecipe.id);
+  assert.equal(unchangedSaleRecipe.recipeType, 'sale', 'rejected sale-to-premix edit leaves the linked sale recipe unchanged'); checks++;
   await req('/api/recipes', 'POST', { productId: product.id, name: 'QA incompatible unit', ingredients: [{ ingredientId: stockItem.id, name: stockItem.name, quantity: '1 кг' }], yieldQuantity: 1, yieldUnit: 'порция', portionCount: 1 }, 400);
 
   async function createOrder() {
@@ -99,11 +103,35 @@ try {
   assert.equal((await req(`/api/orders/${rejectedOrderId}/payments`)).items.length, 0, 'failed depletion records no payment'); checks++;
   assert.equal((await req('/api/inventory')).items.find((item) => item.id === stockItem.id).onHand, 0, 'failed depletion leaves stock unchanged'); checks++;
 
-  const shiftClose = await req(`/api/shifts/${openedShift.id}/close`, 'POST', { closingCash: 100, checklistConfirmed: true });
-  assert.equal(shiftClose.expectedCash, 100, 'expected cash includes cash payments recorded in the open shift');
+  const unmappedProduct = await req('/api/products', 'POST', { name: `QA no-recipe tracked ${Date.now()}`, category: 'bar', price: 100 }, 201);
+  assert.equal(unmappedProduct.inventoryMode, 'tracked', 'new catalog item explicitly defaults to stock tracking'); checks++;
+  const unmappedOrder = await req('/api/orders', 'POST', { tableId: `qa-unmapped-${Date.now()}` }, 201);
+  await req(`/api/orders/${unmappedOrder.id}/items`, 'POST', { productId: unmappedProduct.id, quantity: 1 }, 201);
+  const blockedClose = await req(`/api/orders/${unmappedOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+  assert.equal(blockedClose.error, 'product_recipe_required', 'tracked product cannot close without a linked recipe'); checks++;
+  assert.equal((await req('/api/orders')).items.find((entry) => entry.id === unmappedOrder.id).status, 'open', 'missing-recipe close preserves the open order'); checks++;
+  await req(`/api/orders/${unmappedOrder.id}/payments`, 'POST', { amount: 50, method: 'cash' }, 201);
+  const blockedFinalPayment = await req(`/api/orders/${unmappedOrder.id}/payments`, 'POST', { amount: 50, method: 'cash' }, 409);
+  assert.equal(blockedFinalPayment.error, 'product_recipe_required', 'final installment is rejected until recipe exists'); checks++;
+  assert.equal((await req(`/api/orders/${unmappedOrder.id}/payments`)).items.length, 1, 'failed final installment rolls back the attempted payment'); checks++;
+  const nonStockProduct = await req('/api/products', 'POST', { name: `QA service item ${Date.now()}`, category: 'Услуги', price: 100, inventoryMode: 'non_stock' }, 201);
+  const nonStockOrder = await req('/api/orders', 'POST', { tableId: `qa-non-stock-${Date.now()}` }, 201);
+  await req(`/api/orders/${nonStockOrder.id}/items`, 'POST', { productId: nonStockProduct.id, quantity: 1 }, 201);
+  const nonStockClose = await req(`/api/orders/${nonStockOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 200);
+  assert.equal(nonStockClose.status, 'closed'); assert.equal(nonStockClose.costOfGoods, 0, 'explicit non-stock service can close without recipe COGS'); checks += 2;
+  const reviewProduct = await req('/api/products', 'POST', { name: `QA review item ${Date.now()}`, category: 'bar', price: 100 }, 201);
+  await req(`/api/products/${reviewProduct.id}`, 'PATCH', { inventoryMode: 'needs_review' }, 200);
+  const reviewOrder = await req('/api/orders', 'POST', { tableId: `qa-review-${Date.now()}` }, 201);
+  await req(`/api/orders/${reviewOrder.id}/items`, 'POST', { productId: reviewProduct.id, quantity: 1 }, 201);
+  const blockedReviewClose = await req(`/api/orders/${reviewOrder.id}/close`, 'POST', { paymentMethod: 'cash' }, 409);
+  assert.equal(blockedReviewClose.error, 'product_inventory_mode_required', 'unclassified legacy product cannot close as a zero-cost sale'); checks++;
+  assert.equal((await req('/api/inventory')).items.find((item) => item.id === stockItem.id).onHand, 0, 'review/missing-recipe attempts do not change stock'); checks++;
+
+  const shiftClose = await req(`/api/shifts/${openedShift.id}/close`, 'POST', { closingCash: 250, checklistConfirmed: true });
+  assert.equal(shiftClose.expectedCash, 250, 'expected cash includes cash payments recorded in the open shift');
   assert.equal(shiftClose.cashVariance, 0, 'cash reconciliation matches opening float plus attributed cash sales'); checks += 2;
 
-  console.log(`RECIPE DEPLETION RUNTIME QA: ${checks} checks passed (memory API: mixed-unit premix aggregation, overdraw guard, sales depletion, COGS/profit and cash reconciliation; PostgreSQL requires a separate test server)`);
+  console.log(`RECIPE DEPLETION RUNTIME QA: ${checks} checks passed (memory API: explicit tracked/non-stock/review modes, missing recipe close/final-payment rollback, mixed-unit premix, sales depletion, COGS/profit and cash reconciliation; PostgreSQL requires a separate test server)`);
 } finally {
   child.kill();
   await Promise.race([new Promise((resolve) => child.once('exit', resolve)), delay(3000)]);

@@ -651,3 +651,45 @@
 - Updated the visual rules and sidebar regression contract. No routes, access rules, API, database, or server settings changed.
 - Checks: sidebar navigation contract (including width continuity at 949–952px and 1179–1181px), visual page rules, Fold responsive, shared header, asset synchronization, JS syntax, and `git diff --check` passed.
 - Release: local changes only; not deployed to VPS. Authenticated local browser rendering was not available for this pass, so final pixel-level comparison on the server build remains part of release QA.
+
+## Hookah CRM additional acceptance (2026-09-28)
+
+- Added nullable supplier-document number/date behavior and separated supplier date from the immutable system record timestamp; added PostgreSQL migration 047. Added category-to-subdepartment ownership with same-venue integrity and conservative legacy backfill; added migration 048 and editor selection.
+- Corrected PostgreSQL floor reads so newly-created empty halls remain visible; lock/unlock now reloads current PIN hash from PostgreSQL and preserves the original login session, while cross-tab lock events cannot invent PIN configuration for a user without a PIN.
+- Added direct numeric PostgreSQL examples for 100 g tobacco pack → 18 g recipe → 82 g stock → 21.60 ₽ COGS; 700 ml bottle → 50 ml cocktail → 650 ml stock → 25 ₽ COGS. Tested nullable invoice dates/numbers, hierarchy ownership/concurrency, hall/table persistence, weighted average valuation, purchase settlement, payroll/P&L and shift cash.
+- Full local acceptance passed at localhost, and all 14 PostgreSQL QA suites passed on an isolated disposable PostgreSQL 16 container. Fresh browser screenshots reviewed dashboard, stock, receipt/movement form and department/category pages at desktop 1280×720. A clean demo server was used after the acceptance suite left synthetic QA rows in its process; the browser screenshot review used an unmodified empty demo state.
+- Traceability: created `HOOKAH_CRM_ADDITIONAL_ACCEPTANCE.md` with an individual evidence/status row for each of the 50 new points. The review identifies remaining product-model gaps: structured alcohol/tobacco attributes and taxonomies, receipt reversal flow, broader cost boundaries, full UI E2E, mobile screenshot review, and production data validation. Thus the 50-point scope is not complete and must not be represented as 100% done.
+- No commit or push has been made from this detached checkout. No production/VPS was accessed or modified. No real-world inventory records were imported.
+- Independent code-health review then caught cross-tab logout being confused with PIN unlock, stale tabs not reacting to bearer-session replacement, and an unscoped migration constraint-name guard. Fixed by explicit session-end events/redirects, explicit successful-unlock events, synchronizing PIN configuration/auto-lock across tabs, and scoping migration 048's FK existence query to `product_categories`. Added a PostgreSQL migration test for duplicate constraint names on a different table and extended the local lock contract. Final local acceptance, all 14 PostgreSQL suites, the 50-item traceability contract, source/dist synchronization, JS syntax, and diff whitespace checks passed after these fixes.
+- A fresh two-tab localhost browser test confirmed that logout in one tab sends the other tab to `/login`. Fresh mobile screenshots and hardware Fold verification are still not part of this run.
+- Added a clear “Отменить черновик” receipt action. The API locks the document and permits draft→voided only; it keeps history, releases auto-order draft reservation, and writes an audit event without creating stock movements. PostgreSQL coverage asserts unchanged stock and rejects repeat cancellation or cancellation of a posted receipt. Posted-document reversal remains explicitly out of scope until a balancing stock movement workflow is implemented. Re-ran all 14 PostgreSQL suites against a disposable loopback-only PostgreSQL 16 database after this change: PASS. Re-ran the complete local acceptance suite on a dedicated QA server with raised in-process request cap: PASS; no production rate-limit setting changed.
+
+## Уточнение процесса: отменён лимит «15 правок» (2026-09-28)
+
+- По прямому указанию владельца снято правило, что выпуск обязан ждать накопления 15 правок или что прогресс должен маркироваться `1/15`.
+- `DEVELOPMENT_WORKFLOW.md` теперь группирует работу по совместимой области и критериям приёмки; прогресс фиксируется результатом, проверками и рисками. Исторические записи счётчика остаются историей и не являются действующим release gate.
+- Не коммитил и не публиковал изменение этого правила отдельно от текущей незавершённой работы.
+
+## Повтор QA дополнительного ТЗ (2026-09-28)
+
+- Актуальный `scripts/postgres-qa.mjs`: все 14 изолированных PostgreSQL suites PASS; recipe/depletion suite — 156 assertions. Добавлены справочные категории в fixtures, чтобы тест отражал новое правило API: позиции нельзя создавать со свободно набранной неизвестной категорией.
+- `scripts/local-acceptance.ps1 -BaseUrl http://127.0.0.1:3228`: PASS на новом memory-процессе; предыдущий запуск на уже использованном процессе упёрся в лимит двух сессий после накопления логинов из тестов, а не в дефект кода.
+- Дополнительная матрица из 50 пунктов, матрица исходных 34 пунктов, inventory API/race suite, PIN, purchase contracts, JS syntax, sync source/dist, `git diff --check`: PASS.
+- Независимый code-health review подтвердил отсутствие найденной гонки в проверенных write paths. Он обнаружил остаточное различие семантики зарплаты между PostgreSQL accrual и demo/memory; пункт 21 матрицы оставлен «Частично» до общего набора parity fixtures/модели начислений.
+- Визуальная граница прежняя: последнее evidence — выборочные скриншоты локальной CRM на desktop 1280×720; не является полным свежим визуальным проходом по Fold/mobile. VPS/production не проверялись и не менялись.
+
+## Визуальная перепроверка выбранных маршрутов и отмена счётчика — 28.09.2026
+
+- По прямой просьбе владельца отменено ожидание пакета `1/15`; исторические записи не переписывались. Согласованы `DEVELOPMENT_WORKFLOW.md` и `docs/AI_ORCHESTRATOR.md`: критерии готовности остаются, лимита/счётчика больше нет.
+- На screenshot review подтверждены и исправлены два дефекта: действия в карточках техкарт имели разную вертикальную позицию; фильтры склада на узком экране сливались рамками. В CSS 312 выравнивание футера закреплено через flex-column и `margin-top:auto`, а mobile filters стали одноколоночными, полноширинными с gap 8 px.
+- Headless Edge проверил 15 выбранных маршрутов/разделов на 1024, 820, 717 и 390 px (68 комбинаций): неправильная dashboard-метка исправлена на `/admin`; горизонтального переполнения нет. Свежий CSS 312 screenshot/DOM подтверждает: stock filters gap=8px, document width 390; recipe action tops совпадают (730px, 730px, 730px), document width 1280.
+- Проверки после UI-правок: local design contract, sidebar contract, header shell contract, acceptance-matrix contract, `node --check` для server/portal/db и `git diff --check` — PASS. Источник и `dist/style.css` синхронизированы. Новых API/DB/migrations нет.
+- Ограничение: просмотрены видимые верхние состояния выбранных маршрутов; не все формы/диалоги и внутренние полосы прокрутки, не физический Fold, не VPS/production.
+
+## Полная локальная приёмка и защита себестоимости — 29.09.2026
+
+- Закрыты складские граничные случаи: пустая legacy recipe header, неоднозначный name-only рецепт при повторяющихся названиях, несколько прямых sale-карт, связывание карты с `non_stock`, гонки между сменой режима и заказом/картой. Демо и PostgreSQL одинаково запрещают привязанную товарную техкарту переводить в премикс. Продажа с неизвестной/неоднозначной учётной моделью теперь завершается отказом до изменения оплаты, остатка и COGS.
+- Полный локальный acceptance на чистом demo-процессе `127.0.0.1:3240` — PASS. Все 14 PostgreSQL QA suites — PASS; recipe/depletion runtime — 233 assertions, memory recipe runtime — 84 checks. Миграции 001–049 прошли replay/upgrade, legacy записи сохранены. Статические contracts и source/dist синхронизированы.
+- Свежие визуальные кадры: dashboard и склад 390×844 (верх/низ), узкая форма товара около 570 px; ограничения по полному покрытию всех экранов и физическому Fold сохранены в отчёте.
+- Правило ожидания `1/15` отменено ранее; старые записи `1/15` в журнале — только историческая документация, они не ограничивают работу/релиз.
+- Всё проверено локально с синтетическими QA-данными. VPS и production не изменялись; изменения остаются незакоммиченными на detached checkout.
