@@ -2445,3 +2445,11 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .reservation-list>.empty strong,.velora-theme .reservation-list>.empty small{display:block;max-width:38ch}
 .velora-theme .reservation-list>.empty small{line-height:1.5}
 @media(max-width:650px){.velora-theme .reservation-panel .panel-head{grid-template-columns:minmax(0,1fr)}}
+
+/* Give the guest base a stable heading row and equally labeled filter controls. */
+body[data-page="clients"] .panel.wide>.panel-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:14px}
+body[data-page="clients"] .clients-toolbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end;gap:12px;width:100%;max-width:none}
+body[data-page="clients"] .client-filter-field{display:grid;gap:6px;min-width:0;color:#a5adb7;font-size:12px;line-height:1.2}
+body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .client-filter-field select{box-sizing:border-box;width:100%;min-width:0;max-width:none;height:48px;min-height:48px}
+@media(max-width:1100px){body[data-page="clients"] .clients-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){body[data-page="clients"] .clients-toolbar{grid-template-columns:minmax(0,1fr)}}

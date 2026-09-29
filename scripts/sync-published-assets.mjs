@@ -3,8 +3,8 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '315';
-const portalRevision = '306';
+const cssRevision = '316';
+const portalRevision = '307';
 const lockRevision = '14';
 const appRevision = '131';
 const staffProfileRevision = '6';

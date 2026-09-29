@@ -32,5 +32,16 @@ assert.match(css, /\.reservation-list>\.empty\{display:flex;flex-direction:colum
   'reservation empty-state text and action must be stacked with clear spacing');
 assert.match(css, /@media\(max-width:650px\)\{\.velora-theme \.reservation-panel \.panel-head\{grid-template-columns:minmax\(0,1fr\)\}\}/,
   'reservation filters must stack at phone widths');
+assert.ok(portal.includes('<label class="client-filter-field">Период<select id="clients-period"'),
+  'guest period control must have a visible label');
+for (const caption of ['Поиск', 'Статус', 'Сортировка']) {
+  assert.ok(portal.includes(`'${caption}'`), `guest filter must have a visible ${caption} label`);
+}
+assert.match(css, /body\[data-page="clients"\] \.clients-toolbar\{display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/,
+  'guest search, period, status, and sorting must share one aligned desktop row');
+assert.match(css, /@media\(max-width:1100px\)\{body\[data-page="clients"\] \.clients-toolbar\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}\}/,
+  'guest filters must use a balanced two-column tablet layout');
+assert.match(css, /@media\(max-width:650px\)\{body\[data-page="clients"\] \.clients-toolbar\{grid-template-columns:minmax\(0,1fr\)\}\}/,
+  'guest filters must stack on phone widths');
 
-console.log('VISUAL LIVE DEFECTS CONTRACT: PASS (admin overlay/title, legacy recipe refs, department fields, reservation layout)');
+console.log('VISUAL LIVE DEFECTS CONTRACT: PASS (admin overlay/title, legacy recipe refs, department fields, reservation and guest-filter layouts)');

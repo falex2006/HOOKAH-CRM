@@ -2433,7 +2433,17 @@ function renderClients() {
   target.insertAdjacentHTML('beforeend', hiddenLoyaltyFields);
   const clientsToolbar = document.querySelector('.clients-toolbar');
   if (clientsToolbar && !document.querySelector('#clients-period')) {
-    clientsToolbar.insertAdjacentHTML('afterbegin', '<label class="inline-filter">Период<select id="clients-period" aria-label="Период аналитики гостей"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option><option value="365">Год</option></select></label>');
+    clientsToolbar.insertAdjacentHTML('afterbegin', '<label class="client-filter-field">Период<select id="clients-period" aria-label="Период аналитики гостей"><option value="7">7 дней</option><option value="30" selected>30 дней</option><option value="90">90 дней</option><option value="365">Год</option></select></label>');
+  }
+  for (const [selector, caption] of [['#clients-search', 'Поиск'], ['#clients-status-filter', 'Статус'], ['#clients-sort', 'Сортировка']]) {
+    const control = document.querySelector(selector);
+    if (!control || control.closest('.client-filter-field')) continue;
+    const field = document.createElement('label');
+    field.className = 'client-filter-field';
+    const label = document.createElement('span');
+    label.textContent = caption;
+    control.before(field);
+    field.append(label, control);
   }
   document.querySelector('#clients-period')?.addEventListener('change', (event) => {
     api(`/api/clients?days=${encodeURIComponent(event.target.value)}`).then((data) => { clients = data.items || []; draw(document.querySelector('#clients-search')?.value || ''); }).catch(() => portalNotice('Не удалось обновить период аналитики гостей', 'error'));

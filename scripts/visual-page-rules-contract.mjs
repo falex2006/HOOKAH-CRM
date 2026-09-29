@@ -17,6 +17,8 @@ for (const text of ['Остатки', 'Поставки и списания', '�
   assert.ok(warehousePrompt.includes(text), `warehouse prompt missing rule: ${text}`);
 }
 assert.match(rules, /WAREHOUSE_PAGE_PROMPT\.md/);
+assert.match(rules, /Фильтры периода, поиска, статуса и сортировки имеют видимые подписи/,
+  'guest filters must retain the labeled responsive layout rule');
 assert.match(css, /@view-transition\s*\{\s*navigation:\s*auto;\s*\}/,
   'same-origin full-page navigation must use progressive cross-document transitions');
 assert.match(css, /@media\(prefers-reduced-motion:reduce\)\{\.staff-theme nav button\{transition:none!important;transform:none!important\}/,
