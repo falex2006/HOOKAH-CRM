@@ -1554,6 +1554,8 @@ function renderInventory() {
   const setProductEditorMode = (item = null) => {
     const form = document.querySelector('#product-form');
     if (!form) return;
+    const addButton = document.querySelector('#new-product');
+    if (addButton) { addButton.disabled = true; addButton.textContent = 'Форма открыта'; }
     const editing = Boolean(item);
     form.hidden = false;
     document.querySelector('#product-form-title').textContent = editing ? 'Редактирование товара' : 'Новый товар';
@@ -1758,6 +1760,8 @@ function renderInventory() {
       document.querySelector('#product-form-hint').textContent = 'Заполните основные данные — товар сразу появится в заказах.';
       document.querySelector('#product-form-status').textContent = 'Черновик';
       if (message) { message.textContent = ''; message.className = 'form-message'; }
+      const addButton = document.querySelector('#new-product');
+      if (addButton) { addButton.disabled = false; addButton.innerHTML = `${icon('plus')} Добавить товар`; }
       pendingProductImage = null;
       productImageChanged = false;
       const imageInput = document.querySelector('#product-image-file');

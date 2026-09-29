@@ -19,6 +19,10 @@ for (const action of ['auto-order', 'recipe', 'premix', 'product']) {
 assert.match(portal, /id="create-auto-order"/, 'the single stock replenishment action remains available in its panel');
 assert.match(portal, /id="new-recipe"/, 'the single recipe creation action remains available in its panel');
 assert.match(portal, /id="new-product"/, 'the single product creation action remains available in its panel');
+assert.match(portal, /const addButton = document\.querySelector\('#new-product'\);\s*if \(addButton\) \{ addButton\.disabled = true; addButton\.textContent = 'Форма открыта'; \}/,
+  'opening the product editor must prevent a repeated create click from wiping entered data');
+assert.match(portal, /addButton\.disabled = false; addButton\.innerHTML = `\$\{icon\('plus'\)\} Добавить товар`/,
+  'closing or saving the product editor must restore the add-product action');
 assert.match(portal, /id="open-products"/, 'directory panel retains its catalog navigation action');
 assert.match(portal, /actions: \[\['department', 'Добавить цех', 'primary'\], \['subdepartment', 'Добавить подцех', ''\], \['category', 'Добавить категорию', ''\]\]/,
   'directory creation actions belong together in the page heading');
