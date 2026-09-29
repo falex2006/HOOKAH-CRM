@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const read = file => readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const deploy = read('deploy-vps.sh');
@@ -87,6 +88,7 @@ assert.match(server, /platform-owner@example\.com/);
 assert.match(server, /configuredApiRateLimit >= 30 && configuredApiRateLimit <= 10000[\s\S]*:\s*180;/, 'API rate limit remains 180 by default and only accepts a bounded operational override');
 assert.doesNotMatch(server, /alphasat72@gmail\.com/);
 assert.match(postDeploy, /jq -n --arg username/);
-assert.equal(existsSync(new URL('../.env', import.meta.url)), false, 'real .env must stay out of the repository');
+const trackedEnv = spawnSync('git', ['ls-files', '--error-unmatch', '.env'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+assert.notEqual(trackedEnv.status, 0, 'real .env must stay out of the repository; an ignored local .env may exist for development');
 
 console.log('LOCAL DEPLOY CONTRACT: PASS (preflight, secrets, healthcheck and HTTPS template)');

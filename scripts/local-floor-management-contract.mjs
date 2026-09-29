@@ -41,7 +41,7 @@ assert.match(databaseSource, /to_char\(\$\{localStartsAt\},'HH24:MI'\)/, 'Postgr
 const reservationRepositorySource = databaseSource.match(/class ReservationRepository \{[\s\S]*?\n\}/)?.[0];
 if (!reservationRepositorySource) throw new Error('Could not isolate PostgreSQL reservation repository');
 assert.doesNotMatch(reservationRepositorySource, /UPDATE tables t SET status=.*reserved/, 'floor availability must derive from current reservations and not persist future reservations as today-reserved');
-const reservationOptionHelpers = portalSource.match(/const reservationTableCapacityLabel = \(table\) => \{[\s\S]*?\n\};\nconst renderReservationTableOptions = \(zones\) => \{[\s\S]*?\n\};/)?.[0];
+const reservationOptionHelpers = portalSource.match(/const reservationTableCapacityLabel = \(table\) => \{[\s\S]*?\r?\n\};\r?\nconst renderReservationTableOptions = \(zones\) => \{[\s\S]*?\r?\n\};/)?.[0];
 if (!reservationOptionHelpers) throw new Error('Could not isolate reservation hall/table option rendering helpers');
 const reservationOptionApi = new Function('esc', 'money', 'pluralRu', `${reservationOptionHelpers}; return { reservationTableCapacityLabel, renderReservationTableOptions };`)(
   (value) => String(value ?? '').replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),

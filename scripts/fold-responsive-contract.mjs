@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 const css=fs.readFileSync('style.css','utf8');
 const portal=fs.readFileSync('portal.js','utf8');
+const staffApp=fs.readFileSync('app.js','utf8');
 const required=[
+  ['Intermediate-width staff floor uses a readable six-column layout with compressed table placement', /@media \(max-width:1180px\) and \(min-width:761px\)\{[\s\S]*?\.staff-theme \.tables\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\)\}\.staff-theme \.table\{grid-column:var\(--table-compact-x\)\/span var\(--table-compact-w\);grid-row:var\(--table-y\)\/span var\(--table-h\)\}/],
+  ['Staff floor derives compact tablet coordinates from its saved layout', /const compactW=Math\.min\(6,Math\.max\(1,Math\.ceil\(place\.w\/2\)\)\);const compactX=Math\.max\(1,Math\.min\(7-compactW,Math\.ceil\(place\.x\/2\)\)\)/],
   ['Fold compact breakpoint', /@media\s*\(min-width:651px\)\s*and\s*\(max-width:900px\)/],
   ['Fold sidebar overrides the higher-specificity sticky desktop rule with an off-canvas drawer', /@media \(min-width:651px\) and \(max-width:900px\)\{[\s\S]*?\.portal\.velora-theme \.portal-sidebar\{position:fixed;z-index:25;left:0;top:0;bottom:0;width:280px;transform:translateX\(-100%\)/],
   ['Fold expanded drawer also overrides the sticky desktop rule', /\.portal\.velora-theme \.portal-sidebar\.is-expanded\{position:fixed;z-index:60[\s\S]*?transform:translateX\(0\)/],
@@ -32,5 +35,5 @@ const required=[
   ['Order journal rows expose names for each compact card field', /rows\.querySelectorAll\(':scope > tr'\)\.forEach\(\(row\) => \{ if \(row\.querySelector\('\.empty'\)\) return; \['Заказ', 'Стол', 'Гость', 'Статус', 'Сумма', 'Создано', 'Действие'\]/],
   ['Stable scrollbar slot', /\.velora-theme\s+\.portal-main,\.staff-theme\s+main\s*\{\s*scrollbar-gutter:\s*stable;/]
 ];
-for (const [name,re] of required) assert.match(name.startsWith('Icon-only') || name.startsWith('Sidebar toggle initialization') || name.startsWith('Fold drawer exposes') || name.startsWith('Closed Fold drawer') || name.startsWith('Phone drawer exposes') || name.startsWith('Phone drawer closes') || name.startsWith('Compact-width') || name.startsWith('Order journal rows') ? portal : css,re,name);
+for (const [name,re] of required) assert.match(name.startsWith('Staff floor derives') ? staffApp : name.startsWith('Icon-only') || name.startsWith('Sidebar toggle initialization') || name.startsWith('Fold drawer exposes') || name.startsWith('Closed Fold drawer') || name.startsWith('Phone drawer exposes') || name.startsWith('Phone drawer closes') || name.startsWith('Compact-width') || name.startsWith('Order journal rows') ? portal : css,re,name);
 console.log(`FOLD RESPONSIVE CONTRACT: PASS (${required.length} invariants)`);

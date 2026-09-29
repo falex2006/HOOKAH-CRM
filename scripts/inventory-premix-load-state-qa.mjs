@@ -2,6 +2,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+const dashboardStart = portal.indexOf('function renderDashboard()');
+const inventoryStart = portal.indexOf('function renderInventory()');
+assert.ok(dashboardStart >= 0 && inventoryStart > dashboardStart, 'dashboard and inventory renderers must exist');
+const dashboardSource = portal.slice(dashboardStart, inventoryStart);
+assert.doesNotMatch(dashboardSource, /loadPremixData|premix-empty-guidance|premix-form/, 'premix controls must not be wired to the dashboard route');
+const inventorySource = portal.slice(inventoryStart, portal.indexOf('function renderFinance()', inventoryStart));
+assert.match(inventorySource, /const premixPanel = document\.createElement\('section'\)[\s\S]*?target\.append\(premixPanel\)[\s\S]*?loadPremixData\(\);/, 'inventory route must mount the premix panel before loading its data');
+assert.match(styles, /\.premix-setup-guidance:not\(\[hidden\]\)\{[^}]*display:flex[^}]*flex-direction:column[^}]*gap:8px/s, 'visible premix guidance must separate its heading, explanation and action');
 const start = portal.indexOf('  const loadPremixData = () => {');
 const end = portal.indexOf('; loadPremixData();', start);
 assert.ok(start >= 0 && end > start, 'premix loader must be discoverable');
@@ -44,4 +53,12 @@ assert.ok(recoveredFixture.controls.every((control) => !control.disabled), 'succ
 assert.match(recoveredFixture.nodes['#premix-recipe'].innerHTML, /Сироп/);
 assert.match(recoveredFixture.nodes['#premix-batches'].innerHTML, /Партии ещё не приготовлены/);
 
-console.log('INVENTORY PREMIX LOAD STATE QA: PASS (visible failure/retry state and successful recovery)');
+const readOnlyNodes = { '#premix-batches': { innerHTML: '' } };
+const readOnlyFixture = { document: { querySelector: (selector) => readOnlyNodes[selector] || null } };
+const readOnlyRequests = [];
+const readOnlyLoad = loadPremixData((path) => { readOnlyRequests.push(path); return Promise.resolve({ items: [{ recipeName: 'Тестовый премикс', outputQuantity: 2, outputUnit: 'л', createdAt: '2026-09-29T10:00:00Z' }] }); }, readOnlyFixture);
+await readOnlyLoad();
+assert.deepEqual(readOnlyRequests, ['/api/inventory/premixes'], 'read-only role loads history without requesting write-only recipe/stock data');
+assert.match(readOnlyNodes['#premix-batches'].innerHTML, /Тестовый премикс/);
+
+console.log('INVENTORY PREMIX LOAD STATE QA: PASS (route wiring, failure/retry, successful recovery and read-only history)');
