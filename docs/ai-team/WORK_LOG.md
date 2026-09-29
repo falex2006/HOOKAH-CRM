@@ -767,3 +767,11 @@
 - Закреплено в `WAREHOUSE_PAGE_PROMPT.md` и `VISUAL_PAGE_RULES.md`; `inventory-responsive-contract.mjs` теперь проверяет ширины и перенос заголовков. Данные, API и БД не менялись; CSS revision 319 синхронизирована для исходных и dist-маршрутов.
 - Складские responsive, hierarchy, status, context, page-rules, local-design и Fold contracts прошли; `git diff --check` — PASS.
 - Production screenshot подтверждает состояние до исправления; повторно визуально проверить новую CSS-ревизию можно после доступности preview или выкладки. VPS не обновлялся.
+
+## Каталог товаров: разные пустые состояния — 29.09.2026
+
+- На production `/inventory?view=products` с пустой базой каталог показывал «Товаров по запросу нет», хотя поиск был пустой и товары ещё не создавались. Это ошибочно описывало состояние как неудачный поиск.
+- Исправлено: пустой справочник объясняет, что каталог пока пуст и первый товар появится в заказах; при существующих товарах и запросе без совпадений интерфейс предлагает изменить запрос. Никаких данных на production не добавлялось.
+- Правило закреплено в `WAREHOUSE_PAGE_PROMPT.md` и `VISUAL_PAGE_RULES.md`; `inventory-context-contract.mjs` проверяет разницу пустого каталога и результата поиска. API/БД не менялись; `portal.js` revision 310 синхронизирован с dist.
+- Контракты inventory-context, inventory-responsive, визуальных правил, local-design, Fold и `node --check portal.js` — PASS; `git diff --check` — PASS.
+- Production screenshot отражает состояние до исправления; повторный скриншот исправленного состояния невозможен без работающего локального preview или выкладки. VPS не менялся.
