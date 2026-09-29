@@ -13,10 +13,10 @@ assert.match(portal, /inventoryLoadState === 'loading' && \['stock', 'movements'
 assert.match(portal, /inventoryLoadState = 'error'; refreshInventoryContext\(\)/,
   'inventory API errors must not leave false zero KPI values on screen');
 
-for (const label of ['Позиция', 'Цех / категория', 'Остаток', 'Минимум', 'Состояние', 'Действия']) {
+for (const label of ['Позиция', 'Цех / категория', 'Остаток', 'Порог пополнения', 'Состояние', 'Действия']) {
   assert.ok(portal.includes(`data-label="${label}"`), `stock card label is missing: ${label}`);
 }
-for (const label of ['Позиция', 'Остаток', 'Минимум', 'К заказу', 'Поставщик', 'Оценка']) {
+for (const label of ['Позиция', 'Остаток', 'Порог пополнения', 'К заказу', 'Поставщик', 'Оценка']) {
   assert.ok(portal.includes(`data-label="${label}"`), `replenishment card label is missing: ${label}`);
 }
 assert.match(css, /@media\(max-width:1000px\)\{[\s\S]*?\.inventory-stock-panel tbody tr\{display:grid/,

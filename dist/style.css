@@ -2433,3 +2433,5 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 @media(max-width:520px){.velora-theme .finance-category-filters{grid-template-columns:minmax(0,1fr)}}
 
 .product-inventory-mode-field{grid-column:1/-1}.product-inventory-warning{display:inline-flex;margin-top:8px;width:max-content;max-width:100%;white-space:normal;font-style:normal;line-height:1.35}
+
+@media(prefers-reduced-motion:reduce){.staff-theme nav button{transition:none!important;transform:none!important}.staff-theme nav button:hover{transform:none!important}}

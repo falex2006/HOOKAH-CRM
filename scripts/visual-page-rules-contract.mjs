@@ -19,6 +19,8 @@ for (const text of ['Остатки', 'Поставки и списания', '�
 assert.match(rules, /WAREHOUSE_PAGE_PROMPT\.md/);
 assert.match(css, /@view-transition\s*\{\s*navigation:\s*auto;\s*\}/,
   'same-origin full-page navigation must use progressive cross-document transitions');
+assert.match(css, /@media\(prefers-reduced-motion:reduce\)\{\.staff-theme nav button\{transition:none!important;transform:none!important\}/,
+  'staff navigation must not shift on hover when reduced motion is requested');
 for (const name of ['root', 'crm-sidebar', 'crm-header']) {
   assert.ok(css.includes(`::view-transition-group(${name})`), `missing shared ${name} transition timing`);
 }
