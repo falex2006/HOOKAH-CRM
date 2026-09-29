@@ -2465,5 +2465,6 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .portal.light-theme .finance-payroll-filters>label{color:#667782}
 .portal.light-theme .finance-expenses-panel #expense-document{border-color:#d3dfe5;background:#fff;color:#526672}
 .portal.light-theme .finance-expenses-panel #expense-document::file-selector-button{border-color:#d3dfe5;background:#f1f5f7;color:#304651}
+.velora-theme .integrations-panel .integration-detail-grid{grid-template-columns:minmax(0,1fr);max-width:620px}
 @media(max-width:1000px){.velora-theme .finance-payroll-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme .finance-payroll-filters>#payroll-reload{grid-column:1/-1;justify-self:end}}
 @media(max-width:620px){.velora-theme .finance-payroll-filters{grid-template-columns:minmax(0,1fr)}.velora-theme .finance-payroll-filters>#payroll-reload{grid-column:auto;justify-self:stretch;width:100%}}

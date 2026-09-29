@@ -67,6 +67,7 @@ $checks = @(
   @{ file = 'local-saas-onboarding-contract.mjs'; node = $true },
   @{ file = 'local-tea-catalog.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-floor-management-contract.mjs'; node = $true },
+  @{ file = 'integrations-scope-contract.mjs'; node = $true },
   @{ file = '..\smoke-test.ps1'; args = @('-BaseUrl', $BaseUrl) },
   @{ file = 'local-crud-contract.mjs'; node = $true },
   @{ file = 'local-guest-order.ps1'; args = @('-BaseUrl', $BaseUrl) },

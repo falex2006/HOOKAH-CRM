@@ -17,7 +17,7 @@
 | `/finance` | `finance.html` | Финансы и аналитика |
 | `/finance/categories` | `finance-categories.html` | Категории доходов и расходов |
 | `/finance/report` | `finance-report.html` | Финансовый отчёт |
-| `/integrations` | `integrations.html` | Интеграции |
+| `/integrations` | `integrations.html` | Интеграции (сейчас Telegram) |
 | `/network` | `network.html` | Сеть заведений |
 | `/platform` | `platform.html` | Управление тарифом и организациями |
 
