@@ -29,8 +29,10 @@ assert.match(css, /\.velora-theme \.inventory-content-grid\{grid-template-column
   'warehouse retains a single full-width track when generic Fold rules create a two-column content grid');
 assert.match(css, /\.inventory-stock-panel tbody td\{[^}]*width:100%!important[^}]*justify-self:stretch[^}]*box-sizing:border-box/,
   'stock table cells must stretch across their mobile grid and avoid character-by-character wrapping');
-assert.match(css, /inventory-stock-panel th:nth-child\(6\)\{width:15%\}/,
-  'desktop stock table must reserve width for all six columns, including actions');
+assert.match(css, /inventory-stock-panel th:nth-child\(4\)\{width:18%\}\.velora-theme \.inventory-stock-panel th:nth-child\(5\)\{width:17%\}\.velora-theme \.inventory-stock-panel th:nth-child\(6\)\{width:17%\}/,
+  'desktop stock table must reserve enough width for replenishment, state and actions');
+assert.match(css, /\.velora-theme \.inventory-stock-panel th\{[^}]*line-height:1\.35;vertical-align:bottom;white-space:normal\}/,
+  'desktop stock table headers must wrap cleanly instead of merging across narrow columns');
 assert.match(css, /@media\(min-width:651px\) and \(max-width:740px\)\{\.velora-theme \.visual-catalog\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}\}/,
   'visual catalog must reduce columns on the narrow Fold inner viewport instead of overflowing');
 assert.match(css, /\.auto-order-table-wrap table\{display:block;width:100%;min-width:0/,
