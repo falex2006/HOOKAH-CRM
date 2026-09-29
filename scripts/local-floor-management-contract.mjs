@@ -1,6 +1,17 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
 const base = process.argv[2] || 'http://localhost:3000';
 const target = new URL(base);
 if (!['localhost', '127.0.0.1', '::1'].includes(target.hostname)) throw new Error(`Local-only floor contract refused non-local BaseUrl: ${base}`);
+const portalSource = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
+const serverSource = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+assert.match(portalSource, /pluralRu\(zone\.tables\?\.length\s*\|\|\s*0,\s*'стол',\s*'стола',\s*'столов'\)/, 'hall cards must say how many tables are configured, not call them seats');
+assert.doesNotMatch(`${portalSource}\n${serverSource}`, /zone\.tables\.forEach\(\(entry,\s*(?:index|tableIndex)\)\s*=>\s*\{\s*entry\.name\s*=\s*`Стол/, 'creating or deleting a table must not silently rename the other tables');
+assert.match(portalSource, /zoneForm\.dataset\.submitting\s*===\s*'1'/, 'hall creation must guard against duplicate submits');
+assert.match(portalSource, /roomForm\.dataset\.submitting\s*===\s*'1'/, 'table creation must guard against duplicate submits');
+assert.match(portalSource, /Зал создан, но список не обновился/, 'a saved hall must not be reported as a failed creation if the follow-up refresh fails');
+assert.match(portalSource, /Стол создан, но список не обновился/, 'a saved table must not be reported as a failed creation if the follow-up refresh fails');
 const body = (value) => JSON.stringify(value);
 const request = async (path, options = {}) => {
   const response = await fetch(new URL(path, target), { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
@@ -18,9 +29,17 @@ if (!zone.id || zone.name !== `Тестовый этаж ${suffix}`) throw new E
 const floorBeforeTable = await request('/api/floor');
 const visibleEmptyZone = (floorBeforeTable.zones || []).find((entry) => entry.id === zone.id);
 if (!visibleEmptyZone || visibleEmptyZone.tables.length !== 0) throw new Error('New empty zone must remain visible before a table is created');
-const table = await request('/api/floor/tables', { method: 'POST', body: body({ zoneId: zone.id, name: `Стол проверки ${suffix}`, capacity: 2 }) });
+const tableName = `Стол у окна ${suffix}`;
+const table = await request('/api/floor/tables', { method: 'POST', body: body({ zoneId: zone.id, name: tableName, capacity: 2 }) });
+if (table.name !== tableName) throw new Error('Creating a table must preserve its user-provided name');
 const floorAfterTable = await request('/api/floor');
-if (!(floorAfterTable.zones || []).find((entry) => entry.id === zone.id)?.tables.some((entry) => entry.id === table.id)) throw new Error('A table in a newly created zone must remain visible after reloading the floor');
+const createdZone = (floorAfterTable.zones || []).find((entry) => entry.id === zone.id);
+if (!createdZone?.tables.some((entry) => entry.id === table.id && entry.name === tableName)) throw new Error('A table in a newly created zone must remain visible with its name after reloading the floor');
+const secondTableName = `Барная стойка ${suffix}`;
+const secondTable = await request('/api/floor/tables', { method: 'POST', body: body({ zoneId: zone.id, name: secondTableName, capacity: 4 }) });
+const floorAfterSecondTable = await request('/api/floor');
+const savedTables = (floorAfterSecondTable.zones || []).find((entry) => entry.id === zone.id)?.tables || [];
+if (!savedTables.some((entry) => entry.id === table.id && entry.name === tableName) || !savedTables.some((entry) => entry.id === secondTable.id && entry.name === secondTableName)) throw new Error('Adding another table must not overwrite existing table names');
 const room = await request('/api/floor/tables', { method: 'POST', body: body({ zoneId: zone.id, name: `VIP-комната тест ${suffix}`, capacity: 8, minimumOrderTotal: 3500 }) });
 if (!room.id || Number(room.capacity) !== 8 || Number(room.minimumOrderTotal) !== 3500) throw new Error('Room creation returned incomplete data');
 const updated = await request(`/api/floor/tables/${encodeURIComponent(room.id)}`, { method: 'PATCH', body: body({ name: `VIP-комната обновлена ${suffix}`, capacity: 10, minimumOrderTotal: 4000 }) });
@@ -28,6 +47,9 @@ if (updated.name !== `VIP-комната обновлена ${suffix}` || Number
 const protectedZone = await raw(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'DELETE' });
 if (protectedZone.status !== 409 || protectedZone.payload?.error !== 'zone_not_empty') throw new Error('Non-empty zone deletion was not protected');
 await request(`/api/floor/tables/${encodeURIComponent(room.id)}`, { method: 'DELETE' });
+await request(`/api/floor/tables/${encodeURIComponent(secondTable.id)}`, { method: 'DELETE' });
+const floorAfterDelete = await request('/api/floor');
+if (!(floorAfterDelete.zones || []).find((entry) => entry.id === zone.id)?.tables.some((entry) => entry.id === table.id && entry.name === tableName)) throw new Error('Deleting a table must not rename the remaining tables');
 await request(`/api/floor/tables/${encodeURIComponent(table.id)}`, { method: 'DELETE' });
 await request(`/api/floor/zones/${encodeURIComponent(zone.id)}`, { method: 'DELETE' });
 const floor = await request('/api/floor');

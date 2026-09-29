@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '315';
-const portalRevision = '305';
+const portalRevision = '306';
 const lockRevision = '14';
 const appRevision = '131';
 const staffProfileRevision = '6';
