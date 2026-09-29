@@ -39,6 +39,10 @@ assert.deepEqual(map.navigationPresentation, {
 }, 'the site map must document the canonical sidebar visual hierarchy');
 assert.match(tree, /каждый раскрываемый раздел имеет свой значок в заголовке, а вложенные маршруты показываются текстом/,
   'the site tree must record the shared sidebar presentation rule');
+assert.match(rules, /В `venue-layout-settings` сначала создаётся зал\/этаж, после чего открывается форма первого стола; пока залов нет, добавление стола и VIP-комнаты недоступно/,
+  'the venue layout rule must preserve the hall-first table workflow');
+assert.match(tree, /В `admin#venue-layout-settings` зал\/этаж создаётся первым; сохранение сразу предлагает добавить в него стол/,
+  'the site tree must document the hall-to-table handoff');
 for (const entry of map.entries) {
   assert.ok(rules.includes('### `' + entry.path + '`'), `missing page rule ${entry.path}`);
   assert.ok(tree.includes('| `' + entry.path + '` |'), `page absent from site tree ${entry.path}`);
