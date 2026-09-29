@@ -693,3 +693,12 @@
 - Свежие визуальные кадры: dashboard и склад 390×844 (верх/низ), узкая форма товара около 570 px; ограничения по полному покрытию всех экранов и физическому Fold сохранены в отчёте.
 - Правило ожидания `1/15` отменено ранее; старые записи `1/15` в журнале — только историческая документация, они не ограничивают работу/релиз.
 - Всё проверено локально с синтетическими QA-данными. VPS и production не изменялись; изменения остаются незакоммиченными на detached checkout.
+
+
+## VPS release — 29.09.2026
+
+- Владелец запросил обновление сервера. До выкладки подтверждены доступность `territory-vps`, active release `e3a21b1`, чистые предыдущие checkout, health PostgreSQL и отсутствие миграций 047–049 в фактической схеме. `AUTH_REQUIRED=true`, `COOKIE_SECURE=false`.
+- Новый clean checkout `/opt/territory-crm/releases/7929098` получен из GitHub branch `codex/hookah-crm-full-audit-2026-09-29`; commit `7929098db8b74f226ae47836aa1b82a7f3ef55ba`, dirty paths 0. Compose config прошёл preflight.
+- До изменений данных создан backup `/var/backups/territory-crm/territory-crm/crm-pre-e631a90bb5815d281a14e5d6aa7e83f05b64b1a146273a775376480922be8111.sql.gz` (35 932 bytes, mode 600); `gzip -t` и restore в одноразовую БД прошли. Deploy script повторно использовал тот же verified backup.
+- С `ALLOW_HTTP_DEPLOY_ONCE=true` (ранее явно согласованный HTTP релиз) выполнен `deploy-vps.sh`; `COOKIE_SECURE` не менялся. Миграции 047/048/049 применены штатным runner. Seed синхронизировал 10 категорий/66 позиций. Контейнер healthy; `/api/health` вернул PostgreSQL, `/admin`, `/inventory`, `/orders`, `/finance`, `/clients`, `/reservations` — HTTP 200. Release fingerprint `e631a90bb5815d281a14e5d6aa7e83f05b64b1a146273a775376480922be8111`, image `sha256:8d82537d4497b999dcd40f8e3fae92837a770e5d4f69e323a7ceab8cd6d0effe`.
+- Ограничение: после развертывания не выполнялся вход реальным пользователем/операции на настоящих бизнес-данных; Fold аппаратно не тестировался. Это deployment smoke, не production sign-off всей CRM.
