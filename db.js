@@ -407,11 +407,13 @@ class ReservationRepository {
   constructor(pool) { this.pool = pool; }
   async list(venueId, date) {
     const params = [venueId];
-    const dateClause = date ? ` AND r.starts_at::date=$2` : '';
+    const venueTimezone = `COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg')`;
+    const localStartsAt = `(r.starts_at AT TIME ZONE ${venueTimezone})`;
+    const dateClause = date ? ` AND ${localStartsAt}::date=$2::date` : '';
     if (date) params.push(date);
-    const { rows } = await this.pool.query(`SELECT r.id, g.full_name AS "guestName", g.phone, r.starts_at::date AS date, to_char(r.starts_at,'HH24:MI') AS time,
-      r.table_id AS "tableId", t.name AS "tableName", r.guests_count AS guests, r.deposit_paid AS deposit, r.status, r.notes
-      FROM reservations r LEFT JOIN guests g ON g.id=r.guest_id LEFT JOIN tables t ON t.id=r.table_id
+    const { rows } = await this.pool.query(`SELECT r.id, g.full_name AS "guestName", g.phone, ${localStartsAt}::date AS date, to_char(${localStartsAt},'HH24:MI') AS time,
+      r.table_id AS "tableId", t.name AS "tableName", z.name AS "zoneName", r.guests_count AS guests, r.deposit_paid AS deposit, r.status, r.notes
+      FROM reservations r LEFT JOIN venues v ON v.id=r.venue_id LEFT JOIN guests g ON g.id=r.guest_id LEFT JOIN tables t ON t.id=r.table_id LEFT JOIN zones z ON z.id=t.zone_id
       WHERE r.venue_id=$1${dateClause} ORDER BY r.starts_at`, params);
     return rows;
   }
@@ -421,8 +423,7 @@ class ReservationRepository {
       await client.query('BEGIN');
       const guest = input.clientId ? await client.query('SELECT id FROM guests WHERE id=$1 AND venue_id=$2', [input.clientId, input.venueId]) : await client.query(`INSERT INTO guests (venue_id, phone, full_name) VALUES ($1,$2,$3) ON CONFLICT (venue_id, phone) DO UPDATE SET full_name=EXCLUDED.full_name RETURNING id`, [input.venueId, input.phone || null, input.guestName]); if (!guest.rows[0]) throw new Error('guest_not_found');
       const { rows } = await client.query(`INSERT INTO reservations (venue_id, table_id, guest_id, starts_at, guests_count, deposit_required, deposit_paid, status, notes)
-        VALUES ($1,$2,$3,$4,$5,$6,$6,'confirmed',$7) RETURNING id`, [input.venueId, input.tableId, guest.rows[0].id, `${input.date}T${input.time}:00`, input.guests || 1, input.deposit || 0, input.notes || null]);
-      await client.query('UPDATE tables t SET status=$1 FROM zones z WHERE t.id=$2 AND t.zone_id=z.id AND z.venue_id=$3', ['reserved', input.tableId, input.venueId]);
+        VALUES ($1,$2,$3,($4::timestamp AT TIME ZONE COALESCE((SELECT NULLIF(timezone,'') FROM venues WHERE id=$1),'Asia/Yekaterinburg')),$5,$6,$6,'confirmed',$7) RETURNING id`, [input.venueId, input.tableId, guest.rows[0].id, `${input.date}T${input.time}:00`, input.guests || 1, input.deposit || 0, input.notes || null]);
       await client.query('COMMIT');
       return { ...input, id: rows[0].id, status: 'confirmed' };
     } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }

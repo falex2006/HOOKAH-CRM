@@ -1143,7 +1143,7 @@ async function api(req, res) {
           repositories.pool.query(`WITH item_totals AS (SELECT order_id, COALESCE(SUM(quantity * unit_price),0) AS subtotal FROM order_items GROUP BY order_id), discount_totals AS (SELECT order_id, COALESCE(SUM(CASE WHEN type='percent' THEN (SELECT COALESCE(SUM(oi.quantity * oi.unit_price),0) FROM order_items oi WHERE oi.order_id=d.order_id) * LEAST(100,GREATEST(0,value))/100 ELSE GREATEST(0,value) END),0) AS discount FROM discounts d WHERE status='approved' GROUP BY order_id), paid_totals AS (SELECT order_id, COALESCE(SUM(amount) FILTER (WHERE status IN ('paid','partially_paid')),0) AS paid FROM payments GROUP BY order_id) SELECT COUNT(*) FILTER (WHERE o.status IN ('open','in_progress','ready'))::int AS open_orders, COUNT(*) FILTER (WHERE o.status='closed')::int AS closed_orders, COALESCE(SUM(CASE WHEN o.status IN ('open','in_progress','ready') THEN GREATEST(COALESCE(o.vip_minimum,0),COALESCE(i.subtotal,0)-COALESCE(d.discount,0)) - COALESCE(p.paid,0) ELSE 0 END),0) AS pending_revenue FROM orders o LEFT JOIN item_totals i ON i.order_id=o.id LEFT JOIN discount_totals d ON d.order_id=o.id LEFT JOIN paid_totals p ON p.order_id=o.id WHERE o.venue_id=$1`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 AND d.status='requested'`, [venueDbId]),
           repositories.pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE venue_id=$1 AND is_active=true`, [venueDbId]),
-          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM reservations WHERE venue_id=$1 AND starts_at::date=CURRENT_DATE AND status='confirmed'`, [venueDbId]),
+          repositories.pool.query(`SELECT COUNT(*)::int AS count FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.venue_id=$1 AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date AND r.status='confirmed'`, [venueDbId]),
           repositories.pool.query(`WITH stock_balances AS (
             SELECT venue_id,ingredient_id,COALESCE(SUM(CASE WHEN direction IN ('in','transfer','adjustment') THEN quantity WHEN direction IN ('out','waste') THEN -quantity ELSE 0 END),0) AS on_hand
             FROM stock_movements WHERE venue_id=$1 GROUP BY venue_id,ingredient_id
@@ -1292,8 +1292,8 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/floor') {
     if (denyUnless(req, res, 'floor')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,CASE WHEN t.status='blocked'::table_status THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' ELSE t.status END AS status,t.capacity,t.min_capacity,t.max_capacity,t.min_order_total,t.layout FROM zones z LEFT JOIN tables t ON t.zone_id=z.id WHERE z.venue_id=$1 ORDER BY z.sort_order,CASE WHEN regexp_replace(t.name, '\\D', '', 'g') ~ '^[0-9]{1,9}$' THEN regexp_replace(t.name, '\\D', '', 'g')::int END NULLS LAST,t.name`, [venueDbId]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } if (row.id) zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minCapacity: Number(row.min_capacity || row.capacity), maxCapacity: Number(row.max_capacity || row.capacity), minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {} }); } return json(res, 200, { zones }); } catch (_) {} }
-    const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.map((table) => { const reservation = reservations.find((entry) => entry.tableId === table.id && entry.status === 'confirmed' && entry.date === today()); const occupied = orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)); return { ...table, status: table.status === 'blocked' ? 'blocked' : (occupied ? 'occupied' : reservation ? 'reserved' : table.status), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, date: reservation.date, time: reservation.time, createdByName: reservation.createdByName || 'Сотрудник', createdByRole: reservation.createdByRole || 'Сотрудник' } : null }; }) }));
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT z.id AS zone_id,z.name AS zone_name,z.sort_order,t.id,t.name,CASE WHEN t.status='blocked'::table_status THEN 'blocked' WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=t.id AND o.venue_id=$1 AND o.status IN ('open','in_progress','ready')) THEN 'occupied' WHEN EXISTS (SELECT 1 FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.table_id=t.id AND r.venue_id=$1 AND r.status='confirmed' AND (r.starts_at AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date=(now() AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg'))::date) THEN 'reserved' ELSE CASE WHEN t.status='reserved'::table_status THEN 'free'::table_status ELSE t.status END END AS status,t.capacity,t.min_capacity,t.max_capacity,t.min_order_total,t.layout FROM zones z LEFT JOIN tables t ON t.zone_id=z.id WHERE z.venue_id=$1 ORDER BY z.sort_order,CASE WHEN regexp_replace(t.name, '\\D', '', 'g') ~ '^[0-9]{1,9}$' THEN regexp_replace(t.name, '\\D', '', 'g')::int END NULLS LAST,t.name`, [venueDbId]); const zones = []; for (const row of rows) { let zone = zones.find((entry) => entry.id === row.zone_id); if (!zone) { zone = { id: row.zone_id, name: row.zone_name, tables: [] }; zones.push(zone); } if (row.id) zone.tables.push({ id: row.id, name: row.name, status: row.status, capacity: row.capacity, minCapacity: Number(row.min_capacity || row.capacity), maxCapacity: Number(row.max_capacity || row.capacity), minimumOrderTotal: Number(row.min_order_total), layout: row.layout || {} }); } return json(res, 200, { zones }); } catch (_) {} }
+    const derivedFloor = floor.map((zone) => ({ ...zone, tables: zone.tables.map((table) => { const reservation = reservations.find((entry) => entry.tableId === table.id && entry.status === 'confirmed' && entry.date === today()); const occupied = orders.some((order) => order.tableId === table.id && ['open', 'in_progress', 'ready'].includes(order.status)); return { ...table, status: table.status === 'blocked' ? 'blocked' : (occupied ? 'occupied' : reservation ? 'reserved' : table.status === 'reserved' ? 'free' : table.status), reservation: reservation ? { id: reservation.id, guestName: reservation.guestName, date: reservation.date, time: reservation.time, createdByName: reservation.createdByName || 'Сотрудник', createdByRole: reservation.createdByRole || 'Сотрудник' } : null }; }) }));
     return json(res, 200, { zones: derivedFloor });
   }
   if (pathname === '/api/inventory/departments' && req.method === 'GET') {
@@ -2874,37 +2874,45 @@ if (staffProfile && req.method === 'PATCH') {
     if (input.phone && !/^\+7[0-9 ()-]{7,24}$/.test(String(input.phone).trim())) return json(res, 400, { error: 'invalid_guest_phone' });
     if (!Number.isInteger(Number(input.guests || 1)) || Number(input.guests || 1) < 1 || Number(input.guests || 1) > 50) return json(res, 400, { error: 'invalid_guest_count' });
     let tableMinimum = 0;
+    let tableMaximum = 50;
     let tableName = input.tableId;
+    let zoneName = '';
     let table = null;
     if (repositories?.pool) {
       try {
-        const { rows } = await repositories.pool.query('SELECT t.name,t.status,t.min_order_total AS "minimumOrderTotal" FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2', [input.tableId, venueDbId]);
+        const { rows } = await repositories.pool.query('SELECT t.name,t.status,t.capacity,t.max_capacity AS "maxCapacity",z.name AS "zoneName",t.min_order_total AS "minimumOrderTotal" FROM tables t JOIN zones z ON z.id=t.zone_id WHERE t.id=$1 AND z.venue_id=$2', [input.tableId, venueDbId]);
         if (!rows[0]) return json(res, 400, { error: 'table_not_found' });
         tableName = rows[0].name;
+        zoneName = rows[0].zoneName || '';
+        tableMaximum = Number(rows[0].maxCapacity || rows[0].capacity || 50);
         if (rows[0].status === 'blocked') return json(res, 409, { error: 'table_unavailable' });
         tableMinimum = Number(rows[0].minimumOrderTotal || 0);
       } catch (error) { return json(res, 409, { error: 'reservation_table_lookup_failed', detail: error.message }); }
     } else {
-      table = floor.flatMap((zone) => zone.tables).find((entry) => entry.id === input.tableId);
+      const tableZone = floor.find((zone) => zone.tables.some((entry) => entry.id === input.tableId));
+      table = tableZone?.tables.find((entry) => entry.id === input.tableId);
       if (!table) return json(res, 400, { error: 'table_not_found' });
+      zoneName = tableZone.name || '';
       tableName = table.name;
+      tableMaximum = Number(table.maxCapacity || table.capacity || 50);
       if (table.status === 'blocked') return json(res, 409, { error: 'table_unavailable' });
       tableMinimum = Number(table.minimumOrderTotal || 0);
     }
+    if (Number(input.guests || 1) > tableMaximum) return json(res, 400, { error: 'table_capacity_exceeded', maximumGuests: tableMaximum });
     const deposit = Number(input.deposit || 0);
     if (!Number.isFinite(deposit) || deposit < tableMinimum) return json(res, 409, { error: 'vip_deposit_below_minimum', requiredDeposit: tableMinimum, providedDeposit: deposit });
     if (repositories?.pool) {
       try {
-        const conflict = await repositories.pool.query(`SELECT id FROM reservations WHERE venue_id=$1 AND table_id=$2 AND starts_at=$3::timestamptz AND status='confirmed' LIMIT 1`, [venueDbId, input.tableId, `${input.date}T${input.time}:00`]);
+        const conflict = await repositories.pool.query(`SELECT r.id FROM reservations r JOIN venues v ON v.id=r.venue_id WHERE r.venue_id=$1 AND r.table_id=$2 AND r.starts_at=($3::timestamp AT TIME ZONE COALESCE(NULLIF(v.timezone,''),'Asia/Yekaterinburg')) AND r.status='confirmed' LIMIT 1`, [venueDbId, input.tableId, `${input.date}T${input.time}:00`]);
         if (conflict.rows[0]) return json(res, 409, { error: 'table_already_reserved', reservationId: conflict.rows[0].id });
       } catch (error) { return json(res, 409, { error: 'reservation_conflict_check_failed', detail: error.message }); }
     } else if (reservations.some((entry) => entry.status === 'confirmed' && entry.tableId === input.tableId && entry.date === input.date && entry.time === input.time)) {
       return json(res, 409, { error: 'table_already_reserved' });
     }
-    if (repositories?.pool) { try { const reservation = await repositories.reservations.create({ ...input, tableName, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
-    const reservation = { id: `res-${Date.now()}`, clientId: input.clientId || null, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName, guests: Number(input.guests || 1), status: 'confirmed', deposit, notes: input.notes || '', createdBy: req.user?.id || null, createdByName: String(input.createdByName || req.user?.name || 'Сотрудник').slice(0, 120), createdByRole: String(input.createdByRole || (req.user?.role === 'owner' ? 'Владелец' : req.user?.role === 'admin' ? 'Администратор' : 'Сотрудник')).slice(0, 40), createdAt: new Date().toISOString() };
+    if (repositories?.pool) { try { const reservation = await repositories.reservations.create({ ...input, tableName, zoneName, deposit, venueId: venueDbId }); recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation); return json(res, 201, reservation); } catch (error) { return json(res, 409, { error: 'reservation_create_failed', detail: error.message }); } }
+    const reservation = { id: `res-${Date.now()}`, clientId: input.clientId || null, guestName: input.guestName, phone: input.phone || '', date: input.date, time: input.time, tableId: input.tableId, tableName, zoneName, guests: Number(input.guests || 1), status: 'confirmed', deposit, notes: input.notes || '', createdBy: req.user?.id || null, createdByName: String(input.createdByName || req.user?.name || 'Сотрудник').slice(0, 120), createdByRole: String(input.createdByRole || (req.user?.role === 'owner' ? 'Владелец' : req.user?.role === 'admin' ? 'Администратор' : 'Сотрудник')).slice(0, 40), createdAt: new Date().toISOString() };
     reservations.push(reservation);
-    table.status = 'reserved';
+    if (input.date === today()) table.status = 'reserved';
     recordAudit(req, 'reservation.created', 'reservation', reservation.id, null, reservation);
     return json(res, 201, reservation);
   }
