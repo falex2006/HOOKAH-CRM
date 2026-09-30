@@ -241,18 +241,18 @@ const normalizeManagementSidebar = () => {
     details.open = savedGroupState(key) ?? defaultGroupOpen(key);
     return details;
   };
-  const menuGroup = ensureAreaGroup('menu', 'МЕНЮ', 'layout-grid', [
+  const menuGroup = ensureAreaGroup('menu', 'Меню', 'layout-grid', [
     { href: '/inventory?view=products', permission: 'inventory_read', label: 'Каталог товаров', iconName: 'layout-grid' },
     { href: '/inventory?view=recipes', permission: 'inventory_read', label: 'Технологические карты', iconName: 'clipboard-list' },
   ]);
-  const inventoryGroup = ensureAreaGroup('inventory', 'СКЛАД', 'package', [
+  const inventoryGroup = ensureAreaGroup('inventory', 'Склад', 'package', [
     { href: '/inventory?view=stock', permission: 'inventory_read', label: 'Остатки', iconName: 'package', navigationModule: 'inventory' },
     { href: '/inventory?view=auto-orders', permission: 'inventory_read', label: 'Пополнение запасов', iconName: 'alert-triangle', navigationModule: 'inventory' },
     { href: '/inventory?view=movements', permission: 'inventory_read', label: 'Поставки и списания', iconName: 'truck-delivery', navigationModule: 'inventory' },
     { href: '/inventory?view=premixes', permission: 'inventory_read', label: 'Заготовки и премиксы', iconName: 'flask', navigationModule: 'inventory' },
     { href: '/inventory?view=directories', permission: 'inventory_read', label: 'Цеха и категории', iconName: 'building', navigationModule: 'inventory' },
   ]);
-  const financeGroup = ensureAreaGroup('finance', 'ФИНАНСЫ', 'chart-bar', [
+  const financeGroup = ensureAreaGroup('finance', 'Финансы', 'chart-bar', [
     { href: '/finance', permission: 'finance_read', label: 'Обзор финансов', iconName: 'chart-bar', navigationModule: 'finance' },
     { href: '/finance/report', permission: 'finance_read', label: 'Отчёты', iconName: 'receipt', navigationModule: 'finance' },
     { href: '/finance/categories', permission: 'finance', label: 'Категории доходов и расходов', iconName: 'cash', navigationModule: 'finance' },
@@ -265,8 +265,8 @@ const normalizeManagementSidebar = () => {
     control.remove();
   }
   // Daily operational destinations share one disclosure. Keep “Главное” visible.
-  [['ОПЕРАЦИИ', 'operations']].forEach(([labelText, key]) => {
-    const label = [...sidebar.querySelectorAll(':scope > .side-label')].find((node) => node.textContent.trim() === labelText);
+  [['Операции', 'operations']].forEach(([labelText, key]) => {
+    const label = [...sidebar.querySelectorAll(':scope > .side-label')].find((node) => node.textContent.trim().toLocaleLowerCase('ru-RU') === labelText.toLocaleLowerCase('ru-RU'));
     const nav = label?.nextElementSibling;
     if (!label || !nav?.classList.contains('portal-nav')) return;
     const details = document.createElement('details'); details.className = 'sidebar-nav-group'; details.dataset.navGroup = key;
@@ -307,8 +307,8 @@ const normalizeManagementSidebar = () => {
         hrefs.forEach((href) => { const link = adminNav.querySelector(`a[href="${href}"]`); if (link) nav.append(link); });
         details.append(nav); rememberGroupState(details, key); return details;
       };
-      groupRoot.append(makeGroup('КОМАНДА', ['/admin#staff', '/admin#tasks'], 'team'));
-      groupRoot.append(makeGroup('СИСТЕМА', ['/admin#loyalty', '/admin#settings', '/integrations', '/network', '/admin#diagnostics'], 'system'));
+      groupRoot.append(makeGroup('Команда', ['/admin#staff', '/admin#tasks'], 'team'));
+      groupRoot.append(makeGroup('Система', ['/admin#loyalty', '/admin#settings', '/integrations', '/network', '/admin#diagnostics'], 'system'));
       adminLabel.replaceWith(groupRoot); adminNav.remove();
     }
     // After the first grouping pass, subsequent hash navigation must not
@@ -522,6 +522,7 @@ document.body.append(notificationPanel);
 let notificationFilter = 'all';
 let notificationData = { items: [], unreadCount: 0 };
 let notificationBusy = false;
+let notificationRefreshQueued = false;
 const allowedNotificationHrefs = new Set(['/orders', '/inventory?view=auto-orders', '/admin']);
 const notificationContent = notificationPanel.querySelector('#notification-panel-content');
 const notificationBadge = document.querySelector('#notification-count');
@@ -555,13 +556,13 @@ const renderNotifications = () => {
     const actions = document.createElement('div'); actions.className = 'notification-item-actions';
     const href = allowedNotificationHrefs.has(item.href) ? item.href : null;
     if (href) { const open = document.createElement('a'); open.href = href; open.className = 'notification-open-link'; open.textContent = item.requiresAction ? 'Открыть запрос' : 'Открыть'; open.addEventListener('click', async (event) => { if (item.readAt) return; event.preventDefault(); try { await setNotificationRead(item.id); window.location.assign(href); } catch (_) { renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(open); }
-    if (!item.readAt) { const read = document.createElement('button'); read.type = 'button'; read.className = 'notification-mark-read'; read.textContent = 'Прочитано'; read.setAttribute('aria-label', `Отметить прочитанным: ${String(item.title || 'уведомление')}`); read.addEventListener('click', async () => { read.disabled = true; try { await setNotificationRead(item.id); } catch (_) { read.disabled = false; renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(read); }
+    if (!item.readAt) { const read = document.createElement('button'); read.type = 'button'; read.className = 'notification-mark-read'; read.textContent = 'Отметить прочитанным'; read.setAttribute('aria-label', `Отметить прочитанным: ${String(item.title || 'уведомление')}`); read.addEventListener('click', async () => { read.disabled = true; try { await setNotificationRead(item.id); } catch (_) { read.disabled = false; renderNotificationState('error', 'Не удалось сохранить прочтение. Повторите попытку.'); } }); actions.append(read); }
     row.append(actions); list.append(row);
   }
   notificationContent.append(list);
 };
 const loadNotifications = async (showLoading = false) => {
-  if (notificationBusy) return; notificationBusy = true; if (showLoading) renderNotificationState('loading');
+  if (notificationBusy) { notificationRefreshQueued = true; return; } notificationBusy = true; if (showLoading) renderNotificationState('loading');
   try { const data = await api(`/api/notifications?limit=20&filter=${notificationFilter}`); notificationData = { items: Array.isArray(data.items) ? data.items : [], unreadCount: Number(data.unreadCount || 0) }; updateNotificationCount(notificationData.unreadCount); if (!notificationPanel.hidden) renderNotifications(); }
   catch (_) {
     if (!notificationPanel.hidden) {
@@ -570,7 +571,7 @@ const loadNotifications = async (showLoading = false) => {
     }
     if (notificationBell && notificationData.unreadCount === 0) notificationBell.title = 'Не удалось обновить уведомления';
   }
-  finally { notificationBusy = false; }
+  finally { notificationBusy = false; if (notificationRefreshQueued) { notificationRefreshQueued = false; loadNotifications(false); } }
 };
 const notificationChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('territory-crm-notifications') : null;
 const setNotificationRead = async (id) => {
@@ -582,11 +583,11 @@ const setNotificationRead = async (id) => {
 const closeNotificationPanel = (restoreFocus = true) => { notificationPanel.hidden = true; notificationBell?.setAttribute('aria-expanded', 'false'); notificationPanel.setAttribute('aria-modal', 'false'); document.body.classList.remove('notification-panel-open'); if (restoreFocus) notificationBell?.focus(); };
 const openNotificationPanel = async () => {
   if (!notificationBell) return; notificationPanel.hidden = false; notificationBell.setAttribute('aria-expanded', 'true');
-  const mobile = window.matchMedia('(max-width: 600px)').matches; notificationPanel.setAttribute('aria-modal', mobile ? 'true' : 'false'); document.body.classList.toggle('notification-panel-open', mobile);
+  const mobile = window.matchMedia('(max-width: 768px)').matches; notificationPanel.setAttribute('aria-modal', mobile ? 'true' : 'false'); document.body.classList.toggle('notification-panel-open', mobile);
   notificationPanel.querySelector('#notification-panel-title').focus(); await loadNotifications(true);
 };
 notificationPanel.querySelector('.notification-panel-close').addEventListener('click', () => closeNotificationPanel());
-notificationPanel.querySelectorAll('[data-notification-filter]').forEach((button) => button.addEventListener('click', () => { notificationFilter = button.dataset.notificationFilter; notificationPanel.querySelectorAll('[data-notification-filter]').forEach((item) => item.setAttribute('aria-pressed', String(item === button))); loadNotifications(true); }));
+notificationPanel.querySelectorAll('[data-notification-filter]').forEach((button) => button.addEventListener('click', () => { notificationFilter = button.dataset.notificationFilter; notificationPanel.querySelectorAll('[data-notification-filter]').forEach((item) => item.setAttribute('aria-pressed', String(item === button))); renderNotifications(); loadNotifications(false); }));
 notificationPanel.querySelector('.notification-read-all').addEventListener('click', async (event) => {
   const button = event.currentTarget; button.disabled = true;
   try { const result = await api('/api/notifications', { method: 'POST' }); notificationData.items = notificationData.items.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() })); notificationData.unreadCount = Number(result.unreadCount || 0); updateNotificationCount(notificationData.unreadCount); renderNotifications(); notificationChannel?.postMessage({ type: 'read-state-changed' }); }
@@ -597,7 +598,7 @@ document.addEventListener('pointerdown', (event) => { if (!notificationPanel.hid
 document.addEventListener('keydown', (event) => {
   if (notificationPanel.hidden) return;
   if (event.key === 'Escape') { event.preventDefault(); closeNotificationPanel(); return; }
-  if (event.key === 'Tab' && window.matchMedia('(max-width: 600px)').matches) { const controls = [...notificationPanel.querySelectorAll('button:not(:disabled):not([hidden]), a[href]')].filter((node) => node.getClientRects().length); if (!controls.length) return; const first = controls[0], last = controls[controls.length - 1], heading = notificationPanel.querySelector('#notification-panel-title'); if (event.shiftKey && (document.activeElement === first || document.activeElement === heading || document.activeElement === notificationPanel)) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === heading)) { event.preventDefault(); first.focus(); } }
+  if (event.key === 'Tab' && window.matchMedia('(max-width: 768px)').matches) { const controls = [...notificationPanel.querySelectorAll('button:not(:disabled):not([hidden]), a[href]')].filter((node) => node.getClientRects().length); if (!controls.length) return; const first = controls[0], last = controls[controls.length - 1], heading = notificationPanel.querySelector('#notification-panel-title'); if (event.shiftKey && (document.activeElement === first || document.activeElement === heading || document.activeElement === notificationPanel)) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === heading)) { event.preventDefault(); first.focus(); } }
 });
 notificationChannel?.addEventListener('message', () => { if (document.visibilityState === 'visible') loadNotifications(!notificationPanel.hidden); });
 const refreshLeaderNotifications = () => {
@@ -608,9 +609,9 @@ const refreshLeaderNotifications = () => {
     || (['owner', 'admin'].includes(role) && (portalPermissions.has('staff_view') || portalPermissions.has('staff')));
   if (!headerNotificationRoles.has(role) || !hasNotificationPermission) { if (notificationBell) notificationBell.hidden = true; return; }
   if (notificationBell) notificationBell.hidden = false;
-  if (document.visibilityState === 'visible') loadNotifications(!notificationPanel.hidden);
+  if (document.visibilityState === 'visible') loadNotifications(false);
 };
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadNotifications(!notificationPanel.hidden); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') loadNotifications(false); });
 const bindKpiNavigation = () => { const activate = (card) => { const route = card.dataset.kpiRoute; const target = card.dataset.kpiTarget; if (target) { document.querySelector(target)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); document.querySelector(target)?.focus?.({ preventScroll: true }); return; } if (route) window.location.href = route; }; document.querySelectorAll('[data-kpi-route], [data-kpi-target]').forEach((card) => { if (card.dataset.kpiBound === '1') return; card.dataset.kpiBound = '1'; card.setAttribute('role', 'button'); card.setAttribute('tabindex', '0'); card.addEventListener('click', () => activate(card)); card.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(card); } }); }); };
 const staticDemo = () => String(localStorage.getItem('crm_session_token') || '').startsWith('demo-static-');
 const demoKey = 'territory_crm_demo_state';

@@ -2684,7 +2684,7 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
   body.notification-panel-open{overflow:hidden}
   .notification-panel{inset:0;width:100%;max-height:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);background:#08090bc9;pointer-events:auto}
   .notification-panel-card{height:100%;max-height:none;border:0;border-radius:0;background:#191c21}
-  .notification-panel-head{padding:calc(14px + env(safe-area-inset-top)) 18px 14px}
+  .notification-panel-head{padding:14px 18px}
   .notification-panel-toolbar{padding:12px 16px}
   .notification-panel-content{flex:1;min-height:0;max-height:none;padding-bottom:env(safe-area-inset-bottom)}
   .notification-item{grid-template-columns:minmax(0,1fr);gap:10px;padding:15px 17px}
