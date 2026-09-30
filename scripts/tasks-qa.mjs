@@ -18,12 +18,13 @@ assert.match(taskPatchRoute, /denyUnlessAny\(req, res, \['orders', 'staff_view',
   'task updates require permission to use the tasks area');
   assert.match(taskPatchRoute, /invalid_task_title/);
   assert.match(taskPatchRoute, /invalid_task_description/);
-  assert.match(taskPatchRoute, /invalid_task_due_at/);
+  assert.match(taskPatchRoute, /normalizeTaskDeadline\(input\)/);
+  assert.match(taskPatchRoute, /if \(deadline.error\) return json\(res, 400/);
   assert.match(taskPatchRoute, /assigneeId: input\.assigneeId === undefined \? task\.assigneeId : input\.assigneeId === '' \? null : input\.assigneeId/);
 assert.match(source, /inventory_hierarchy_unavailable/);
 assert.match(source, /inventory_department_not_found/);
 
-const port = 3217;
+const port = Number(process.env.TASKS_QA_PORT || 3218);
 const child = spawn(process.execPath, ['server.js'], { env: { ...process.env, PORT: String(port), AUTH_REQUIRED: 'false', DATABASE_URL: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
 const request = async (path, options = {}) => { const response = await fetch(`http://127.0.0.1:${port}${path}`, options); const payload = await response.json(); assert.equal(response.ok, true, `${path}: ${response.status} ${JSON.stringify(payload)}`); return payload; };
 try {

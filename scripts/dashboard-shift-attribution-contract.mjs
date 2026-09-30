@@ -16,9 +16,11 @@ assert.match(server, /o\.closed_in_shift_id=s\.id/,
   'closed order count must use explicit closure attribution');
 assert.match(server, /const requestedShiftId = employeeView \? ''/,
   'employees cannot select another day or shift through the API');
-assert.match(server, /const visibleShifts = employeeView \? \(shiftsForDate\.length \? \[\{ id: 'employee-today' \}\]/,
-  'employee responses must not expose another shift identity or time');
 const dashboardRoute = server.slice(server.indexOf("if (pathname === '/api/dashboard/shift-kpis'"), server.indexOf("if (pathname === '/api/finance/summary'"));
+assert.match(dashboardRoute, /if \(employeeView\) \{[\s\S]*?o\.venue_id=\$1 AND o\.opened_by=\$2[\s\S]*?p\.created_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)/,
+  'employee payment totals must use the actor, venue and venue-local event date');
+assert.match(dashboardRoute, /o\.closed_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)[\s\S]*?shifts: \[\{ id: 'employee-today' \}\]/,
+  'employee closed orders use local closure date and response hides shift identity');
 assert.doesNotMatch(dashboardRoute.slice(0, dashboardRoute.indexOf('const unmatchedResult')), /p\.created_at>=s\.opened_at/,
   'dashboard totals must not guess payment shift from timestamp intervals');
 assert.match(dashboardRoute, /unmatchedResult[\s\S]*p\.shift_id IS NULL[\s\S]*p\.created_at>=s\.opened_at/,

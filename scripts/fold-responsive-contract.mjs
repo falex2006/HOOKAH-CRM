@@ -4,8 +4,11 @@ const css=fs.readFileSync('style.css','utf8');
 const portal=fs.readFileSync('portal.js','utf8');
 const staffApp=fs.readFileSync('app.js','utf8');
 const required=[
-  ['Intermediate-width staff floor uses a readable six-column layout with compressed table placement', /@media \(max-width:1180px\) and \(min-width:761px\)\{[\s\S]*?\.staff-theme \.tables\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\)\}\.staff-theme \.table\{grid-column:var\(--table-compact-x\)\/span var\(--table-compact-w\);grid-row:var\(--table-y\)\/span var\(--table-h\)\}/],
-  ['Staff floor derives compact tablet coordinates from its saved layout', /const compactW=Math\.min\(6,Math\.max\(1,Math\.ceil\(place\.w\/2\)\)\);const compactX=Math\.max\(1,Math\.min\(7-compactW,Math\.ceil\(place\.x\/2\)\)\)/],
+  ['POS floor uses one proportional pixel scene with rotated-edge clearance on wide screens', /\.staff-theme \.tables\.has-map>\.floor-map-stage\{position:relative;width:calc\(100% - 88px\);margin:44px;box-sizing:border-box\}[\s\S]*?\.staff-theme \.tables\.has-map>\.floor-map-stage>\.table\{position:absolute;left:var\(--floor-left\);top:var\(--floor-top\);width:var\(--floor-width\);height:var\(--floor-height\)/],
+  ['POS switches to cards when physical map objects cannot hold labels', /const compact=\[\.\.\.stage\.querySelectorAll\('\.table'\)\]\.some\(\(table\)=>\{[\s\S]*?if\(box\.width<110\|\|box\.height<64\)return true;[\s\S]*?label\.top<box\.top\+3\|\|label\.bottom>box\.bottom-3/],
+  ['Compact POS floor uses readable table cards through narrow Fold and tablet widths', /@media\(max-width:1100px\)\{[\s\S]*?\.staff-theme \.tables\.has-map>\.floor-map-stage\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/],
+  ['POS keeps floor and order in separate rows until the map has enough width', /@media\(max-width:1850px\)\{\.staff-theme \.workspace\{grid-template-columns:minmax\(0,1fr\)\}/],
+  ['Wide POS workspace fills its capped layout width', /@media \(min-width:1800px\)\{\.staff-theme \.workspace,\.staff-theme \.tabs,\.staff-theme \.queue\{width:100%;max-width:1760px;margin-inline:auto\}/],
   ['Fold compact breakpoint', /@media\s*\(min-width:651px\)\s*and\s*\(max-width:900px\)/],
   ['Fold sidebar overrides the higher-specificity sticky desktop rule with an off-canvas drawer', /@media \(min-width:651px\) and \(max-width:900px\)\{[\s\S]*?\.portal\.velora-theme \.portal-sidebar\{position:fixed;z-index:25;left:0;top:0;bottom:0;width:280px;transform:translateX\(-100%\)/],
   ['Fold expanded drawer also overrides the sticky desktop rule', /\.portal\.velora-theme \.portal-sidebar\.is-expanded\{position:fixed;z-index:60[\s\S]*?transform:translateX\(0\)/],
@@ -35,5 +38,6 @@ const required=[
   ['Order journal rows expose names for each compact card field', /rows\.querySelectorAll\(':scope > tr'\)\.forEach\(\(row\) => \{ if \(row\.querySelector\('\.empty'\)\) return; \['Заказ', 'Стол', 'Гость', 'Статус', 'Сумма', 'Создано', 'Действие'\]/],
   ['Stable scrollbar slot', /\.velora-theme\s+\.portal-main,\.staff-theme\s+main\s*\{\s*scrollbar-gutter:\s*stable;/]
 ];
-for (const [name,re] of required) assert.match(name.startsWith('Staff floor derives') ? staffApp : name.startsWith('Icon-only') || name.startsWith('Sidebar toggle initialization') || name.startsWith('Fold drawer exposes') || name.startsWith('Closed Fold drawer') || name.startsWith('Phone drawer exposes') || name.startsWith('Phone drawer closes') || name.startsWith('Compact-width') || name.startsWith('Order journal rows') ? portal : css,re,name);
+for (const [name,re] of required) assert.match(name.startsWith('Staff floor derives') || name.startsWith('POS switches to cards') ? staffApp : name.startsWith('Icon-only') || name.startsWith('Sidebar toggle initialization') || name.startsWith('Fold drawer exposes') || name.startsWith('Closed Fold drawer') || name.startsWith('Phone drawer exposes') || name.startsWith('Phone drawer closes') || name.startsWith('Compact-width') || name.startsWith('Order journal rows') ? portal : css,re,name);
+assert.doesNotMatch(css, /@media \(min-width:1800px\)\{[^\n]*\.staff-theme \.tables\{grid-template-columns:repeat\(5,/, 'wide floor retains the 12-column coordinate grid');
 console.log(`FOLD RESPONSIVE CONTRACT: PASS (${required.length} invariants)`);

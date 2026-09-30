@@ -35,9 +35,11 @@ const checks = [
   'finance-categories-postgres-api-qa.mjs',
   'payroll-lifecycle-postgres-api-qa.mjs',
   'tasks-postgres-e2e-qa.mjs',
+  'delivery-persistence-qa.mjs',
   'finance-employee-postgres-qa.mjs',
   'shift-cash-postgres-e2e-qa.mjs',
   'finance-shift-analytics-postgres-qa.mjs',
+  'paid-order-balance-postgres-qa.mjs',
   'recipe-depletion-pg-runtime-qa.mjs',
 ];
 const env = {

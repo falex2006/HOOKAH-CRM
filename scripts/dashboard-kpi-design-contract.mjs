@@ -21,7 +21,7 @@ assert.doesNotMatch(dashboard, /insight-stat-grid|Брони сегодня|Ож
   'the lower dashboard section must not repeat headline metrics');
 assert.ok(dashboard.includes('id="dashboard-shift-date"') && dashboard.includes('id="dashboard-shift-select"'),
   'shift performance must be selectable by date and shift');
-assert.ok(dashboard.indexOf('id="dashboard-insights"') < dashboard.indexOf('class="kpi-grid dashboard-kpi-grid"'),
+assert.ok(dashboard.indexOf('id="dashboard-insights"') < dashboard.indexOf('class="kpi-grid dashboard-kpi-grid'),
   'selected shift KPIs must precede live operational cards');
 assert.ok(dashboard.includes('Показатели смены') && dashboard.includes('Оплаты относятся к смене их проведения') && portal.includes('За выбранную дату смен не найдено'),
   'shift KPI panel must explain its context and empty state');

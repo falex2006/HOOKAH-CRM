@@ -143,14 +143,17 @@ try {
   if (server && server.exitCode === null && server.signalCode === null) server.kill();
   if (serverExitPromise && server?.exitCode === null && server?.signalCode === null) await serverExitPromise;
   if (client._connected) {
-    await client.query('DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]).catch(() => {});
-    await client.query('DELETE FROM discounts WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]).catch(() => {});
-    await client.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]).catch(() => {});
-    await client.query('DELETE FROM orders WHERE venue_id=$1', [venueId]).catch(() => {});
-    if (productIds.length) await client.query('DELETE FROM products WHERE id=ANY($1::uuid[])', [productIds]).catch(() => {});
-    await client.query('DELETE FROM shifts WHERE venue_id=$1', [venueId]).catch(() => {});
-    await client.query('DELETE FROM users WHERE venue_id=$1', [venueId]).catch(() => {});
-    await client.query('DELETE FROM venues WHERE id=$1', [venueId]).catch(() => {});
-    await client.end();
+    try {
+      await client.query('DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]);
+      await client.query('DELETE FROM discounts WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]);
+      await client.query('DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]);
+      await client.query('DELETE FROM orders WHERE venue_id=$1', [venueId]);
+      if (productIds.length) await client.query('DELETE FROM products WHERE id=ANY($1::uuid[])', [productIds]);
+      await client.query('DELETE FROM shifts WHERE venue_id=$1', [venueId]);
+      await client.query('DELETE FROM users WHERE venue_id=$1', [venueId]);
+      await client.query('DELETE FROM audit_events WHERE venue_id=$1', [venueId]);
+      const deletedVenue = await client.query('DELETE FROM venues WHERE id=$1 RETURNING id', [venueId]);
+      assert.equal(deletedVenue.rowCount, 1, 'finance report QA venue is fully removed');
+    } finally { await client.end(); }
   }
 }

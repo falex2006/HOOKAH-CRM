@@ -84,7 +84,7 @@ assert.ok(drawStart >= 0 && drawEnd > drawStart, 'auto-order renderer must be di
 const drawSource = portal.slice(drawStart, drawEnd);
 const render = (state) => {
   const nodes = {
-    '#auto-order-list': { innerHTML: '' },
+    '#auto-order-list': { innerHTML: '', querySelectorAll: () => [], querySelector: () => null },
     '#auto-order-low-count': { textContent: '', className: '' },
     '#auto-order-history-list': { innerHTML: '', querySelectorAll: () => [] },
     '#create-auto-order': { disabled: false, title: '' },
@@ -95,8 +95,8 @@ const render = (state) => {
   const esc = (value) => String(value ?? '');
   const displayName = (value) => String(value ?? '');
   const autoOrderStatus = {};
-  const execute = new Function('autoOrderState', 'document', 'nodes', 'canWriteInventory', 'pluralRu', 'money', 'esc', 'displayName', 'autoOrderStatus', `${drawSource}; drawAutoOrders(); return { nodes, state: autoOrderState };`);
-  return execute(state, document, nodes, true, pluralRu, money, esc, displayName, autoOrderStatus).nodes;
+  const execute = new Function('autoOrderState', 'document', 'nodes', 'canWriteInventory', 'pluralRu', 'money', 'esc', 'displayName', 'autoOrderStatus', 'autoOrderCreatePending', 'autoOrderCancelPending', 'openAutoOrderReceipt', 'loadAutoOrders', `${drawSource}; drawAutoOrders(); return { nodes, state: autoOrderState };`);
+  return execute(state, document, nodes, true, pluralRu, money, esc, displayName, autoOrderStatus, false, new Set(), () => {}, () => {}).nodes;
 };
 
 const failedInitial = render({ items: [], requests: [], error: true, hasLoaded: false });
@@ -109,8 +109,8 @@ assert.equal(failedInitial['#create-auto-order'].disabled, true, 'initial failur
 
 const failedRefresh = render({ items: [{ id: 'x', name: 'Тест', department: 'Бар', category: 'Сиропы', onHand: 1, minLevel: 2, orderQuantity: 1, targetLevel: 3, packMultiplier: 1, unit: 'шт', estimate: 10 }], requests: [], error: true, hasLoaded: true });
 assert.match(failedRefresh['#auto-order-list'].innerHTML, /данные последней успешной загрузки/);
-assert.equal(failedRefresh['#create-auto-order'].disabled, false, 'a refresh failure preserves usable last-known recommendations');
-assert.match(failedRefresh['#create-auto-order'].title, /последней успешной загрузки/);
+assert.equal(failedRefresh['#create-auto-order'].disabled, true, 'a refresh failure blocks sending until recommendations are refreshed');
+assert.match(failedRefresh['#create-auto-order'].title, /повторите загрузку рекомендаций/);
 
 // Inventory failures need a real recovery action; test the same markup factory
 // used by the request catch handler and the delegated click wiring.

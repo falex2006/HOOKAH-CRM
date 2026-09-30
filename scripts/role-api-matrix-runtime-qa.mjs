@@ -119,6 +119,21 @@ try {
   assert.ok(!managerSession.data.permissions.includes('inventory'));
   assert.ok(!managerSession.data.permissions.includes('finance'));
 
+  const premixSource = await request('/api/inventory/items', { method: 'POST', token: adminToken, body: { name: `QA role premix source ${suffix}`, unit: 'мл', itemType: 'ingredient', cost: 0.1 } });
+  const premixOutput = await request('/api/inventory/items', { method: 'POST', token: adminToken, body: { name: `QA role premix output ${suffix}`, unit: 'мл', itemType: 'ingredient', cost: 0 } });
+  expectStatus(premixSource, 201, 'admin creates premix source');
+  expectStatus(premixOutput, 201, 'admin creates premix output');
+  expectStatus(await request('/api/inventory/movements', { method: 'POST', token: adminToken, body: { itemId: premixSource.data.id, delta: 500, unit: 'мл', reason: 'Role matrix premix fixture' } }), 201, 'admin stocks premix source');
+  const premixRecipe = await request('/api/recipes', { method: 'POST', token: adminToken, body: { name: `QA role premix recipe ${suffix}`, recipeType: 'premix', yieldQuantity: 500, yieldUnit: 'мл', portionCount: 1, ingredients: [{ ingredientId: premixSource.data.id, name: premixSource.data.name, quantity: '250 мл' }] } });
+  expectStatus(premixRecipe, 201, 'admin creates premix recipe');
+  const producedPremix = await request('/api/inventory/premixes/produce', { method: 'POST', token: adminToken, body: { recipeId: premixRecipe.data.id, outputItemId: premixOutput.data.id, multiplier: 1 } });
+  expectStatus(producedPremix, 201, 'admin produces premix');
+  const managerPremixes = await request('/api/inventory/premixes', { token: manager.token });
+  expectStatus(managerPremixes, 200, 'manager reads premix batches');
+  assert.equal(managerPremixes.data.items.find((batch) => batch.id === producedPremix.data.id)?.recipeName, premixRecipe.data.name, 'manager history shows a readable recipe name after authenticated reread');
+  expectStatus(await request('/api/inventory/premixes', { token: bartender.token }), 403, 'bartender cannot read premix history');
+  expectStatus(await request('/api/inventory/premixes/produce', { method: 'POST', token: manager.token, body: { recipeId: premixRecipe.data.id, outputItemId: premixOutput.data.id, multiplier: 1 } }), 403, 'manager cannot produce a premix');
+
   // A visible/guessable URL or forged body must not bypass server-side checks.
   const forbiddenWrites = [
     ['/api/inventory/items', 'POST', { name: 'Forbidden QA item', unit: 'шт', itemType: 'ingredient', cost: 1 }],

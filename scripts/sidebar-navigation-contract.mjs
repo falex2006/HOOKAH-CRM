@@ -23,8 +23,12 @@ assert.match(staffHtml, /class="portal-sidebar"/, 'employee mode must retain the
 assert.match(staffHtml, /<header>/, 'employee mode must retain its top header');
 assert.match(css, /:root\{--crm-header-height:68px\}[\s\S]*?\.velora-theme \.portal-header\{height:var\(--crm-header-height\);min-height:var\(--crm-header-height\)\}[\s\S]*?\.staff-theme header\{height:var\(--crm-header-height\);min-height:var\(--crm-header-height\)\}/,
   'management and employee modes must use the same responsive header-height token');
+assert.match(css, /@media\(max-width:650px\)\{\.staff-theme header\{[\s\S]*?\.staff-theme header>div:first-child>b\{[^}]*white-space:normal[^}]*\}/,
+  'narrow POS header must wrap its title instead of clipping it beside shift status');
 assert.match(css, /@media\(max-width:650px\)\{\.velora-theme \.portal-app \.portal-header>\.header-context,\.velora-theme \.portal-shell \.portal-header>\.header-context\{box-sizing:border-box;margin-left:0;padding-left:50px/,
   'mobile breadcrumbs must reserve space for the menu toggle in both CRM shells');
+assert.match(css, /@media\(max-width:480px\)\{\s*:root\{--crm-header-height:112px\}[\s\S]*?\.velora-theme \.portal-app \.portal-header>\.header-context,\.velora-theme \.portal-shell \.portal-header>\.header-context\{[^}]*max-width:none;[^}]*padding-left:54px;[^}]*white-space:normal[\s\S]*?\.velora-theme \.portal-header>\.header-right\{flex:0 0 100%;width:100%/,
+  'narrow phone headers must show the page title and actions on separate rows');
 assert.match(css, /@media \(min-width:901px\) and \(max-width:1799px\)\{[\s\S]*?\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{width:clamp\(210px,18vw,280px\)/,
   'desktop sidebar width must use one continuous scale across laptop and wide desktop sizes');
 assert.doesNotMatch(css, /@media\(min-width:901px\) and \(max-width:950px\)/,
@@ -78,8 +82,14 @@ assert.match(portal, /ensureAreaGroup\('finance', 'ФИНАНСЫ',[\s\S]*href: 
   'all finance destinations must render consistently as one navigation group');
 assert.match(portal, /selectors = \{ inventory: 'a\[data-navigation-module="inventory"\]', finance: 'a\[data-navigation-module="finance"\]' \}/,
   'interface preferences must control all child links, not only the parent route');
-assert.match(portal, /if \(navigation\[name\] === false\)[\s\S]*details\.sidebar-nav-group\[data-nav-group="\$\{name\}"\][\s\S]*group\.hidden = true/,
-  'turning a section off must hide its disclosure heading as well as all child links');
+assert.match(portal, /link\.hidden = !portalPermissions\.has\(permission\) \|\| navigation\[name\] === false;[\s\S]*refreshSidebarGroups\(\)/,
+  'menu preference and role permission must both hide links and empty disclosure headings');
+assert.match(portal, /window\.__applyInterfacePreferences\?\.\(\);/,
+  'sidebar normalization must reapply preference visibility after replacing child links');
+assert.match(portal, /companyPanel\.querySelectorAll\('\[data-interface-toggle\]'\)/,
+  'permission filtering must target the panel that actually owns interface toggles');
+assert.doesNotMatch(portal, /data-interface-toggle="discounts"/,
+  'interface settings must not expose a switch for the removed discount sidebar link');
 assert.doesNotMatch(portal, /a\[href="\/network"\].*\.remove\(\)/,
   'the network destination must not be deleted during sidebar normalization');
 assert.match(portal, /href: '\/network', permission: 'settings', label: 'Моя сеть'/);

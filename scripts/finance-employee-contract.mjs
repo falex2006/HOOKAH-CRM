@@ -8,7 +8,7 @@ const reportRoute=server.slice(server.indexOf("if (pathname === '/api/finance/re
 assert.match(summaryRoute,/const employeeFinanceView = isOperationalEmployee\(req\)/);
 assert.match(summaryRoute,/const requestedDate = url\.searchParams\.get\('date'\) \|\| ''/);
 assert.match(summaryRoute,/if \(employeeFinanceView \|\| !requestedDate\) date = context\.date/);
-assert.match(summaryRoute,/o\.opened_by=\$2[\s\S]*o\.closed_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)[\s\S]*p\.status IN/);
+assert.match(summaryRoute,/o\.opened_by=\$2[\s\S]*p\.created_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)[\s\S]*p\.status IN/);
 assert.match(reportRoute,/if \(employeeFinanceView && repositories\?\.pool\)/);
 assert.match(reportRoute,/o\.opened_by=\$2[\s\S]*o\.closed_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)[\s\S]*p\.status IN/);
 assert.doesNotMatch(reportRoute,/\$4::boolean=false OR o\.opened_by=\$5/);
@@ -19,7 +19,7 @@ assert.match(summaryRoute,/\['paid', 'partially_paid'\]\.includes\(payment\.stat
   assert.match(summaryRoute,/else if \(!employeeFinanceView\) \{ const amount = Number\(order\.finalTotal !== undefined && order\.finalTotal !== null \? order\.finalTotal : orderNetTotal\(order\)\)/);
 assert.match(reportRoute,/\['paid', 'partially_paid'\]\.includes\(payment\.status\)/);
   assert.match(reportRoute,/else if \(!employeeFinanceView\) \{ const amount = order\.finalTotal !== undefined && order\.finalTotal !== null \? Number\(order\.finalTotal\) : Number\(orderNetTotal\(order\)\)/);
-assert.match(server,/const target = \{ id: `ord-\$\{Date\.now\(\)\}`, tableId: source\.tableId, status: 'open', items: moved, openedBy: source\.openedBy \|\| source\.openedById \|\| null/);
+assert.match(server,/const target = \{ id: `ord-\$\{Date\.now\(\)\}`, tableId: source\.tableId, status: 'open', items: moved,[\s\S]*openedBy: source\.openedBy \|\| source\.openedById \|\| null/);
 assert.ok(finance.indexOf('if (employeeFinanceView)') < finance.indexOf('Динамика показателей'));
 assert.match(finance,/МОЯ СМЕНА[\s\S]*Оборот заказов, открытых вами сегодня[\s\S]*return;/);
 assert.match(finance,/оплаченных заказов, которые вы открыли за сегодня/);

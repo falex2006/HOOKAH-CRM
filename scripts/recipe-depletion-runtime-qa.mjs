@@ -46,6 +46,9 @@ try {
     ],
   }, 201);
   const mixedUnitBatch = await req('/api/inventory/premixes/produce', 'POST', { recipeId: mixedUnitRecipe.id, outputItemId: mixedUnitOutput.id, multiplier: 1 }, 201);
+  assert.equal(mixedUnitBatch.recipeName, mixedUnitRecipe.name, 'produced memory batch includes the readable recipe name');
+  const mixedUnitHistory = await req('/api/inventory/premixes');
+  assert.equal(mixedUnitHistory.items.find((item) => item.id === mixedUnitBatch.id)?.recipeName, mixedUnitRecipe.name, 'read-only batch history retains the readable recipe name'); checks += 2;
   assert.equal(mixedUnitBatch.ingredients.length, 1, 'compatible duplicate lines aggregate to one stock debit');
   assert.equal(mixedUnitBatch.ingredients[0].quantity, 1, '500 ml + 0.5 l aggregates as 1 l in the stock item unit');
   assert.equal(mixedUnitBatch.totalCost, 10, 'aggregated mixed-unit ingredients are costed once at stock-unit cost'); checks += 3;

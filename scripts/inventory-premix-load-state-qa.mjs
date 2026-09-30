@@ -9,6 +9,8 @@ assert.ok(dashboardStart >= 0 && inventoryStart > dashboardStart, 'dashboard and
 const dashboardSource = portal.slice(dashboardStart, inventoryStart);
 assert.doesNotMatch(dashboardSource, /loadPremixData|premix-empty-guidance|premix-form/, 'premix controls must not be wired to the dashboard route');
 const inventorySource = portal.slice(inventoryStart, portal.indexOf('function renderFinance()', inventoryStart));
+assert.match(inventorySource, /if \(purchaseForm\) document\.querySelector\('#purchase-date'\)\.value = '';\s*renderPurchaseLines\(\); loadPurchaseDocuments\(\);/, 'read-only inventory renders without the purchase date editor');
+assert.match(inventorySource, /if \(!canWriteInventory\)[\s\S]*?api\('\/api\/recipes'\)\.then\(\(data\) => \{\s*const items = Array\.isArray\(data\.items\) \? data\.items : \[\];\s*recipeItems = items;\s*refreshInventoryContext\(\);/, 'read-only recipe load updates the premix KPI');
 assert.match(inventorySource, /const premixPanel = document\.createElement\('section'\)[\s\S]*?target\.append\(premixPanel\)[\s\S]*?loadPremixData\(\);/, 'inventory route must mount the premix panel before loading its data');
 assert.match(styles, /\.premix-setup-guidance:not\(\[hidden\]\)\{[^}]*display:flex[^}]*flex-direction:column[^}]*gap:8px/s, 'visible premix guidance must separate its heading, explanation and action');
 const start = portal.indexOf('  const loadPremixData = () => {');
@@ -17,12 +19,12 @@ assert.ok(start >= 0 && end > start, 'premix loader must be discoverable');
 const loaderSource = portal.slice(start, end + 1);
 
 const createFixture = () => {
-  const controls = [{ disabled: false }, { disabled: false }, { disabled: false }];
+  const controls = [0, 1, 2].map((index) => ({ disabled: false, matches: () => index === 2 }));
   const classes = new Set(); const attributes = new Map();
   const nodes = {
     '#premix-recipe': { innerHTML: '' },
     '#premix-output': { innerHTML: '' },
-    '#premix-form': { querySelectorAll: () => controls },
+    '#premix-form': { dataset: {}, querySelectorAll: () => controls },
     '#premix-empty-guidance': { hidden: true, innerHTML: '', classList: { add: (name) => classes.add(name), remove: (name) => classes.delete(name) }, setAttribute: (key, value) => attributes.set(key, value), removeAttribute: (key) => attributes.delete(key) },
     '#premix-batches': { innerHTML: '' },
   };
@@ -50,6 +52,10 @@ await recover();
 assert.equal(recoveredFixture.nodes['#premix-empty-guidance'].hidden, true);
 assert.ok(!recoveredFixture.classes.has('auto-order-load-error'));
 assert.ok(recoveredFixture.controls.every((control) => !control.disabled), 'successful retry restores the production form');
+recoveredFixture.nodes['#premix-form'].dataset.submitting = '1';
+await recover();
+assert.ok(recoveredFixture.controls.slice(0, 2).every((control) => !control.disabled), 'reload keeps selectors available while producing');
+assert.equal(recoveredFixture.controls[2].disabled, true, 'reload cannot re-enable production during an in-flight batch');
 assert.match(recoveredFixture.nodes['#premix-recipe'].innerHTML, /Сироп/);
 assert.match(recoveredFixture.nodes['#premix-batches'].innerHTML, /Партии ещё не приготовлены/);
 

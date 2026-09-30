@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const source=readFileSync(new URL('../portal.js',import.meta.url),'utf8');
+const section=source.slice(source.indexOf('function renderNetwork()'),source.indexOf('function renderOrders()'));
+const start=section.indexOf('  let loadGeneration =');const end=section.indexOf('  load();',start);
+assert.ok(start>0 && end>start);
+const nodes=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',innerHTML:''});return nodes.get(id);};
+const pending=[],draws=[],defaults=[];
+const api=()=>new Promise((resolve,reject)=>pending.push({resolve,reject}));
+const state=new Function('document','api','draw','defaults',`let defaultTimezone='Asia/Yekaterinburg';let timezoneTouched=false;const setDefaultTimezone=()=>defaults.push(defaultTimezone);${section.slice(start,end)};return {load,touch:()=>timezoneTouched=true};`)({querySelector:node},api,items=>draws.push(items),defaults);
+const failed=state.load();pending[0].reject(Error('offline'));await failed;
+assert.equal(node('#network-count').textContent,'Ошибка загрузки');assert.match(node('#network-list').innerHTML,/data-network-retry/);
+const recovered=state.load();pending[1].resolve({items:[{isCurrent:true,timezone:'Europe/Moscow'}]});await recovered;assert.equal(defaults.at(-1),'Europe/Moscow');
+state.touch();const manual=state.load();pending[2].resolve({items:[{isCurrent:true,timezone:'Asia/Omsk'}]});await manual;assert.equal(defaults.at(-1),'Europe/Moscow','manual selection is not overwritten');
+const old=state.load(),newer=state.load();pending[4].resolve({items:[{id:'fresh'}]});await newer;pending[3].reject(Error('old'));await old;assert.equal(draws.at(-1)[0].id,'fresh');
+assert.match(section,/if \(creating\) return/);assert.match(section,/creating = true; button.disabled = true/);assert.match(section,/finally \{ creating = false; button.disabled = false/);
+assert.match(section,/timezoneTouched = false; setDefaultTimezone\(\)/);
+console.log('NETWORK LOAD STATE QA: PASS (error/retry, current timezone default, manual selection preserved, stale failure ignored)');

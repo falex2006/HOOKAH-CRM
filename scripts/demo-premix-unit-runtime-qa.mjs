@@ -15,6 +15,18 @@ const execute = new Function('path', 'method', 'input', 'portalPermissions', 'de
 const produce = (state, payload) => execute('/api/inventory/premixes/produce', 'POST', payload, new Set(['inventory']), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' });
 const stateFor = (recipe, inventory) => ({ recipes: [recipe], inventory, premixBatches: [], audit: [] });
 
+const itemRouteStart = portal.indexOf("if (path === '/api/inventory/items' && method === 'POST')");
+const itemRouteEnd = portal.indexOf('\n', itemRouteStart);
+assert.ok(itemRouteStart >= 0 && itemRouteEnd > itemRouteStart, 'demo inventory create route must be discoverable');
+class FrozenDate extends Date { static now() { return 1234567890; } }
+const createDemoItem = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', 'Date', `return (async () => { ${portal.slice(itemRouteStart, itemRouteEnd)} })();`);
+const demoItems = { inventory: [], audit: [] };
+const demoItemArgs = ['/api/inventory/items', 'POST', { name: 'QA premix source', unit: 'мл' }, new Set(['inventory']), demoItems, () => {}, { name: 'QA' }, FrozenDate];
+const firstDemoItem = await createDemoItem(...demoItemArgs);
+const secondDemoItem = await createDemoItem(...demoItemArgs);
+assert.notEqual(firstDemoItem.id, secondDemoItem.id, 'rapid demo inventory creates retain distinct IDs in one millisecond');
+assert.equal(demoItems.inventory.length, 2);
+
 // Ingredient quantity is converted into the stock item's unit before debit/costing.
 const gramsState = stateFor({ id: 'recipe-g', name: 'Тест, г → кг', recipeType: 'premix', ingredients: [{ ingredientId: 'sugar', name: 'Сахар', quantity: '1000 г' }], yieldQuantity: 1, yieldUnit: 'шт' }, [
   { id: 'sugar', name: 'Сахар', unit: 'кг', onHand: 2, cost: 250 },

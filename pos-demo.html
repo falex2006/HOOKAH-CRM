@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Hookah POS — пример кассы</title>
+  <link rel="stylesheet" href="/pos-demo-wow.css">
+</head>
+<body>
+  <div class="pos-app">
+    <aside class="rail">
+      <a class="brand" href="#" aria-label="Hookah POS"><span class="brand-mark">H</span><span>hookah<span class="brand-light">pos</span><small>BY ALPHASAT</small></span></a>
+      <div class="rail-label">РАБОТА</div>
+      <button class="rail-link active"><span class="rail-icon">▦</span>Зал и заказы</button>
+      <button class="rail-link"><span class="rail-icon">▤</span>Касса</button>
+      <button class="rail-link"><span class="rail-icon">◷</span>Бронирования</button>
+      <button class="rail-link"><span class="rail-icon">♙</span>Гости</button>
+      <div class="rail-label control-label">УПРАВЛЕНИЕ</div>
+      <button class="rail-link"><span class="rail-icon">▧</span>Меню и склад</button>
+      <button class="rail-link"><span class="rail-icon">⌁</span>Отчёты</button>
+      <div class="rail-bottom"><span class="avatar">М</span><span><b>Мария Иванова</b><small>Менеджер смены</small></span><span class="dots">···</span></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar"><div class="crumb"><span>Территория</span><i>/</i><b>Зал и заказы</b></div><div class="top-actions"><span class="venue"><span class="live-dot"></span> Дым · Пермякова, 77 <span class="chevron">⌄</span></span><span class="top-divider"></span><span class="date">Вт, 29 сентября <b>21:24</b></span><button class="help" aria-label="Помощь">?</button></div></header>
+
+      <div class="content">
+        <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-dot"></span> NIGHT SHIFT <span class="eyebrow-date">· ВТОРНИК, 29 СЕНТЯБРЯ</span></div><h1>Добрый вечер, <span>Мария.</span></h1><p>Зал живёт своей жизнью. Всё важное — перед вами.</p></div><div class="heading-side"><div class="clock-card"><span class="clock-live"></span><span>СМЕНА ИДЁТ</span><b>09<span>:</span>24<span>:</span>16</b></div><button class="outline-btn"><span>↻</span> Синхронизировано</button></div></div>
+        <div class="shift-strip"><div class="shift-state"><span class="shift-icon">↗</span><span><b>Выручка этой ночью</b><small>Смена открыта · с 12:00</small></span></div><div class="shift-stats"><div><small>ВЫРУЧКА</small><b>48 650 ₽ <span class="growth">↗ 12%</span></b></div><span class="stat-divider"></span><div><small>ЗАКАЗЫ В ЗАЛЕ</small><b>08 <em>·</em> 03 готовы</b></div><span class="stat-divider"></span><div><small>СРЕДНИЙ ЧЕК</small><b>2 184 ₽</b></div></div><button class="shift-link">Открыть аналитику <span>↗</span></button><div class="sparkline" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+
+        <div class="floor-toolbar"><div class="floor-tabs"><button class="floor-tab selected">Зал <span>8</span></button><button class="floor-tab">Терраса <span>4</span></button><button class="floor-tab">VIP <span>2</span></button><button class="add-floor" aria-label="Добавить зону">＋</button></div><div class="legend"><span><i class="legend-dot green"></i>Свободен</span><span><i class="legend-dot rose"></i>Занят</span><span><i class="legend-dot amber"></i>Ожидает</span><button class="filter">☷ <span>Фильтр</span></button></div></div>
+
+        <div class="workspace">
+          <section class="floor-grid" aria-label="Столы в зале">
+            <button class="table-card free"><span class="table-top"><b>01</b><span class="table-status">Свободен</span></span><span class="seat-row">◉ <span>до 4 гостей</span></span><span class="table-foot"><span class="table-shape round"></span><small>На 2–4 персоны</small></span></button>
+            <button class="table-card busy"><span class="table-top"><b>02</b><span class="table-status">Занят</span></span><span class="seat-row">◉ <span>3 гостя</span></span><span class="table-foot"><span class="table-shape"></span><small>1 ч 12 мин</small><strong>3 450 ₽</strong></span></button>
+            <button class="table-card free"><span class="table-top"><b>03</b><span class="table-status">Свободен</span></span><span class="seat-row">◉ <span>до 6 гостей</span></span><span class="table-foot"><span class="table-shape round"></span><small>На 4–6 персон</small></span></button>
+            <button class="table-card wait"><span class="table-top"><b>04</b><span class="table-status">Ожидает</span></span><span class="seat-row">◉ <span>2 гостя</span></span><span class="table-foot"><span class="table-shape"></span><small>Заказ готов</small><strong>2 100 ₽</strong></span></button>
+            <button class="table-card free"><span class="table-top"><b>05</b><span class="table-status">Свободен</span></span><span class="seat-row">◉ <span>до 4 гостей</span></span><span class="table-foot"><span class="table-shape"></span><small>На 2–4 персоны</small></span></button>
+            <button class="table-card busy"><span class="table-top"><b>06</b><span class="table-status">Занят</span></span><span class="seat-row">◉ <span>4 гостя</span></span><span class="table-foot"><span class="table-shape round"></span><small>48 мин</small><strong>1 850 ₽</strong></span></button>
+            <button class="table-card busy chosen"><span class="table-top"><b>08</b><span class="table-status">Занят</span></span><span class="seat-row">◉ <span>4 гостя</span></span><span class="table-foot"><span class="table-shape"></span><small>1 ч 20 мин</small><strong>2 100 ₽</strong></span></button>
+            <button class="table-card free"><span class="table-top"><b>09</b><span class="table-status">Свободен</span></span><span class="seat-row">◉ <span>до 2 гостей</span></span><span class="table-foot"><span class="table-shape round"></span><small>На 1–2 персоны</small></span></button>
+            <button class="new-table"><span>＋</span><b>Новый заказ</b><small>Открыть стол</small></button>
+          </section>
+
+          <aside class="order-panel">
+            <div class="order-title"><div><div class="order-kicker">ТЕКУЩИЙ ЗАКАЗ</div><h2>Стол 08 <span class="occupied-badge"><i></i> Занят</span></h2></div><button class="more" aria-label="Еще">···</button></div>
+            <div class="guest-info"><span class="guest-avatar">АК</span><span><b>Алексей К.</b><small>Постоянный гость · 5 визитов</small></span><button aria-label="Профиль гостя">↗</button></div>
+            <div class="order-meta"><span>◷ Открыт 20:04</span><span>♙ 4 гостя</span></div>
+            <div class="order-tabs"><button class="order-tab active">Заказ <span>3</span></button><button class="order-tab">Заметки</button><button class="order-tab">История</button></div>
+            <div class="order-lines" id="order-lines">
+              <article class="order-line"><div class="line-icon hookah-icon">♨</div><div class="line-info"><b>Кальян · классический</b><small>Darkside Blueberry Blast</small><span class="line-note">Крепость: средняя · Чаша: фанел</span></div><div class="line-price">1 200 ₽<small>1 × 1 200</small></div></article>
+              <article class="order-line"><div class="line-icon drink-icon">◒</div><div class="line-info"><b>Лимонад маракуйя</b><small>Домашний · 400 мл</small><span class="line-note">Без льда</span></div><div class="line-price">600 ₽<small>2 × 300</small></div></article>
+              <article class="order-line"><div class="line-icon tea-icon">♨</div><div class="line-info"><b>Чай Earl Grey</b><small>Чайник · 600 мл</small><span class="line-note">Лимон отдельно</span></div><div class="line-price">300 ₽<small>1 × 300</small></div></article>
+            </div>
+            <button class="add-item" id="add-item"><span>＋</span> Добавить позицию <kbd>⌘ K</kbd></button>
+            <div class="order-bottom"><div class="subtotal"><span>Сумма заказа</span><b id="subtotal">2 100 ₽</b></div><div class="subtotal muted-row"><span>Скидка гостя <i>−</i></span><b>0 ₽</b></div><div class="grand-total"><span>Итого к оплате</span><b id="total">2 100 <small>₽</small></b></div><button class="pay-btn" id="pay-button"><span>Перейти к оплате</span><b id="pay-total">2 100 ₽</b><i>→</i></button><div class="order-actions"><button>⇄ Разделить</button><button>↗ Перенести</button><button>▤ Пречек</button></div></div>
+          </aside>
+        </div>
+        <div class="bottom-note"><span><i class="live-dot"></i> Все столы синхронизированы</span><span>Пример интерфейса · данные демонстрационные</span></div>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="catalog-dialog" class="catalog-dialog"><div class="catalog-head"><div><div class="order-kicker">МЕНЮ ЗАВЕДЕНИЯ</div><h2>Добавить позицию</h2></div><button id="close-catalog" aria-label="Закрыть">×</button></div><label class="search-box">⌕ <input id="menu-search" placeholder="Найти в меню…" autocomplete="off"><kbd>ESC</kbd></label><div class="categories"><button class="category active" data-category="all">Всё меню</button><button class="category" data-category="Кальяны">Кальяны</button><button class="category" data-category="Напитки">Напитки</button><button class="category" data-category="Чай">Чай</button><button class="category" data-category="Закуски">Закуски</button></div><div id="menu-items" class="menu-items"></div><p class="demo-caption">Демонстрационный каталог · нажмите на позицию, чтобы добавить её в заказ</p></dialog>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/pos-demo.js"></script>
+</body>
+</html>

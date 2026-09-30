@@ -17,7 +17,7 @@ const statusRoute = section("if (orderAction && req.method === 'POST')", 'const 
 for (const [name, route] of [['POST order item', addItem], ['PATCH/DELETE order item', editItem]]) {
   assert.match(route, /repositories\.pool\.connect\(\)/, `${name} checks out a transaction client`);
   assert.match(route, /await client\.query\('BEGIN'\)/, `${name} starts a transaction`);
-  assert.match(route, /SELECT id,status FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, `${name} serializes against close by locking its order`);
+  assert.match(route, /SELECT id,status(?:,[^']+)? FROM orders WHERE id=\$1 AND venue_id=\$2 FOR UPDATE/, `${name} serializes against close by locking its order`);
   assert.match(route, /!\['open', 'in_progress', 'ready'\]\.includes\(orderRows\[0\]\.status\)/, `${name} rechecks editability while holding the lock`);
   assert.match(route, /await client\.query\('COMMIT'\)/, `${name} commits its item change under the order lock`);
   assert.match(route, /ROLLBACK[\s\S]*?finally\s*\{[\s\S]*?client\??\.release\(\)/, `${name} rolls back errors and always releases the client`);

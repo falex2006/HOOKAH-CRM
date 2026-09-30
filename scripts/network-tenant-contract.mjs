@@ -17,10 +17,10 @@ assert.match(block, /values\.push\(organizationId\);/);
 assert.match(block, /WHERE id=\$1 AND organization_id=\$\$\{values\.length\} AND is_active=true/);
 assert.match(block, /UPDATE venues SET is_active=false WHERE id=\$1 AND organization_id=\$2 AND is_active=true/);
 assert.match(block, /FROM venues WHERE id=\$1 AND organization_id=\$2 AND is_active=true FOR UPDATE/);
-assert.match(block, /UPDATE venues SET is_current=false WHERE is_active=true AND organization_id=\$1', \[requestOrganizationId\(req\)\]/);
-assert.match(block, /UPDATE venues SET is_current=true WHERE id=\$1 AND organization_id=\$2/);
+assert.doesNotMatch(block, /UPDATE venues SET is_current/);
+assert.match(block, /sessionRepository\.setActiveVenue\(hashToken\(token\), selected\.id, client\)/);
 
-const pooledNetworkRoutes = block.split('if (repositories?.pool').length - 1;
+const pooledNetworkRoutes = [...block.matchAll(/if \(\s*(?:process\.env\.DATABASE_URL \|\| )?repositories\?\.pool/g)].length;
 const guardedPooledRoutes = [...block.matchAll(/if \(requireOrganizationContext\(req, res\)\) return;/g)].length;
 assert.equal(guardedPooledRoutes, pooledNetworkRoutes, 'every database-backed network route must require organization context');
 

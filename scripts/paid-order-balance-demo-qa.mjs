@@ -1,0 +1,46 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8').replaceAll('\r\n', '\n');
+const start = app.indexOf('const localOrders=');
+const end = app.indexOf('\nconst apiJson=', start);
+assert.ok(start >= 0 && end > start);
+const values = new Map();
+const localStorage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)) };
+const location = { origin: 'http://localhost' };
+const products = [['Чай', 100, '', '', 'tea']];
+const staticStaffDemo = () => true;
+const normalizeTableId = (value) => String(value);
+const api = new Function('localStorage', 'location', 'products', 'staticStaffDemo', 'normalizeTableId', 'floorVenueId', `${app.slice(start, end)}\nreturn { staticOrderApi, staticSplitApi };`)(localStorage, location, products, staticStaffDemo, normalizeTableId, 'demo-venue-territory');
+const call = (path, method, body = {}) => api.staticOrderApi(path, { method, body: JSON.stringify(body) });
+const split = (path, itemIds) => api.staticSplitApi(path, { method: 'POST', body: JSON.stringify({ itemIds }) });
+const orders = () => JSON.parse(values.get('territory_crm_staff_orders') || '[]');
+const expectError = async (promise, code) => assert.rejects(promise, (error) => (error.payload?.error || error.message) === code);
+
+values.set('territory_crm_staff_orders', JSON.stringify([{ id: 'order-1', status: 'open', tableId: 'table-1', minimumOrderTotal: 0, items: [{ id: 'item-1', productId: 'tea', unitPrice: 100, quantity: 2 }, { id: 'item-2', productId: 'tea', unitPrice: 100, quantity: 1 }], payments: [{ id: 'pay-1', status: 'partially_paid', method: 'cash', amount: 250 }] }]));
+await expectError(call('/api/orders/order-1/items/item-1', 'PATCH', { quantity: 1 }), 'order_total_below_paid');
+assert.equal(orders()[0].items[0].quantity, 2);
+await expectError(call('/api/orders/order-1/items/item-1', 'DELETE'), 'order_total_below_paid');
+await expectError(split('/api/orders/order-1/split', ['item-1']), 'order_total_below_paid');
+assert.equal(orders().length, 1);
+await expectError(call('/api/orders/order-1/status', 'POST', { status: 'cancelled' }), 'paid_order_cannot_cancel');
+await expectError(call('/api/orders/order-1', 'DELETE', { comment: 'QA', writeoff: false }), 'paid_order_cannot_cancel');
+await expectError(call('/api/orders/order-1/payments', 'POST', { method: 'card', amount: 50.01 }), 'HTTP 409');
+assert.equal(orders()[0].payments.length, 1);
+await call('/api/orders/order-1/items/item-1', 'PATCH', { quantity: 2 });
+await call('/api/orders/order-1/payments', 'POST', { method: 'card', amount: 50 });
+assert.equal(orders()[0].status, 'closed');
+values.set('territory_crm_staff_orders', JSON.stringify([...orders(), { id: 'order-venue', status: 'open', tableId: 'table-venue', items: [], payments: [] }]));
+await call('/api/orders/order-venue', 'DELETE', { comment: 'QA', writeoff: false });
+assert.equal(JSON.parse(values.get('territory_crm_staff_notifications') || '[]').at(-1).venueId, 'demo-venue-territory', 'demo deletion notification is tagged with the active venue');
+
+const helperStart = portal.indexOf('const demoDiscountOrderError =');
+const helperEnd = portal.indexOf('const demoRecipeUnitAliases', helperStart);
+assert.ok(helperStart >= 0 && helperEnd > helperStart);
+const discountCheck = new Function('demoReadOrders', `${portal.slice(helperStart, helperEnd)}\nreturn demoPaidOrderBalanceError;`)(() => [{ id: 'order-2', status: 'open', items: [{ unitPrice: 100, quantity: 2 }], payments: [{ amount: 150, status: 'partially_paid' }] }]);
+const request = { id: 'request-1', orderId: 'order-2', type: 'percent', value: 50, status: 'approved' };
+assert.equal(discountCheck(request, [request])?.payload?.error, 'order_total_below_paid');
+assert.equal(discountCheck({ ...request, value: 20 }, [{ ...request, value: 20 }]), null);
+assert.equal(discountCheck({ ...request, orderId: 'missing' }, [request])?.payload?.error, 'discount_not_found_or_decided');
+console.log('PAID ORDER BALANCE DEMO QA: PASS');

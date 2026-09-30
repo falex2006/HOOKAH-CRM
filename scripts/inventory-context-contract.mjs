@@ -21,7 +21,7 @@ assert.match(portal, /id="new-recipe"/, 'the single recipe creation action remai
 assert.match(portal, /id="new-product"/, 'the single product creation action remains available in its panel');
 assert.match(portal, /const addButton = document\.querySelector\('#new-product'\);\s*if \(addButton\) \{ addButton\.disabled = true; addButton\.textContent = 'Форма открыта'; \}/,
   'opening the product editor must prevent a repeated create click from wiping entered data');
-assert.match(portal, /addButton\.disabled = false; addButton\.innerHTML = `\$\{icon\('plus'\)\} Добавить товар`/,
+assert.match(portal, /addButton\.disabled = form\.dataset\.submitting === '1'; addButton\.innerHTML = `\$\{icon\('plus'\)\} Добавить товар`/,
   'closing or saving the product editor must restore the add-product action');
 assert.match(portal, /id="open-products"/, 'directory panel retains its catalog navigation action');
 assert.match(portal, /actions: \[\['department', 'Добавить цех', 'primary'\], \['subdepartment', 'Добавить подцех', ''\], \['category', 'Добавить категорию', ''\]\]/,
@@ -41,7 +41,7 @@ assert.match(css, /\.visual-catalog-empty\{grid-column:1\/-1/, 'catalog empty st
 assert.match(portal, /recipe\.productId && productItems\.some\(\(product\) => String\(product\.id\) === String\(recipe\.productId\)\)/,
   'recipe linkage KPI must count only valid links to existing menu products');
 assert.match(portal, /id="premix-empty-guidance"/, 'premix empty state must explain how to create the required recipe');
-assert.match(portal, /querySelectorAll\('select,input,button\[type=submit\]'\)\.forEach\(\(control\) => \{ control\.disabled = !canProduce; \}\)/,
+assert.match(portal, /querySelectorAll\('select,input,button\[type=submit\]'\)\.forEach\(\(control\) => \{ control\.disabled = !canProduce \|\| \(control\.matches\('button\[type=submit\]'\) && premixForm\.dataset\.submitting === '1'\); \}\)/,
   'premix production controls must remain disabled until a recipe and output stock item exist');
 assert.match(portal, /id="premix-submit" type="submit" disabled/, 'premix submit must start disabled before availability is confirmed');
 assert.match(portal, /data-premix-create-recipe/, 'premix empty state must offer a direct route to recipe creation');

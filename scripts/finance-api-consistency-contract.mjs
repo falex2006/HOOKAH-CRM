@@ -14,6 +14,7 @@ const summary = sliceBetween("if (pathname === '/api/finance/summary'", "if (pat
 const report = sliceBetween("if (pathname === '/api/finance/report'", "if (pathname === '/api/deliveries'");
 const analytics = sliceBetween("if (pathname === '/api/analytics'", "if (pathname === '/api/audit'");
 const subscription = sliceBetween("if (platformOrgSubscription && req.method === 'PATCH')", "const platformOrgPath = pathname.match(");
+const expenses = sliceBetween("if (pathname === '/api/expenses' && req.method === 'GET')", "if (pathname === '/api/expenses' && req.method === 'POST')");
 
 for (const [name, route] of [['finance summary', summary], ['finance report', report]]) {
   assert.match(route, /\['paid', 'partially_paid'\]\.includes\(payment\.status\)/,
@@ -48,5 +49,11 @@ assert.match(portal, /netProfit: totalRevenue - totalExpenses - totalCostOfGoods
   'demo analytics net profit subtracts both expenses and cost of goods');
 assert.match(subscription, /UPDATE organizations SET plan=\$1,updated_at=now\(\)/,
   'organization plan changes update the organization modification timestamp');
+assert.match(expenses, /LEFT JOIN LATERAL \(SELECT pe\.id,pe\.status,pe\.period_from,pe\.period_to FROM payroll_entries pe WHERE pe\.venue_id=e\.venue_id AND pe\.expense_id=e\.id ORDER BY pe\.created_at DESC,pe\.id DESC LIMIT 1\) payroll ON true/,
+  'linked payroll period is read in a tenant-bound deterministic order');
+assert.match(expenses, /'Выплата зарплаты за ' \|\| to_char\(payroll\.period_from,'DD\.MM\.YYYY'\) \|\| ' — ' \|\| to_char\(payroll\.period_to,'DD\.MM\.YYYY'\) ELSE e\.description/,
+  'linked payroll expenses expose canonical Russian period text without rewriting legacy rows');
+assert.match(expenses, /NOT EXISTS \(SELECT 1 FROM payroll_entries pe WHERE pe\.venue_id=e\.venue_id AND pe\.expense_id=e\.id AND pe\.status='paid'\)/,
+  'payroll review status retains its existing all-linked-entries rule');
 
 console.log('FINANCE API CONSISTENCY CONTRACT: PASS (partial receipts, zero-total handling, PostgreSQL fail-closed, organization timestamp)');

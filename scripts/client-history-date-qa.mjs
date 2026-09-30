@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const s=readFileSync(new URL('../portal.js',import.meta.url),'utf8');
+const format=s.slice(s.indexOf('const formatRuDate ='),s.indexOf('; const pluralRu=',s.indexOf('const formatRuDate =')))+';';
+const helper=s.slice(s.indexOf('const clientReservationHistoryDate ='),s.indexOf('function renderClients()',s.indexOf('const clientReservationHistoryDate =')));
+const run=new Function(format+helper+'return {date:clientReservationHistoryDate,format:formatRuDate};')();
+assert.equal(run.date({date:'2026-10-02',time:'20:30'}),'02.10.2026 20:30');
+assert.equal(run.date({startsAt:'2026-10-02T15:30:00Z'}),run.format('2026-10-02T15:30:00Z',true));
+assert.equal(run.date({startsAt:'2026-10-02T15:30:00Z',date:'2026-10-03',time:'00:30'}),'03.10.2026 00:30');
+assert.equal(run.date({}),'—');
+assert.equal(run.date({date:'2026-10-02'}),'02.10.2026');
+assert.ok(s.includes('${esc(clientReservationHistoryDate(item))}'));
+console.log('CLIENT HISTORY DATE QA: PASS (PostgreSQL timestamp, memory calendar/time, missing data and escaped renderer)');

@@ -8,9 +8,9 @@ const migration = fs.readFileSync(new URL('../migrations/030_auth_session_active
 assert.match(server, /let defaultVenueDbId =/);
 assert.match(server, /let venueDbId = defaultVenueDbId/);
 assert.match(server, /requestAuthToken/);
-assert.match(server, /sessionRepository\.setActiveVenue\(hashToken\(token\), selected\.id\)/);
+assert.match(server, /sessionRepository\.setActiveVenue\(hashToken\(token\), selected\.id, client\)/);
 assert.match(db, /active_venue_id/);
-assert.match(db, /async setActiveVenue\(tokenHash, venueId\)/);
+assert.match(db, /async setActiveVenue\(tokenHash, venueId, client = this\.pool\)/);
 assert.match(migration, /ADD COLUMN IF NOT EXISTS active_venue_id uuid/);
 
 console.log('SESSION VENUE CONTRACT: PASS (active venue is stored per session)');

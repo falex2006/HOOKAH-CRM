@@ -14,7 +14,8 @@ const source = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8')
 const start = source.indexOf("if (pathname === '/api/tasks' && req.method === 'GET')");
 const end = source.indexOf("if (pathname === '/api/reservations' && req.method === 'GET')", start);
 assert.ok(start >= 0 && end > start, 'task API handlers are available');
-const route = source.slice(start, end);
+const deadlineHelper = source.slice(source.indexOf('function normalizeTaskDeadline(input)'), source.indexOf('\nconst root ='));
+const route = deadlineHelper + '\n' + source.slice(start, end);
 
 const suffix = `${process.pid}-${Date.now()}`;
 const venues = [];
@@ -51,6 +52,8 @@ try {
   assertQaDatabaseIdentity(identityRows[0], target.database, Number(target.url.port || 5432), 'MIGRATIONS_PG_TEST_DATABASE_URL');
   console.log(`Verified isolated PostgreSQL QA target: ${target.database} (${identityRows[0].address}:${identityRows[0].port})`);
 
+  const deadlineMigration = fs.readFileSync(new URL('../migrations/051_task_calendar_deadline.sql', import.meta.url),'utf8');
+  await setup.query(deadlineMigration); await setup.query(deadlineMigration);
   const createVenue = async (name) => {
     const id = (await setup.query('INSERT INTO venues (name) VALUES ($1) RETURNING id', [name])).rows[0].id;
     venues.push(id);
@@ -148,6 +151,22 @@ try {
   const unchangedAfterCrossTenantAttempt = await setup.query('SELECT status FROM tasks WHERE id=$1', [assignedA.data.id]);
   assert.equal(unchangedAfterCrossTenantAttempt.rows[0].status, 'done', 'cross-tenant attempt leaves task unchanged');
 
+  const manage = (method, body, id='') => callApi({venueId,user:identity(manager,managerPermissions),method,path:`/api/tasks${id ? '/'+id : ''}`,body});
+  for (const deadline of [{dueDate:'2026-02-31'},{dueAt:'bad'},{dueAt:'2026-02-31T00:00:00Z'},{dueDate:'2026-09-30',dueAt:'2026-09-30T00:00:00Z'}]) {
+    assert.equal((await manage('POST',{title:'Invalid QA',assigneeId:employeeA.id,...deadline})).status,400);
+  }
+  const day = await manage('POST',{title:'Calendar QA',assigneeId:employeeA.id,dueDate:'2026-09-30'});
+  assert.equal(day.status,201,JSON.stringify(day)); assert.equal(day.data.dueDate,'2026-09-30'); assert.equal(day.data.dueAt,null);
+  const reread = await manage('GET',{}); assert.equal(reread.data.items.find(x=>x.id===day.data.id).dueDate,'2026-09-30');
+  const statusOnly = await manage('PATCH',{status:'in_progress'},day.data.id); assert.equal(statusOnly.data.dueDate,'2026-09-30');
+  const timestamp = await manage('PATCH',{dueAt:'2026-09-30T00:00:00.123Z'},day.data.id);
+  assert.equal(timestamp.status,200,JSON.stringify(timestamp)); assert.equal(timestamp.data.dueDate,null); assert.equal(new Date(timestamp.data.dueAt).toISOString(),'2026-09-30T00:00:00.123Z');
+  const backToDay = await manage('PATCH',{dueAt:'2024-02-29'},day.data.id); assert.equal(backToDay.data.dueDate,'2024-02-29'); assert.equal(backToDay.data.dueAt,null);
+  const clear = await manage('PATCH',{dueDate:''},day.data.id); assert.equal(clear.data.dueDate,null); assert.equal(clear.data.dueAt,null);
+  const legacy = await manage('POST',{title:'Legacy date input QA',assigneeId:employeeA.id,dueAt:'2026-09-30'}); assert.equal(legacy.data.dueDate,'2026-09-30');
+  const deniedDay = await callApi({venueId,user:identity(employeeA,staffPermissions),path:`/api/tasks/${day.data.id}`,method:'PATCH',body:{dueDate:'2026-10-01'}}); assert.equal(deniedDay.status,403);
+  assert.equal(new Date((await manage('GET',{})).data.items.find(x=>x.id===assignedA.data.id).dueAt).toISOString(),dueAt,'legacy precise deadline survives all unrelated updates');
+  console.log('TASK CALENDAR DEADLINE PG QA: PASS (replay, date/timestamp roundtrip, invalid POST, clear, status preservation, employee denial)');
   console.log('TASKS POSTGRES E2E QA: PASS (permissions, validation, same-venue active assignees, employee-scoped reads, completion persistence, tenant isolation)');
 } finally {
   await pool.end();

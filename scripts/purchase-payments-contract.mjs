@@ -24,7 +24,7 @@ const checks = [
   ['purchase outflow stays out of operating expense and COGS remains separate', /source NOT IN \('payroll','purchase'\)/.test(analytics) && /e\.source <> 'payroll' OR EXISTS/.test(analytics) && /costOfGoods = costsByDate/.test(server)],
   ['supplier-payment panel is finance-only page UI and not inventory UI', /finance-payables-panel/.test(financeUi) && !/finance-payables-panel/.test(portal.slice(portal.indexOf('function renderInventory()'), portal.indexOf('function renderFinance()')))],
   ['finance_read gets view-only status and stock UI contains no payment CTA', /data-payable-id/.test(financeUi) && /canDecideFinance && item\.balanceDue/.test(financeUi)],
-  ['UI refreshes payable balance, expense list and selected finance date after payment', /loadPayables\(\); loadExpenses\(\); document\.querySelector\('#finance-date'\)/.test(financeUi)],
+  ['UI refreshes payable balance, expense list and selected finance date after payment', /loadPayables\(\)[\s\S]*?loadExpenses\(\); document\.querySelector\('#finance-date'\)/.test(financeUi)],
   ['invoice rows expose lazy expandable payment history with date, method, amount and evidence', /data-payable-history/.test(financeUi) && /payment\.paymentDate/.test(financeUi) && /labels\[payment\.paymentMethod\]/.test(financeUi) && /money\(payment\.amount\)/.test(financeUi) && /Открыть документ/.test(financeUi)],
   ['payment evidence links accept only supported base64 image or PDF data URLs', /data:\(\?:image\\\//.test(financeUi) && /rel="noopener noreferrer"/.test(financeUi)],
   ['payment history has compact mobile layout', /\.payable-payment-history-item\{grid-template-columns:minmax\(0,1fr\) auto;gap:6px 12px\}/.test(fs.readFileSync('style.css', 'utf8'))],

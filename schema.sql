@@ -137,6 +137,7 @@ CREATE TABLE guests (
   venue_id uuid REFERENCES venues(id),
   phone text,
   full_name text,
+  nickname text NOT NULL DEFAULT '',
   email text,
   loyalty_points int NOT NULL DEFAULT 0,
   discount_group_id uuid,
@@ -345,3 +346,71 @@ CREATE TABLE IF NOT EXISTS finance_categories (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS finance_categories_active_name_uq
   ON finance_categories (venue_id, kind, lower(name)) WHERE active=true;
+
+-- Delivery records belong to a venue and survive application restarts.
+CREATE TABLE IF NOT EXISTS deliveries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  customer_name text NOT NULL CHECK (char_length(customer_name) BETWEEN 1 AND 120),
+  phone text NOT NULL DEFAULT '',
+  address text NOT NULL CHECK (char_length(address) BETWEEN 1 AND 500),
+  comment text NOT NULL DEFAULT '' CHECK (char_length(comment) <= 500),
+  total numeric(14,2) NOT NULL DEFAULT 0 CHECK (total >= 0),
+  payment_method text NOT NULL DEFAULT 'cash' CHECK (payment_method IN ('cash','card','qr')),
+  status text NOT NULL DEFAULT 'new' CHECK (status IN ('new','confirmed','in_delivery','delivered','cancelled')),
+  courier text NOT NULL DEFAULT '' CHECK (char_length(courier) <= 120),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS deliveries_venue_created_idx ON deliveries(venue_id,created_at DESC,id);
+
+-- Informational tobacco catalog; inventory quantities and prices remain venue-scoped.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='venues_id_organization_unique') THEN
+    ALTER TABLE venues ADD CONSTRAINT venues_id_organization_unique UNIQUE (id, organization_id);
+  END IF;
+END $$;
+CREATE TABLE IF NOT EXISTS tobacco_catalog_items (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  scope text NOT NULL CHECK (scope IN ('organization','venue')),
+  venue_id uuid,
+  brand text NOT NULL,
+  product_line text,
+  flavor text NOT NULL,
+  product_type text NOT NULL DEFAULT 'tobacco' CHECK (product_type IN ('tobacco','tobacco_free')),
+  package_grams numeric(10,3) CHECK (package_grams IS NULL OR package_grams > 0),
+  strength text,
+  country text,
+  leaf_type text,
+  barcode text,
+  aliases text[] NOT NULL DEFAULT '{}',
+  description text NOT NULL DEFAULT '',
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  updated_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT tobacco_catalog_scope_owner_check CHECK (
+    (scope='organization' AND venue_id IS NULL) OR
+    (scope='venue' AND venue_id IS NOT NULL)
+  ),
+  CONSTRAINT tobacco_catalog_venue_organization_fk FOREIGN KEY (venue_id, organization_id)
+    REFERENCES venues(id, organization_id) ON DELETE CASCADE,
+  CONSTRAINT tobacco_catalog_brand_length CHECK (length(btrim(brand)) BETWEEN 1 AND 120),
+  CONSTRAINT tobacco_catalog_flavor_length CHECK (length(btrim(flavor)) BETWEEN 1 AND 160),
+  CONSTRAINT tobacco_catalog_line_length CHECK (product_line IS NULL OR length(btrim(product_line)) <= 120),
+  CONSTRAINT tobacco_catalog_description_length CHECK (length(description) <= 1200)
+);
+CREATE INDEX IF NOT EXISTS tobacco_catalog_org_active_idx
+  ON tobacco_catalog_items (organization_id, is_active, brand, flavor) WHERE scope='organization';
+CREATE INDEX IF NOT EXISTS tobacco_catalog_venue_active_idx
+  ON tobacco_catalog_items (organization_id, venue_id, is_active, brand, flavor) WHERE scope='venue';
+CREATE INDEX IF NOT EXISTS tobacco_catalog_barcode_idx
+  ON tobacco_catalog_items (organization_id, barcode) WHERE barcode IS NOT NULL AND is_active=true;
+CREATE UNIQUE INDEX IF NOT EXISTS tobacco_catalog_org_variant_unique
+  ON tobacco_catalog_items (organization_id, lower(btrim(brand)), lower(btrim(COALESCE(product_line,''))), lower(btrim(flavor)), product_type, COALESCE(package_grams,0))
+  WHERE scope='organization' AND is_active=true;
+CREATE UNIQUE INDEX IF NOT EXISTS tobacco_catalog_venue_variant_unique
+  ON tobacco_catalog_items (organization_id, venue_id, lower(btrim(brand)), lower(btrim(COALESCE(product_line,''))), lower(btrim(flavor)), product_type, COALESCE(package_grams,0))
+  WHERE scope='venue' AND is_active=true;

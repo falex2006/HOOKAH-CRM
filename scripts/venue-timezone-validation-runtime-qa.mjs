@@ -69,7 +69,7 @@ try {
 
   const invalidVenueSettings = await patch('/api/venue', { timezone: 'Mars/Olympus' });
   assert.equal(invalidVenueSettings.status, 400, 'venue settings reject invalid timezone');
-  const validVenueSettings = await patch('/api/venue', { timezone: 'Europe/Moscow' });
+  const validVenueSettings = await patch('/api/venue', { expectedVenueId: 'venue-territory', timezone: 'Europe/Moscow' });
   assert.equal(validVenueSettings.status, 200, 'venue settings accept a valid IANA timezone');
   assert.equal(validVenueSettings.data.timezone, 'Europe/Moscow');
 

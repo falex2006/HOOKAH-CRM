@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 const root = process.cwd();
-const htmlFiles = fs.readdirSync(root).filter((name) => name.endsWith('.html'));
+const htmlFiles = fs.readdirSync(root).filter((name) => name.endsWith('.html') && name !== 'pos-demo.html');
 const knownRoutes = new Set(['/','/login','/login.html','/admin','/clients','/inventory','/finance','/finance/categories','/finance/report','/reservations','/orders','/integrations','/network','/delivery','/platform']);
 const failures=[]; let anchors=0, buttons=0, forms=0;
 for (const file of htmlFiles) {
@@ -29,7 +29,7 @@ for (const file of htmlFiles) {
     }
   }
 }
-for (const file of fs.readdirSync(root).filter((name) => name.endsWith('.js') && name !== 'server.js')) {
+for (const file of fs.readdirSync(root).filter((name) => name.endsWith('.js') && name !== 'server.js' && name !== 'pos-demo.js')) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   for (const match of source.matchAll(/<button\b([^>]*)>/gi)) {
     buttons++;
@@ -38,7 +38,7 @@ for (const file of fs.readdirSync(root).filter((name) => name.endsWith('.js') &&
 }
 const app=fs.readFileSync(path.join(root,'app.js'),'utf8');
 if (!/aside nav button/.test(app)) failures.push('index navigation has no click handler');
-if (!/\.tabs button/.test(app)) failures.push('floor tabs have no click handler');
+if (!/\.order-tabs button/.test(app)) failures.push('floor tabs have no click handler');
 if (!/\.chips button/.test(app)) failures.push('queue filters have no click handler');
 const portal=fs.readFileSync(path.join(root,'portal.js'),'utf8');
 if (!/portal-nav/.test(portal)) failures.push('portal navigation runtime missing');

@@ -29,20 +29,31 @@ $storedGuest = $guestAfterLoyalty.items | Where-Object { $_.id -eq $client.id } 
 if ($storedGuest.loyaltyPoints -ne 25 -or $storedGuest.bonusBalance -ne 25) { throw 'Guest list did not show the updated bonus balance' }
 $product = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/products" -ContentType 'application/json' -Body (@{ name = "Гостевой тест $suffix"; category = 'bar'; price = 100 } | ConvertTo-Json)
 
+$floorContext = Invoke-RestMethod "$BaseUrl/api/floor"
+$zone = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/floor/zones" -ContentType 'application/json' -Body (@{ expectedVenueId = $floorContext.venueId; name = "Гостевой тест зал $suffix" } | ConvertTo-Json)
+$table = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/floor/tables" -ContentType 'application/json' -Body (@{ expectedVenueId = $floorContext.venueId; zoneId = $zone.id; name = "Гостевой тест стол $suffix"; capacity = 2 } | ConvertTo-Json)
+if (-not $table.id) { throw 'Guest test table was not created' }
 $order = Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders" -ContentType 'application/json' -Body (@{
-  tableId = "local-guest-$suffix"
+  tableId = $table.id
   orderType = 'regular'
 } | ConvertTo-Json)
 Invoke-RestMethod -Method Post -Uri "$BaseUrl/api/orders/$($order.id)/items" -ContentType 'application/json' -Body (@{ productId = $product.id; quantity = 1 } | ConvertTo-Json) | Out-Null
 
 $bound = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($order.id)" -ContentType 'application/json' -Body (@{ clientId = $client.id } | ConvertTo-Json)
-if ($bound.guestName -ne $client.name -or $bound.guestPhone -ne $phone) { throw 'Client was not bound to order' }
+$boundPhone = if ($null -ne $bound.phone) { $bound.phone } else { $bound.guestPhone }
+$boundClientId = if ($null -ne $bound.guestId) { $bound.guestId } else { $bound.clientId }
+if ($bound.guestName -ne $client.name -or $boundPhone -ne $phone -or $boundClientId -ne $client.id) { throw 'Client was not bound to order' }
 
 $noted = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/api/orders/$($order.id)" -ContentType 'application/json' -Body (@{ notes = 'Без льда' } | ConvertTo-Json)
 if ($noted.notes -ne 'Без льда') { throw 'Order note was not saved' }
+$ordersAfter = Invoke-RestMethod "$BaseUrl/api/orders"
+$storedOrder = $ordersAfter.items | Where-Object { $_.id -eq $order.id } | Select-Object -First 1
+$storedClientId = if ($null -ne $storedOrder.guestId) { $storedOrder.guestId } else { $storedOrder.clientId }
+if (-not $storedOrder -or $storedClientId -ne $client.id -or $storedOrder.guestPhone -ne $phone -or $storedOrder.notes -ne 'Без льда') { throw 'Guest binding or note was not persisted in order list' }
 
 $history = Invoke-RestMethod "$BaseUrl/api/clients/$($client.id)/history"
 if ($null -eq $history.orders -or $null -eq $history.reservations) { throw 'Client history response is incomplete' }
+if (-not ($history.orders | Where-Object { $_.id -eq $order.id })) { throw 'Bound order was not persisted in client history' }
 $audit = Invoke-RestMethod "$BaseUrl/api/audit?limit=100"
 if (-not ($audit.items | Where-Object { $_.action -eq 'order.guest_updated' })) { throw 'Guest binding audit event was not recorded' }
 Write-Output 'LOCAL GUEST-ORDER TEST: PASS'

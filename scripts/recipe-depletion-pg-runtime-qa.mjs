@@ -197,17 +197,17 @@ try {
     'PostgreSQL staff list exposes PIN configured state without exposing the hash');
   const preservedSessionPreferences = await authenticatedReq(base, sessionToken, '/api/session/preferences');
   assert.deepEqual(preservedSessionPreferences.preferences, {}, 'PIN unlock and rotation leave the authenticated account session usable');
-  const emptyZone = await req(base, '/api/floor/zones', 'POST', { name: `QA пустой зал ${venueId.slice(0, 8)}` }, 201);
+  const emptyZone = await req(base, '/api/floor/zones', 'POST', { expectedVenueId: venueId, name: `QA пустой зал ${venueId.slice(0, 8)}` }, 201);
   const floorBeforeTable = await req(base, '/api/floor');
   const listedEmptyZone = floorBeforeTable.zones.find((zone) => zone.id === emptyZone.id);
   assert.ok(listedEmptyZone, 'a newly created PostgreSQL hall remains visible before any table is assigned');
   assert.deepEqual(listedEmptyZone.tables, [], 'an empty hall is returned with an empty table list, not a phantom table'); checks += 2;
-  const floorTable = await req(base, '/api/floor/tables', 'POST', { zoneId: emptyZone.id, name: 'Стол QA', capacity: 2 }, 201);
+  const floorTable = await req(base, '/api/floor/tables', 'POST', { expectedVenueId: venueId, zoneId: emptyZone.id, name: 'Стол QA', capacity: 2 }, 201);
   const floorAfterTable = await req(base, '/api/floor');
   assert.ok(floorAfterTable.zones.find((zone) => zone.id === emptyZone.id)?.tables.some((table) => table.id === floorTable.id),
     'a table attached to a new PostgreSQL hall remains visible after refreshing the floor'); checks++;
-  await req(base, `/api/floor/tables/${encodeURIComponent(floorTable.id)}`, 'DELETE', undefined, 200);
-  await req(base, `/api/floor/zones/${encodeURIComponent(emptyZone.id)}`, 'DELETE', undefined, 200);
+  await req(base, `/api/floor/tables/${encodeURIComponent(floorTable.id)}`, 'DELETE', { expectedVenueId: venueId }, 200);
+  await req(base, `/api/floor/zones/${encodeURIComponent(emptyZone.id)}`, 'DELETE', { expectedVenueId: venueId }, 200);
   await req(base, '/api/shifts', 'POST', { openingCash: 100 }, 201);
 
   const currentDate = await getBusinessDate();
@@ -273,7 +273,7 @@ try {
   }
 
   async function createOrderFor(productId) {
-    const dedicatedTable = await req(base, '/api/floor/tables', 'POST', { zoneId, name: `QA раздельный стол ${randomUUID().slice(0, 8)}`, capacity: 2 }, 201);
+    const dedicatedTable = await req(base, '/api/floor/tables', 'POST', { expectedVenueId: venueId, zoneId, name: `QA раздельный стол ${randomUUID().slice(0, 8)}`, capacity: 2 }, 201);
     const order = await req(base, '/api/orders', 'POST', { tableId: dedicatedTable.id }, 201);
     await req(base, `/api/orders/${order.id}/items`, 'POST', { productId, quantity: 1 }, 201);
     return order.id;
@@ -603,7 +603,7 @@ try {
   const raceProduct = await req(base, '/api/products', 'POST', {
     name: `QA mode/order race ${venueId.slice(0, 8)}`, category: 'Бар', price: 150,
   }, 201);
-  const raceTable = await req(base, '/api/floor/tables', 'POST', { zoneId, name: `QA race table ${randomUUID().slice(0, 8)}`, capacity: 2 }, 201);
+  const raceTable = await req(base, '/api/floor/tables', 'POST', { expectedVenueId: venueId, zoneId, name: `QA race table ${randomUUID().slice(0, 8)}`, capacity: 2 }, 201);
   const raceOrder = await req(base, '/api/orders', 'POST', { tableId: raceTable.id }, 201);
   const [raceModeResponse, raceItemResponse] = await Promise.all([
     fetch(`${base}/api/products/${raceProduct.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inventoryMode: 'non_stock' }) }),

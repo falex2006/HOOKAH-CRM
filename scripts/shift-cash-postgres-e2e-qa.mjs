@@ -39,11 +39,15 @@ const callShiftApi = async ({ path, method = 'POST', body = {} }) => {
 const callPaymentApi = async ({ path, method = 'POST', body = {} }) => {
   let response;
   const pathname = path;
-  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnless','body','json','recordAudit','requireOpenShift','orders','scaleBatchRecipeIngredients','depleteRecipeForOrder','approvedDiscountTotal','orderTotal',
+  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnless','body','json','recordAudit','requireOpenShift','orders','scaleBatchRecipeIngredients','depleteRecipeForOrder','approvedDiscountTotal','orderTotal','validPaymentAmount','roundMoney','orderBalanceConflict','moneyCents',
     `return (async()=>{${paymentRoute}})();`)(
     pathname, { method, user: { id: userId, name: 'Cash QA', role: 'owner' } }, {}, { pool }, venueId,
     () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {},
     async () => false, [], () => [], async () => ({ lines: [], totalCost: 0 }), () => 0, () => 0,
+    (value) => Number.isFinite(value) && value > 0 && Math.abs(value * 100 - Math.round(value * 100)) < 1e-7,
+    (value) => Math.round(Number(value) * 100) / 100,
+    ({ due, paid }) => Math.round(Number(paid) * 100) > Math.round(Number(due) * 100),
+    (value) => Math.round(Number(value) * 100),
   );
   return response || result;
 };

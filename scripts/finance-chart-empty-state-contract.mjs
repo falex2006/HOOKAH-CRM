@@ -7,6 +7,39 @@ const chartStart = portal.indexOf('const drawFinanceChart = (analytics) => {');
 const chartEnd = portal.indexOf('\n  };', chartStart);
 assert.ok(chartStart >= 0 && chartEnd > chartStart, 'finance chart renderer exists');
 const chart = portal.slice(chartStart, chartEnd);
+assert.ok(chart.includes('class="finance-data-table-wrap" tabindex="0" role="region" aria-label="Динамика показателей по дням"'), 'scrollable table is named and keyboard focusable');
+const dateFormatterSource = portal.slice(portal.indexOf('const formatRuDate ='), portal.indexOf('; const pluralRu='));
+const formatDate = new Function(`${dateFormatterSource}; return formatRuDate;`)();
+assert.equal(formatDate('2026-09-23'), '23.09.2026');
+assert.equal(formatDate('2026-01-02').slice(0, 5), '02.01');
+assert.equal(formatDate(null), '—');
+assert.equal(formatDate('not-a-date'), 'not-a-date');
+for (const group of ['finance-chart', 'payment']) {
+  const buttons = [...portal.matchAll(new RegExp(`<button[^>]*aria-pressed="(true|false)"[^>]*data-${group}-view="([^"]+)"`, 'g'))];
+  assert.equal(buttons.filter((match) => match[1] === 'true').length, 1, `${group}: one initial selected view`);
+  assert.equal(buttons.length, group === 'payment' ? 4 : 3);
+}
+assert.equal((portal.match(/item\.setAttribute\('aria-pressed', String\(item === button\)\)/g) || []).length, 2, 'both view handlers synchronize pressed state');
+const bindingStart = portal.indexOf("document.querySelectorAll('[data-payment-view]').forEach((button) => { button.disabled = false; button.onclick");
+assert.ok(bindingStart >= 0, 'payment handlers replace the previous load closure');
+const binding = portal.slice(bindingStart, portal.indexOf(' const shift = shifts.current;', bindingStart));
+const buttons = ['donut', 'bars', 'line', 'table'].map((view) => ({
+  dataset: { paymentView: view }, classList: { toggle() {} },
+  setAttribute(name, value) { this[name] = value; }
+}));
+const calls = [];
+const bind = new Function('document', 'renderPayments', binding);
+const documentMock = { querySelectorAll: () => buttons };
+bind(documentMock, (view) => calls.push(`old:${view}`));
+bind(documentMock, (view) => calls.push(`current:${view}`));
+buttons[3].onclick();
+assert.deepEqual(calls, ['current:table'], 'repeat loading dispatches only the current payment renderer');
+assert.deepEqual(buttons.map((button) => button['aria-pressed']), ['false', 'false', 'false', 'true']);
+assert.ok(chart.includes('esc(formatRuDate(days[index].date))'), 'point tooltip uses Russian date');
+assert.ok(chart.includes('esc(formatRuDate(day.date))'), 'table uses full Russian date');
+assert.ok(chart.includes('esc(formatRuDate(days[index].date).slice(0, 5))'), 'line axis uses day.month');
+assert.ok(chart.includes('esc(formatRuDate(day.date).slice(0, 5))'), 'bar axis uses day.month');
+assert.ok(!chart.includes("slice(5).replace('-', '.')"), 'US month.day labels removed');
 
 assert.match(chart, /if \(metric === 'orders' \|\| metric === 'average' \|\| metric === 'average_median'\) return orders > 0/,
   'orders and average-check series require actual order activity');

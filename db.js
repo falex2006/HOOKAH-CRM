@@ -403,6 +403,97 @@ class ProductRepository {
   }
 }
 
+class TobaccoCatalogRepository {
+  constructor(pool) { this.pool = pool; }
+  static map(row) {
+    if (!row) return null;
+    return { ...row, packageGrams: row.packageGrams == null ? null : Number(row.packageGrams), aliases: Array.isArray(row.aliases) ? row.aliases : [], active: Boolean(row.active) };
+  }
+  async list(organizationId, venueId, filters = {}) {
+    const params = [organizationId, venueId];
+    let state = "(scope='organization' OR (scope='venue' AND venue_id=$2))";
+    if (filters.status === 'archived') state += ' AND is_active=false';
+    else if (filters.status !== 'all') state += ' AND is_active=true';
+    if (filters.scope === 'organization') state += " AND scope='organization'";
+    if (filters.scope === 'venue') state += " AND scope='venue'";
+    if (filters.query) { params.push(`%${filters.query}%`); const q = `$${params.length}`; state += ` AND (brand ILIKE ${q} OR COALESCE(product_line,'') ILIKE ${q} OR flavor ILIKE ${q} OR barcode ILIKE ${q} OR array_to_string(aliases,' ') ILIKE ${q})`; }
+    const { rows } = await this.pool.query(`SELECT id,organization_id AS "organizationId",scope,venue_id AS "venueId",brand,product_line AS "productLine",flavor,product_type AS "productType",package_grams AS "packageGrams",strength,country,leaf_type AS "leafType",barcode,aliases,description,is_active AS active,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt" FROM tobacco_catalog_items WHERE organization_id=$1 AND ${state} ORDER BY lower(brand),lower(product_line),lower(flavor),package_grams NULLS LAST`, params);
+    return rows.map(TobaccoCatalogRepository.map);
+  }
+  async get(organizationId, venueId, id) {
+    const { rows } = await this.pool.query(`SELECT id,organization_id AS "organizationId",scope,venue_id AS "venueId",brand,product_line AS "productLine",flavor,product_type AS "productType",package_grams AS "packageGrams",strength,country,leaf_type AS "leafType",barcode,aliases,description,is_active AS active,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt" FROM tobacco_catalog_items WHERE id=$1 AND organization_id=$2 AND (scope='organization' OR (scope='venue' AND venue_id=$3))`, [id, organizationId, venueId]);
+    return TobaccoCatalogRepository.map(rows[0]);
+  }
+  async create(input) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (input.scope === 'venue') {
+        const venue = await client.query('SELECT id FROM venues WHERE id=$1 AND organization_id=$2 AND is_active=true FOR SHARE', [input.venueId, input.organizationId]);
+        if (!venue.rows[0]) throw new Error('tobacco_catalog_venue_not_found');
+      }
+      const { rows } = await client.query(`INSERT INTO tobacco_catalog_items (organization_id,scope,venue_id,brand,product_line,flavor,product_type,package_grams,strength,country,leaf_type,barcode,aliases,description,created_by,updated_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
+        RETURNING id,organization_id AS "organizationId",scope,venue_id AS "venueId",brand,product_line AS "productLine",flavor,product_type AS "productType",package_grams AS "packageGrams",strength,country,leaf_type AS "leafType",barcode,aliases,description,is_active AS active,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt"`, [input.organizationId,input.scope,input.scope === 'venue' ? input.venueId : null,input.brand,input.productLine,input.flavor,input.productType,input.packageGrams,input.strength,input.country,input.leafType,input.barcode,input.aliases,input.description,input.actorId]);
+      await client.query('COMMIT');
+      return TobaccoCatalogRepository.map(rows[0]);
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
+    finally { client.release(); }
+  }
+  async update(organizationId, venueId, id, input, actorId) {
+    const fields = []; const values = [id, organizationId, venueId];
+    const allowed = [['brand','brand'],['productLine','product_line'],['flavor','flavor'],['productType','product_type'],['packageGrams','package_grams'],['strength','strength'],['country','country'],['leafType','leaf_type'],['barcode','barcode'],['aliases','aliases'],['description','description'],['active','is_active']];
+    for (const [key,column] of allowed) if (input[key] !== undefined) { values.push(input[key]); fields.push(`${column}=$${values.length}`); }
+    if (!fields.length) return this.get(organizationId, venueId, id);
+    values.push(actorId); fields.push(`updated_by=$${values.length}`, 'updated_at=now()');
+    const { rows } = await this.pool.query(`UPDATE tobacco_catalog_items SET ${fields.join(',')} WHERE id=$1 AND organization_id=$2 AND (scope='organization' OR (scope='venue' AND venue_id=$3)) RETURNING id,organization_id AS "organizationId",scope,venue_id AS "venueId",brand,product_line AS "productLine",flavor,product_type AS "productType",package_grams AS "packageGrams",strength,country,leaf_type AS "leafType",barcode,aliases,description,is_active AS active,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt"`, values);
+    return TobaccoCatalogRepository.map(rows[0]);
+  }
+}
+
+class AlcoholCatalogRepository {
+  constructor(pool) { this.pool = pool; }
+  static map(row) {
+    if (!row) return null;
+    return { ...row, abv: row.abv == null ? null : Number(row.abv), bottleMl: row.bottleMl == null ? null : Number(row.bottleMl), ageYears: row.ageYears == null ? null : Number(row.ageYears), aliases: Array.isArray(row.aliases) ? row.aliases : [], active: Boolean(row.active) };
+  }
+  async list(organizationId, venueId, filters = {}) {
+    const params = [organizationId, venueId];
+    let state = "(scope='organization' OR (scope='venue' AND venue_id=$2))";
+    if (filters.status === 'archived') state += ' AND is_active=false';
+    else if (filters.status !== 'all') state += ' AND is_active=true';
+    if (filters.scope === 'organization') state += " AND scope='organization'";
+    if (filters.scope === 'venue') state += " AND scope='venue'";
+    if (filters.query) { params.push(`%${filters.query}%`); const q = `$${params.length}`; state += ` AND (brand ILIKE ${q} OR COALESCE(product_line,'') ILIKE ${q} OR name ILIKE ${q} OR spirit_type ILIKE ${q} OR country ILIKE ${q} OR barcode ILIKE ${q} OR array_to_string(aliases,' ') ILIKE ${q})`; }
+    const { rows } = await this.pool.query(`SELECT id,organization_id AS "organizationId",scope,venue_id AS "venueId",brand,product_line AS "productLine",name,spirit_type AS "spiritType",country,abv,bottle_ml AS "bottleMl",age_years AS "ageYears",barcode,aliases,description,is_active AS active,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt" FROM alcohol_catalog_items WHERE organization_id=$1 AND ${state} ORDER BY lower(brand),lower(product_line),lower(name),bottle_ml NULLS LAST`, params);
+    return rows.map(AlcoholCatalogRepository.map);
+  }
+  async get(organizationId, venueId, id) {
+    const { rows } = await this.pool.query(`SELECT id,organization_id AS "organizationId",scope,venue_id AS "venueId",brand,product_line AS "productLine",name,spirit_type AS "spiritType",country,abv,bottle_ml AS "bottleMl",age_years AS "ageYears",barcode,aliases,description,is_active AS active,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt" FROM alcohol_catalog_items WHERE id=$1 AND organization_id=$2 AND (scope='organization' OR (scope='venue' AND venue_id=$3))`, [id, organizationId, venueId]);
+    return AlcoholCatalogRepository.map(rows[0]);
+  }
+  async create(input) {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (input.scope === 'venue') { const venue = await client.query('SELECT id FROM venues WHERE id=$1 AND organization_id=$2 AND is_active=true FOR SHARE', [input.venueId, input.organizationId]); if (!venue.rows[0]) throw new Error('alcohol_catalog_venue_not_found'); }
+      const { rows } = await client.query(`INSERT INTO alcohol_catalog_items (organization_id,scope,venue_id,brand,product_line,name,spirit_type,country,abv,bottle_ml,age_years,barcode,aliases,description,created_by,updated_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$15)
+        RETURNING id,organization_id AS "organizationId",scope,venue_id AS "venueId",brand,product_line AS "productLine",name,spirit_type AS "spiritType",country,abv,bottle_ml AS "bottleMl",age_years AS "ageYears",barcode,aliases,description,is_active AS active,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt"`, [input.organizationId,input.scope,input.scope === 'venue' ? input.venueId : null,input.brand,input.productLine,input.name,input.spiritType,input.country,input.abv,input.bottleMl,input.ageYears,input.barcode,input.aliases,input.description,input.actorId]);
+      await client.query('COMMIT'); return AlcoholCatalogRepository.map(rows[0]);
+    } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; } finally { client.release(); }
+  }
+  async update(organizationId, venueId, id, input, actorId) {
+    const fields = []; const values = [id, organizationId, venueId];
+    const allowed = [['brand','brand'],['productLine','product_line'],['name','name'],['spiritType','spirit_type'],['country','country'],['abv','abv'],['bottleMl','bottle_ml'],['ageYears','age_years'],['barcode','barcode'],['aliases','aliases'],['description','description'],['active','is_active']];
+    for (const [key,column] of allowed) if (input[key] !== undefined) { values.push(input[key]); fields.push(`${column}=$${values.length}`); }
+    if (!fields.length) return this.get(organizationId, venueId, id);
+    values.push(actorId); fields.push(`updated_by=$${values.length}`, 'updated_at=now()');
+    const { rows } = await this.pool.query(`UPDATE alcohol_catalog_items SET ${fields.join(',')} WHERE id=$1 AND organization_id=$2 AND (scope='organization' OR (scope='venue' AND venue_id=$3)) RETURNING id,organization_id AS "organizationId",scope,venue_id AS "venueId",brand,product_line AS "productLine",name,spirit_type AS "spiritType",country,abv,bottle_ml AS "bottleMl",age_years AS "ageYears",barcode,aliases,description,is_active AS active,created_by AS "createdBy",updated_by AS "updatedBy",created_at AS "createdAt",updated_at AS "updatedAt"`, values);
+    return AlcoholCatalogRepository.map(rows[0]);
+  }
+}
+
 class ReservationRepository {
   constructor(pool) { this.pool = pool; }
   async list(venueId, date) {
@@ -469,7 +560,10 @@ class SessionRepository {
       WHERE s.token_hash=$1 AND s.expires_at>now() AND u.is_active=true`, [tokenHash]);
     return rows[0] || null;
   }
-  async setActiveVenue(tokenHash, venueId) { await this.pool.query('UPDATE auth_sessions SET active_venue_id=$1 WHERE token_hash=$2', [venueId, tokenHash]); }
+  async setActiveVenue(tokenHash, venueId, client = this.pool) {
+    const { rowCount } = await client.query('UPDATE auth_sessions SET active_venue_id=$1 WHERE token_hash=$2 AND expires_at>now() RETURNING id', [venueId, tokenHash]);
+    return rowCount === 1;
+  }
   async remove(tokenHash) { await this.pool.query('DELETE FROM auth_sessions WHERE token_hash=$1', [tokenHash]); }
 }
 
@@ -478,9 +572,9 @@ function createRepositories(databaseUrl = process.env.DATABASE_URL) {
   let pg;
   try { pg = require('pg'); } catch { return null; }
   const pool = new pg.Pool({ connectionString: databaseUrl, max: Number(process.env.DB_POOL_MAX || 10), idleTimeoutMillis: 30000 });
-  return { pool, orders: new OrderRepository(pool), inventory: new InventoryRepository(pool), purchaseDocuments: new PurchaseDocumentRepository(pool), products: new ProductRepository(pool), reservations: new ReservationRepository(pool), audit: new AuditRepository(pool), sessions: new SessionRepository(pool) };
+  return { pool, orders: new OrderRepository(pool), inventory: new InventoryRepository(pool), purchaseDocuments: new PurchaseDocumentRepository(pool), products: new ProductRepository(pool), tobaccoCatalog: new TobaccoCatalogRepository(pool), alcoholCatalog: new AlcoholCatalogRepository(pool), reservations: new ReservationRepository(pool), audit: new AuditRepository(pool), sessions: new SessionRepository(pool) };
 }
 
 function createOrderRepository(databaseUrl = process.env.DATABASE_URL) { return createRepositories(databaseUrl)?.orders || null; }
 
-module.exports = { OrderRepository, InventoryRepository, PurchaseDocumentRepository, ProductRepository, ReservationRepository, AuditRepository, SessionRepository, createRepositories, createOrderRepository };
+module.exports = { OrderRepository, InventoryRepository, PurchaseDocumentRepository, ProductRepository, TobaccoCatalogRepository, AlcoholCatalogRepository, ReservationRepository, AuditRepository, SessionRepository, createRepositories, createOrderRepository };

@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 
+import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
+
 const root = new URL('../', import.meta.url);
-const htmlFiles = readdirSync(root).filter(file => file.endsWith('.html'));
+const htmlFiles = publishedHtmlFiles;
+for (const file of readdirSync(root).filter(file => file.endsWith('.html'))) {
+  assert.ok(htmlFiles.includes(file) || localPreviewHtmlFiles.includes(file), `undeclared root HTML: ${file}`);
+}
 assert.ok(htmlFiles.length >= 14, 'all application HTML routes should be present');
 const syncScript = readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8');
 const cssRevision = Number(syncScript.match(/cssRevision = '(\d+)'/)?.[1]);
@@ -10,9 +15,10 @@ const portalRevision = Number(syncScript.match(/portalRevision = '(\d+)'/)?.[1])
 const appRevision = Number(syncScript.match(/appRevision = '(\d+)'/)?.[1]);
 assert.ok(Number.isInteger(cssRevision) && Number.isInteger(portalRevision), 'published asset revisions must be declared in the sync script');
 const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-assert.match(appSource, /Math\.floor\(rawX\/190\)\*4\)\+1/, 'floor editor pixel positions must map to spaced 12-column grid starts');
-assert.match(appSource, /Math\.floor\(rawY\/125\)\*3\)\+1/, 'floor editor pixel positions must map to spaced grid rows');
-assert.match(appSource, /Math\.round\(rawW\/50\)/, 'floor editor widths must map to three-column table spans');
+assert.match(appSource, /floorPixelPlacement/, 'POS must convert floor layouts through one pixel contract');
+assert.match(appSource, /layout\.unit==='grid'/, 'legacy grid layouts must remain readable');
+assert.match(appSource, /layout\.unit==='px'/, 'new editor pixel layouts must remain exact');
+assert.match(appSource, /data-layout-x/, 'rendered POS tables must expose canonical geometry');
 for (const file of htmlFiles) {
   const html = readFileSync(new URL(file, root), 'utf8');
   assert.match(html, new RegExp(`style\\.css\\?rev=${cssRevision}`), `${file} must use current CSS cache version`);
@@ -32,6 +38,8 @@ const walk = (directory) => {
   }
 };
 walk(distRoot);
+assert.deepEqual(distHtmlFiles.map(url => decodeURIComponent(url.href.slice(distRoot.href.length))).sort(),
+  [...publishedHtmlPaths].sort(), 'dist HTML must exactly match the declared CRM routes');
 assert.ok(distHtmlFiles.length >= htmlFiles.length, 'dist must contain all published HTML routes');
 for (const fileUrl of distHtmlFiles) {
   const html = readFileSync(fileUrl, 'utf8');
@@ -44,21 +52,6 @@ for (const file of htmlFiles) {
   assert.equal(readFileSync(new URL(`../dist/${file}`, import.meta.url), 'utf8'), readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'),
     `flat dist/${file} must match its current source template`);
 }
-const routeAliases = {
-  'admin/index.html': 'admin.html',
-  'clients/index.html': 'clients.html',
-  'delivery/index.html': 'delivery.html',
-  'finance/index.html': 'finance.html',
-  'finance/categories/index.html': 'finance-categories.html',
-  'finance/report/index.html': 'finance-report.html',
-  'integrations/index.html': 'integrations.html',
-  'inventory/index.html': 'inventory.html',
-  'login/index.html': 'login.html',
-  'network/index.html': 'network.html',
-  'orders/index.html': 'orders.html',
-  'platform/index.html': 'platform.html',
-  'reservations/index.html': 'reservations.html',
-};
 for (const [alias, source] of Object.entries(routeAliases)) {
   assert.equal(readFileSync(new URL(`../dist/${alias}`, import.meta.url), 'utf8'), readFileSync(new URL(`../${source}`, import.meta.url), 'utf8'),
     `directory route dist/${alias} must match source ${source}`);

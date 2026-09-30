@@ -41,7 +41,7 @@ const makeDb = ({ failExpenseInsert = false } = {}) => {
       return { rows: conflict ? [{ id: conflict.id }] : [] };
     }
     if (sql.startsWith('SELECT pe.id,pe.user_id AS')) return { rows: state.entries.map((row) => ({ id: row.id, userId: row.user_id, userName: 'Сотрудник', ruleId: row.rule_id, ruleName: 'Почасовая', ruleType: 'hourly', periodFrom: row.period_from, periodTo: row.period_to, amount: row.amount, status: row.status, paymentDate: row.payment_date || null, expenseId: row.expense_id || null, hours: '2' })) };
-    if (sql.startsWith('SELECT * FROM payroll_entries WHERE id=')) return { rows: state.entries.filter((row) => row.id === params[0] && row.venue_id === params[1]).map((row) => ({ ...row })) };
+    if (sql.startsWith("SELECT *, to_char(period_from,'DD.MM.YYYY')")) return { rows: state.entries.filter((row) => row.id === params[0] && row.venue_id === params[1]).map((row) => ({ ...row, period_from_label: row.period_from.split('-').reverse().join('.'), period_to_label: row.period_to.split('-').reverse().join('.') })) };
     if (sql.startsWith("UPDATE payroll_entries SET status='approved'")) {
       const row = state.entries.find((item) => item.id === params[0] && item.venue_id === params[1]); if (!row) return { rows: [] };
       Object.assign(row, { status: 'approved', approved_by: params[2], approved_at: '2025-09-26T10:00:00.000Z' }); return { rows: [{ ...row }] };
@@ -52,11 +52,11 @@ const makeDb = ({ failExpenseInsert = false } = {}) => {
     }
     if (sql.startsWith("INSERT INTO expenses (venue_id,category,amount,expense_date,description,source,created_by)")) {
       if (failExpenseInsert) throw new Error('simulated_expense_insert_failure');
-      const row = { id: `expense-${state.expenses.length + 1}`, venue_id: params[0], category: 'Зарплата', amount: params[1], expense_date: params[2], source: 'payroll' }; state.expenses.push(row); return { rows: [{ id: row.id }] };
+      const row = { id: `expense-${state.expenses.length + 1}`, venue_id: params[0], category: 'Зарплата', amount: params[1], expense_date: params[2], description: params[3], source: 'payroll' }; state.expenses.push(row); return { rows: [{ id: row.id }] };
     }
     if (sql.startsWith('UPDATE expenses SET category=')) {
       const row = state.expenses.find((item) => item.id === params[4] && item.venue_id === params[5]); if (!row) return { rows: [] };
-      Object.assign(row, { category: 'Зарплата', amount: params[0], expense_date: params[1], source: 'payroll' }); return { rows: [{ id: row.id }] };
+      Object.assign(row, { category: 'Зарплата', amount: params[0], expense_date: params[1], description: params[2], source: 'payroll' }); return { rows: [{ id: row.id }] };
     }
     if (sql.startsWith("UPDATE payroll_entries SET status='paid'")) {
       const row = state.entries.find((item) => item.id === params[0] && item.venue_id === params[1]); if (!row) return { rows: [] };
@@ -95,6 +95,7 @@ assert.equal((await run(db, { path: entryPath, method: 'PATCH', payload: { actio
 assert.equal(db.state.entries[0].status, 'paid');
 assert.equal(db.state.expenses.length, 1, 'payment creates exactly one linked cash expense');
 assert.equal(db.state.entries[0].expense_id, db.state.expenses[0].id);
+assert.equal(db.state.expenses[0].description, 'Выплата зарплаты за 01.09.2025 — 30.09.2025');
 assert.equal((await run(db, { path: entryPath, method: 'PATCH', payload: { action: 'pay', paymentDate: '2025-09-26' } })).status, 409);
 assert.equal(db.state.expenses.length, 1, 'repeated payment cannot duplicate cash expense');
 const listed = await run(db, { query: '?from=2025-09-01&to=2025-09-30' });

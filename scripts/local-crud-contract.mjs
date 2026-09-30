@@ -33,21 +33,20 @@ const product = await request('/api/products', { method: 'POST', body: body({ na
 await request(`/api/products/${product.id}`, { method: 'PATCH', body: body({ price: 130, aliases: ['обновлённая позиция'] }) });
 await request(`/api/products/${product.id}/image`, { method: 'POST', body: body({ imageData: 'data:image/png;base64,AA==' }) });
 
-const inventory = await request('/api/inventory');
-const inventoryItem = inventory.items?.[0] || await request('/api/inventory/items', { method: 'POST', body: body({ name: `Локальный ингредиент ${suffix}`, unit: 'шт', itemType: 'ingredient', cost: 10 }) });
+const inventoryItem = await request('/api/inventory/items', { method: 'POST', body: body({ name: `Локальный ингредиент ${suffix}`, unit: 'шт', itemType: 'ingredient', cost: 10 }) });
 if (!inventoryItem) throw new Error('Inventory contract has no test item');
-await request('/api/inventory/movements', { method: 'POST', body: body({ itemId: inventoryItem.id, delta: 1, reason: 'Локальная проверка' }) });
+await request('/api/inventory/movements', { method: 'POST', body: body({ itemId: inventoryItem.id, unit: 'шт', delta: 1, reason: 'Локальная проверка' }) });
+const inventoryAfter = await request('/api/inventory');
+const persistedInventoryItem = inventoryAfter.items?.find((item) => item.id === inventoryItem.id);
+if (Number(persistedInventoryItem?.onHand) !== 1) throw new Error('Inventory movement was not persisted');
 
 const financeCategory = await request('/api/finance/categories', { method: 'POST', body: body({ name: `Локальная категория ${suffix}`, kind: 'expense' }) });
 await request(`/api/finance/categories/${financeCategory.id}`, { method: 'PATCH', body: body({ name: `Обновлённая категория ${suffix}` }) });
 
-let floor = await request('/api/floor');
-let table = floor.zones?.flatMap((zone) => zone.tables || []).find((entry) => !String(entry.id).includes('vip') && entry.status === 'free');
-if (!table) {
-  const emptyZone = await request('/api/floor/zones', { method: 'POST', body: body({ name: `Тестовый зал ${suffix}` }) });
-  table = await request('/api/floor/tables', { method: 'POST', body: body({ zoneId: emptyZone.id, name: `Стол тестовый ${suffix}`, capacity: 2 }) });
-}
-const tableLayout = await request(`/api/floor/tables/${table.id}`, { method: 'PATCH', body: body({ name: `Стол тест ${suffix}`, capacity: 4, layout: { x: 120, y: 80, width: 160, height: 90, rotation: 0, shape: 'rectangle' } }) });
+const expectedFloorVenueId = (await request('/api/floor')).venueId;
+const emptyZone = await request('/api/floor/zones', { method: 'POST', body: body({ expectedVenueId: expectedFloorVenueId, name: `Тестовый зал ${suffix}` }) });
+const table = await request('/api/floor/tables', { method: 'POST', body: body({ expectedVenueId: expectedFloorVenueId, zoneId: emptyZone.id, name: `Стол тестовый ${suffix}`, capacity: 2 }) });
+const tableLayout = await request(`/api/floor/tables/${table.id}`, { method: 'PATCH', body: body({ expectedVenueId: expectedFloorVenueId, name: `Стол тест ${suffix}`, capacity: 4, layout: { x: 120, y: 80, width: 160, height: 90, rotation: 0, shape: 'rectangle' } }) });
 if (tableLayout.name !== `Стол тест ${suffix}` || Number(tableLayout.layout?.width) !== 160) throw new Error('Floor table layout contract returned incomplete data');
 const floorAfter = await request('/api/floor');
 const persistedTable = floorAfter.zones?.flatMap((zone) => zone.tables || []).find((entry) => entry.id === table.id);
@@ -67,12 +66,15 @@ const reservation = await request('/api/reservations', { method: 'POST', body: b
 await request(`/api/reservations/${reservation.id}/cancel`, { method: 'POST', body: '{}' });
 
 const delivery = await request('/api/deliveries', { method: 'POST', body: body({ customerName: `Локальная доставка ${suffix}`, phone: '+79990001123', address: 'Тестовый адрес', total: 500 }) });
-await request(`/api/deliveries/${delivery.id}`, { method: 'PATCH', body: body({ status: 'in_delivery' }) });
+await request(`/api/deliveries/${delivery.id}`, { method: 'PATCH', body: body({ status: 'in_delivery', courier: 'QA courier' }) });
+const deliveryAfter = (await request('/api/deliveries')).items?.find((item) => item.id === delivery.id);
+if (!deliveryAfter || deliveryAfter.status !== 'in_delivery' || deliveryAfter.courier !== 'QA courier' || Number(deliveryAfter.total) !== 500 || deliveryAfter.address !== 'Тестовый адрес') throw new Error('Delivery round-trip did not preserve fields and status');
+if ('venueId' in deliveryAfter || 'venue_id' in deliveryAfter) throw new Error('Delivery internal tenant field leaked into response');
 
 const venueBefore = await request('/api/venue');
-const venueAfter = await request('/api/venue', { method: 'PATCH', body: body({ name: `Территория тест ${suffix}`, city: 'Тестовый город', address: 'Тестовый адрес заведения', format: 'тестовый кальян-бар', timezone: 'Europe/Moscow', phone: '+79990001125', logoUrl: 'data:image/png;base64,AA==', vipRoomMinimums: { vip_room_1: 1500, vip_room_2: 2500 } }) });
+const venueAfter = await request('/api/venue', { method: 'PATCH', body: body({ expectedVenueId: venueBefore.id, name: `Территория тест ${suffix}`, city: 'Тестовый город', address: 'Тестовый адрес заведения', format: 'тестовый кальян-бар', timezone: 'Europe/Moscow', phone: '+79990001125', logoUrl: 'data:image/png;base64,AA==', vipRoomMinimums: { vip_room_1: 1500, vip_room_2: 2500 } }) });
 if (venueAfter.name !== `Территория тест ${suffix}` || venueAfter.city !== 'Тестовый город' || venueAfter.address !== 'Тестовый адрес заведения' || venueAfter.format !== 'тестовый кальян-бар' || venueAfter.timezone !== 'Europe/Moscow' || venueAfter.phone !== '+79990001125' || venueAfter.logoUrl !== 'data:image/png;base64,AA==' || venueAfter.vipRoomMinimums?.vip_room_1 !== 1500 || venueAfter.vipRoomMinimums?.vip_room_2 !== 2500) throw new Error('Venue settings contract returned incomplete data');
-await request('/api/venue', { method: 'PATCH', body: body({ name: venueBefore.name, city: venueBefore.city, address: venueBefore.address, format: venueBefore.format, timezone: venueBefore.timezone, phone: venueBefore.phone, logoUrl: venueBefore.logoUrl, vipRoomMinimums: venueBefore.vipRoomMinimums }) });
+await request('/api/venue', { method: 'PATCH', body: body({ expectedVenueId: venueBefore.id, name: venueBefore.name, city: venueBefore.city, address: venueBefore.address, format: venueBefore.format, timezone: venueBefore.timezone, phone: venueBefore.phone, logoUrl: venueBefore.logoUrl, vipRoomMinimums: venueBefore.vipRoomMinimums }) });
 
 const staff = await request('/api/staff', { method: 'POST', body: body({ name: `Тестовый бармен ${suffix}`, login: `local_staff_${suffix}`, password: 'local1234', birthDate: '1995-05-15', role: 'bartender', phoneNumbers: [{ number: '+79990001124', primary: true }], telegram: '@local_staff_test' }) });
 if (staff.role !== 'bartender' || !staff.phoneNumbers?.length) throw new Error('Staff create contract returned incomplete profile');

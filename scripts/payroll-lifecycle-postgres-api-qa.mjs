@@ -69,10 +69,11 @@ try {
   assert.ok(paid.data.expense_id, 'payment links the payroll entry to its cashflow expense');
   const replay = await callApi({ path: entryPath, method: 'PATCH', body: { action: 'pay', paymentDate: '2026-09-27' } });
   assert.equal(replay.status, 409, 'paid entries cannot create a second salary expense');
-  const expense = await setup.query("SELECT id,amount,source,expense_date FROM expenses WHERE venue_id=$1 AND source='payroll'", [venueId]);
+  const expense = await setup.query("SELECT id,amount,source,expense_date,description FROM expenses WHERE venue_id=$1 AND source='payroll'", [venueId]);
   assert.equal(expense.rowCount, 1);
   assert.equal(Number(expense.rows[0].amount), 4000);
   assert.equal(expense.rows[0].source, 'payroll');
+  assert.equal(expense.rows[0].description, 'Выплата зарплаты за 01.09.2026 — 30.09.2026', 'payroll period uses full Russian calendar dates rather than JavaScript Date text');
   assert.equal((await setup.query('SELECT expense_id,status FROM payroll_entries WHERE id=$1', [draft.data.id])).rows[0].expense_id, expense.rows[0].id);
 
   const cancelled = await callApi({ path: `/api/payroll/entries/${overlappingDraft.data.id}`, method: 'PATCH', body: { action: 'cancel', reason: 'QA draft cancellation' } });
