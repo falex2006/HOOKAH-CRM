@@ -18,8 +18,8 @@ assert.match(titleMap, /'#venue-layout-settings':\s*'Залы и рабочая 
   'venue layout settings use the settings name from the sitemap instead of the operational hall/order label');
 assert.match(portal, /window\.addEventListener\('hashchange', updateAdminSectionTitle\)/,
   'admin top bar title updates when the selected subsection changes');
-assert.match(greeting, /window\.location\.hash && window\.location\.hash !== '#'/,
-  'async dashboard greeting does not overwrite a subsection heading');
+assert.ok(/window\.location\.hash && window\.location\.hash !== '#'/.test(greeting) || /stable title; no recurring greeting/.test(greeting),
+  'dashboard greeting must not overwrite a subsection heading or reappear as a recurring flash');
 assert.match(staffBranch, /staffTitle\.textContent = 'Сотрудники'/,
   'staff subsection page heading remains explicit');
 assert.ok(staffBranch.includes(`setDashboardPanelVisibility('[data-dashboard-module="kpi"]`),

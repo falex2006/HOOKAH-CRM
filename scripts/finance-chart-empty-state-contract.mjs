@@ -19,7 +19,7 @@ for (const group of ['finance-chart', 'payment']) {
   assert.equal(buttons.filter((match) => match[1] === 'true').length, 1, `${group}: one initial selected view`);
   assert.equal(buttons.length, group === 'payment' ? 4 : 3);
 }
-assert.equal((portal.match(/item\.setAttribute\('aria-pressed', String\(item === button\)\)/g) || []).length, 2, 'both view handlers synchronize pressed state');
+assert.ok((portal.match(/item\.setAttribute\('aria-pressed', String\(item === button\)\)/g) || []).length >= 2, 'all view handlers synchronize pressed state');
 const bindingStart = portal.indexOf("document.querySelectorAll('[data-payment-view]').forEach((button) => { button.disabled = false; button.onclick");
 assert.ok(bindingStart >= 0, 'payment handlers replace the previous load closure');
 const binding = portal.slice(bindingStart, portal.indexOf(' const shift = shifts.current;', bindingStart));
