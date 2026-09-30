@@ -586,7 +586,7 @@ const openNotificationPanel = async () => {
   notificationPanel.querySelector('#notification-panel-title').focus(); await loadNotifications(true);
 };
 notificationPanel.querySelector('.notification-panel-close').addEventListener('click', () => closeNotificationPanel());
-notificationPanel.querySelectorAll('[data-notification-filter]').forEach((button) => button.addEventListener('click', () => { notificationFilter = button.dataset.notificationFilter; notificationPanel.querySelectorAll('[data-notification-filter]').forEach((item) => item.setAttribute('aria-pressed', String(item === button))); loadNotifications(true); }));
+notificationPanel.querySelectorAll('[data-notification-filter]').forEach((button) => button.addEventListener('click', () => { notificationFilter = button.dataset.notificationFilter; notificationPanel.querySelectorAll('[data-notification-filter]').forEach((item) => item.setAttribute('aria-pressed', String(item === button))); renderNotifications(); loadNotifications(false); }));
 notificationPanel.querySelector('.notification-read-all').addEventListener('click', async (event) => {
   const button = event.currentTarget; button.disabled = true;
   try { const result = await api('/api/notifications', { method: 'POST' }); notificationData.items = notificationData.items.map((item) => ({ ...item, readAt: item.readAt || new Date().toISOString() })); notificationData.unreadCount = Number(result.unreadCount || 0); updateNotificationCount(notificationData.unreadCount); renderNotifications(); notificationChannel?.postMessage({ type: 'read-state-changed' }); }
@@ -1257,7 +1257,7 @@ const saveSessionPreference = (patch) => {
 const preferenceSessionIdentity = () => ({ token: localStorage.getItem('crm_session_token'), user: localStorage.getItem('crm_session_user') });
 const samePreferenceSession = (identity) => localStorage.getItem('crm_session_token') === identity.token && localStorage.getItem('crm_session_user') === identity.user;
 let preferenceReadWarningShown = false;
-const reportPreferenceReadFailure = () => { if (preferenceReadWarningShown) return; preferenceReadWarningShown = true; portalNotice('Не удалось загрузить настройки с сервера. Показаны локальные значения; обновите страницу после восстановления связи.', 'error'); };
+const reportPreferenceReadFailure = () => { if (preferenceReadWarningShown) return; preferenceReadWarningShown = true; console.warn('Optional session preferences unavailable; local defaults remain active.'); };
 const restoreFailedPreference = async ({ current, latest, identity, read, fallback, apply, message }) => {
   if (!current() || !latest() || !samePreferenceSession(identity)) return;
   let value;

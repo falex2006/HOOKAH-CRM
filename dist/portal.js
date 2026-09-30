@@ -1257,7 +1257,7 @@ const saveSessionPreference = (patch) => {
 const preferenceSessionIdentity = () => ({ token: localStorage.getItem('crm_session_token'), user: localStorage.getItem('crm_session_user') });
 const samePreferenceSession = (identity) => localStorage.getItem('crm_session_token') === identity.token && localStorage.getItem('crm_session_user') === identity.user;
 let preferenceReadWarningShown = false;
-const reportPreferenceReadFailure = () => { if (preferenceReadWarningShown) return; preferenceReadWarningShown = true; portalNotice('Не удалось загрузить настройки с сервера. Показаны локальные значения; обновите страницу после восстановления связи.', 'error'); };
+const reportPreferenceReadFailure = () => { if (preferenceReadWarningShown) return; preferenceReadWarningShown = true; console.warn('Optional session preferences unavailable; local defaults remain active.'); };
 const restoreFailedPreference = async ({ current, latest, identity, read, fallback, apply, message }) => {
   if (!current() || !latest() || !samePreferenceSession(identity)) return;
   let value;
