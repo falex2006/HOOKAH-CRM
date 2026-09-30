@@ -21,6 +21,7 @@
 - Dependency audit: `npm audit --omit=dev --audit-level=high` reports 0 vulnerabilities.
 - VPS health endpoint and published assets respond successfully.
 - Full `scripts/local-acceptance.ps1` completed with `LOCAL ACCEPTANCE: PASS`, including routes/assets, CRUD, roles, shifts, guest/order flows, payroll, supplier payments, migrations, and delivery.
+- Additional browser QA passed for sidebar preferences, company settings, venue layout/POS zones, staff profile, and notifications (including retry, reload, mobile widths, focus trap/Escape, and cross-tab sync).
 
 ## Responsive evidence
 
