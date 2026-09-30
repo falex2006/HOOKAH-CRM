@@ -2278,3 +2278,15 @@
 ## Этап 6/6 · Подэтап 97 — согласованное исключение Fold8, 30.09.2026
 
 - Владелец попросил временно пропустить физическую проверку Fold8. Решение записано в `FINAL_ACCEPTANCE_REPORT.md`; автоматический Fold/Chromium evidence сохраняется, hardware screenshots вынесены в отдельную будущую задачу.
+
+## Этап 6/6 · Подэтап 99 — публикация и деплой, 30.09.2026
+
+- Изменения закоммичены и отправлены в GitHub: ветка `codex/hookah-crm-full-audit-2026-09-29`, commit `0f1d0068e663c0bd9f0a2737c6f091cf23231975` (`Complete CRM audit fixes and QA contracts`).
+- VPS `212.192.0.58` обновлён из этой ветки в `/root/HOOKAH-CRM`; создан pre-deploy backup базы, применены миграции 001–053, выполнен seed меню (`categories: 10`, `products: 66`).
+- Контейнеры `crm`, `db`, `nginx` запущены; `crm` и `db` имеют статус healthy. Из-за отсутствия Compose v2 используется установленный legacy `docker-compose`.
+
+## Этап 6/6 · Подэтап 100 — post-deploy smoke, 30.09.2026
+
+- `GET http://127.0.0.1:8080/api/health` вернул `{"status":"ok","service":"hookah-crm","database":"postgres"}`.
+- Маршруты `/admin`, `/inventory`, `/orders`, `/finance`, `/clients`, `/reservations` вернули HTTP 200.
+- Внешний домен и HTTPS не настраивались по согласованному решению владельца; текущий VPS доступен через опубликованный nginx-порт 8080.
