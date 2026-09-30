@@ -658,6 +658,11 @@ const denyUnless = (req, res, permission) => { if (hasPermission(req, permission
 const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };
 const notificationMemoryReads = new Map();
 const notificationRoles = new Set(['owner', 'admin', 'manager', 'developer']);
+const notificationVenueScope = (req, venueDbId) => {
+  if (repositories?.pool) return venueDbId;
+  const sessionVenueId = String(req.user?.venueId || currentVenueId);
+  return sessionVenueId === 'venue-territory' ? defaultVenueDbId : sessionVenueId;
+};
 const notificationAccess = (req) => {
   if (process.env.AUTH_REQUIRED === 'true' && (isOperationalEmployee(req) || !notificationRoles.has(req.user?.role))) return null;
   const role = req.user?.role || '';
@@ -927,7 +932,8 @@ async function api(req, res) {
       const limit = Number.isInteger(limitValue) ? Math.min(50, Math.max(1, limitValue)) : 20;
       const unreadOnly = url.searchParams.get('filter') === 'unread';
       try {
-        const data = await collectNotificationEvents(req, venueDbId, 100);
+        const notificationVenueId = notificationVenueScope(req, venueDbId);
+        const data = await collectNotificationEvents(req, notificationVenueId, 100);
         if (!data) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
         const items = data.items.filter((item) => !unreadOnly || !item.readAt).slice(0, limit);
         return json(res, 200, { items, unreadCount: data.unreadCount, hasMore: data.items.filter((item) => !unreadOnly || !item.readAt).length > limit });
@@ -951,13 +957,14 @@ async function api(req, res) {
             SELECT e.venue_id,$2,'staff_pin_updated:'||e.id::text FROM audit_events e WHERE e.venue_id=$1 AND e.action='staff.pin_updated'
             ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
           await Promise.all(inserts);
-          const data = await collectNotificationEvents(req, venueDbId, 100);
+          const data = await collectNotificationEvents(req, notificationVenueScope(req, venueDbId), 100);
           return json(res, 200, { unreadCount: data?.unreadCount || 0 });
         }
-        const data = await collectNotificationEvents(req, venueDbId, 10000);
+        const notificationVenueId = notificationVenueScope(req, venueDbId);
+        const data = await collectNotificationEvents(req, notificationVenueId, 10000);
         if (!data) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
-        for (const item of data.items) notificationMemoryReads.set(`${venueDbId}:${req.user?.id || 'anonymous'}:${item.id}`, new Date().toISOString());
-        const refreshed = await collectNotificationEvents(req, venueDbId, 10000);
+        for (const item of data.items) notificationMemoryReads.set(`${notificationVenueId}:${req.user?.id || 'anonymous'}:${item.id}`, new Date().toISOString());
+        const refreshed = await collectNotificationEvents(req, notificationVenueId, 10000);
         return json(res, 200, { unreadCount: refreshed?.unreadCount || 0 });
       } catch (_) { return json(res, 503, { error: 'notifications_unavailable' }); }
     }
@@ -968,16 +975,18 @@ async function api(req, res) {
     if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders) || (type === 'staff_pin_updated' && !access.staffPins)) return json(res, 404, { error: 'notification_not_found' });
     try {
       if (repositories?.pool) {
-        const available = await collectNotificationEvents(req, venueDbId, 10000);
+        const notificationVenueId = notificationVenueScope(req, venueDbId);
+        const available = await collectNotificationEvents(req, notificationVenueId, 10000);
         if (!available?.items.some((item) => item.id === notificationId)) return json(res, 404, { error: 'notification_not_found' });
         await repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key) VALUES ($1,$2,$3)
           ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, req.user.id, notificationId]);
       } else {
-        const available = await collectNotificationEvents(req, venueDbId, 10000);
+        const notificationVenueId = notificationVenueScope(req, venueDbId);
+        const available = await collectNotificationEvents(req, notificationVenueId, 10000);
         if (!available?.items.some((item) => item.id === notificationId)) return json(res, 404, { error: 'notification_not_found' });
-        notificationMemoryReads.set(`${venueDbId}:${req.user?.id || 'anonymous'}:${notificationId}`, new Date().toISOString());
+        notificationMemoryReads.set(`${notificationVenueId}:${req.user?.id || 'anonymous'}:${notificationId}`, new Date().toISOString());
       }
-      const refreshed = await collectNotificationEvents(req, venueDbId, 10000);
+      const refreshed = await collectNotificationEvents(req, notificationVenueScope(req, venueDbId), 10000);
       return json(res, 200, { id: notificationId, readAt: new Date().toISOString(), unreadCount: refreshed?.unreadCount || 0 });
     } catch (_) { return json(res, 503, { error: 'notifications_unavailable' }); }
   }
@@ -1343,7 +1352,7 @@ async function api(req, res) {
       } catch (_) { return json(res, 503, { error: 'venue_select_failed' }); }
     }
     const item = networkVenues.find((entry) => entry.id === networkVenueSelect[1]); if (!item || item.status === 'archived') return json(res, 404, { error: 'venue_not_found' });
-    const before = networkVenues.find((entry) => entry.id === currentVenueId); floorByVenueId.set(currentVenueId, floor); currentVenueId = item.id; floor = floorByVenueId.get(currentVenueId) || []; floorByVenueId.set(currentVenueId, floor); Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, phoneNumbers: item.phoneNumbers || [], logoUrl: item.logoUrl || null, timezone: item.timezone, format: item.format, vipRoomMinimums: { ...(item.vipRoomMinimums || { vip_room_1: 1500, vip_room_2: 2500 }) } });
+    const before = networkVenues.find((entry) => entry.id === currentVenueId); floorByVenueId.set(currentVenueId, floor); currentVenueId = item.id; floor = floorByVenueId.get(currentVenueId) || []; floorByVenueId.set(currentVenueId, floor); Object.assign(venue, { name: item.name, city: item.city, address: item.address, phone: item.phone, phoneNumbers: item.phoneNumbers || [], logoUrl: item.logoUrl || null, timezone: item.timezone, format: item.format, vipRoomMinimums: { ...(item.vipRoomMinimums || { vip_room_1: 1500, vip_room_2: 2500 }) } }); if (req.user) req.user.venueId = item.id;
     recordAudit(req, 'venue.selected', 'venue', item.id, { currentVenueId: before?.id || null }, { currentVenueId: item.id }); return json(res, 200, { ...item, isCurrent: true });
   }
   if (pathname === '/api/finance/categories' && req.method === 'GET') {
@@ -2342,7 +2351,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
       if (!memoryPerson.active || memoryPerson.deletedAt) return json(res, 404, { error: 'staff_not_found' });
       memoryPerson.pinHash = await hashPassword(pin); memoryPerson.pinCode = null; memoryPerson.pinConfigured = true; memoryPerson.pinUpdatedAt = new Date().toISOString();
       for (const session of sessions.values()) if (String(session.user?.id || '') === personId) { session.unlockHash = memoryPerson.pinHash; session.user.pinConfigured = true; }
-      const notification = { id: `staff-pin-${Date.now()}`, venueId: venueDbId, type: 'staff_pin_updated', staffId: personId, staffName: memoryPerson.name, actor: req.user?.name || 'сотрудник', createdAt: memoryPerson.pinUpdatedAt, notificationRecipients: ['owner', 'admin'] };
+      const notification = { id: `staff-pin-${crypto.randomUUID()}`, venueId: notificationVenueScope(req, venueDbId), type: 'staff_pin_updated', staffId: personId, staffName: memoryPerson.name, actor: req.user?.name || 'сотрудник', createdAt: memoryPerson.pinUpdatedAt, notificationRecipients: ['owner', 'admin'] };
       staffNotifications.push(notification); recordAudit(req, 'staff.pin_updated', 'staff', personId, { pinConfigured: true }, { pinConfigured: true, notificationRecipients: ['owner', 'admin'] });
       return json(res, 200, { id: personId, pinConfigured: true, pinUpdatedAt: memoryPerson.pinUpdatedAt });
     }
@@ -2822,7 +2831,7 @@ if (staffProfile && req.method === 'PATCH') {
         recordAudit(req, 'inventory.auto_order_sent', 'inventory_auto_order', rows[0].id, null, rows[0]); return json(res, 201, { ...rows[0], totalEstimate: Number(rows[0].totalEstimate || 0), lines: rows[0].lines || [] });
       } catch (error) { return json(res, 409, { error: 'auto_order_save_failed', detail: error.message }); }
     }
-    const request = { id: `auto-order-${crypto.randomUUID()}`, venueId: venueDbId, status: 'sent', lines, note, totalEstimate, createdAt: new Date().toISOString(), sentAt: new Date().toISOString() }; autoOrderRequests.push(request); recordAudit(req, 'inventory.auto_order_sent', 'inventory_auto_order', request.id, null, request); return json(res, 201, request);
+    const request = { id: `auto-order-${crypto.randomUUID()}`, venueId: notificationVenueScope(req, venueDbId), status: 'sent', lines, note, totalEstimate, createdAt: new Date().toISOString(), sentAt: new Date().toISOString() }; autoOrderRequests.push(request); recordAudit(req, 'inventory.auto_order_sent', 'inventory_auto_order', request.id, null, request); return json(res, 201, request);
   }
   const autoOrderPath = pathname.match(/^\/api\/inventory\/auto-orders\/([^/]+)$/);
   if (autoOrderPath && req.method === 'PATCH') {
@@ -3626,7 +3635,7 @@ if (staffProfile && req.method === 'PATCH') {
     try { if (input.writeoff) depletion = depleteMemoryOrder(order); } catch (error) { if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); return json(res, 409, { error: error.message === 'insufficient_recipe_stock' ? 'insufficient_recipe_stock' : 'order_delete_failed', missing: error.missing, detail: error.message }); }
     const notification = { type: 'order_deleted', orderId: order.id, comment, writeoff: Boolean(input.writeoff), deletedItems: order.items || [], totalCost: Number(depletion.totalCost || 0), createdAt: new Date().toISOString(), notificationRecipients: ['owner', 'admin', 'manager'] };
     order.status = 'cancelled'; order.notes = `${String(order.notes || '').trim()}${order.notes ? '\n' : ''}Удаление: ${comment}`.slice(0, 4000); order.closedAt = notification.createdAt;
-    releaseMemoryTableIfIdle(order.tableId); staffNotifications.push({ id: `order-deleted-${Date.now()}`, venueId: venueDbId, ...notification }); recordAudit(req, 'order.deleted', 'order', order.id, { status: 'open', items: order.items || [] }, notification);
+    releaseMemoryTableIfIdle(order.tableId); staffNotifications.push({ id: `order-deleted-${crypto.randomUUID()}`, venueId: notificationVenueScope(req, venueDbId), ...notification }); recordAudit(req, 'order.deleted', 'order', order.id, { status: 'open', items: order.items || [] }, notification);
     return json(res, 200, { ...order, deleted: true, comment, writeoff: Boolean(input.writeoff), totalCost: Number(depletion.totalCost || 0), notification });
   }
   const orderAction = pathname.match(/^\/api\/orders\/([^/]+)\/(status|transfer)$/);
@@ -3998,7 +4007,7 @@ if (staffProfile && req.method === 'PATCH') {
     const order = orders.find((entry) => entry.id === orderPath[1]); const input = await body(req);
     if (!order) return json(res, 404, { error: 'order_not_found' }); if (['closed', 'cancelled'].includes(order.status)) return json(res, 409, { error: 'order_already_final' });
     const type = String(input.type || 'percent'); const value = Number(input.value); const reason = String(input.reason || '').trim(); if (!reason || !Number.isFinite(value) || value <= 0 || type !== 'percent' || value > 100 || reason.length > 500) return json(res, 400, { error: 'invalid_discount_request' }); if (discountRequests.some((entry) => entry.orderId === order.id && entry.status === 'requested')) return json(res, 409, { error: 'discount_request_pending' });
-    const request = { id: `disc-${Date.now()}`, venueId: venueDbId, orderId: order.id, type, value, reason, guestName: order.guestName || null, guestPhone: order.guestPhone || null, status: 'requested', requestedBy: req.user?.id || req.user?.name || 'unknown', createdAt: new Date().toISOString(), notificationRecipients: ['owner', 'admin'] };
+    const request = { id: `disc-${crypto.randomUUID()}`, venueId: notificationVenueScope(req, venueDbId), orderId: order.id, type, value, reason, guestName: order.guestName || null, guestPhone: order.guestPhone || null, status: 'requested', requestedBy: req.user?.id || req.user?.name || 'unknown', createdAt: new Date().toISOString(), notificationRecipients: ['owner', 'admin'] };
     discountRequests.push(request); recordAudit(req, 'discount.applied_by_staff', 'discount', request.id, null, request); return json(res, 201, request);
   }
   if (pathname === '/api/discount-requests' && req.method === 'GET') {

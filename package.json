@@ -16,6 +16,9 @@
     "qa:orders": "node scripts/order-attention-qa.mjs",
     "qa:postgres": "node scripts/postgres-qa.mjs",
     "qa:header": "node scripts/header-shell-contract.mjs",
+    "qa:notifications:api": "node scripts/notifications-api-qa.mjs",
+    "qa:notifications:browser": "node scripts/notifications-browser-qa.mjs",
+    "qa:notifications:postgres": "node scripts/notifications-postgres-qa.mjs",
     "db:seed-menu": "node scripts/seed-menu-catalog.js"
   },
   "engines": {

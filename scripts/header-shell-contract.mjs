@@ -12,6 +12,7 @@ const pages = [
 const shell = fs.readFileSync('header-shell.js', 'utf8');
 const portal = fs.readFileSync('portal.js', 'utf8');
 const css = fs.readFileSync('style.css', 'utf8');
+const server = fs.readFileSync('server.js', 'utf8');
 const lock = fs.readFileSync('lock.js', 'utf8');
 const icons = fs.readFileSync('assets/tabler-icons.svg', 'utf8');
 
@@ -28,13 +29,22 @@ for (const file of ['orders.html', 'delivery.html', 'integrations.html']) {
 
 assert.match(shell, /header\.dataset\.shellReady = 'true'/, 'header normalization is idempotent');
 assert.match(shell, /bell\.setAttribute\('aria-label', 'Уведомления'\)/, 'bell has one accessible meaning');
+assert.match(portal, /notificationBell\?\.setAttribute\('aria-controls', 'notification-panel'\)/, 'bell controls the notification tray');
+assert.match(portal, /notificationPanel\.setAttribute\('role', 'dialog'\)/, 'notification tray has dialog semantics');
 assert.match(shell, /shift\.dataset\.shiftState = 'loading'/, 'shift starts in a truthful loading state');
 assert.match(shell, /actions\.replaceChildren\(\.\.\.ordered\)/, 'header actions use one predictable order');
-assert.match(portal, /loadHeaderNotificationItems/, 'bell uses the shared notification model');
-assert.match(portal, /markHeaderNotificationsSeen\(items\)/, 'bell marks the items it actually displays');
-assert.match(portal, /results\.every\(\(result\) => result\.status === 'rejected'\)/, 'only a total notification API failure hides the inbox');
-assert.match(portal, /uniqueItems = new Map\(\)/, 'notifications from overlapping endpoints are deduplicated');
-assert.match(portal, /items\.partial = results\.some\(\(result\) => result\.status === 'rejected'\)/, 'partial notification availability is exposed to the user');
+assert.match(portal, /api\(`\/api\/notifications\?limit=20&filter=\$\{notificationFilter\}`\)/, 'tray loads its list and unread count from one server endpoint');
+assert.match(portal, /api\(`\/api\/notifications\/\$\{encodeURIComponent\(id\)\}\/read`, \{ method: 'PUT' \}\)/, 'single notification read state is saved on the server');
+assert.match(portal, /api\('\/api\/notifications', \{ method: 'POST' \}\)/, 'mark-all read is a server action');
+assert.doesNotMatch(portal, /territory_crm_seen_(?:manager|discount)_notifications/, 'read state is not stored in shared browser-local keys');
+assert.match(portal, /notificationChannel\?\.addEventListener\('message'/, 'read updates refresh other tabs');
+assert.match(server, /notification_reads/, 'server persists per-user read receipts');
+assert.match(server, /req\.user\.id, notificationId/, 'single-read API binds state to authenticated session user');
+assert.match(server, /venue_id=\$1 AND d\.status='requested'/, 'notification source queries are scoped to active venue');
+assert.match(portal, /event\.key === 'Escape'[\s\S]*?closeNotificationPanel\(\)/, 'Escape closes the tray and returns focus');
+assert.match(css, /prefers-reduced-motion:reduce\).*notification-panel/, 'tray respects reduced-motion preference');
+assert.match(css, /\.notification-panel\{position:fixed/, 'notification tray is positioned independently from page flow');
+assert.match(css, /@media\(max-width:768px\)\{[\s\S]*?\.notification-panel\{inset:0/, 'tablet and mobile tray uses a full-screen surface');
 assert.match(portal, /header-shift-status[\s\S]*?Статус смены недоступен/, 'shift API failure has an explicit state');
 assert.match(lock, /lock-button-glyph[^\n]*width:18px!important;height:18px!important/, 'lock glyph matches the other 18px icons');
 assert.match(lock, /width="18" height="18" viewBox="0 0 24 24"/, 'inline lock icon dimensions match the shared icon scale');
