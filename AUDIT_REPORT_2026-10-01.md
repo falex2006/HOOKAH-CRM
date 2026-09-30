@@ -20,6 +20,7 @@
 - POS payment, split payment, discount approval, role restrictions, concurrency, reload, and transfer flows.
 - Dependency audit: `npm audit --omit=dev --audit-level=high` reports 0 vulnerabilities.
 - VPS health endpoint and published assets respond successfully.
+- Full `scripts/local-acceptance.ps1` completed with `LOCAL ACCEPTANCE: PASS`, including routes/assets, CRUD, roles, shifts, guest/order flows, payroll, supplier payments, migrations, and delivery.
 
 ## Responsive evidence
 
@@ -35,7 +36,7 @@ The emulator passed at mobile widths from 320 px through 650 px, Fold Main 768 p
 
 ## Remaining verification
 
-Manual interaction coverage of every authenticated control still requires an active browser login session. Production data was not used for destructive QA; PostgreSQL browser tests ran against the disposable local `territory_qa` container and cleaned up their fixtures.
+Manual interaction coverage of every authenticated control still requires an active browser login session. Automated browser and local acceptance coverage is green. Production data was not used for destructive QA; PostgreSQL browser tests ran against the disposable local `territory_qa` container and cleaned up their fixtures.
 
 ## Release evidence
 
