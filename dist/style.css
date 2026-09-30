@@ -1888,7 +1888,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
   .portal.velora-theme .portal-sidebar.is-expanded{position:fixed;transform:translateX(0);z-index:60;width:min(280px,calc(100vw - 48px));max-width:calc(100vw - 48px);height:100vh;height:100dvh;max-height:100dvh;box-sizing:border-box;padding:calc(26px + env(safe-area-inset-top)) 16px calc(20px + env(safe-area-inset-bottom));background:#17191d;box-shadow:8px 0 24px #0007}
   .velora-theme .portal-sidebar.is-expanded .brand div,.velora-theme .portal-sidebar.is-expanded .side-label,.velora-theme .portal-sidebar.is-expanded .portal-nav span,.velora-theme .portal-sidebar.is-expanded .sidebar-footer{display:block}
   .velora-theme .portal-sidebar.is-expanded .brand{justify-content:flex-start;padding-bottom:34px}
-  .velora-theme .portal-sidebar.is-expanded .portal-nav a{display:flex;align-items:center;gap:12px;justify-content:flex-start;padding:12px 13px;font-size:16px;line-height:1.25;width:auto;height:auto}
+  .velora-theme .portal-sidebar.is-expanded .portal-nav a{display:flex;align-items:center;gap:12px;justify-content:flex-start;padding:12px 13px;font-size:14px;line-height:17.5px;width:auto;height:auto}
   .velora-theme .portal-app>.portal-main{box-sizing:border-box;flex:1 1 100%;width:100%;min-width:0;margin-left:0!important}
   .velora-theme .sidebar-mobile-toggle{z-index:61}
   .velora-theme .sidebar-mobile-toggle[aria-expanded="true"]{left:calc(min(280px,100vw - 48px) - 58px);top:calc(10px + env(safe-area-inset-top))}
@@ -2431,6 +2431,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .dashboard-shift-empty__action{min-height:44px;white-space:nowrap}
 @media(max-width:640px){.dashboard-shift-empty{grid-template-columns:44px minmax(0,1fr);justify-content:stretch;gap:12px;padding:18px}.dashboard-shift-empty__action{grid-column:1/-1;width:100%}}
 .login-card>p.login-message{display:block;box-sizing:border-box;width:100%;max-width:100%;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+.login-card .login-trust-device{display:flex;align-items:center;gap:10px;margin:16px 0 0;color:#aeb6c0;font-size:13px;line-height:1.35}.login-card .login-trust-device input{width:18px;height:18px;min-width:18px;margin:0;accent-color:#ff6372}.login-card .login-trust-device span{min-width:0}
+.trusted-pin-card[hidden]{display:none}.trusted-pin-keypad{grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0 0}.trusted-password-link{display:flex;width:100%;justify-content:center;margin-top:12px;color:#aeb6c0;background:transparent;border:0;font:inherit;font-size:13px;cursor:pointer}.trusted-password-link:hover,.trusted-password-link:focus-visible{color:#fff;outline:none}
 @media(max-height:800px){.login{place-items:start center;align-content:start;overflow-x:hidden;overflow-y:auto;padding:clamp(16px,calc((100svh - 570px)/2),76px) 14px;box-sizing:border-box}}
 
 /* Platform console must release the shared portal's flex sizing on narrow screens. */
@@ -2700,3 +2702,6 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 
 /* Nested sidebar links use the same type scale as primary navigation. */
 .velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a{font-size:14px;line-height:17.5px;font-weight:400}
+
+/* Keep disclosure groups keyboard-visible in the dark sidebar. */
+.velora-theme .portal-sidebar .sidebar-nav-group>summary:focus-visible{outline:2px solid #ff687a;outline-offset:-2px;border-radius:10px}
