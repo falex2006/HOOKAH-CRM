@@ -67,6 +67,7 @@ const normalizeManagementSidebar = () => {
   document.querySelectorAll('a[href="/finance#discounts"]').forEach((link) => link.remove());
   const sidebar = document.querySelector('.portal-sidebar');
   if (!sidebar) return;
+  sidebar.querySelectorAll(':scope > .side-label').forEach((node) => { if (node.textContent.trim().toLocaleLowerCase('ru-RU') === 'главное') node.remove(); });
   const iconMarkup = (name) => `<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=5#${name}"></use></svg>`;
   if (!document.querySelector('.sidebar-mobile-toggle')) {
     const toggle = document.createElement('button');
