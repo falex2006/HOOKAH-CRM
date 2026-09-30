@@ -61,7 +61,7 @@ assert.match(portal, /href: '\/admin#settings'/);
 assert.doesNotMatch(portal, /link\.addEventListener\('click',\s*\(\)\s*=>\s*\{\s*window\.location\.href\s*=\s*link\.href/,
   'native sidebar anchors must not trigger a second programmatic navigation');
 assert.match(portal, /href: '\/integrations'/);
-assert.match(portal, /\[\['ОПЕРАЦИИ', 'operations'\]\]/,
+assert.match(portal, /\[\['Операции', 'operations'\]\]/,
   'multi-link operational groups must use the same collapsible pattern');
 assert.match(portal, /const controlLabel = control\.previousElementSibling;[\s\S]*controlLabel\.textContent\.trim\(\) === 'КОНТРОЛЬ'[\s\S]*controlLabel\.remove\(\)/,
   'legacy standalone control caption must be removed when the control links move into disclosure groups');
@@ -76,9 +76,9 @@ for (const item of [
   "{ href: '/inventory?view=premixes', permission: 'inventory_read', label: 'Заготовки и премиксы', iconName: 'flask', navigationModule: 'inventory' }",
   "{ href: '/inventory?view=directories', permission: 'inventory_read', label: 'Цеха и категории', iconName: 'building', navigationModule: 'inventory' }",
 ]) assert.ok(portal.includes(item), `missing inventory navigation target ${item}`);
-assert.match(portal, /ensureAreaGroup\('menu', 'МЕНЮ'/);
-assert.match(portal, /ensureAreaGroup\('inventory', 'СКЛАД'/);
-assert.match(portal, /ensureAreaGroup\('finance', 'ФИНАНСЫ',[\s\S]*href: '\/finance\/report'[\s\S]*href: '\/finance\/categories'/,
+assert.match(portal, /ensureAreaGroup\('menu', 'Меню'/);
+assert.match(portal, /ensureAreaGroup\('inventory', 'Склад'/);
+assert.match(portal, /ensureAreaGroup\('finance', 'Финансы',[\s\S]*href: '\/finance\/report'[\s\S]*href: '\/finance\/categories'/,
   'all finance destinations must render consistently as one navigation group');
 assert.match(portal, /selectors = \{ inventory: 'a\[data-navigation-module="inventory"\]', finance: 'a\[data-navigation-module="finance"\]' \}/,
   'interface preferences must control all child links, not only the parent route');
@@ -94,13 +94,13 @@ assert.doesNotMatch(portal, /a\[href="\/network"\].*\.remove\(\)/,
   'the network destination must not be deleted during sidebar normalization');
 assert.match(portal, /href: '\/network', permission: 'settings', label: 'Моя сеть'/);
 assert.match(portal, /href: '\/admin#diagnostics', permission: 'diagnostics', label: 'Диагностика'/);
-assert.match(portal, /makeGroup\('СИСТЕМА',[\s\S]*'\/network',[\s\S]*'\/admin#diagnostics'/,
+assert.match(portal, /makeGroup\('Система',[\s\S]*'\/network',[\s\S]*'\/admin#diagnostics'/,
   'network and developer diagnostics must stay reachable in their permitted roles');
 assert.match(portal, /summary\?\.classList\.toggle\('has-active-child', Boolean\(activeLink\)\)/);
 assert.match(portal, /window\.addEventListener\('popstate', \(\) => setInventoryView/);
 assert.match(portal, /history\[historyMode \+ 'State'\]/);
 assert.doesNotMatch(portal, /data-inventory-tab/, 'warehouse view navigation must have one visible source in the sidebar');
-assert.match(portal, /makeGroup\('КОМАНДА',[\s\S]*makeGroup\('СИСТЕМА'/,
+assert.match(portal, /makeGroup\('Команда',[\s\S]*makeGroup\('Система'/,
   'team and system groups must remain in the shared disclosure pattern');
 assert.match(portal, /crm_sidebar_group_/,
   'users should keep their sidebar disclosure preferences between page visits');
@@ -194,7 +194,7 @@ assert.match(css, /\.portal-sidebar \.sidebar-nav-group>summary\{display:flex;mi
   'collapsed Fold navigation groups must match adjacent 44px touch targets');
 assert.match(css, /\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden;z-index:10;scrollbar-width:thin;scrollbar-color:#4a515d transparent/,
   'both CRM sidebars must stay visible and expose a subtle dark-theme scrollbar when their content overflows');
-assert.match(css, /\.velora-theme \.portal-sidebar::\-webkit-scrollbar,\.staff-theme \.portal-sidebar::\-webkit-scrollbar\{width:6px;height:6px\}/);
+assert.match(css, /\.velora-theme \.portal-sidebar::\-webkit-scrollbar,\.staff-theme \.portal-sidebar::\-webkit-scrollbar\{width:4px;height:4px\}/);
 assert.doesNotMatch(css, /\.velora-theme \.portal-sidebar\{z-index:10;scrollbar-width:none/,
   'the navigation scrollbar must not be hidden when lower groups overflow');
 assert.match(css, /@media\(max-width:900px\)\{\.staff-theme \.portal-sidebar\{width:68px/,

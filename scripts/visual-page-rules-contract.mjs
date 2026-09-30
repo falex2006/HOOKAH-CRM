@@ -10,7 +10,7 @@ const tree = fs.readFileSync(new URL('SITE_TREE.md', root), 'utf8');
 const map = JSON.parse(fs.readFileSync(new URL('site-map.json', root), 'utf8'));
 const requiredGlobal = [
   'DESIGN_TOKENS.md', 'prefers-reduced-motion', 'скроллбар', 'safe-area',
-  '44px', 'Канонические адреса', 'Не добавлять новые цвета', 'Склад', 'Финансы', 'cross-document View Transition'
+  '44px', 'Канонические адреса', 'Не добавлять новые цвета', 'Склад', 'Финансы', 'View Transition'
 ];
 for (const text of requiredGlobal) assert.ok(rules.includes(text), `visual rules missing global rule: ${text}`);
 for (const text of ['Остатки', 'Поставки и списания', 'Технологические карты', 'Каталог товаров', 'Понятны ли названия всех кнопок']) {
@@ -19,8 +19,8 @@ for (const text of ['Остатки', 'Поставки и списания', '�
 assert.match(rules, /WAREHOUSE_PAGE_PROMPT\.md/);
 assert.match(rules, /Фильтры периода, поиска, статуса и сортировки имеют видимые подписи/,
   'guest filters must retain the labeled responsive layout rule');
-assert.match(css, /@view-transition\s*\{\s*navigation:\s*auto;\s*\}/,
-  'same-origin full-page navigation must use progressive cross-document transitions');
+assert.match(css, /@view-transition\s*\{\s*navigation:\s*none;\s*\}/,
+  'same-origin navigation must avoid flicker while preserving local transitions');
 assert.match(css, /@media\(prefers-reduced-motion:reduce\)\{\.staff-theme nav button\{transition:none!important;transform:none!important\}/,
   'staff navigation must not shift on hover when reduced motion is requested');
 for (const name of ['root', 'crm-sidebar', 'crm-header']) {
