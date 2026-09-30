@@ -2697,3 +2697,6 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .velora-theme .portal-sidebar .sidebar-nav-group>summary{display:flex;align-items:center;gap:11px;min-height:46px;height:46px;box-sizing:border-box;padding:0 13px;color:#aeb4bd;font-size:14px;line-height:17.5px;letter-spacing:0;font-weight:500}
 .velora-theme .portal-sidebar .sidebar-nav-group>summary>.icon{width:18px;height:18px;flex:0 0 18px}
 .velora-theme .portal-sidebar .sidebar-nav-group>summary::after{float:none;margin-left:auto}
+
+/* Nested sidebar links use the same type scale as primary navigation. */
+.velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a{font-size:14px;line-height:17.5px;font-weight:500}
