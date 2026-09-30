@@ -641,7 +641,7 @@ const demoDiscountCanManage = () => ['staff_manage', 'finance', 'loyalty'].some(
 const demoDiscountCanRead = () => ['staff', 'staff_view', 'staff_manage', 'finance', 'orders', 'loyalty'].some((permission) => portalPermissions.has(permission));
 const demoSensitiveStaffManager = () => portalPermissions.has('staff_sensitive');
 const demoStaffPublic = (person) => { const result = { ...person, permissionScopes: Array.isArray(person.permissionScopes) ? person.permissionScopes : [] }; delete result.password; if (!demoSensitiveStaffManager()) delete result.passportData; return result; };
-const demoDefaultVenue = { id: 'demo-venue-territory', name: 'Территория', format: 'кальян-бар', city: 'Тюмень', address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', phoneNumbers: [{ label: 'Основной', number: '+7 (996) 641-95-10', primary: true }], timezone: 'Asia/Yekaterinburg', status: 'active', isCurrent: true, logoUrl: null };
+const demoDefaultVenue = { id: 'demo-venue-territory', name: 'Hookah POS', format: 'кальян-бар', city: 'Тюмень', address: 'ул. Пермякова, 77, этаж -1', phone: '+7 (996) 641-95-10', phoneNumbers: [{ label: 'Основной', number: '+7 (996) 641-95-10', primary: true }], timezone: 'Asia/Yekaterinburg', status: 'active', isCurrent: true, logoUrl: null };
 const demoDefaultVenueRecord = () => { const record = { ...demoDefaultVenue, ...(demoState.venue || {}), id: demoDefaultVenue.id, status: 'active', isCurrent: !demoState.networkCurrentId || demoState.networkCurrentId === demoDefaultVenue.id }; record.phoneNumbers = normalizeDemoPhones(record.phoneNumbers || (record.phone ? [{ label: 'Основной', number: record.phone, primary: true }] : [])); record.phone = record.phoneNumbers.find((entry) => entry.primary)?.number || ''; return record; };
 const demoSelectedVenue = () => { const currentId = demoState.networkCurrentId || demoDefaultVenue.id; if (currentId === demoDefaultVenue.id) return demoDefaultVenueRecord(); const selected = (demoState.networkVenues || []).find((item) => item.id === currentId && item.status !== 'archived'); return selected ? { ...selected, isCurrent: true } : demoDefaultVenueRecord(); };
 const demoFloorContext = () => { const venueId = demoSelectedVenue().id; if (venueId === demoDefaultVenue.id) return { venueId, state: demoState }; demoState.floorByVenue ||= {}; demoState.floorByVenue[venueId] ||= { floorZones: [], floorLayout: {}, floorNames: {}, floorCapacities: {}, floorStatuses: {} }; return { venueId, state: demoState.floorByVenue[venueId] }; };
@@ -1145,7 +1145,7 @@ const refreshPortalContext = async () => {
   if (venueResult.status === 'fulfilled' && venueResult.value) {
     const venue = venueResult.value;
     venueTimezone = String(venue.timezone || ''); updateDashboardGreeting();
-    document.querySelectorAll('[data-venue-name]').forEach((node) => { node.textContent = venue.name || 'Территория'; });
+    document.querySelectorAll('[data-venue-name]').forEach((node) => { node.textContent = venue.name || 'Hookah POS'; });
     document.querySelectorAll('[data-venue-address]').forEach((node) => { node.textContent = [venue.city, venue.address].filter(Boolean).join(', ') || 'Адрес не указан'; });
     document.querySelectorAll('[data-admin-avatar]').forEach((node) => { node.innerHTML = venue.logoUrl ? `<img src="${esc(venue.logoUrl)}" alt="Логотип">` : 'T'; });
     const vip = venue.vipRoomMinimums || {}; const summary = document.querySelector('#vip-minimum-summary');
