@@ -2692,3 +2692,8 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
   .notification-open-link,.notification-mark-read{min-height:32px;display:inline-flex;align-items:center}
 }
 @media(prefers-reduced-motion:reduce){.notification-panel,.notification-panel *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
+
+/* Final sidebar geometry contract: primary item and disclosure headers share one grid. */
+.velora-theme .portal-sidebar .sidebar-nav-group>summary{display:flex;align-items:center;gap:11px;min-height:46px;height:46px;box-sizing:border-box;padding:0 13px;color:#aeb4bd;font-size:14px;line-height:17.5px;letter-spacing:0;font-weight:500}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary>.icon{width:18px;height:18px;flex:0 0 18px}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{float:none;margin-left:auto}
