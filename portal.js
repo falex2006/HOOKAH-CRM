@@ -14,9 +14,9 @@ function getDashboardGreetingForHour(hour) { const value = Number(hour); if (!Nu
 function getVenueLocalHour(date, timezone) { if (!timezone) return null; try { const part = new Intl.DateTimeFormat('en-US', { timeZone: timezone, hour: '2-digit', hourCycle: 'h23' }).formatToParts(date).find((item) => item.type === 'hour'); const hour = Number(part?.value); return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : null; } catch (_) { return null; } }
 let venueTimezone = String(portalUser.timezone || '');
 let dashboardGreetingTimer = null;
-function updateDashboardGreeting() { const heading = document.querySelector('#dashboard-greeting'); if (!heading || (window.location.hash && window.location.hash !== '#')) return; const hour = getVenueLocalHour(new Date(), venueTimezone); const greeting = hour === null ? 'Здравствуйте' : getDashboardGreetingForHour(hour); heading.textContent = `${greeting}, ${displayName(portalUser.name || portalUser.fullName || portalRole[0])}`; }
+function updateDashboardGreeting() { /* Dashboard keeps a stable title; no recurring greeting. */ }
 const adminSectionTitles = { '#staff': 'Сотрудники', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика' };
-function updateAdminSectionTitle() { const title = document.querySelector('[data-admin-section-title]'); if (title) title.textContent = adminSectionTitles[window.location.hash] || 'Главная'; if (document.body?.dataset.page === 'dashboard') document.title = `${adminSectionTitles[window.location.hash] || 'Главная'} — Территория`; }
+function updateAdminSectionTitle() { const title = document.querySelector('[data-admin-section-title]'); if (title) title.textContent = adminSectionTitles[window.location.hash] || 'Главная'; if (document.body?.dataset.page === 'dashboard') document.title = `Hookah POS — ${adminSectionTitles[window.location.hash] || 'Главная'}`; }
 window.addEventListener('hashchange', updateAdminSectionTitle);
 updateAdminSectionTitle();
 const recipeOutputUnits = new Set(['г', 'кг', 'мл', 'л', 'шт', 'порция', 'уп', 'упаковка']);
