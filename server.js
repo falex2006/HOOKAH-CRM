@@ -656,6 +656,56 @@ const canSeeStaffPhoto = (req) => Boolean(req.user && ['owner', 'admin', 'manage
 const validBirthDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 const denyUnless = (req, res, permission) => { if (hasPermission(req, permission)) return false; json(res, 403, { error: 'forbidden', permission }); return true; };
 const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };
+const notificationMemoryReads = new Map();
+const notificationRoles = new Set(['owner', 'admin', 'manager', 'developer']);
+const notificationAccess = (req) => {
+  if (process.env.AUTH_REQUIRED === 'true' && (isOperationalEmployee(req) || !notificationRoles.has(req.user?.role))) return null;
+  const role = req.user?.role || '';
+  const unrestricted = process.env.AUTH_REQUIRED !== 'true';
+  return {
+    discounts: (unrestricted || ['owner', 'admin'].includes(role)) && hasPermission(req, 'finance_read') && hasPermission(req, 'orders'),
+    autoOrders: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'inventory_read'),
+    deletedOrders: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'orders'),
+    staffPins: (unrestricted || ['owner', 'admin'].includes(role)) && (hasPermission(req, 'staff_view') || hasPermission(req, 'staff')),
+  };
+};
+async function collectNotificationEvents(req, venueId, limit = 100) {
+  const access = notificationAccess(req);
+  if (!access || !Object.values(access).some(Boolean)) return null;
+  const items = [];
+  let unreadCount = 0;
+  const userId = String(req.user?.id || 'anonymous');
+  if (repositories?.pool) {
+    const queries = [];
+    if (access.discounts) queries.push(repositories.pool.query(`SELECT 'discount:'||d.id::text AS id,'discount' AS type,'Запрошена скидка' AS title,'Запрос ожидает решения' AS summary,d.created_at AS "createdAt",d.order_id AS "orderId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/orders' AS href,true AS "requiresAction"
+      FROM discounts d JOIN orders o ON o.id=d.order_id LEFT JOIN notification_reads r ON r.venue_id=o.venue_id AND r.user_id=$2 AND r.notification_key='discount:'||d.id::text
+      WHERE o.venue_id=$1 AND d.status='requested' ORDER BY d.created_at DESC LIMIT $3`, [venueId, userId, limit]));
+    if (access.autoOrders) queries.push(repositories.pool.query(`SELECT 'inventory_auto_order:'||a.id::text AS id,'inventory_auto_order' AS type,'Заявка на пополнение' AS title,'Заявка отправлена и ожидает обработки' AS summary,a.created_at AS "createdAt",a.id AS "autoOrderId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/inventory?view=auto-orders' AS href,false AS "requiresAction"
+      FROM inventory_auto_orders a LEFT JOIN notification_reads r ON r.venue_id=a.venue_id AND r.user_id=$2 AND r.notification_key='inventory_auto_order:'||a.id::text
+      WHERE a.venue_id=$1 AND a.status='sent' ORDER BY a.created_at DESC LIMIT $3`, [venueId, userId, limit]));
+    if (access.deletedOrders) queries.push(repositories.pool.query(`SELECT 'order_deleted:'||e.id::text AS id,'order_deleted' AS type,'Заказ удалён' AS title,'Проверьте событие в журнале заказов' AS summary,e.created_at AS "createdAt",e.entity_id AS "orderId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/orders' AS href,false AS "requiresAction"
+      FROM audit_events e LEFT JOIN notification_reads r ON r.venue_id=e.venue_id AND r.user_id=$2 AND r.notification_key='order_deleted:'||e.id::text
+      WHERE e.venue_id=$1 AND e.action='order.deleted' ORDER BY e.created_at DESC LIMIT $3`, [venueId, userId, limit]));
+    if (access.staffPins) queries.push(repositories.pool.query(`SELECT 'staff_pin_updated:'||e.id::text AS id,'staff_pin_updated' AS type,'PIN сотрудника обновлён','PIN не отображается в уведомлении' AS summary,e.created_at AS "createdAt",e.entity_id AS "staffId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/admin' AS href,false AS "requiresAction"
+      FROM audit_events e LEFT JOIN users u ON u.id=e.entity_id AND u.venue_id=e.venue_id LEFT JOIN notification_reads r ON r.venue_id=e.venue_id AND r.user_id=$2 AND r.notification_key='staff_pin_updated:'||e.id::text
+      WHERE e.venue_id=$1 AND e.action='staff.pin_updated' AND (u.id IS NULL OR (u.is_active=true AND u.deleted_at IS NULL)) ORDER BY e.created_at DESC LIMIT $3`, [venueId, userId, limit]));
+    const results = await Promise.all(queries);
+    for (const result of results) {
+      unreadCount += Number(result.rows[0]?.sourceUnreadCount || 0);
+      items.push(...result.rows.map(({ sourceUnreadCount, ...item }) => item));
+    }
+  } else {
+    const venueMatches = (item) => String(item.venueId || '') === String(venueId);
+    const recipientMatches = (item, roles) => !item.notificationRecipients?.length || !req.user?.role || (roles || item.notificationRecipients).includes(req.user.role);
+    if (access.discounts) items.push(...discountRequests.filter((item) => venueMatches(item) && item.status === 'requested' && recipientMatches(item, ['owner', 'admin'])).map((item) => ({ id: `discount:${item.id}`, type: 'discount', title: 'Запрошена скидка', summary: 'Запрос ожидает решения', createdAt: item.createdAt, orderId: item.orderId, href: '/orders', requiresAction: true })));
+    if (access.autoOrders) items.push(...autoOrderRequests.filter((item) => venueMatches(item) && item.status === 'sent' && recipientMatches(item, ['owner', 'admin', 'manager'])).map((item) => ({ id: `inventory_auto_order:${String(item.id).replace(/^auto-order:/, '')}`, type: 'inventory_auto_order', title: 'Заявка на пополнение', summary: 'Заявка отправлена и ожидает обработки', createdAt: item.createdAt, autoOrderId: item.id, href: '/inventory?view=auto-orders', requiresAction: false })));
+    if (access.deletedOrders || access.staffPins) items.push(...staffNotifications.filter((item) => venueMatches(item) && ((access.deletedOrders && item.type === 'order_deleted' && recipientMatches(item, ['owner', 'admin', 'manager'])) || (access.staffPins && item.type === 'staff_pin_updated' && recipientMatches(item, ['owner', 'admin'])))).map((item) => ({ id: `${item.type}:${item.id}`, type: item.type, title: item.type === 'order_deleted' ? 'Заказ удалён' : 'PIN сотрудника обновлён', summary: item.type === 'order_deleted' ? 'Проверьте событие в журнале заказов' : 'PIN не отображается в уведомлении', createdAt: item.createdAt, ...(item.orderId ? { orderId: item.orderId } : {}), ...(item.staffId ? { staffId: item.staffId } : {}), href: item.type === 'order_deleted' ? '/orders' : '/admin', requiresAction: false })));
+    items.forEach((item) => { const key = `${venueId}:${userId}:${item.id}`; item.readAt = notificationMemoryReads.get(key) || null; });
+    unreadCount = items.filter((item) => !item.readAt).length;
+  }
+  items.sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0) || String(right.id).localeCompare(String(left.id)));
+  return { items, unreadCount };
+}
 const employeeNeedsShift = (req) => process.env.AUTH_REQUIRED === 'true' && ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'staff', 'manager'].includes(req.user?.role);
 const requireOpenShift = async (req, res) => {
   if (!employeeNeedsShift(req)) return false;
@@ -867,26 +917,69 @@ async function api(req, res) {
     if (repositories?.pool) { try { const { rows } = await repositories.pool.query('SELECT name,logo_url AS "logoUrl" FROM venues WHERE id=$1', [venueDbId]); if (rows[0]) return json(res, 200, rows[0]); } catch (_) {} }
     return json(res, 200, { name: venue.name, logoUrl: venue.logoUrl || null });
   }
-  if (pathname === '/api/notifications' && req.method === 'GET') {
-    if (isOperationalEmployee(req)) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
-    if (denyUnlessAny(req, res, ['staff_view', 'staff', 'inventory_read', 'orders'])) return;
-    let items = staffNotifications.filter((item) => process.env.AUTH_REQUIRED !== 'true' || String(item.venueId || '') === String(venueDbId));
-    if (repositories?.pool) { try {
-      if (hasPermission(req, 'inventory_read')) { const { rows } = await repositories.pool.query(`SELECT id,status,created_at AS "createdAt",total_estimate AS "totalEstimate" FROM inventory_auto_orders WHERE venue_id=$1 AND status='sent' ORDER BY created_at DESC LIMIT 20`, [venueDbId]); items = items.concat(rows.map((row) => ({ id: `auto-order-${row.id}`, type: 'inventory_auto_order', autoOrderId: row.id, status: row.status, totalEstimate: Number(row.totalEstimate || 0), createdAt: row.createdAt, notificationRecipients: ['owner', 'admin', 'manager'] }))); }
-      if (hasPermission(req, 'orders')) { const deleted = await repositories.pool.query(`SELECT id,entity_id AS "orderId",after_data AS data,created_at AS "createdAt" FROM audit_events WHERE venue_id=$1 AND action='order.deleted' ORDER BY created_at DESC LIMIT 20`, [venueDbId]); items = items.concat(deleted.rows.map((row) => ({ id: `order-deleted-${row.id}`, type: 'order_deleted', orderId: row.orderId, comment: row.data?.comment || null, writeoff: Boolean(row.data?.writeoff), deletedItems: row.data?.deletedItems || [], totalCost: Number(row.data?.totalCost || 0), createdAt: row.createdAt, notificationRecipients: ['owner', 'admin', 'manager'] }))); }
-    } catch (_) {} }
-    items = items.filter((item) => {
-      if (process.env.AUTH_REQUIRED === 'true' && item.notificationRecipients?.length && !item.notificationRecipients.includes(req.user?.role)) return false;
-      if (item.type === 'staff_pin_updated') return hasPermission(req, 'staff_view') || hasPermission(req, 'staff');
-      if (item.type === 'inventory_auto_order') return hasPermission(req, 'inventory_read');
-      if (item.type === 'order_deleted') return hasPermission(req, 'orders');
-      return false;
-    }).map((item) => {
-      if (item.type !== 'order_deleted' || hasPermission(req, 'inventory_read') || hasPermission(req, 'finance_read')) return item;
-      const { deletedItems, totalCost, ...safe } = item;
-      return safe;
-    });
-    return json(res, 200, { items });
+  const notificationReadPath = pathname.match(/^\/api\/notifications\/([^/]+)\/read$/);
+  if (pathname === '/api/notifications' && ['GET', 'POST'].includes(req.method) || notificationReadPath && req.method === 'PUT') {
+    const access = notificationAccess(req);
+    if (!access || !Object.values(access).some(Boolean)) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
+    if (repositories?.pool && !/^[0-9a-f-]{36}$/i.test(String(req.user?.id || ''))) return json(res, 401, { error: 'authentication_required' });
+    if (req.method === 'GET') {
+      const limitValue = Number(url.searchParams.get('limit') || 20);
+      const limit = Number.isInteger(limitValue) ? Math.min(50, Math.max(1, limitValue)) : 20;
+      const unreadOnly = url.searchParams.get('filter') === 'unread';
+      try {
+        const data = await collectNotificationEvents(req, venueDbId, 100);
+        if (!data) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
+        const items = data.items.filter((item) => !unreadOnly || !item.readAt).slice(0, limit);
+        return json(res, 200, { items, unreadCount: data.unreadCount, hasMore: data.items.filter((item) => !unreadOnly || !item.readAt).length > limit });
+      } catch (_) { return json(res, 503, { error: 'notifications_unavailable' }); }
+    }
+    if (req.method === 'POST') {
+      try {
+        if (repositories?.pool) {
+          const userId = req.user.id;
+          const inserts = [];
+          if (access.discounts) inserts.push(repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key)
+            SELECT o.venue_id,$2,'discount:'||d.id::text FROM discounts d JOIN orders o ON o.id=d.order_id WHERE o.venue_id=$1 AND d.status='requested'
+            ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
+          if (access.autoOrders) inserts.push(repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key)
+            SELECT a.venue_id,$2,'inventory_auto_order:'||a.id::text FROM inventory_auto_orders a WHERE a.venue_id=$1 AND a.status='sent'
+            ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
+          if (access.deletedOrders) inserts.push(repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key)
+            SELECT e.venue_id,$2,'order_deleted:'||e.id::text FROM audit_events e WHERE e.venue_id=$1 AND e.action='order.deleted'
+            ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
+          if (access.staffPins) inserts.push(repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key)
+            SELECT e.venue_id,$2,'staff_pin_updated:'||e.id::text FROM audit_events e WHERE e.venue_id=$1 AND e.action='staff.pin_updated'
+            ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
+          await Promise.all(inserts);
+          const data = await collectNotificationEvents(req, venueDbId, 100);
+          return json(res, 200, { unreadCount: data?.unreadCount || 0 });
+        }
+        const data = await collectNotificationEvents(req, venueDbId, 10000);
+        if (!data) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
+        for (const item of data.items) notificationMemoryReads.set(`${venueDbId}:${req.user?.id || 'anonymous'}:${item.id}`, new Date().toISOString());
+        const refreshed = await collectNotificationEvents(req, venueDbId, 10000);
+        return json(res, 200, { unreadCount: refreshed?.unreadCount || 0 });
+      } catch (_) { return json(res, 503, { error: 'notifications_unavailable' }); }
+    }
+    let notificationId;
+    try { notificationId = decodeURIComponent(notificationReadPath[1]); } catch (_) { return json(res, 400, { error: 'invalid_notification_id' }); }
+    if (!/^(discount|inventory_auto_order|order_deleted|staff_pin_updated):[A-Za-z0-9-]{1,150}$/.test(notificationId)) return json(res, 404, { error: 'notification_not_found' });
+    const type = notificationId.slice(0, notificationId.indexOf(':'));
+    if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders) || (type === 'staff_pin_updated' && !access.staffPins)) return json(res, 404, { error: 'notification_not_found' });
+    try {
+      if (repositories?.pool) {
+        const available = await collectNotificationEvents(req, venueDbId, 10000);
+        if (!available?.items.some((item) => item.id === notificationId)) return json(res, 404, { error: 'notification_not_found' });
+        await repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key) VALUES ($1,$2,$3)
+          ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, req.user.id, notificationId]);
+      } else {
+        const available = await collectNotificationEvents(req, venueDbId, 10000);
+        if (!available?.items.some((item) => item.id === notificationId)) return json(res, 404, { error: 'notification_not_found' });
+        notificationMemoryReads.set(`${venueDbId}:${req.user?.id || 'anonymous'}:${notificationId}`, new Date().toISOString());
+      }
+      const refreshed = await collectNotificationEvents(req, venueDbId, 10000);
+      return json(res, 200, { id: notificationId, readAt: new Date().toISOString(), unreadCount: refreshed?.unreadCount || 0 });
+    } catch (_) { return json(res, 503, { error: 'notifications_unavailable' }); }
   }
   if (pathname === '/api/saas/account' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['settings', 'diagnostics'])) return;
@@ -2729,7 +2822,7 @@ if (staffProfile && req.method === 'PATCH') {
         recordAudit(req, 'inventory.auto_order_sent', 'inventory_auto_order', rows[0].id, null, rows[0]); return json(res, 201, { ...rows[0], totalEstimate: Number(rows[0].totalEstimate || 0), lines: rows[0].lines || [] });
       } catch (error) { return json(res, 409, { error: 'auto_order_save_failed', detail: error.message }); }
     }
-    const request = { id: `auto-order-${crypto.randomUUID()}`, status: 'sent', lines, note, totalEstimate, createdAt: new Date().toISOString(), sentAt: new Date().toISOString() }; autoOrderRequests.push(request); recordAudit(req, 'inventory.auto_order_sent', 'inventory_auto_order', request.id, null, request); return json(res, 201, request);
+    const request = { id: `auto-order-${crypto.randomUUID()}`, venueId: venueDbId, status: 'sent', lines, note, totalEstimate, createdAt: new Date().toISOString(), sentAt: new Date().toISOString() }; autoOrderRequests.push(request); recordAudit(req, 'inventory.auto_order_sent', 'inventory_auto_order', request.id, null, request); return json(res, 201, request);
   }
   const autoOrderPath = pathname.match(/^\/api\/inventory\/auto-orders\/([^/]+)$/);
   if (autoOrderPath && req.method === 'PATCH') {
@@ -3905,7 +3998,7 @@ if (staffProfile && req.method === 'PATCH') {
     const order = orders.find((entry) => entry.id === orderPath[1]); const input = await body(req);
     if (!order) return json(res, 404, { error: 'order_not_found' }); if (['closed', 'cancelled'].includes(order.status)) return json(res, 409, { error: 'order_already_final' });
     const type = String(input.type || 'percent'); const value = Number(input.value); const reason = String(input.reason || '').trim(); if (!reason || !Number.isFinite(value) || value <= 0 || type !== 'percent' || value > 100 || reason.length > 500) return json(res, 400, { error: 'invalid_discount_request' }); if (discountRequests.some((entry) => entry.orderId === order.id && entry.status === 'requested')) return json(res, 409, { error: 'discount_request_pending' });
-    const request = { id: `disc-${Date.now()}`, orderId: order.id, type, value, reason, guestName: order.guestName || null, guestPhone: order.guestPhone || null, status: 'requested', requestedBy: req.user?.id || req.user?.name || 'unknown', createdAt: new Date().toISOString(), notificationRecipients: ['owner', 'admin'] };
+    const request = { id: `disc-${Date.now()}`, venueId: venueDbId, orderId: order.id, type, value, reason, guestName: order.guestName || null, guestPhone: order.guestPhone || null, status: 'requested', requestedBy: req.user?.id || req.user?.name || 'unknown', createdAt: new Date().toISOString(), notificationRecipients: ['owner', 'admin'] };
     discountRequests.push(request); recordAudit(req, 'discount.applied_by_staff', 'discount', request.id, null, request); return json(res, 201, request);
   }
   if (pathname === '/api/discount-requests' && req.method === 'GET') {
