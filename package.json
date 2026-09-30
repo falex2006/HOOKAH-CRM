@@ -16,6 +16,7 @@
     "qa:orders": "node scripts/order-attention-qa.mjs",
     "qa:postgres": "node scripts/postgres-qa.mjs",
     "qa:header": "node scripts/header-shell-contract.mjs",
+    "qa:trusted-pin": "node scripts/trusted-pin-return-contract.mjs && node scripts/trusted-pin-return-runtime-qa.mjs",
     "qa:notifications:api": "node scripts/notifications-api-qa.mjs",
     "qa:notifications:browser": "node scripts/notifications-browser-qa.mjs",
     "qa:notifications:postgres": "node scripts/notifications-postgres-qa.mjs",

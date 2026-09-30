@@ -12,7 +12,9 @@ async function runLogin({ response, fetchError } = {}) {
   const submit = { disabled: false, textContent: 'Войти в систему' };
   const setupSubmit = { disabled: false, textContent: 'Создать и войти' };
   const loginForm = {
+    hidden: false,
     setAttribute() {},
+    after(node) { values.set(`#${node.id}`, node); },
     addEventListener(name, handler) { listeners.set(`login:${name}`, handler); },
     querySelector(selector) { return selector === 'button[type="submit"]' ? submit : null; },
   };
@@ -21,7 +23,7 @@ async function runLogin({ response, fetchError } = {}) {
     addEventListener(name, handler) { listeners.set(`setup:${name}`, handler); },
     querySelector(selector) { return selector === 'button[type="submit"]' ? setupSubmit : null; },
   };
-  const makeInput = (value = '') => ({ value, type: 'password', focus() {}, setAttribute() {} });
+  const makeInput = (value = '') => ({ value, type: 'password', focus() {}, setAttribute() {}, addEventListener() {} });
   const loginMessage = { textContent: '' };
   const setupMessage = { textContent: '' };
   const body = { dataset: {} };
@@ -48,9 +50,33 @@ async function runLogin({ response, fetchError } = {}) {
     setTimeout() {},
     location: { replace(url) { redirects.push(url); } },
   };
+  const createNode = (tagName = 'div') => {
+    const node = {
+      tagName,
+      className: '',
+      hidden: false,
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      dataset: {},
+      setAttribute() {},
+      focus() {},
+      addEventListener() {},
+      querySelector(selector) {
+        if (selector === '#trusted-pin') return makeInput();
+        if (selector === '#trusted-pin-message') return { textContent: '' };
+        if (selector === '#trusted-pin-submit') return { disabled: false, addEventListener() {} };
+        if (selector === '.trusted-pin-keypad' || selector === '#trusted-password-login') return { addEventListener() {} };
+        if (selector === '[data-trusted-avatar]' || selector === '[data-trusted-user]') return { textContent: '' };
+        return null;
+      },
+    };
+    return node;
+  };
   const fetch = async (url) => {
     if (url === '/api/public/venue-brand') return { ok: false };
     if (url === '/api/setup/status') return { ok: true, json: async () => ({ required: false }) };
+    if (url === '/api/session') return { ok: false, status: 401, json: async () => ({ error: 'authentication_required' }) };
     if (url === '/api/login') {
       if (fetchError) throw fetchError;
       return { ok: response?.ok ?? false, json: async () => response?.body ?? {} };
@@ -59,6 +85,7 @@ async function runLogin({ response, fetchError } = {}) {
   };
   const document = {
     body,
+    createElement: createNode,
     querySelector(selector) { return values.get(selector) ?? null; },
   };
   vm.runInNewContext(source, { document, window, localStorage, fetch, Promise, Date });

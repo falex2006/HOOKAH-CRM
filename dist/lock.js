@@ -1,8 +1,8 @@
-(() => {
-  const token = localStorage.getItem('crm_session_token');
-  if (!token) return;
+;(async () => {
+  let token = localStorage.getItem('crm_session_token');
   let user = {};
   try { user = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); } catch (_) {}
+  if (!token) return;
 
   const activeToken = token;
   const sessionEventKey = 'crm_session_event';
@@ -19,6 +19,18 @@
   let unlockRequest = null;
 
   const headers = () => ({ Authorization: `Bearer ${localStorage.getItem('crm_session_token') || ''}`, 'Content-Type': 'application/json' });
+  const refreshUserFromSession = async () => {
+    try {
+      const response = await fetch('/api/session', { headers: headers(), cache: 'no-store' });
+      if (!response.ok) return false;
+      const payload = await response.json().catch(() => ({}));
+      if (!payload?.user || String(payload.user.id || '') !== String(user.id || payload.user.id || '')) return false;
+      user = { ...user, ...payload.user };
+      localStorage.setItem('crm_session_user', JSON.stringify(user));
+      autoLockEnabled = Boolean(user.pinConfigured);
+      return Boolean(user.pinConfigured);
+    } catch (_) { return false; }
+  };
   const redirectToLogin = () => { clearTimeout(timer); location.replace('/login'); };
   window.__broadcastSessionEnd = () => { try { localStorage.setItem(sessionEventKey, JSON.stringify({ action: 'logout', userId: String(user.id || ''), at: Date.now() })); } catch (_) {} };
   const logout = async () => {
@@ -56,9 +68,9 @@
   const message = overlay.querySelector('#screen-lock-message');
   const hint = overlay.querySelector('#screen-lock-hint');
   const setMessage = (text, kind = '') => { message.textContent = text; message.className = `screen-lock-message ${kind}`; };
-  const lock = (reason = 'manual') => {
+  const lock = async (reason = 'manual') => {
     if (locked) return;
-    if (!user.pinConfigured) { window.__openLockSettings?.(); return; }
+    if (!user.pinConfigured && !await refreshUserFromSession()) { window.__openLockSettings?.(); return; }
     locked = true;
     try { localStorage.setItem(lockStateKey, 'locked'); } catch (_) {}
     clearTimeout(timer);
@@ -106,6 +118,7 @@
   document.body.append(settingsDialog);
   const syncSettings = () => { settingsDialog.querySelector('#lock-timeout-select').value = String(timeoutMinutes); };
   const settingsButton = document.createElement('button'); settingsButton.type = 'button'; settingsButton.className = 'lock-settings-button'; settingsButton.title = 'Настройки автоблокировки'; settingsButton.setAttribute('aria-label', 'Настройки автоблокировки'); settingsButton.innerHTML = icon('settings'); const openLockSettings = () => { syncSettings(); settingsDialog.showModal(); }; window.__openLockSettings = openLockSettings; settingsButton.addEventListener('click', openLockSettings);
+  document.addEventListener('click', (event) => { if (event.target.closest('#lock-screen-button')) { event.preventDefault(); event.stopPropagation(); lock('manual'); return; } if (event.target.closest('#lock-settings-button')) { event.preventDefault(); event.stopPropagation(); openLockSettings(); } }, true);
   window.addEventListener('storage', (event) => {
     if (event.key === sessionEventKey && event.newValue) {
       try { const notice = JSON.parse(event.newValue); if (notice.action === 'logout' && String(notice.userId || '') === String(user.id || '')) redirectToLogin(); } catch (_) {}

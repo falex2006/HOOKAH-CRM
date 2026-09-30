@@ -564,10 +564,12 @@ const depleteMemoryOrder = (order, { reason = `Списание по заказ�
 };
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
-// A login session is intentionally long-lived.  Screen privacy is handled by the
-// separate PIN/auto-lock flow, so a normal idle period must not sign the user out.
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const STANDARD_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+const TRUSTED_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_TTL_MS = STANDARD_SESSION_TTL_MS;
 const SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
+const sessionTtlSeconds = (ttlMs) => Math.floor(ttlMs / 1000);
+const canUseTrustedDevice = (role) => ['owner', 'admin', 'developer'].includes(String(role || ''));
 const requestCookies = (req) => Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2));
 const requestAuthToken = (req) => { const header = req.headers.authorization || ''; return header.startsWith('Bearer ') ? header.slice(7) : (requestCookies(req).crm_session || ''); };
 const sessionFromRequest = async (req) => {
@@ -576,11 +578,11 @@ const sessionFromRequest = async (req) => {
   const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
   if (!token) return null;
   if (process.env.DATABASE_URL || sessionRepository) {
-    if (sessionRepository) { try { const persisted = await sessionRepository.get(hashToken(token)); if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes) } }; } catch (_) {} }
+    if (sessionRepository) { try { const persisted = await sessionRepository.get(hashToken(token)); if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) } }; } catch (_) {} }
     return null;
   }
   const memorySession = sessions.get(token);
-  if (memorySession) { if (Date.now() - memorySession.createdAt > SESSION_TTL_MS) { sessions.delete(token); return null; } return memorySession; }
+  if (memorySession) { if (Date.now() > Number(memorySession.expiresAt || memorySession.createdAt + SESSION_TTL_MS)) { sessions.delete(token); return null; } return memorySession; }
   return null;
 };
 const recordAudit = (req, action, entityType, entityId, beforeData, afterData) => {
@@ -814,12 +816,14 @@ async function api(req, res) {
       const activeUserSessions = [...sessions.values()].filter((session) => session.user?.id === userId && Date.now() - session.createdAt <= SESSION_TTL_MS);
       if (activeUserSessions.length >= 2) return json(res, 409, { error: 'session_limit_reached', limit: 2 });
     }
-    if (sessionRepository) { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) { return json(res, 503, { error: 'session_unavailable' }); } }
+    const ttlMs = input.trustDevice && canUseTrustedDevice(account.role) ? TRUSTED_SESSION_TTL_MS : STANDARD_SESSION_TTL_MS;
+    const expiresAt = Date.now() + ttlMs;
+    if (sessionRepository) { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) { return json(res, 503, { error: 'session_unavailable' }); } }
     if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
-    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now() });
+    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now(), expiresAt });
     [...sessions.entries()].filter(([, session]) => session.user?.id === userId).sort(([, left], [, right]) => right.createdAt - left.createdAt).slice(2).forEach(([sessionToken]) => sessions.delete(sessionToken));
-    res.setHeader('Set-Cookie', [`crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`, `crm_device_id=${encodeURIComponent(deviceId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`]);
-    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: SESSION_TTL_SECONDS });
+    res.setHeader('Set-Cookie', [`crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionTtlSeconds(ttlMs)}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`, `crm_device_id=${encodeURIComponent(deviceId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`]);
+    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: sessionTtlSeconds(ttlMs), trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
   }
   if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
@@ -832,7 +836,6 @@ async function api(req, res) {
       // Refresh cookies issued before the longer session policy so an active
       // browser is not logged out simply because its old cookie reached 8 hours.
       const cookieToken = requestCookies(req).crm_session;
-      if (cookieToken && !(req.headers.authorization || '').startsWith('Bearer ')) res.setHeader('Set-Cookie', `crm_session=${encodeURIComponent(cookieToken)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`);
     }
   }
   if (pathname === '/api/health') {
@@ -871,7 +874,39 @@ async function api(req, res) {
     }
     pinUnlockAttempts.delete(attemptKey);
     if (memorySession) { memorySession.unlockHash = unlockHash; memorySession.user.pinConfigured = true; }
-    return json(res, 200, { ok: true });
+    return json(res, 200, { ok: true, token, user: req.user || memorySession?.user || null });
+  }
+  if (pathname === '/api/session/pin-return' && req.method === 'POST') {
+    const trustedPinRoles = new Set(['owner', 'admin', 'developer']);
+    if (!trustedPinRoles.has(String(req.user?.role || ''))) return json(res, 403, { error: 'pin_return_role_forbidden' });
+    const input = await body(req); const pin = String(input.pin || '').trim();
+    if (!/^\d{4}$/.test(pin)) return json(res, 400, { error: 'invalid_staff_pin_format' });
+    const token = requestAuthToken(req);
+    if (!token) return json(res, 401, { error: 'authentication_required' });
+    const identity = String(req.user?.id || ''); const address = String(req.socket?.remoteAddress || 'unknown'); const attemptKey = `${identity}:${address}:return`;
+    const attempt = pinUnlockAttempts.get(attemptKey);
+    if (attempt?.blockedUntil > Date.now()) return json(res, 429, { error: 'too_many_pin_attempts', retryAfter: Math.ceil((attempt.blockedUntil - Date.now()) / 1000) });
+    const memorySession = sessions.get(token); let unlockHash = memorySession?.unlockHash || null; let pinConfigured = Boolean(memorySession?.user?.pinConfigured);
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(identity)) {
+      try {
+        const { rows } = await repositories.pool.query('SELECT pin_hash AS "pinHash",pin_updated_at AS "pinUpdatedAt",is_active AS active FROM users WHERE id=$1 AND organization_id IS NOT DISTINCT FROM $2::uuid LIMIT 1', [identity, req.user?.organizationId || null]);
+        unlockHash = rows[0]?.active && rows[0]?.pinUpdatedAt ? rows[0].pinHash : null;
+        pinConfigured = Boolean(unlockHash);
+      } catch (error) { return json(res, 503, { error: 'pin_return_unavailable', detail: error.message }); }
+    }
+    if (!pinConfigured || !unlockHash) return json(res, 409, { error: 'pin_not_configured' });
+    if (!(await verifyPassword(pin, unlockHash))) {
+      const withinWindow = attempt && Date.now() - attempt.firstAt < 60_000;
+      const next = withinWindow ? { count: attempt.count + 1, firstAt: attempt.firstAt } : { count: 1, firstAt: Date.now() };
+      if (next.count >= 5) next.blockedUntil = Date.now() + 60_000;
+      pinUnlockAttempts.set(attemptKey, next);
+      return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_pin_attempts' : 'invalid_pin', ...(next.blockedUntil ? { retryAfter: 60 } : {}) });
+    }
+    pinUnlockAttempts.delete(attemptKey);
+    if (memorySession) { memorySession.unlockHash = unlockHash; memorySession.user.pinConfigured = true; }
+    if (req.user) req.user.pinConfigured = true;
+    const user = memorySession?.user || req.user;
+    return json(res, 200, { token, user, permissions: effectivePermissions(user), expiresIn: sessionTtlSeconds(TRUSTED_SESSION_TTL_MS), trustedDevice: true });
   }
   if (pathname === '/api/session/preferences' && (req.method === 'GET' || req.method === 'PATCH')) {
     const allowed = new Set(['lockTimeoutMinutes', 'dashboardModules', 'dashboardRevenueStyle', 'insights', 'deliveryEnabled', 'integrationsEnabled', 'navigationVisibility', 'financeMetrics', 'theme']);
@@ -932,8 +967,8 @@ async function api(req, res) {
       const limit = Number.isInteger(limitValue) ? Math.min(50, Math.max(1, limitValue)) : 20;
       const unreadOnly = url.searchParams.get('filter') === 'unread';
       try {
-        const notificationVenueId = notificationVenueScope(req, venueDbId);
-        const data = await collectNotificationEvents(req, notificationVenueId, 100);
+    const notificationVenueId = notificationVenueScope(req, venueDbId);
+    const data = await collectNotificationEvents(req, notificationVenueId, 100);
         if (!data) return json(res, 403, { error: 'forbidden', permission: 'notifications' });
         const items = data.items.filter((item) => !unreadOnly || !item.readAt).slice(0, limit);
         return json(res, 200, { items, unreadCount: data.unreadCount, hasMore: data.items.filter((item) => !unreadOnly || !item.readAt).length > limit });

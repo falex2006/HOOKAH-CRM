@@ -5,12 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '360';
-const portalRevision = '410';
-const lockRevision = '14';
-const appRevision = '168';
+const cssRevision = '362';
+const portalRevision = '411';
+const lockRevision = '17';
+const appRevision = '169';
 const staffProfileRevision = '6';
-const loginRevision = '92';
+const loginRevision = '93';
 const staffAdminCardRevision = '7';
 const purchaseDocumentValidationRevision = '1';
 // Keep flat pages and directory-index aliases in dist aligned with their source

@@ -4,6 +4,7 @@ const setupMessage = document.querySelector('#setup-message');
 fetch('/api/public/venue-brand').then((response) => response.ok ? response.json() : null).then((brand) => { const node = document.querySelector('[data-login-brand]'); if (!node || !brand?.logoUrl) return; node.innerHTML = `<img src="${brand.logoUrl}" alt="Логотип заведения">`; node.classList.add('has-logo'); }).catch(() => {});
 const passwordInput = document.querySelector('#login-password');
 const usernameInput = document.querySelector('#login-username');
+const trustDeviceInput = document.querySelector('#login-trust-device');
 const clearRememberedCredentials = () => { if (usernameInput) usernameInput.value = ''; if (passwordInput) passwordInput.value = ''; };
 window.addEventListener('pageshow', clearRememberedCredentials);
 window.setTimeout(clearRememberedCredentials, 0);
@@ -20,6 +21,7 @@ const demoUsers = {
 const setLoginState = (state) => { document.body.dataset.loginState = state; form?.setAttribute('data-login-state', state); };
 const showFailureAnimation = () => { setLoginState('idle'); return Promise.resolve(); };
 setLoginState('idle');
+const adminPinRoles = new Set(['owner', 'admin', 'developer']);
 
 const showLoginTransition = () => new Promise((resolve) => {
   resolve();
@@ -46,9 +48,76 @@ const showSetupIfNeeded = async () => {
       setupForm.hidden = true;
       form.hidden = false;
     }
+    if (!status?.required) checkTrustedPinReturn();
   } catch (_) {}
 };
 showSetupIfNeeded();
+
+const trustedReturnCard = document.createElement('section');
+trustedReturnCard.className = 'login-card trusted-pin-card';
+trustedReturnCard.hidden = true;
+trustedReturnCard.innerHTML = `<div class="brand-mark" data-trusted-avatar>T</div><p class="login-kicker">БЫСТРЫЙ ВОЗВРАТ</p><h1>Введите PIN</h1><p data-trusted-user>Доверенное устройство</p><label>PIN-код<input id="trusted-pin" type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" placeholder="4 цифры"></label><div class="screen-lock-keypad trusted-pin-keypad" aria-label="Цифровая клавиатура">${['1','2','3','4','5','6','7','8','9','⌫','0','Очистить'].map((key) => `<button type="button" data-trusted-key="${key}">${key}</button>`).join('')}</div><button class="primary" type="button" id="trusted-pin-submit">Продолжить</button><button class="trusted-password-link" type="button" id="trusted-password-login">Войти по паролю</button><p id="trusted-pin-message" class="login-message"></p>`;
+form?.after(trustedReturnCard);
+let trustedSessionUser = null;
+const trustedPinInput = trustedReturnCard.querySelector('#trusted-pin');
+const trustedPinMessage = trustedReturnCard.querySelector('#trusted-pin-message');
+const showPasswordLogin = () => { trustedReturnCard.hidden = true; if (form) form.hidden = false; usernameInput?.focus(); };
+trustedReturnCard.querySelector('#trusted-password-login')?.addEventListener('click', showPasswordLogin);
+const unlockTrustedSession = async () => {
+  const pin = trustedPinInput.value.replace(/\D/g, '').slice(0, 4);
+  trustedPinInput.value = pin;
+  if (pin.length !== 4) return;
+  const submit = trustedReturnCard.querySelector('#trusted-pin-submit');
+  trustedPinMessage.textContent = 'Проверяем PIN…';
+  if (submit) submit.disabled = true;
+  try {
+    const response = await fetch('/api/session/pin-return', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin }) });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'unlock_failed');
+    if (!data.token || !data.user) throw new Error('session_restore_failed');
+    await finishLogin({ token: data.token, user: data.user });
+  } catch (error) {
+    const messages = {
+      invalid_pin: 'Неверный PIN. Попробуйте ещё раз.',
+      too_many_pin_attempts: 'Слишком много попыток. Подождите минуту.',
+      pin_not_configured: 'PIN не настроен. Войдите по паролю.',
+      session_restore_failed: 'Сессия устарела. Войдите по паролю.',
+    };
+    trustedPinInput.value = '';
+    trustedPinMessage.textContent = messages[error.message] || 'Не удалось проверить PIN. Войдите по паролю.';
+    if (submit) submit.disabled = false;
+    trustedPinInput.focus();
+  }
+};
+trustedPinInput?.addEventListener('input', () => { trustedPinInput.value = trustedPinInput.value.replace(/\D/g, '').slice(0, 4); if (trustedPinInput.value.length === 4) unlockTrustedSession(); });
+trustedReturnCard.querySelector('.trusted-pin-keypad')?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-trusted-key]');
+  if (!button) return;
+  const key = button.dataset.trustedKey;
+  if (key === '⌫') trustedPinInput.value = trustedPinInput.value.slice(0, -1);
+  else if (key === 'Очистить') trustedPinInput.value = '';
+  else if (trustedPinInput.value.length < 4) trustedPinInput.value += key;
+  trustedPinInput.dispatchEvent(new Event('input'));
+});
+trustedReturnCard.querySelector('#trusted-pin-submit')?.addEventListener('click', unlockTrustedSession);
+async function checkTrustedPinReturn() {
+  if (!form || trustedSessionUser) return;
+  try {
+    const response = await fetch('/api/session', { cache: 'no-store' });
+    if (!response.ok) return;
+    const session = await response.json();
+    const user = session?.user;
+    if (!user?.pinConfigured || !adminPinRoles.has(user.role)) return;
+    trustedSessionUser = user;
+    const name = String(user.name || 'Администратор').trim() || 'Администратор';
+    const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || 'A';
+    trustedReturnCard.querySelector('[data-trusted-avatar]').textContent = initials;
+    trustedReturnCard.querySelector('[data-trusted-user]').textContent = `${name} · доверенное устройство`;
+    form.hidden = true;
+    trustedReturnCard.hidden = false;
+    trustedPinInput.focus();
+  } catch (_) {}
+}
 
 setupForm?.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -73,7 +142,7 @@ setupForm?.addEventListener('submit', async (event) => {
     }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'setup_failed');
-    const loginResponse = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: payload.ownerLogin, password: payload.ownerPassword }) });
+    const loginResponse = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: payload.ownerLogin, password: payload.ownerPassword, trustDevice: true }) });
     const loginData = await loginResponse.json().catch(() => ({}));
     if (!loginResponse.ok) throw new Error(loginData.error || 'login_failed');
     await finishLogin(loginData);
@@ -112,7 +181,7 @@ form?.addEventListener('submit', async (event) => {
     response = await fetch('/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, trustDevice: Boolean(trustDeviceInput?.checked) }),
     });
   } catch (error) {
     // Offline/demo credentials are only a fallback when no HTTP response was
