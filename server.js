@@ -4402,7 +4402,7 @@ function staticFile(req, res) {
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js', '/notification-center.js', '/audit-privacy.js', '/staff-identity.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
-    '/assets/tabler-icons.svg', '/assets/login-smoke-ambient.png', '/assets/login-smoke-ambient.mp4', '/auth-smoke.css', '/auth-smoke.js',
+    '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg', '/assets/login-smoke-ambient.png', '/assets/login-smoke-ambient.mp4', '/auth-smoke.css', '/auth-smoke.js',
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
@@ -4455,6 +4455,7 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
+
 
 
 
