@@ -1126,7 +1126,7 @@ async function api(req, res) {
       try {
         await client.query('BEGIN');
         const beforeResult = await client.query(`SELECT o.id,o.plan,o.is_active AS "isActive",s.status,s.seats_limit AS "seatsLimit",s.venues_limit AS "venuesLimit"
-          FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE o.id=$1 FOR UPDATE`, [organizationId]);
+          FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE o.id=$1 FOR UPDATE OF o`, [organizationId]);
         if (!beforeResult.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'organization_not_found' }); }
         const before = beforeResult.rows[0];
         const nextStatus = status || before.status || 'trialing';
