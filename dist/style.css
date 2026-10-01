@@ -739,6 +739,7 @@
 .velora-theme .staff-form .staff-sensitive-fields,.velora-theme .staff-form .permission-scope-fields{border-radius:13px;background:rgba(255,255,255,.025);border-color:#454c58}
 .velora-theme .staff-form>.button.primary{min-height:52px;border-radius:12px;font-size:15px;box-shadow:0 10px 24px #ff5a5420}
 @media(max-width:1180px){.velora-theme .staff-layout{grid-template-columns:1fr}.velora-theme .staff-form{border-left:0;border-top:1px solid #343943;border-radius:0;padding:22px 0 12px}}
+.company-detail-owner{display:grid;gap:7px;margin:18px 0;padding:14px 16px;border:1px solid #2e3742;border-radius:12px;background:#12171d}.owner-detail{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#dce3eb}.owner-detail strong{font-size:15px;color:#f5f7fa}.owner-detail span{color:#9ca9b7}.owner-detail em{font-style:normal;font-size:11px;font-weight:700}.owner-status.active{color:#49d7a4}.owner-status.paused{color:#ff9a9a}.company-detail-owner .eyebrow{font-size:10px}
 .platform-modal .form-section-label{grid-column:1/-1;margin-top:6px;padding-top:14px;border-top:1px solid #2e333b;color:#f0f2f4;font-size:12px;font-weight:700;letter-spacing:.04em}.platform-modal form>label input{width:100%}
 
 .velora-theme .staff-summary .staff-layout{grid-template-columns:1fr}
@@ -1302,8 +1303,8 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .staff-theme.light-theme{background:#f4f7fa;color:#20313d}.staff-theme.light-theme .app{background:radial-gradient(circle at 78% -15%,#e7f1f7 0,#f7f9fa 45%,#f4f7fa 78%)}.staff-theme.light-theme aside{background:#fff;border-right-color:#e1e7eb}.staff-theme.light-theme aside h1{color:#20313d}.staff-theme.light-theme aside>small,.staff-theme.light-theme .user small{color:#71818b}.staff-theme.light-theme nav button{color:#62737d}.staff-theme.light-theme nav button:hover{background:#eef3f6;color:#20313d}.staff-theme.light-theme header{background:#ffffffdd;border-bottom-color:#e1e7eb;color:#62737d}.staff-theme.light-theme header b{color:#20313d}.staff-theme.light-theme .tabs button{background:#fff;border-color:#d7e1e6;color:#71818b}.staff-theme.light-theme .tabs .selected{background:#eef3f6;color:#20313d;border-color:#ff6372}.staff-theme.light-theme .table,.staff-theme.light-theme .order{background:#fff;border-color:#dfe7eb;box-shadow:0 10px 24px #19344212}.staff-theme.light-theme .table strong,.staff-theme.light-theme .order h2{color:#20313d}.staff-theme.light-theme .meta,.staff-theme.light-theme .items div{color:#5f717b}.staff-theme.light-theme .secondary,.staff-theme.light-theme .actions button{background:#f8fbfc;border-color:#cbd9e0;color:#d97868}.staff-theme.light-theme .queue-card{background:#fff;border-color:#dfe7eb;color:#304650}.staff-theme.light-theme .chips button{background:#eef3f6;border-color:#d4e0e6;color:#62737d}
 .theme-preference{display:flex!important;align-items:center;gap:8px;margin:10px 0 14px;color:#6c7e88!important;font-size:13px!important}.theme-preference input{width:16px!important;min-width:16px!important;accent-color:#ff5b70}
 
-/* Authentication screen stays still while the user signs in. */
-.login, .login *, .login *::before, .login *::after { animation: none !important; }
+/* Keep the authentication UI still while its hookah photo and smoke stay in motion. */
+.login, .login-card, .login-card *, .login-card *::before, .login-card *::after { animation: none !important; }
 
 /* Password action stays anchored inside the field and follows the login palette. */
 .login-password-wrap{position:relative;display:block;min-height:48px}
@@ -2705,3 +2706,29 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 
 /* Keep disclosure groups keyboard-visible in the dark sidebar. */
 .velora-theme .portal-sidebar .sidebar-nav-group>summary:focus-visible{outline:2px solid #ff687a;outline-offset:-2px;border-radius:10px}
+
+.platform-settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.platform-settings-grid>div{display:flex;flex-direction:column;gap:7px;padding:16px;border:1px solid #303742;border-radius:12px;background:#12161a}.platform-settings-grid span{color:#8993a2;font-size:13px;line-height:1.45}@media(max-width:900px){.platform-settings-grid{grid-template-columns:1fr}}
+
+.platform-start-card{display:grid;grid-template-columns:minmax(240px,.85fr) minmax(0,1.5fr);gap:22px;align-items:center;margin-top:18px;padding:22px 24px;border:1px solid rgba(255,119,82,.35);border-radius:18px;background:linear-gradient(135deg,#211d21,#171b20)}.platform-start-card h2{margin:6px 0;font-size:21px}.platform-start-card p{margin:0;color:#9aa3af;line-height:1.45}.platform-start-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.platform-start-steps a{display:flex;align-items:flex-start;gap:10px;padding:13px;border:1px solid #303742;border-radius:12px;background:#12161a;color:#e9edf2;text-decoration:none}.platform-start-steps a:hover{border-color:#ff7752}.platform-start-steps strong{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#ff7752;color:#15171b;flex:none}.platform-start-steps span{display:flex;flex-direction:column;gap:4px}.platform-start-steps small{color:#8993a2;font-size:11px;line-height:1.3}@media(max-width:900px){.platform-start-card{grid-template-columns:1fr}.platform-start-steps{grid-template-columns:1fr}}
+
+/* Cinematic hookah-smoke ambience shared by password and PIN authentication. */
+.auth-smoke-backdrop{position:fixed;z-index:0;inset:0;overflow:hidden;pointer-events:none;isolation:isolate;background:#0d0f12}
+.auth-smoke-texture,.auth-smoke-cold,.auth-smoke-light,.auth-smoke-cold-light,.auth-smoke-vignette{position:absolute;inset:-5%;pointer-events:none}
+.auth-smoke-texture{background:url('/assets/login-smoke-ambient.png') center/cover no-repeat;opacity:.44;mix-blend-mode:screen;animation:authSmokeDrift 34s ease-in-out infinite alternate}
+.auth-smoke-cold{inset:-7%;background:url('/assets/login-smoke-ambient.png') center/cover no-repeat;filter:grayscale(1) sepia(.18) hue-rotate(158deg) saturate(.72) brightness(.8);opacity:0;mix-blend-mode:screen;animation:authSmokeColdCycle 26s ease-in-out infinite,authSmokeColdDrift 38s ease-in-out infinite alternate}
+.auth-smoke-light,.auth-smoke-cold-light{inset:-30%;filter:blur(24px);pointer-events:none}
+.auth-smoke-light{background:radial-gradient(ellipse at 22% 48%,#e58a4b22 0,transparent 42%);opacity:.62;transform:translateX(-4%);animation:authSmokeLightCycle 26s ease-in-out infinite,authSmokeLightSweep 22s ease-in-out infinite alternate}
+.auth-smoke-cold-light{background:radial-gradient(ellipse at 22% 48%,#809ab51c 0,transparent 44%);opacity:0;animation:authSmokeColdLightCycle 26s ease-in-out infinite,authSmokeLightSweep 22s ease-in-out infinite alternate-reverse}
+.auth-smoke-vignette{inset:0;background:linear-gradient(90deg,#0d0f1240 0%,#0d0f121f 36%,#0d0f123d 100%),radial-gradient(ellipse at 52% 48%,transparent 28%,#0506078a 100%)}
+.screen-lock-overlay .auth-smoke-backdrop{position:absolute}
+.screen-lock-overlay[aria-hidden="false"]{background:rgba(7,9,12,.34);backdrop-filter:blur(2px)}
+.screen-lock-overlay{align-items:start;overflow-y:auto;overscroll-behavior:contain;padding-block:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-bottom))}
+.screen-lock-card{z-index:1;margin-block:auto}
+@keyframes authSmokeDrift{0%{transform:translate3d(-.6%,1%,0) scale(1.04)}100%{transform:translate3d(.8%,-1.4%,0) scale(1.09)}}
+@keyframes authSmokeColdCycle{0%,31%,100%{opacity:0}48%,70%{opacity:.42}84%{opacity:.18}}
+@keyframes authSmokeColdDrift{0%{transform:translate3d(1%,1%,0) scale(1.07)}100%{transform:translate3d(-1.2%,-1%,0) scale(1.13)}}
+@keyframes authSmokeLightCycle{0%,31%,100%{opacity:.62}48%,70%{opacity:.18}84%{opacity:.42}}
+@keyframes authSmokeColdLightCycle{0%,31%,100%{opacity:0}48%,70%{opacity:.48}84%{opacity:.16}}
+@keyframes authSmokeLightSweep{0%{transform:translate3d(-5%,1%,0) scale(.96)}100%{transform:translate3d(9%,-2%,0) scale(1.1)}}
+@media(max-width:760px){.auth-smoke-texture,.auth-smoke-cold{background-position:42% center}.auth-smoke-texture{opacity:.3}.auth-smoke-vignette{background:linear-gradient(0deg,#0d0f1266 0%,transparent 68%),radial-gradient(ellipse at 50% 45%,transparent 20%,#05060788 100%)}}
+@media(prefers-reduced-motion:reduce){.auth-smoke-texture,.auth-smoke-cold,.auth-smoke-light,.auth-smoke-cold-light{animation:none!important}.auth-smoke-cold,.auth-smoke-cold-light{opacity:0}.auth-smoke-light{opacity:.45;filter:blur(24px)}}

@@ -60,7 +60,7 @@ const networkVenues = [{ id: venue.id, name: venue.name, format: venue.format, c
 let currentVenueId = venue.id;
 const saasAccount = { id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', subscriptionStatus: 'trialing', seatsLimit: 5, venuesLimit: 1 };
 const saasPlans = { starter: { name: 'Starter', monthlyPrice: 0, seatsLimit: 5, venuesLimit: 1, description: 'Для первого тестового заведения' }, growth: { name: 'Growth', monthlyPrice: 0, seatsLimit: 15, venuesLimit: 3, description: 'Для растущей команды' }, network: { name: 'Network', monthlyPrice: 0, seatsLimit: 50, venuesLimit: 10, description: 'Для сети заведений' }, enterprise: { name: 'Enterprise', monthlyPrice: 0, seatsLimit: 9999, venuesLimit: 9999, description: 'Индивидуальные лимиты' } };
-const saasOrganizations = [{ id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', status: 'trialing', city: 'Тюмень', venues: 1, seats: 2, seatsLimit: 5, venuesLimit: 1, monthlyPrice: 0, createdAt: '2026-09-16T00:00:00.000Z', isActive: true }];
+const saasOrganizations = [{ id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', status: 'trialing', city: 'Тюмень', venues: 1, seats: 2, seatsLimit: 5, venuesLimit: 1, monthlyPrice: 0, createdAt: '2026-09-16T00:00:00.000Z', isActive: true, ownerName: 'Владелец организации', ownerLogin: 'owner@example.com', ownerActive: true }];
 const products = [
   { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, station: 'hookah', aliases: ['кальян', 'darkside', 'blueberry'], imageUrl: null },
   { id: 'lemonade-maracuya', name: 'Лимонад Маракуйя', price: 300, station: 'bar', aliases: ['лимонад', 'маракуйя', 'maracuya'], imageUrl: null },
@@ -196,7 +196,7 @@ const staffPassportCipher = {
 };const rolePermissions = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
   admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
-  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty'],
+  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'tasks_manage', 'settings', 'loyalty'],
   senior_bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
   bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
@@ -228,7 +228,7 @@ const normalizePermissionScopes = (value) => [...new Set((Array.isArray(value) ?
 const effectivePermissions = (user) => {
   const base = rolePermissions[user?.role] || [];
   const scopes = normalizePermissionScopes(user?.permissionScopes);
-  if (user?.role !== 'admin' || !scopes.length) return base;
+  if (!scopes.length) return base;
   const restricted = new Set(Object.values(scopedPermissionMap).flat());
   return [...new Set([...base.filter((permission) => !restricted.has(permission)), ...scopes.flatMap((scope) => scopedPermissionMap[scope] || [])])];
 };
@@ -596,9 +596,17 @@ const sessionFromRequest = async (req) => {
   const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
   if (!token) return null;
   if (process.env.DATABASE_URL || sessionRepository) {
-    if (sessionRepository) { try { const persisted = await sessionRepository.get(hashToken(token)); if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) } }; } catch (_) {} }
+    if (sessionRepository) {
+      try {
+        const persisted = await sessionRepository.get(hashToken(token));
+        if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) } };
+      } catch (_) { return null; }
+    }
     const memorySession = sessions.get(token);
-    if (memorySession) { if (Date.now() > Number(memorySession.expiresAt || memorySession.createdAt + SESSION_TTL_MS)) { sessions.delete(token); return null; } return memorySession; }
+    if (memorySession) {
+      if (Date.now() > Number(memorySession.expiresAt || memorySession.createdAt + SESSION_TTL_MS)) { sessions.delete(token); return null; }
+      return memorySession.user?.role === 'platform_owner' ? memorySession : null;
+    }
     return null;
   }
   const memorySession = sessions.get(token);
@@ -634,7 +642,9 @@ const normalizePurchaseInput = (input) => {
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 700_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && effectivePermissions(req.user).includes(permission));
 const isOperationalEmployee = (req) => ['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(String(req.user?.role || '').toLowerCase());
-const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (['admin', 'developer'].includes(req.user?.role) && !['owner', 'admin', 'developer'].includes(role));
+const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner';
+const canCreateStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (req.user?.role === 'admin' && ['senior_bartender','senior_hookah_master','bartender','hookah_master','cleaner','security','technician','other_staff'].includes(role));
+const canManageStaffTarget = (req, targetRole) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (req.user?.role === 'admin' && targetRole !== 'owner') || (req.user?.role === 'manager' && !['owner','admin','developer'].includes(targetRole));
 const canManageVenueIdentity = (req) => process.env.AUTH_REQUIRED !== 'true' || ['owner', 'admin', 'developer'].includes(req.user?.role);
 const requestOrganizationId = (req) => String(req.user?.organizationId || '').trim();
 const runFloorMutation = async (req, res, expectedVenueId, selectedVenueId, operation) => {
@@ -672,6 +682,40 @@ const requireOrganizationContext = (req, res) => {
     return true;
   }
   return false;
+};
+const loadOrganizationEntitlements = async (client, organizationId, { lock = false } = {}) => {
+  const suffix = lock ? ' FOR UPDATE OF o' : '';
+  const { rows } = await client.query(`SELECT o.id,o.is_active AS "organizationActive",s.status AS "subscriptionStatus",s.seats_limit AS "seatsLimit",s.venues_limit AS "venuesLimit"
+    FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE o.id=$1${suffix}`, [organizationId]);
+  return rows[0] || null;
+};
+const enforceOrganizationAccess = async (user) => {
+  if (!repositories?.pool || !user?.organizationId || user.role === 'platform_owner') return null;
+  try {
+    const { rows } = await repositories.pool.query(`SELECT o.is_active AS active,s.status AS "subscriptionStatus",m.status AS "membershipStatus"
+      FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id
+      LEFT JOIN organization_memberships m ON m.organization_id=o.id AND m.user_id=$2
+      WHERE o.id=$1`, [user.organizationId, user.id]);
+    const state = rows[0];
+    if (!state || state.active !== true || !['trialing','active','past_due'].includes(state.subscriptionStatus) || !['active','invited','suspended'].includes(state.membershipStatus)) return { status: 403, error: 'organization_suspended' };
+    if (state.membershipStatus !== 'active') return { status: 403, error: 'organization_membership_inactive' };
+    return null;
+  } catch (_) { return { status: 503, error: 'organization_access_unavailable' }; }
+};
+const checkOrganizationQuota = async (client, organizationId, kind) => {
+  const entitlement = await loadOrganizationEntitlements(client, organizationId, { lock: true });
+  if (!entitlement || entitlement.organizationActive !== true || !entitlement.subscriptionStatus) return { error: 'organization_unavailable', status: 403 };
+  if (entitlement.subscriptionStatus === 'cancelled') return { error: 'organization_suspended', status: 403 };
+  const isSeat = kind === 'seat';
+  const limit = Number(isSeat ? entitlement.seatsLimit : entitlement.venuesLimit);
+  if (!Number.isInteger(limit) || limit < 1) return { error: 'organization_limits_unavailable', status: 503 };
+  const table = isSeat ? 'users' : 'venues';
+  const { rows } = await client.query(isSeat
+    ? 'SELECT COUNT(*)::int AS used FROM users WHERE organization_id=$1 AND is_active=true AND deleted_at IS NULL'
+    : 'SELECT COUNT(*)::int AS used FROM venues WHERE organization_id=$1 AND is_active=true', [organizationId]);
+  const used = Number(rows[0]?.used || 0);
+  if (used >= limit) return { error: isSeat ? 'seat_limit_reached' : 'venue_limit_reached', status: 409, limit, used };
+  return { entitlement, limit, used };
 };
 const canSeeSensitiveStaff = (req) => Boolean(req.user && effectivePermissions(req.user).includes('staff_sensitive'));
 const canSeeStaffPhoto = (req) => Boolean(req.user && ['owner', 'admin', 'manager'].includes(req.user.role));
@@ -821,7 +865,12 @@ async function api(req, res) {
     if (!account && repositories?.pool) {
       try {
         const { rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",venue_id AS "venueId",full_name AS name,role,password_hash AS "passwordHash",pin_hash,pin_updated_at,preferences,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]);
-        const row = rows[0]; const credential = input.password; if (row && credential && await verifyPassword(credential, row.passwordHash)) account = { username: row.login, id: row.id, organizationId: row.organizationId || null, venueId: row.venueId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
+        const row = rows[0]; const credential = input.password; if (row && credential && await verifyPassword(credential, row.passwordHash)) {
+          if (!row.organizationId || !/^[0-9a-f-]{36}$/i.test(row.organizationId)) return json(res, 403, { error: 'organization_context_required' });
+          const accessError = await enforceOrganizationAccess({ id: row.id, organizationId: row.organizationId, role: row.role });
+          if (accessError) return json(res, accessError.status, { error: accessError.error });
+          account = { username: row.login, id: row.id, organizationId: row.organizationId || null, venueId: row.venueId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
+        }
       } catch (_) { return json(res, 503, { error: 'authentication_unavailable' }); }
     }
     if (!account) { const current = loginAttempts.get(loginKey) || { count: 0, firstAt: Date.now() }; const withinWindow = Date.now() - current.firstAt < 60_000; const next = withinWindow ? { count: current.count + 1, firstAt: current.firstAt } : { count: 1, firstAt: Date.now() }; if (next.count >= 5) next.blockedUntil = Date.now() + 60_000; loginAttempts.set(loginKey, next); return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_login_attempts' : 'invalid_credentials', ...(next.blockedUntil ? { retryAfter: 60 } : {}) }); }
@@ -860,6 +909,8 @@ async function api(req, res) {
     if (!session) return json(res, 401, { error: 'authentication_required' });
     else {
       req.user = session.user;
+      const accessError = await enforceOrganizationAccess(req.user);
+      if (accessError) return json(res, accessError.status, { error: accessError.error });
       if (req.user?.venueId && /^[0-9a-f-]{36}$/i.test(req.user.venueId)) venueDbId = req.user.venueId;
       // Refresh cookies issued before the longer session policy so an active
       // browser is not logged out simply because its old cookie reached 8 hours.
@@ -870,12 +921,12 @@ async function api(req, res) {
     if (repositories?.pool) {
       try {
         await repositories.pool.query('SELECT 1');
-        return json(res, 200, { status: 'ok', service: 'hookah-crm', database: 'postgres' });
+        return json(res, 200, { status: 'ok', service: 'hookah-pos', database: 'postgres' });
       } catch (error) {
-        return json(res, 503, { status: 'degraded', service: 'hookah-crm', database: 'unavailable' });
+        return json(res, 503, { status: 'degraded', service: 'hookah-pos', database: 'unavailable' });
       }
     }
-    return json(res, 200, { status: 'ok', service: 'hookah-crm', database: 'memory' });
+    return json(res, 200, { status: 'ok', service: 'hookah-pos', database: 'memory' });
   }
   if (pathname === '/api/session/unlock' && req.method === 'POST') {
     const input = await body(req); const pin = String(input.pin || '').trim();
@@ -1065,7 +1116,8 @@ async function api(req, res) {
           FROM organizations o
           LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE o.id=$1 LIMIT 1`, [req.user?.organizationId || saasAccount.id]);
         if (rows[0]) return json(res, 200, { ...rows[0], seatsLimit: Number(rows[0].seatsLimit), venuesLimit: Number(rows[0].venuesLimit), activeSeats: Number(rows[0].activeSeats), activeVenues: Number(rows[0].activeVenues) });
-      } catch (_) {}
+      } catch (_) { return json(res, 503, { error: 'saas_account_unavailable' }); }
+      return json(res, 404, { error: 'organization_not_found' });
     }
     const account = saasOrganizations.find((item) => item.id === req.user?.organizationId) || saasAccount;
     return json(res, 200, { ...account, subscriptionStatus: account.status || account.subscriptionStatus || 'trialing', subscriptionPlan: account.plan, activeSeats: Number(account.seats ?? staff.filter((person) => person.active).length), activeVenues: Number(account.venues ?? networkVenues.filter((item) => item.status !== 'archived').length) });
@@ -1076,12 +1128,12 @@ async function api(req, res) {
   }
   if (pathname === '/api/platform/overview' && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COUNT(*)::int AS companies, COUNT(*) FILTER (WHERE is_active=true)::int AS active_companies FROM organizations`); const subs = await repositories.pool.query(`SELECT COUNT(*)::int AS trials FROM organization_subscriptions WHERE status='trialing'`); return json(res, 200, { companies: Number(rows[0]?.companies || 0), activeCompanies: Number(rows[0]?.active_companies || 0), trials: Number(subs.rows[0]?.trials || 0) }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COUNT(*)::int AS companies, COUNT(*) FILTER (WHERE is_active=true)::int AS active_companies FROM organizations`); const subs = await repositories.pool.query(`SELECT COUNT(*)::int AS trials FROM organization_subscriptions WHERE status='trialing'`); return json(res, 200, { companies: Number(rows[0]?.companies || 0), activeCompanies: Number(rows[0]?.active_companies || 0), trials: Number(subs.rows[0]?.trials || 0) }); } catch (_) { return json(res, 503, { error: 'platform_overview_unavailable' }); } }
     return json(res, 200, { companies: saasOrganizations.length, activeCompanies: saasOrganizations.filter((item) => item.isActive).length, trials: saasOrganizations.filter((item) => item.status === 'trialing').length });
   }
   if (pathname === '/api/platform/organizations' && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,(SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,(SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS seats,(SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id ORDER BY o.created_at DESC`); return json(res, 200, { items: rows }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,(SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,(SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS seats,(SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city,(SELECT u.full_name FROM users u WHERE u.organization_id=o.id AND u.role='owner' ORDER BY u.full_name LIMIT 1) AS "ownerName",(SELECT u.login FROM users u WHERE u.organization_id=o.id AND u.role='owner' ORDER BY u.full_name LIMIT 1) AS "ownerLogin",(SELECT u.is_active FROM users u WHERE u.organization_id=o.id AND u.role='owner' ORDER BY u.full_name LIMIT 1) AS "ownerActive" FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id ORDER BY o.created_at DESC`); return json(res, 200, { items: rows }); } catch (_) { return json(res, 503, { error: 'platform_organizations_unavailable' }); } }
     return json(res, 200, { items: saasOrganizations.slice().reverse().map((item) => ({ ...item, ...(saasPlans[item.plan] || saasPlans.starter), monthlyPrice: 0 })) });
   }
   if (pathname === '/api/platform/organizations' && req.method === 'POST') {
@@ -1129,7 +1181,10 @@ async function api(req, res) {
   const platformOrgSubscription = pathname.match(/^\/api\/platform\/organizations\/([^/]+)\/subscription$/);
   if (platformOrgSubscription && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(platformOrgSubscription[1])) { try { const { rows } = await repositories.pool.query(`SELECT organization_id AS "organizationId",plan,status,billing_mode AS "billingMode",monthly_price_cents AS "monthlyPriceCents",seats_limit AS "seatsLimit",venues_limit AS "venuesLimit",trial_ends_at AS "trialEndsAt" FROM organization_subscriptions WHERE organization_id=$1`, [platformOrgSubscription[1]]); if (rows[0]) return json(res, 200, { ...rows[0], monthlyPrice: Number(rows[0].monthlyPriceCents || 0) / 100 }); } catch (_) {} }
+    if (repositories?.pool) {
+      if (!/^[0-9a-f-]{36}$/i.test(platformOrgSubscription[1])) return json(res, 404, { error: 'organization_not_found' });
+      try { const { rows } = await repositories.pool.query(`SELECT organization_id AS "organizationId",plan,status,billing_mode AS "billingMode",monthly_price_cents AS "monthlyPriceCents",seats_limit AS "seatsLimit",venues_limit AS "venuesLimit",trial_ends_at AS "trialEndsAt" FROM organization_subscriptions WHERE organization_id=$1`, [platformOrgSubscription[1]]); if (rows[0]) return json(res, 200, { ...rows[0], monthlyPrice: Number(rows[0].monthlyPriceCents || 0) / 100 }); return json(res, 404, { error: 'subscription_not_found' }); } catch (_) { return json(res, 503, { error: 'subscription_unavailable' }); }
+    }
     const item = saasOrganizations.find((entry) => entry.id === platformOrgSubscription[1]); if (!item) return json(res, 404, { error: 'organization_not_found' }); const plan = saasPlans[item.plan] || saasPlans.starter; return json(res, 200, { organizationId: item.id, plan: item.plan, status: item.status, billingMode: 'test_free', monthlyPrice: 0, seatsLimit: plan.seatsLimit, venuesLimit: plan.venuesLimit, trialEndsAt: item.trialEndsAt || null });
   }
   if (platformOrgSubscription && req.method === 'PATCH') {
@@ -1137,8 +1192,9 @@ async function api(req, res) {
     const input = await body(req);
     const organizationId = platformOrgSubscription[1];
     const planKey = String(input.plan || '');
-    const status = ['active', 'trialing', 'past_due', 'cancelled'].includes(input.status) ? input.status : undefined;
+    const status = input.status === undefined ? undefined : (['active', 'trialing', 'past_due', 'cancelled'].includes(input.status) ? input.status : null);
     if (!saasPlans[planKey]) return json(res, 400, { error: 'invalid_plan' });
+    if (status === null) return json(res, 400, { error: 'invalid_subscription_status' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(organizationId)) {
       const client = await repositories.pool.connect();
       try {
@@ -1173,12 +1229,14 @@ async function api(req, res) {
   const platformOrgPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)$/);
   if (platformOrgPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'platform')) return;
+    if (repositories?.pool) return json(res, 410, { error: 'use_subscription_endpoint' });
     const input = await body(req);
     const name = input.name === undefined ? undefined : String(input.name).trim().slice(0, 120);
     const plan = input.plan === undefined ? undefined : String(input.plan);
     if (name !== undefined && !name) return json(res, 400, { error: 'organization_name_required' });
     if (plan !== undefined && !saasPlans[plan]) return json(res, 400, { error: 'invalid_plan' });
     const organizationId = platformOrgPath[1];
+    if (repositories?.pool) return json(res, 410, { error: 'use_subscription_endpoint' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(organizationId)) {
       try {
         const beforeResult = await repositories.pool.query('SELECT id,name,plan,is_active AS "isActive" FROM organizations WHERE id=$1 LIMIT 1', [organizationId]);
@@ -1372,10 +1430,16 @@ async function api(req, res) {
     if (process.env.DATABASE_URL || repositories?.pool) {
       if (!repositories?.pool) return json(res, 503, { error: 'network_unavailable' });
       if (requireOrganizationContext(req, res)) return;
+      const client = await repositories.pool.connect();
       try {
-        const { rows } = await repositories.pool.query('INSERT INTO venues (organization_id,name,format,city,address,phone,timezone,is_current) VALUES ($1,$2,$3,$4,$5,$6,$7,false) RETURNING id,name,format,city,address,phone,timezone,is_current AS "isCurrent"', [organizationId, name, item.format, city, address, item.phone || null, item.timezone]);
+        await client.query('BEGIN');
+        const quota = await checkOrganizationQuota(client, organizationId, 'venue');
+        if (quota.error) { await client.query('ROLLBACK'); return json(res, quota.status, { error: quota.error, ...(quota.limit ? { limit: quota.limit, used: quota.used } : {}) }); }
+        const { rows } = await client.query('INSERT INTO venues (organization_id,name,format,city,address,phone,timezone,is_current) VALUES ($1,$2,$3,$4,$5,$6,$7,false) RETURNING id,name,format,city,address,phone,timezone,is_current AS "isCurrent"', [organizationId, name, item.format, city, address, item.phone || null, item.timezone]);
+        await client.query('COMMIT');
         const created = { ...rows[0], status: 'active', isCurrent: false }; recordAudit(req, 'venue.created', 'venue', created.id, null, created); return json(res, 201, created);
-      } catch (error) { return json(res, 409, { error: 'venue_create_failed', detail: error.message }); }
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 503, { error: 'venue_create_failed' }); }
+      finally { client.release(); }
     }
     networkVenues.push(item); recordAudit(req, 'venue.created', 'venue', item.id, null, item); return json(res, 201, item);
   }
@@ -2362,12 +2426,11 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const nonCrmRole = ['cleaner','security','technician','other_staff'].includes(input.role);
     if (!nonCrmRole && !input.password) return json(res, 400, { error: 'password_required' });
     if (!nonCrmRole && input.password !== undefined && (String(input.password).length < 4 || String(input.password).length > 11)) return json(res, 400, { error: 'password_length_invalid' });
-        if (!canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
+        if (!canCreateStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
     const requestedScopes = normalizePermissionScopes(input.permissionScopes);
     if (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || requestedScopes.length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
     if (input.permissionScopes !== undefined && process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'permission_scopes_owner_required' });
-    if (input.permissionScopes !== undefined && input.role !== 'admin') return json(res, 400, { error: 'permission_scopes_admin_only' });
-    const assignedScopes = input.role === 'admin' ? requestedScopes : [];
+    const assignedScopes = input.permissionScopes === undefined ? [] : requestedScopes;
     if (!validBirthDate(input.birthDate)) return json(res, 400, { error: 'birth_date_required' });
     if (!validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
     if (input.workNotes !== undefined && String(input.workNotes).length > 4000) return json(res, 400, { error: 'work_notes_too_long' });
@@ -2381,7 +2444,36 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const createdPassport = input.passportData !== undefined ? staffPassportCipher.encrypt(input.passportData) : null;
     if (input.passportData !== undefined && !canSeeSensitiveStaff(req)) return json(res, 403, { error: 'sensitive_staff_permission_required' });
     if (input.passportData !== undefined && !createdPassport) return json(res, 503, { error: 'staff_passport_key_required' });
-    if (repositories?.pool) { try { const login = nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`); const passwordHash = nonCrmRole ? null : await hashPassword(input.password); let rows; try { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,password_hash,pin_hash,role,permission_scopes,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,NULL,$5,$6::jsonb,$7,$8,$9::date,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } catch (_) { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,password_hash,pin_hash,role,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,NULL,$5,$6,$7,$8::date,$9,$10::jsonb,$11,$12,$13,$14,$15) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) }; if (!canSeeStaffPhoto(req)) delete result.photoUrl; recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result); } catch (error) { console.error('staff create failed:', error.message); return json(res, 409, { error: 'staff_create_failed', detail: error.message }); } }
+    if (repositories?.pool) {
+      const organizationId = requestOrganizationId(req);
+      if (!/^[0-9a-f-]{36}$/i.test(organizationId)) return json(res, 403, { error: 'organization_context_required' });
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const quota = await checkOrganizationQuota(client, organizationId, 'seat');
+        if (quota.error) { await client.query('ROLLBACK'); return json(res, quota.status, { error: quota.error, ...(quota.limit ? { limit: quota.limit, used: quota.used } : {}) }); }
+        const venueCheck = await client.query('SELECT id FROM venues WHERE id=$1 AND organization_id=$2 AND is_active=true FOR UPDATE', [venueDbId, organizationId]);
+        if (!venueCheck.rows[0]) { await client.query('ROLLBACK'); return json(res, 403, { error: 'venue_not_in_organization' }); }
+        const login = nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`);
+        const passwordHash = nonCrmRole ? null : await hashPassword(input.password);
+        const insert = async (legacySchema = false) => client.query(legacySchema
+          ? `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9::date,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`
+          : `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,permission_scopes,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7::jsonb,$8,$9,$10::date,$11,$12::jsonb,$13,$14,$15,$16,$17) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`,
+          legacySchema
+            ? [venueDbId, organizationId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null]
+            : [venueDbId, organizationId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null]);
+        let rows;
+        try { ({ rows } = await insert()); }
+        catch (error) { if (error.code !== '42703' && error.code !== '42704') throw error; ({ rows } = await insert(true)); }
+        const membershipRole = input.role === 'admin' ? 'admin' : 'member';
+        await client.query(`INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,$3,'active') ON CONFLICT (organization_id,user_id) DO UPDATE SET membership_role=EXCLUDED.membership_role,status='active'`, [organizationId, rows[0].id, membershipRole]);
+        await client.query('COMMIT');
+        const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) };
+        if (!canSeeStaffPhoto(req)) delete result.photoUrl;
+        recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'staff_create_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
     const person = { id: `u-${Date.now()}`, name: input.name, login: nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`), passwordHash: nonCrmRole ? null : await hashPassword(input.password), role: input.role, active: true, avatarUrl: input.avatarUrl || null, photoUrl: input.photoUrl || null, birthDate: input.birthDate, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: null, pinConfigured: false, pinUpdatedAt: null };
     staff.push(person);
     const { passwordHash, ...publicPerson } = person;
@@ -2393,8 +2485,25 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req); if (typeof input.active !== 'boolean') return json(res, 400, { error: 'active_boolean_required' });
     if (String(req.user?.id || '') === staffStatus[1] && !input.active) return json(res, 409, { error: 'self_deactivation_forbidden' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffStatus[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET is_active=$1 WHERE id=$2 AND venue_id=$3 AND role <> 'owner' AND deleted_at IS NULL RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [input.active, staffStatus[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', rows[0].id, { active: !input.active }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_status_update_failed', detail: error.message }); } }
-    const person = staff.find((entry) => entry.id === staffStatus[1]); if (!person || person.role === 'owner' || person.deletedAt) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); const before = { active: person.active }; person.active = input.active; recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', person.id, before, { active: person.active }); return json(res, 200, person);
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffStatus[1])) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const current = await client.query(`SELECT id,organization_id AS "organizationId",is_active AS active FROM users WHERE id=$1 AND venue_id=$2 AND role <> 'owner' AND deleted_at IS NULL`, [staffStatus[1], venueDbId]);
+        if (!current.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); }
+        const person = current.rows[0];
+        if (input.active && !person.active) {
+          const quota = await checkOrganizationQuota(client, person.organizationId || requestOrganizationId(req), 'seat');
+          if (quota.error) { await client.query('ROLLBACK'); return json(res, quota.status, { error: quota.error, ...(quota.limit ? { limit: quota.limit, used: quota.used } : {}) }); }
+        }
+        const locked = await client.query(`SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND role <> 'owner' AND deleted_at IS NULL FOR UPDATE`, [staffStatus[1], venueDbId]);
+        if (!locked.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); }
+        const { rows } = await client.query(`UPDATE users SET is_active=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [input.active, staffStatus[1], venueDbId]);
+        await client.query('COMMIT'); recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', rows[0].id, { active: !input.active }, rows[0]); return json(res, 200, rows[0]);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'staff_status_update_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
+    const person = staff.find((entry) => entry.id === staffStatus[1]); if (!person || person.role === 'owner' || person.deletedAt) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); if (!canManageStaffTarget(req, person.role)) return json(res, 403, { error: 'staff_management_required' }); const before = { active: person.active }; person.active = input.active; recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', person.id, before, { active: person.active }); return json(res, 200, person);
   }
   const staffDelete = pathname.match(/^\/api\/staff\/([^/]+)$/);
   if (staffDelete && req.method === 'DELETE') {
@@ -2518,7 +2627,7 @@ if (staffProfile && req.method === 'PATCH') {
     } catch (_) {}
   }
   if (!before) return json(res, 404, { error: 'staff_not_found' });
-  if (before.role === 'owner' && req.user?.role !== 'owner') return json(res, 403, { error: 'owner_staff_protected' });
+  if (!canManageStaffTarget(req, before.role)) return json(res, 403, { error: before.role === 'owner' ? 'owner_staff_protected' : 'staff_management_required' });
   const auditBefore = { ...before, phoneNumbers: Array.isArray(before.phoneNumbers) ? before.phoneNumbers.map((phone) => ({ ...phone })) : [] };
   if (!canManageSensitive) delete auditBefore.passportData;
   if (input.name !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
@@ -2528,7 +2637,6 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.role !== undefined && !canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
   if (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || normalizePermissionScopes(input.permissionScopes).length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
   if (input.permissionScopes !== undefined && process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'permission_scopes_owner_required' });
-  if (input.permissionScopes !== undefined && before.role !== 'admin') return json(res, 400, { error: 'permission_scopes_admin_only' });
   if (input.employmentStartedAt !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.birthDate !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.workNotes !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
@@ -4257,18 +4365,48 @@ function staticFile(req, res) {
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
-    '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg',
+    '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg', '/assets/login-smoke-ambient.png',
+    '/assets/login-smoke-preview-watermarked.mp4', '/auth-smoke-preview.css', '/auth-smoke.js',
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
+  const isSmokePreview = requestPath === '/assets/login-smoke-preview-watermarked.mp4';
+  const smokePreviewEnabled = process.env.AUTH_SMOKE_PREVIEW_ENABLED === 'true' && process.env.NODE_ENV !== 'production';
+  if (isSmokePreview && !smokePreviewEnabled) { res.writeHead(404); return res.end('Not found'); }
   if (!publicFiles.has(requestPath)) { res.writeHead(404); return res.end('Not found'); }
   if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end(); }
-  const file = path.resolve(root, `.${requestPath}`);
+  const localPreviewFiles = { '/assets/login-smoke-preview-watermarked.mp4': 'tmp/auth-preview/login-smoke-preview-watermarked.mp4' };
+  const file = path.resolve(root, localPreviewFiles[requestPath] || `.${requestPath}`);
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
   if (relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(404); return res.end('Not found'); }
-  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf' };
-  const headers = { 'Content-Type': `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.mp4': 'video/mp4', '.ttf': 'font/ttf' };
+  const isVideo = path.extname(file) === '.mp4';
+  const headers = { 'Content-Type': isVideo ? 'video/mp4' : `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+  if (isVideo) {
+    const size = fs.statSync(file).size;
+    headers['Accept-Ranges'] = 'bytes';
+    headers['Content-Length'] = String(size);
+    const range = req.headers.range;
+    if (range && req.method === 'GET') {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (!match || (!match[1] && !match[2])) {
+        res.writeHead(416, { ...headers, 'Content-Length': '0', 'Content-Range': `bytes */${size}` });
+        return res.end();
+      }
+      const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+      const end = match[1] ? (match[2] ? Number(match[2]) : size - 1) : size - 1;
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size) {
+        res.writeHead(416, { ...headers, 'Content-Length': '0', 'Content-Range': `bytes */${size}` });
+        return res.end();
+      }
+      const last = Math.min(end, size - 1);
+      headers['Content-Range'] = `bytes ${start}-${last}/${size}`;
+      headers['Content-Length'] = String(last - start + 1);
+      res.writeHead(206, headers);
+      return fs.createReadStream(file, { start, end: last }).pipe(res);
+    }
+  }
   // The login document contains the initial setup form as a hidden alternative;
   // never let a browser keep an older first-run document after a local release.
   if (requestPath === '/login.html') headers['Cache-Control'] = 'no-store';
