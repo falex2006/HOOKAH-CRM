@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const app = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 const portal = await readFile(new URL('../portal.js', import.meta.url), 'utf8');
 assert.doesNotMatch(app, /mode-switch-menu|crm_workspace_mode\.setItem|crm_workspace_mode\.getItem|\?operator=/);
-assert.match(app, /fetch\('\/api\/session'/);
+assert.match(app, /staffFetchJson\('\/api\/session'\)/);
 assert.match(app, /applyStaffHeader\(actor\)/);
 assert.doesNotMatch(portal, /mode-switch-menu|staff-workspace|href: '\/\?mode=/);
 assert.match(portal, /floor: '\/'/);

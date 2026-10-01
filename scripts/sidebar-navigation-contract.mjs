@@ -82,7 +82,7 @@ assert.match(portal, /ensureAreaGroup\('finance', 'Финансы',[\s\S]*href: 
   'all finance destinations must render consistently as one navigation group');
 assert.match(portal, /selectors = \{ inventory: 'a\[data-navigation-module="inventory"\]', finance: 'a\[data-navigation-module="finance"\]' \}/,
   'interface preferences must control all child links, not only the parent route');
-assert.match(portal, /link\.hidden = !portalPermissions\.has\(permission\) \|\| navigation\[name\] === false;[\s\S]*refreshSidebarGroups\(\)/,
+assert.match(portal, /link\.hidden = !hasPortalLinkPermission\(link, permission\) \|\| navigation\[name\] === false;[\s\S]*refreshSidebarGroups\(\)/,
   'menu preference and role permission must both hide links and empty disclosure headings');
 assert.match(portal, /window\.__applyInterfacePreferences\?\.\(\);/,
   'sidebar normalization must reapply preference visibility after replacing child links');
