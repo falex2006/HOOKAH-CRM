@@ -737,7 +737,6 @@ const notificationAccess = (req) => {
     discounts: (unrestricted || ['owner', 'admin'].includes(role)) && hasPermission(req, 'finance_read') && hasPermission(req, 'orders'),
     autoOrders: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'inventory_read'),
     deletedOrders: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'orders'),
-    staffPins: (unrestricted || ['owner', 'admin'].includes(role)) && (hasPermission(req, 'staff_view') || hasPermission(req, 'staff')),
   };
 };
 async function collectNotificationEvents(req, venueId, limit = 100) {
@@ -757,9 +756,6 @@ async function collectNotificationEvents(req, venueId, limit = 100) {
     if (access.deletedOrders) queries.push(repositories.pool.query(`SELECT 'order_deleted:'||e.id::text AS id,'order_deleted' AS type,'Заказ удалён' AS title,'Проверьте событие в журнале заказов' AS summary,e.created_at AS "createdAt",e.entity_id AS "orderId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/orders' AS href,false AS "requiresAction"
       FROM audit_events e LEFT JOIN notification_reads r ON r.venue_id=e.venue_id AND r.user_id=$2 AND r.notification_key='order_deleted:'||e.id::text
       WHERE e.venue_id=$1 AND e.action='order.deleted' ORDER BY e.created_at DESC LIMIT $3`, [venueId, userId, limit]));
-    if (access.staffPins) queries.push(repositories.pool.query(`SELECT 'staff_pin_updated:'||e.id::text AS id,'staff_pin_updated' AS type,'PIN сотрудника обновлён','PIN не отображается в уведомлении' AS summary,e.created_at AS "createdAt",e.entity_id AS "staffId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/admin' AS href,false AS "requiresAction"
-      FROM audit_events e LEFT JOIN users u ON u.id=e.entity_id AND u.venue_id=e.venue_id LEFT JOIN notification_reads r ON r.venue_id=e.venue_id AND r.user_id=$2 AND r.notification_key='staff_pin_updated:'||e.id::text
-      WHERE e.venue_id=$1 AND e.action='staff.pin_updated' AND (u.id IS NULL OR (u.is_active=true AND u.deleted_at IS NULL)) ORDER BY e.created_at DESC LIMIT $3`, [venueId, userId, limit]));
     const results = await Promise.all(queries);
     for (const result of results) {
       unreadCount += Number(result.rows[0]?.sourceUnreadCount || 0);
@@ -770,11 +766,11 @@ async function collectNotificationEvents(req, venueId, limit = 100) {
     const recipientMatches = (item, roles) => !item.notificationRecipients?.length || !req.user?.role || (roles || item.notificationRecipients).includes(req.user.role);
     if (access.discounts) items.push(...discountRequests.filter((item) => venueMatches(item) && item.status === 'requested' && recipientMatches(item, ['owner', 'admin'])).map((item) => ({ id: `discount:${item.id}`, type: 'discount', title: 'Запрошена скидка', summary: 'Запрос ожидает решения', createdAt: item.createdAt, orderId: item.orderId, href: '/orders', requiresAction: true })));
     if (access.autoOrders) items.push(...autoOrderRequests.filter((item) => venueMatches(item) && item.status === 'sent' && recipientMatches(item, ['owner', 'admin', 'manager'])).map((item) => ({ id: `inventory_auto_order:${String(item.id).replace(/^auto-order:/, '')}`, type: 'inventory_auto_order', title: 'Заявка на пополнение', summary: 'Заявка отправлена и ожидает обработки', createdAt: item.createdAt, autoOrderId: item.id, href: '/inventory?view=auto-orders', requiresAction: false })));
-    if (access.deletedOrders || access.staffPins) items.push(...staffNotifications.filter((item) => venueMatches(item) && ((access.deletedOrders && item.type === 'order_deleted' && recipientMatches(item, ['owner', 'admin', 'manager'])) || (access.staffPins && item.type === 'staff_pin_updated' && recipientMatches(item, ['owner', 'admin'])))).map((item) => ({ id: `${item.type}:${item.id}`, type: item.type, title: item.type === 'order_deleted' ? 'Заказ удалён' : 'PIN сотрудника обновлён', summary: item.type === 'order_deleted' ? 'Проверьте событие в журнале заказов' : 'PIN не отображается в уведомлении', createdAt: item.createdAt, ...(item.orderId ? { orderId: item.orderId } : {}), ...(item.staffId ? { staffId: item.staffId } : {}), href: item.type === 'order_deleted' ? '/orders' : '/admin', requiresAction: false })));
+    if (access.deletedOrders) items.push(...staffNotifications.filter((item) => venueMatches(item) && item.type === 'order_deleted' && recipientMatches(item, ['owner', 'admin', 'manager'])).map((item) => ({ id: `${item.type}:${item.id}`, type: item.type, title: 'Заказ удалён', summary: 'Проверьте событие в журнале заказов', createdAt: item.createdAt, ...(item.orderId ? { orderId: item.orderId } : {}), href: '/orders', requiresAction: false })));
     items.forEach((item) => { const key = `${venueId}:${userId}:${item.id}`; item.readAt = notificationMemoryReads.get(key) || null; });
     unreadCount = items.filter((item) => !item.readAt).length;
   }
-  items.sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0) || String(right.id).localeCompare(String(left.id)));
+  items.sort((left, right) => Number(Boolean(right.requiresAction)) - Number(Boolean(left.requiresAction)) || new Date(right.createdAt || 0) - new Date(left.createdAt || 0) || String(right.id).localeCompare(String(left.id)));
   return { items, unreadCount };
 }
 const employeeNeedsShift = (req) => process.env.AUTH_REQUIRED === 'true' && ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'staff', 'manager'].includes(req.user?.role);
