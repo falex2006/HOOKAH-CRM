@@ -10,7 +10,8 @@ assert.match(summaryRoute,/const requestedDate = url\.searchParams\.get\('date'\
 assert.match(summaryRoute,/if \(employeeFinanceView \|\| !requestedDate\) date = context\.date/);
 assert.match(summaryRoute,/o\.opened_by=\$2[\s\S]*p\.created_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)[\s\S]*p\.status IN/);
 assert.match(reportRoute,/if \(employeeFinanceView && repositories\?\.pool\)/);
-assert.match(reportRoute,/o\.opened_by=\$2[\s\S]*o\.closed_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)[\s\S]*p\.status IN/);
+assert.match(reportRoute,/o\.opened_by=\$2[\s\S]*p\.created_at >= \(\$3::date::timestamp AT TIME ZONE \$4\)[\s\S]*p\.status IN/);
+assert.match(reportRoute,/SELECT COUNT\(\*\)::int FROM orders o WHERE o\.venue_id=\$1 AND o\.opened_by=\$2 AND o\.status='closed' AND o\.closed_at >=/, 'closed checks are counted separately from receipt totals');
 assert.doesNotMatch(reportRoute,/\$4::boolean=false OR o\.opened_by=\$5/);
 assert.match(reportRoute,/const itemRows = await repositories\.pool\.query\(`SELECT oi\.order_id AS "orderId"[\s\S]*o\.closed_at >= \(\$2::date::timestamp AT TIME ZONE \$3\)/);
 assert.match(server,/const paidOrderAmount = \(order\) => \(order\.payments \|\| \[\]\)\.filter\(\(payment\) => \['paid', 'partially_paid'\]\.includes\(payment\.status\)\)/);
@@ -21,7 +22,7 @@ assert.match(reportRoute,/\['paid', 'partially_paid'\]\.includes\(payment\.statu
   assert.match(reportRoute,/else if \(!employeeFinanceView\) \{ const amount = order\.finalTotal !== undefined && order\.finalTotal !== null \? Number\(order\.finalTotal\) : Number\(orderNetTotal\(order\)\)/);
 assert.match(server,/const target = \{ id: `ord-\$\{Date\.now\(\)\}`, tableId: source\.tableId, status: 'open', items: moved,[\s\S]*openedBy: source\.openedBy \|\| source\.openedById \|\| null/);
 assert.ok(finance.indexOf('if (employeeFinanceView)') < finance.indexOf('Динамика показателей'));
-assert.match(finance,/МОЯ СМЕНА[\s\S]*Оборот заказов, открытых вами сегодня[\s\S]*return;/);
-assert.match(finance,/оплаченных заказов, которые вы открыли за сегодня/);
+assert.match(finance,/МОЯ СМЕНА[\s\S]*Платежи по вашим заказам сегодня[\s\S]*return;/);
+assert.match(finance,/Поступившие сегодня платежи по вашим заказам, включая частичные оплаты/);
 assert.doesNotMatch(finance.slice(0,finance.indexOf('if (employeeFinanceView)')),/finance-total-expenses/);
 console.log('EMPLOYEE FINANCE VISIBILITY CONTRACT: PASS (today-only turnover limited to orders opened by employee; venue-local date; minimal response)');

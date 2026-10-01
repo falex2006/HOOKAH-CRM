@@ -5,10 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '369';
-const portalRevision = '417';
+const cssRevision = '371';
+const portalRevision = '420';
 const lockRevision = '22';
-const appRevision = '175';
+const appRevision = '176';
+const platformRevision = '5';
 const staffProfileRevision = '6';
 const loginRevision = '97';
 const authSmokeRevision = '3';
@@ -59,6 +60,7 @@ for (const path of htmlFiles) {
     .replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`)
     .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)
     .replace(/app\.js\?rev=\d+/g, `app.js?rev=${appRevision}`)
+    .replace(/platform\.js\?rev=\d+/g, `platform.js?rev=${platformRevision}`)
     .replace(/(<script\s+src="\/?(?:portal|app)\.js\?rev=\d+"[^>]*>)/g,(tag,_,offset,html)=>html.slice(0,offset).includes('notification-center.js?rev=1')?tag:'<script src="/notification-center.js?rev=1"></script>'+tag)
     .replace(/staff-profile\.js\?rev=\d+/g, `staff-profile.js?rev=${staffProfileRevision}`)
     .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`)
@@ -72,6 +74,7 @@ cpSync(resolve(root, 'notification-center.js'), resolve(root, 'dist', 'notificat
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
+cpSync(resolve(root, 'platform.js'), resolve(root, 'dist', 'platform.js'));
 cpSync(resolve(root, 'staff-telegram-link.js'), resolve(root, 'dist', 'staff-telegram-link.js'));
 cpSync(resolve(root, 'vip-deposit-ui.js'), resolve(root, 'dist', 'vip-deposit-ui.js'));
 cpSync(resolve(root, 'staff-profile.js'), resolve(root, 'dist', 'staff-profile.js'));

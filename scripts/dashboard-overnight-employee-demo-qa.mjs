@@ -59,30 +59,32 @@ assert.deepEqual(shiftBranch(actor, new Set(['orders', 'floor', 'finance_read'])
 assert.deepEqual(shiftBranch({ role: 'admin' }, new Set(['orders', 'floor']), { shift: demoShift }, '/api/shifts', 'GET').current,
   { id: demoShift.id, openedAt: demoShift.openedAt, closedAt: null, openingCash: 120 }, 'orders-only admin sees operational shift state');
 assert.throws(() => shiftBranch({ role: 'admin' }, new Set(['settings']), { shift: demoShift }, '/api/shifts', 'GET'), /403/, 'settings-only admin cannot read shift');
-const notificationStart = portal.indexOf("  if (path === '/api/notifications' && method === 'GET')");
+const notificationStart = portal.indexOf('  const demoNotificationReadPath =');
 const notificationEnd = portal.indexOf('  const discountDecision =', notificationStart + 1);
 assert.ok(notificationStart >= 0 && notificationEnd > notificationStart, 'demo notification branch exists');
-const notificationBranch = new Function('portalUser', 'portalPermissions', 'localStorage', 'demoSelectedVenue', 'demoDefaultVenue', 'path', 'method',
+const notificationBranch = new Function('portalUser', 'portalPermissions', 'localStorage', 'demoSelectedVenue', 'demoState', 'url', 'window', 'path', 'method',
   `${portal.slice(notificationStart, notificationEnd)}\nreturn null;`);
 const notificationRecords = [
   { id: 'inventory', venueId: 'demo-venue-territory', type: 'inventory_auto_order', totalEstimate: 123, notificationRecipients: ['admin'] },
   { id: 'deleted', venueId: 'demo-venue-territory', type: 'order_deleted', totalCost: 456, deletedItems: [{ unitCost: 456 }], notificationRecipients: ['admin'] },
   { id: 'staff', venueId: 'demo-venue-territory', type: 'staff_pin_updated', staffName: 'QA', notificationRecipients: ['admin'] },
 ];
-const notificationStorage = { getItem: () => JSON.stringify(notificationRecords) };
+const notificationStorage = { getItem: (key) => key === 'territory_crm_staff_notifications' ? JSON.stringify(notificationRecords) : null };
 const defaultVenue = { id: 'demo-venue-territory' };
-const readDefaultNotices = (user, permissions, storage = notificationStorage) => notificationBranch(user, permissions, storage, () => defaultVenue, defaultVenue, '/api/notifications', 'GET');
+const notificationDemo = { inventoryAutoOrders: [{ id:'inventory',venueId:defaultVenue.id,status:'sent' }], discounts:[] };
+const readNotices = (user, permissions, storage, selectedVenue) => notificationBranch(user, permissions, storage, () => selectedVenue, notificationDemo, '/api/notifications', {location:{origin:'http://localhost'}}, '/api/notifications', 'GET');
+const readDefaultNotices = (user, permissions, storage = notificationStorage) => readNotices(user, permissions, storage, defaultVenue);
 assert.throws(() => readDefaultNotices({ role: 'admin' }, new Set(['settings'])), /403/, 'settings-only demo notifications are forbidden');
 assert.throws(() => readDefaultNotices(actor, new Set(['orders', 'finance_read'])), /403/, 'operational demo user cannot read manager notifications');
-assert.deepEqual(readDefaultNotices({ role: 'admin' }, new Set(['inventory_read'])).items.map((item) => item.id), ['inventory'], 'inventory-only demo receives only stock event');
+assert.deepEqual(readDefaultNotices({ role: 'admin' }, new Set(['inventory_read'])).items.map((item) => item.id), ['inventory_auto_order:inventory'], 'inventory-only demo receives only stock event');
 const orderNotice = readDefaultNotices({ role: 'admin' }, new Set(['orders'])).items;
-assert.deepEqual(orderNotice.map((item) => item.id), ['deleted'], 'orders-only demo receives only deletion event');
+assert.deepEqual(orderNotice.map((item) => item.id), ['order_deleted:deleted'], 'orders-only demo receives only deletion event');
 assert.equal(Object.hasOwn(orderNotice[0], 'totalCost'), false, 'orders-only demo deletion hides cost');
 assert.equal(Object.hasOwn(orderNotice[0], 'deletedItems'), false, 'orders-only demo deletion hides item costs');
-const twoVenueStorage = { getItem: () => JSON.stringify([{ id: 'first', venueId: defaultVenue.id, type: 'order_deleted', notificationRecipients: ['admin'] }, { id: 'second', venueId: 'venue-two', type: 'order_deleted', notificationRecipients: ['admin'] }]) };
-assert.deepEqual(readDefaultNotices({ role: 'admin' }, new Set(['orders']), twoVenueStorage).items.map((item) => item.id), ['first'], 'default demo venue excludes another venue event');
-assert.deepEqual(notificationBranch({ role: 'admin' }, new Set(['orders']), twoVenueStorage, () => ({ id: 'venue-two' }), defaultVenue, '/api/notifications', 'GET').items.map((item) => item.id), ['second'], 'second demo venue excludes default venue event');
-assert.deepEqual(readDefaultNotices({ role: 'admin' }, new Set(['orders']), { getItem: () => JSON.stringify([{ id: 'legacy', type: 'order_deleted', notificationRecipients: ['admin'] }]) }).items, [], 'untagged legacy event is hidden when its venue cannot be proven');
+const twoVenueStorage = { getItem: key => key === 'territory_crm_staff_notifications' ? JSON.stringify([{ id: 'first', venueId: defaultVenue.id, type: 'order_deleted', notificationRecipients: ['admin'] }, { id: 'second', venueId: 'venue-two', type: 'order_deleted', notificationRecipients: ['admin'] }]) : null };
+assert.deepEqual(readDefaultNotices({ role: 'admin' }, new Set(['orders']), twoVenueStorage).items.map((item) => item.id), ['order_deleted:first'], 'default demo venue excludes another venue event');
+assert.deepEqual(readNotices({ role: 'admin' }, new Set(['orders']), twoVenueStorage, { id:'venue-two' }).items.map((item) => item.id), ['order_deleted:second'], 'second demo venue excludes default venue event');
+assert.deepEqual(readDefaultNotices({ role: 'admin' }, new Set(['orders']), { getItem: key => key === 'territory_crm_staff_notifications' ? JSON.stringify([{ id: 'legacy', type: 'order_deleted', notificationRecipients: ['admin'] }]) : null }).items, [], 'untagged legacy event is hidden when its venue cannot be proven');
 const staffStart = portal.indexOf("  if (path === '/api/staff' && method === 'GET')");
 const staffEnd = portal.indexOf("  if (path === '/api/staff' && method === 'POST')", staffStart + 1);
 assert.ok(staffStart >= 0 && staffEnd > staffStart, 'demo staff permission branch exists');

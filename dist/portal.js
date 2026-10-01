@@ -1,6 +1,6 @@
 if (!localStorage.getItem('crm_session_token')) { window.location.replace('/login'); throw new Error('authentication_required'); }
 let portalUser = {};
-try { portalUser = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); if (!['owner', 'admin', 'developer', 'manager', 'bartender', 'hookah_master', 'staff'].includes(portalUser.role)) { window.location.replace('/'); throw new Error('portal_permission_required'); }  } catch (error) { if (error.message === 'portal_permission_required' || error.message === 'developer_dashboard_redirect') throw error; }
+try { portalUser = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); if (!['owner', 'admin', 'developer', 'manager', 'bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'cleaner', 'security', 'technician', 'other_staff', 'staff'].includes(portalUser.role)) { window.location.replace('/'); throw new Error('portal_permission_required'); }  } catch (error) { if (error.message === 'portal_permission_required' || error.message === 'developer_dashboard_redirect') throw error; }
 const compressUploadedImage = (file, maxSide = 256) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onerror = reject; reader.onload = () => { const image = new Image(); image.onerror = reject; image.onload = () => { const sourceWidth = image.naturalWidth || image.width; const sourceHeight = image.naturalHeight || image.height; const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight)); const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(sourceWidth * scale)); canvas.height = Math.max(1, Math.round(sourceHeight * scale)); canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); resolve(canvas.toDataURL('image/webp', 0.78)); }; image.src = String(reader.result || ''); }; reader.readAsDataURL(file); });
 const themeIdentity = String(portalUser.id || portalUser.login || portalUser.name || portalUser.role || 'user').toLowerCase().replace(/[^a-z0-9а-яё_-]+/gi, '_');const russianTimezoneOptions = () => [['Europe/Kaliningrad','Калининградская область (UTC+02:00)'],['Europe/Moscow','Москва, Санкт-Петербург, Центральная Россия (UTC+03:00)'],['Europe/Samara','Самарская область, Удмуртия, Саратовская область (UTC+04:00)'],['Asia/Yekaterinburg','Свердловская, Тюменская, Челябинская области, Пермский край (UTC+05:00)'],['Asia/Omsk','Омская область (UTC+06:00)'],['Asia/Novosibirsk','Новосибирская, Томская, Кемеровская области (UTC+07:00)'],['Asia/Krasnoyarsk','Красноярский край, Хакасия, Тыва (UTC+07:00)'],['Asia/Irkutsk','Иркутская область, Бурятия (UTC+08:00)'],['Asia/Chita','Забайкальский край (UTC+09:00)'],['Asia/Yakutsk','Якутия (UTC+09:00)'],['Asia/Vladivostok','Приморский и Хабаровский края (UTC+10:00)'],['Asia/Magadan','Магаданская область, Сахалин (UTC+11:00)'],['Asia/Anadyr','Чукотский автономный округ (UTC+12:00)'],['Asia/Kamchatka','Камчатский край (UTC+12:00)']].map(([value,label]) => `<option value="${value}">${label}</option>`).join('');
 const themeStorageKey = `crm_theme_${themeIdentity}`;
@@ -8,6 +8,9 @@ const applyPortalTheme = (theme) => { const selected = theme === 'light' ? 'ligh
 let portalTheme = 'dark';
 try { portalTheme = applyPortalTheme(localStorage.getItem(themeStorageKey) || 'dark'); } catch (_) { portalTheme = applyPortalTheme('dark'); }
 const portalRoleLabels = { owner: ['Администратор', 'Владелец системы'], admin: ['Администратор', 'Владелец заведения'], developer: ['Разработчик', 'Полный доступ к CRM'], manager: ['Управляющий', 'Операционное управление'], bartender: ['Бармен', 'Работа с заказами и гостями'], hookah_master: ['Кальянщик', 'Работа с заказами и гостями'], staff: ['Сотрудник', 'Работа с гостями'] };
+portalRoleLabels.senior_bartender = ['Старший бармен', 'Работа с заказами и гостями'];
+portalRoleLabels.senior_hookah_master = ['Старший кальянщик', 'Работа с заказами и гостями'];
+Object.assign(portalRoleLabels, { cleaner: ['Уборщица / уборщик', 'Рабочие поручения'], security: ['Охрана', 'Рабочие поручения'], technician: ['Техник', 'Рабочие поручения'], other_staff: ['Другая должность', 'Рабочие поручения'] });
 const portalRole = portalRoleLabels[portalUser.role] || ['Пользователь', 'Ограниченный доступ'];
 const localDateKey = (value = new Date()) => { const raw = String(value || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw; const date = value instanceof Date ? value : new Date(value); if (Number.isNaN(date.getTime())) return raw.slice(0, 10); return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-'); };
 function getDashboardGreetingForHour(hour) { const value = Number(hour); if (!Number.isInteger(value) || value < 0 || value > 23) return 'Здравствуйте'; if (value >= 5 && value < 12) return 'Доброе утро'; if (value >= 12 && value < 18) return 'Добрый день'; if (value >= 18 && value < 22) return 'Добрый вечер'; return 'Доброй ночи'; }
@@ -31,10 +34,10 @@ const portalBasePermissions = {
   hookah_master: new Set(['dashboard', 'floor', 'orders', 'hookah_tasks', 'finance_read']),
   senior_bartender: new Set(['dashboard', 'floor', 'orders', 'bar_tasks', 'finance_read']),
   senior_hookah_master: new Set(['dashboard', 'floor', 'orders', 'hookah_tasks', 'finance_read']),
-  cleaner: new Set(['dashboard', 'floor', 'orders', 'finance_read']),
-  security: new Set(['dashboard', 'floor', 'orders', 'finance_read']),
-  technician: new Set(['dashboard', 'floor', 'orders', 'finance_read']),
-  other_staff: new Set(['dashboard', 'floor', 'orders', 'finance_read']),
+  cleaner: new Set(['finance_read']),
+  security: new Set(['finance_read']),
+  technician: new Set(['finance_read']),
+  other_staff: new Set(['finance_read']),
   staff: new Set(['dashboard', 'floor', 'orders', 'finance_read', 'staff_view']),
   developer: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'tasks_manage', 'settings', 'diagnostics', 'integrations', 'delivery'])
 }[portalUser.role] || new Set();
@@ -181,6 +184,9 @@ const normalizeManagementSidebar = () => {
     { href: '/clients', permission: 'staff_view', label: 'Гости', iconName: 'users' },
     { href: '/delivery', permission: 'delivery', label: 'Доставка', iconName: 'truck-delivery' },
   ];
+  if (!adminNavigationAllowed && ['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(portalUser.role)) {
+    operationLinks.push({ href: '/admin#tasks', permission: 'orders', label: 'Задачи', iconName: 'list-check' });
+  }
   operationLinks.forEach((item) => {
     let link = operations.querySelector(`a[href="${item.href}"]`);
     if (!link) { link = makeLink(item); operations.append(link); }
@@ -748,6 +754,8 @@ const demoJson = async (url, options = {}) => {
   }
   if (path === '/api/clients' && method === 'GET') { const query = String(new URL(url, window.location.origin).searchParams.get('q') || '').trim().toLowerCase(); return { items: demoState.clients.filter((client) => !client.archivedAt && (!query || `${client.name} ${client.nickname || ''} ${client.telegram} ${(client.phoneNumbers || []).map((phone) => phone.number).join(' ')} ${client.tobaccoPreferences.join(' ')} ${client.barPreferences.join(' ')}`.toLowerCase().includes(query))) }; }
   if (path === '/api/clients' && method === 'POST') { if (!demoStaffManager() && !portalPermissions.has('orders')) throw new Error('clients_management_required'); const name = String(input.name || '').trim(); if (!name) throw new Error('client_name_required'); const client = { id: `demo-client-${Date.now()}`, name, avatarUrl: String(input.avatarUrl || '').trim() || null, guestStatus: ['new', 'regular', 'vip', 'blocked'].includes(String(input.guestStatus || 'new')) ? String(input.guestStatus || 'new') : 'new', phoneNumbers: normalizeDemoPhones(input.phoneNumbers), telegram: String(input.telegram || '').trim(), tobaccoPreferences: Array.isArray(input.tobaccoPreferences) ? input.tobaccoPreferences : [], bowlPreferences: Array.isArray(input.bowlPreferences) ? input.bowlPreferences : [], barPreferences: Array.isArray(input.barPreferences) ? input.barPreferences : [], allergies: String(input.allergies || '').trim(), notes: String(input.notes || '').trim(), loyaltyPoints: Number(input.loyaltyPoints || input.bonusBalance || 0), bonusBalance: Number(input.bonusBalance || input.loyaltyPoints || 0), depositBalance: Number(input.depositBalance || 0), discountGroupId: String(input.discountGroupId || 'none'), visits: 0, totalSpent: 0, lastVisitAt: null }; demoState.clients.push(client); demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: 'client.created', entityType: 'client', entityId: client.id, actor: portalUser.name || 'сотрудник', createdAt: new Date().toISOString() }); demoSave(); return client; }
+  if (path === '/api/reservations/guests' && method === 'GET') { if (!portalPermissions.has('reservations')) throw new Error('forbidden'); return { items: demoState.clients.filter((guest) => !guest.archivedAt).map((guest) => ({ id: guest.id, name: guest.name, nickname: guest.nickname || '', phoneNumbers: guest.phoneNumbers || [] })) }; }
+  if (path === '/api/payroll/employees' && method === 'GET') { if (!portalPermissions.has('finance')) throw new Error('forbidden'); return { items: demoState.staff.filter((person) => !person.deletedAt).map((person) => ({ id: person.id, name: person.name, active: person.active !== false })) }; }
   const clientArchive = path.match(/^\/api\/clients\/([^/]+)\/archive$/); if (clientArchive && method === 'POST') { if (!demoStaffManager()) throw new Error('clients_management_required'); const client = demoState.clients.find((entry) => entry.id === clientArchive[1]); if (!client) throw new Error('client_not_found'); client.archivedAt = new Date().toISOString(); demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: 'client.archived', entityType: 'client', entityId: client.id, actor: portalUser.name || 'сотрудник', createdAt: client.archivedAt }); demoSave(); return client; }
   const clientDelete = path.match(/^\/api\/clients\/([^/]+)$/); if (clientDelete && method === 'DELETE') { if (portalUser.role !== 'owner') throw new Error('client_delete_owner_required'); const index = demoState.clients.findIndex((entry) => entry.id === clientDelete[1]); if (index < 0) throw new Error('client_not_found'); const [removed] = demoState.clients.splice(index, 1); demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: 'client.deleted', entityType: 'client', entityId: removed.id, actor: portalUser.name || 'владелец', createdAt: new Date().toISOString() }); demoSave(); return { id: removed.id, deleted: true }; }
   const clientProfile = path.match(/^\/api\/clients\/([^/]+)$/); if (clientProfile && method === 'PATCH') { if (!demoStaffManager() && !portalPermissions.has('orders')) throw new Error('clients_management_required'); const client = demoState.clients.find((entry) => entry.id === clientProfile[1]); if (!client) throw new Error('client_not_found'); Object.assign(client, input); demoSave(); return client; }
@@ -824,6 +832,16 @@ const demoJson = async (url, options = {}) => {
       .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     return { date, revenue, employeeView: true };
   }  if (path === '/api/finance/summary') { const reportDate = new URL(url, window.location.origin).searchParams.get('date') || localDateKey(); const localOrders = demoReadOrders(); let localDiscounts = []; try { localDiscounts = JSON.parse(localStorage.getItem('territory_crm_discount_requests') || '[]'); } catch (_) {} const pending = demoPendingSummary(localOrders); const currentShift = demoState.shift && !demoState.shift.closedAt ? demoState.shift : null; const shiftClosed = currentShift ? localOrders.filter((order) => order.status === 'closed' && String(order.closedInShiftId || '') === String(currentShift.id)) : []; const shiftRevenue = shiftClosed.reduce((sum, order) => sum + (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)).reduce((total, payment) => total + Number(payment.amount || 0), 0), 0); const closed = localOrders.filter((order) => order.status === 'closed' && localDateKey(order.closedAt || order.createdAt) === reportDate); const byPaymentMethod = {}; let revenue = 0; closed.forEach((order) => (order.payments || []).filter((payment) => payment.status === 'paid').forEach((payment) => { const amount = Number(payment.amount || 0); revenue += amount; byPaymentMethod[payment.method || 'не указан'] = (byPaymentMethod[payment.method || 'не указан'] || 0) + amount; })); return { date: reportDate, revenue, closedOrders: closed.length, paymentCount: closed.reduce((sum, order) => sum + (order.payments || []).filter((payment) => payment.status === 'paid').length, 0), byPaymentMethod, currentShiftOrders: shiftClosed.length, currentShiftAverageCheck: shiftClosed.length ? shiftRevenue / shiftClosed.length : 0, pendingOrders: pending.pendingOrders, pendingRevenue: pending.pendingRevenue, pendingDiscounts: [...localDiscounts, ...demoState.discounts].filter((item) => item.status === 'requested').length }; }
+  if (path === '/api/finance/report' && ['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(portalUser.role)) {
+    const timezone = demoSelectedVenue().timezone || 'Asia/Yekaterinburg';
+    const dayKey = (value) => new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
+    const date = dayKey(new Date());
+    const venueId = String(demoSelectedVenue().id);
+    const ownOrders = demoReadOrders().filter((order) => String(order.venueId || venueId) === venueId && String(order.openedById || order.openedBy || '') === String(portalUser.id || portalUser.name || ''));
+    const revenue = ownOrders.flatMap((order) => order.payments || []).filter((payment) => ['paid','partially_paid'].includes(payment.status) && payment.createdAt && dayKey(payment.createdAt) === date).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const checksCount = ownOrders.filter((order) => order.status === 'closed' && order.closedAt && dayKey(order.closedAt) === date).length;
+    return { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber: 'DEMO-X-' + date, revenue: Math.round(revenue * 100) / 100, checksCount, employeeView: true };
+  }
   if (path === '/api/finance/report') { const params = new URL(url, window.location.origin).searchParams; const reportDate = params.get('date') || localDateKey(); const type = params.get('type') === 'waiter' ? 'waiter' : 'x'; let localOrders = []; try { localOrders = JSON.parse(localStorage.getItem('territory_crm_staff_orders') || '[]'); } catch (_) {} const closed = localOrders.filter((order) => order.status === 'closed' && localDateKey(order.closedAt || order.createdAt) === reportDate); const byPaymentMethod = {}, byStation = {}, byStaff = {}; let revenue = 0, paymentCount = 0; closed.forEach((order) => { const payments = (order.payments || []).filter((payment) => payment.status === 'paid'); payments.forEach((payment) => { const amount = Number(payment.amount || 0); revenue += amount; paymentCount += 1; byPaymentMethod[payment.method || 'не указан'] = (byPaymentMethod[payment.method || 'не указан'] || 0) + amount; }); (order.items || []).forEach((item) => { const station = item.station || 'other'; byStation[station] = (byStation[station] || 0) + Number(item.unitPrice || 0) * Number(item.quantity || 0); }); const staff = order.createdByName || order.waiterName || 'Не указан'; byStaff[staff] = (byStaff[staff] || 0) + Number(order.finalTotal || 0); }); return { type, date: reportDate, generatedAt: new Date().toISOString(), reportNumber: `DEMO-${reportDate.replace(/-/g, '')}-${type.toUpperCase()}`, cashier: portalUser.name || 'Кассир', checksCount: closed.length, closedOrders: closed.length, paymentCount, revenue, cash: byPaymentMethod.cash || 0, card: byPaymentMethod.card || 0, qr: byPaymentMethod.qr || 0, byPaymentMethod, byStation, byStaff: type === 'waiter' ? byStaff : undefined }; }
   if (path === '/api/inventory/departments' && method === 'GET') return { items: demoState.inventoryDepartments || (demoState.inventoryDepartments = [{ id: 'kitchen', code: 'kitchen', name: 'Кухня', description: 'Продукты, заготовки и блюда', color: 'coral', sortOrder: 10, active: true }, { id: 'bar', code: 'bar', name: 'Бар', description: 'Напитки, сиропы и чай', color: 'amber', sortOrder: 20, active: true }, { id: 'hookah', code: 'hookah', name: 'Кальяны', description: 'Табак, уголь и расходники', color: 'violet', sortOrder: 30, active: true }, { id: 'inventory', code: 'inventory', name: 'Хозяйственный склад', description: 'Расходники и инвентарь', color: 'green', sortOrder: 40, active: true }]) };
   if (path === '/api/inventory/departments' && method === 'POST') { if (!portalPermissions.has('inventory')) throw new Error('HTTP 403'); const name = String(input.name || '').trim(); const code = String(input.code || '').trim(); if (!name || !code) throw new Error('invalid_inventory_department'); demoState.inventoryDepartments ||= []; if (demoState.inventoryDepartments.some((item) => item.active !== false && item.code === code)) throw new Error('inventory_department_exists'); const item = { id: code, code, name, description: String(input.description || '').trim(), color: 'coral', sortOrder: demoState.inventoryDepartments.length * 10 + 10, active: true }; demoState.inventoryDepartments.push(item); demoSave(); return item; }
@@ -1605,6 +1623,58 @@ function setupVenueLayout() {
   });  load();
 }
 
+function setupPortalDashboardNavigation() {
+  const target = document.querySelector('#page-content');
+  if (page !== 'dashboard' || !target || target._portalDashboardNavigation) return;
+  let scrollRevision = 0;
+  const queueScroll = () => {
+    const revision = ++scrollRevision;
+    const hash = window.location.hash;
+    requestAnimationFrame(() => {
+      if (revision !== scrollRevision || hash !== window.location.hash) return;
+      const main = target.closest('.portal-main');
+      if (!main) return;
+      const focusedSelectors = {
+        '#shift-control': '#shift-control', '#company': '#company-panel-title',
+        '#settings-dashboard-modules': '#settings-dashboard-modules',
+        '#venue-layout-settings': '#floor-editor', '#lock-security': '#lock-security', '#audit': '#audit',
+      };
+      const destination = focusedSelectors[hash] ? target.querySelector(focusedSelectors[hash]) : null;
+      const header = main.querySelector('.portal-header');
+      const headerHeight = header?.getBoundingClientRect().height || 0;
+      const top = destination && destination.getClientRects().length
+        ? Math.max(0, main.scrollTop + destination.getBoundingClientRect().top - main.getBoundingClientRect().top - headerHeight - 12)
+        : 0;
+      main.scrollTo({ top, behavior: 'auto' });
+    });
+  };
+  const navigate = () => {
+    normalizeManagementSidebar();
+    updateAdminSectionTitle();
+    if (window.location.hash === '#tasks') renderTasks();
+    else if (window.location.hash === '#loyalty') renderLoyalty();
+    else renderDashboard();
+    queueScroll();
+  };
+  const click = (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target?.closest?.('a[href]');
+    if (!link || link.hasAttribute('download') || link.target && link.target !== '_self') return;
+    let destination;
+    try { destination = new URL(link.getAttribute('href'), window.location.href); } catch (_) { return; }
+    const current = new URL(window.location.href);
+    if (destination.origin !== current.origin || destination.pathname !== current.pathname || destination.search !== current.search) return;
+    if (destination.hash && !Object.hasOwn(adminSectionTitles, destination.hash)) return;
+    event.preventDefault(); // Native anchors must not race the rendered dashboard scroll.
+    if (destination.hash !== current.hash) { window.history.pushState(null, '', destination.href); navigate(); }
+    else queueScroll();
+  };
+  target._portalDashboardNavigation = { navigate, queueScroll };
+  window.addEventListener('hashchange', navigate);
+  document.addEventListener('click', click);
+  queueScroll(); // Initial route only; background renders retain the user's scroll.
+}
+
 function renderDashboard() {
   const target = document.querySelector('#page-content');
   if (!target) return;
@@ -2149,17 +2219,6 @@ function renderDashboard() {
   setupDashboardShiftKpis();
   if (!['owner', 'admin'].includes(portalUser.role)) { document.querySelector('#company-form')?.setAttribute('hidden', ''); document.querySelector('#company-panel-title')?.replaceChildren(document.createTextNode('Рабочие настройки')); document.querySelector('#company-panel-description')?.replaceChildren(document.createTextNode('Управляющий настраивает рабочий интерфейс, показатели и схему зала. Данные заведения и сеть доступны администратору.')); }
   if (!['owner', 'admin', 'developer'].includes(portalUser.role)) { document.querySelector('#staff-form')?.remove(); document.querySelectorAll('.staff-delete').forEach((node) => node.remove()); }
-  const getSettingsHashTarget = (hash = window.location.hash) => {
-    const targets = {
-      '#shift-control': '#shift-control',
-      '#company': '#company-form',
-      '#settings-dashboard-modules': '#settings-dashboard-modules',
-      '#venue-layout-settings': '#venue-layout-settings',
-      '#lock-security': '#lock-security',
-      '#audit': '#audit',
-    };
-    return targets[hash] ? target.querySelector(targets[hash]) : target.querySelector('.page-title');
-  };
   const settingsHash = ['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash); const dashboardFocus = settingsHash ? 'settings' : window.location.hash.slice(1);
   const setDashboardPanelVisibility = (selector, visible) => target.querySelectorAll(selector).forEach((node) => { node.hidden = !visible; });
   setDashboardPanelVisibility('.dashboard-page-actions', !dashboardFocus);
@@ -2185,7 +2244,7 @@ function renderDashboard() {
       settingsPageTitle.querySelector('h1')?.replaceChildren(document.createTextNode('Настройки CRM'));
       settingsPageTitle.querySelector('.muted')?.replaceChildren(document.createTextNode('Управление заведением, интерфейсом, безопасностью и журналом изменений.'));
     }
-    const applySettingsView = (hash = window.location.hash, shouldScroll = true) => {
+    const applySettingsView = (hash = window.location.hash) => {
       const settingsView = hash || '#settings';
       const focusedView = ['#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(settingsView) ? settingsView : '#settings';
       const focusedCompanyChild = focusedView === '#company' ? '#company-form' : focusedView === '#settings-dashboard-modules' ? '#settings-dashboard-modules' : focusedView === '#venue-layout-settings' ? '#venue-layout-settings' : '';
@@ -2206,10 +2265,6 @@ function renderDashboard() {
       } else if (focusedView === '#lock-security') {
         setDashboardPanelVisibility('#lock-security', true);
       }
-      if (shouldScroll) {
-        const scrollTarget = getSettingsHashTarget(settingsView);
-        scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
     };
     applySettingsView();
     target._applySettingsView = applySettingsView;
@@ -2217,37 +2272,6 @@ function renderDashboard() {
     setDashboardPanelVisibility(dashboardFocus === 'audit' ? '#audit' : '#diagnostics', true);
     setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #company', false);
   }
-  const animateRouteContent = () => {
-    const content = document.querySelector('#page-content');
-    if (!content) return;
-    content.classList.remove('crm-route-enter');
-    void content.offsetWidth;
-    content.classList.add('crm-route-enter');
-    window.setTimeout(() => content.classList.remove('crm-route-enter'), 260);
-  };
-  const dashboardHashChangeHandler = () => {
-    normalizeManagementSidebar();
-    if (page === 'dashboard') {
-      if (window.location.hash === '#tasks') renderTasks();
-      else if (window.location.hash === '#loyalty') renderLoyalty();
-      else renderDashboard();
-      if (window.location.hash) {
-        const focused = ['#shift-control', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash);
-        const scrollTarget = focused ? getSettingsHashTarget(window.location.hash) : target.querySelector('.page-title');
-        scrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-      animateRouteContent();
-      return;
-    }
-    const nextTarget = window.location.hash ? document.querySelector(window.location.hash) : null;
-    nextTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    animateRouteContent();
-  };
-  if (target._dashboardHashChangeHandler) window.removeEventListener('hashchange', target._dashboardHashChangeHandler);
-  target._dashboardHashChangeHandler = dashboardHashChangeHandler;
-  window.addEventListener('hashchange', dashboardHashChangeHandler);
-  const focusedSettingsHash = ['#shift-control', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash);
-  const hashTarget = window.location.hash ? (page === 'dashboard' ? (focusedSettingsHash ? target.querySelector(window.location.hash === '#company' ? '#company-form' : window.location.hash) : target.querySelector('.page-title')) : document.querySelector(window.location.hash)) : null; hashTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderInventory() {
@@ -3049,7 +3073,7 @@ function renderFinance() {
   const canDecideFinance = portalPermissions.has('finance');
   const payrollStatusLabel = (status) => ({ draft: 'Черновик', approved: 'Утверждено', paid: 'Выплачено', cancelled: 'Отменено' }[String(status || '').toLowerCase()] || 'Требует проверки');
   if (employeeFinanceView) {
-    target.innerHTML = `<div class="page-title"><div><p class="eyebrow">МОЯ СМЕНА</p><h1>Оборот сегодня</h1><p class="muted">Оборот заказов, открытых вами сегодня.</p></div></div><section class="panel employee-turnover-panel"><div><span class="muted">Оборот заказов, открытых вами сегодня</span><strong id="finance-revenue">Загрузка…</strong></div><small class="muted">Сумма оплаченных заказов, которые вы открыли за сегодня</small></section>`;
+    target.innerHTML = `<div class="page-title"><div><p class="eyebrow">МОЯ СМЕНА</p><h1>Оборот сегодня</h1><p class="muted">Платежи по вашим заказам сегодня.</p></div></div><section class="panel employee-turnover-panel"><div><span class="muted">Ваши оплаты сегодня</span><strong id="finance-revenue">Загрузка…</strong></div><small class="muted">Поступившие сегодня платежи по вашим заказам, включая частичные оплаты</small></section>`;
     api(`/api/finance/summary?date=${encodeURIComponent(localDateKey())}`).then((summary) => { const value = document.querySelector('#finance-revenue'); if (value) value.textContent = money(summary.revenue || 0); }).catch(() => { const value = document.querySelector('#finance-revenue'); if (value) value.textContent = 'Не удалось загрузить'; });
     return;
   }
@@ -3371,7 +3395,7 @@ function renderFinance() {
       const userSelect = payrollSection.querySelector('#payroll-create-user'); const ruleSelect = payrollSection.querySelector('#payroll-create-rule');
       userSelect.innerHTML = '<option value="">Загрузка…</option>'; ruleSelect.innerHTML = '<option value="">Загрузка…</option>';
       try {
-        const [staffData, rulesData] = await Promise.all([api('/api/staff'), api('/api/payroll/rules')]);
+        const [staffData, rulesData] = await Promise.all([api('/api/payroll/employees'), api('/api/payroll/rules')]);
         const staffItems = (staffData.items || []).filter((item) => item.active !== false);
         const rules = (rulesData.items || []).filter((item) => item.active !== false);
         userSelect.innerHTML = `<option value="">Выберите сотрудника</option>${staffItems.map((item) => `<option value="${esc(item.id)}">${esc(displayName(item.fullName || item.name || item.login || 'Сотрудник'))}</option>`).join('')}`;
@@ -3601,8 +3625,35 @@ function renderDelivery() {
   load();
 }
 
+function renderEmployeeFinanceReport(target) {
+  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">МОЯ СМЕНА</p><h1>Мой отчёт</h1><p class="muted">Ваши оплаты и закрытые чеки за сегодня по времени заведения.</p></div><a class="button" href="/finance">${icon('arrow-left')} Финансы</a></div><section class="panel"><div class="panel-head"><span id="employee-report-date">Сегодня</span><button id="employee-report-refresh" class="button" type="button">Обновить</button></div><p id="employee-report-message" class="form-message" role="status" aria-live="polite"></p><div class="finance-result-grid"><article><span>Ваши оплаты сегодня</span><strong id="employee-report-revenue">—</strong><small>Все поступившие платежи, включая частичные</small></article><article><span>Чеков закрыто сегодня</span><strong id="employee-report-checks">—</strong><small>По времени закрытия заказа</small></article></div><small id="employee-report-number" class="muted"></small></section>`;
+  let pending = false;
+  const load = async () => {
+    if (pending) return;
+    pending = true;
+    const button = target.querySelector('#employee-report-refresh'); const message = target.querySelector('#employee-report-message');
+    button.disabled = true; message.textContent = 'Обновляем отчёт…';
+    try {
+      const report = await api('/api/finance/report');
+      if (target.querySelector('#employee-report-refresh') !== button) return;
+      if (report.employeeView !== true) throw new Error('employee_report_invalid_response');
+      target.querySelector('#employee-report-date').textContent = formatRuDate(report.date);
+      target.querySelector('#employee-report-revenue').textContent = money(report.revenue);
+      target.querySelector('#employee-report-checks').textContent = report.checksCount ?? 0;
+      target.querySelector('#employee-report-number').textContent = report.reportNumber || '';
+      message.textContent = '';
+    } catch (_) {
+      if (target.querySelector('#employee-report-refresh') !== button) return;
+      target.querySelector('#employee-report-revenue').textContent = '—'; target.querySelector('#employee-report-checks').textContent = '—'; target.querySelector('#employee-report-number').textContent = '';
+      message.textContent = 'Не удалось загрузить отчёт. Повторите попытку.';
+    } finally { pending = false; button.disabled = false; }
+  };
+  target.querySelector('#employee-report-refresh').addEventListener('click', load);
+  load();
+}
 function renderFinanceReport() {
   const target = document.querySelector('#page-content'); if (!target) return;
+  if (['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(String(portalUser.role || '').toLowerCase())) { renderEmployeeFinanceReport(target); return; }
   target.innerHTML = `<div class="page-title"><div><p class="eyebrow">КОНТРОЛЬ СМЕНЫ</p><h1>Отчёты</h1><p class="muted">X‑отчёт показывает закрытые чеки и оплаты, отчёт официанта — выручку по сотрудникам.</p></div><a class="button" href="/finance">${icon('arrow-left')} Финансы</a></div><section class="panel wide report-controls"><div class="toolbar-row"><label>Дата<input id="report-date" type="date" required aria-describedby="report-message" value="${localDateKey()}"></label><label>Тип отчёта<select id="report-type"><option value="x">X‑отчёт смены</option><option value="waiter">Отчёт официанта</option></select></label><button class="button primary" id="report-refresh" type="button">Сформировать</button></div><p id="report-message" class="form-message" role="status" aria-live="polite"></p></section><section class="kpi-grid compact" id="report-kpis"><article class="kpi"><span>Выручка</span><strong id="report-revenue">—</strong><small>По закрытым чекам</small></article><article class="kpi"><span>Чеков закрыто</span><strong id="report-checks">—</strong><small id="report-meta">—</small></article><article class="kpi"><span>Наличные</span><strong id="report-cash">—</strong><small>Способ оплаты</small></article><article class="kpi"><span>Карта + QR</span><strong id="report-digital">—</strong><small>Безналичная выручка</small></article></section><div class="content-grid report-grid"><section class="panel"><div class="panel-head"><div><h2>Оплаты</h2><span class="muted" id="report-number">Отчёт ещё не сформирован</span></div></div><div class="report-breakdown" id="report-payments"><div class="empty">Выберите дату и сформируйте отчёт</div></div></section><section class="panel"><div class="panel-head"><div><h2 id="report-secondary-title">Выручка по зонам</h2><span class="muted">Детализация для контроля смены</span></div></div><div class="report-breakdown" id="report-secondary"><div class="empty">—</div></div></section></div>`;
   const drawRows = (data, labels) => { const rows = Object.entries(data || {}); return rows.length ? rows.map(([key, value]) => { const label = String(labels[key] || key); return `<div class="report-row${label.length > 26 ? ' report-row-long' : ''}"><span>${esc(label)}</span><strong>${money(value)}</strong></div>`; }).join('') : '<div class="empty">Данных за выбранную дату нет</div>'; };
   let reportLoadRequestId = 0;
@@ -3666,7 +3717,7 @@ function renderIntegrations() {
 }
 function renderNetwork() {
   const target = document.querySelector('#page-content'); if (!target) return;
-  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">СЕТЕВОЕ УПРАВЛЕНИЕ</p><h1>Заведения сети</h1><p class="muted">Здесь управляются точки сети. Данные текущего заведения меняются в разделе «Настройки».</p></div><a class="button small" href="/admin#settings">Настройки заведения</a></div><div class="content-grid"><section class="panel wide"><div class="panel-head"><div><h2>Точки сети</h2><span class="muted" id="network-count">Загрузка…</span></div></div><div class="network-list" id="network-list"><div class="empty">Загрузка заведений…</div></div></section><section class="panel"><div class="panel-head"><h2>Добавить заведение сети</h2></div><form class="stack-form" id="network-form"><label>Название<input id="network-name" required maxlength="120" placeholder="Территория — центр"></label><label>Город<input id="network-city" required maxlength="80" placeholder="Тюмень"></label><label>Адрес<input id="network-address" required maxlength="240" placeholder="Улица, дом"></label><label>Формат<input id="network-format" maxlength="80" value="кальян-бар"></label><label>Телефон<input id="network-phone" maxlength="32" placeholder="+7 ..."></label><label>Часовой пояс<select id="network-timezone" required>${russianTimezoneOptions()}</select></label><button class="button primary" type="submit">Добавить заведение</button><p class="form-message" id="network-message" role="status" aria-live="polite"></p></form></section></div>`;
+  target.innerHTML = `<div class="page-title"><div><p class="eyebrow">СЕТЕВОЕ УПРАВЛЕНИЕ</p><h1>Заведения сети</h1><p class="muted">Здесь управляются точки сети. Данные текущего заведения меняются в разделе «Настройки».</p></div><a class="button small" href="/admin#settings">Настройки заведения</a></div><div class="content-grid"><section class="panel wide"><div class="panel-head"><div><h2>Точки сети</h2><span class="muted" id="network-count">Загрузка…</span></div></div><div class="network-list" id="network-list"><div class="empty">Загрузка заведений…</div></div></section><section class="panel"><div class="panel-head"><h2>Добавить заведение сети</h2></div><form class="stack-form" id="network-form"><label>Название<input id="network-name" required maxlength="120" placeholder="Например, Центральный филиал"></label><label>Город<input id="network-city" required maxlength="80" placeholder="Тюмень"></label><label>Адрес<input id="network-address" required maxlength="240" placeholder="Улица, дом"></label><label>Формат<input id="network-format" maxlength="80" value="кальян-бар"></label><label>Телефон<input id="network-phone" maxlength="32" placeholder="+7 ..."></label><label>Часовой пояс<select id="network-timezone" required>${russianTimezoneOptions()}</select></label><button class="button primary" type="submit">Добавить заведение</button><p class="form-message" id="network-message" role="status" aria-live="polite"></p></form></section></div>`;
   const timezoneSelect = document.querySelector('#network-timezone');
   let timezoneTouched = false;
   let defaultTimezone = venueTimezone || 'Asia/Yekaterinburg';
@@ -3983,7 +4034,7 @@ function renderReservations() {
   document.querySelector('#reservation-list')?.addEventListener('click', async (event) => { const retry = event.target.closest('[data-reservation-retry]'); if (retry) { load(); return; } const reset = event.target.closest('[data-reservation-reset]'); if (reset) { const search = document.querySelector('#reservation-filter'); const date = document.querySelector('#reservation-list-date'); if (search) search.value = ''; if (date) date.value = ''; draw(''); return; } const button = event.target.closest('[data-reservation]'); if (!button || button.disabled || !await portalConfirm('Отменить бронирование?', 'Бронирование будет отменено, а история останется в журнале.', 'Отменить бронирование')) return; button.disabled = true; api(`/api/reservations/${button.dataset.reservation}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(() => { portalNotice('Бронирование отменено', 'success'); load(); }).catch(() => { button.disabled = false; portalNotice('Не удалось отменить бронирование', 'error'); }); });
   document.querySelector('#focus-reservation')?.addEventListener('click', () => { document.querySelector('#reservation-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); document.querySelector('#reservation-guest')?.focus(); });
   document.querySelector('#reservation-form').addEventListener('submit', (event) => { event.preventDefault(); const form = event.target; if (form.dataset.submitting === '1') return; form.dataset.submitting = '1'; const submit = form.querySelector('button[type="submit"]'); if (submit) { submit.disabled = true; submit.textContent = 'Подтверждение…'; } const controls = [...form.querySelectorAll('input, select, textarea')].map((control) => ({ control, disabled: control.disabled })); controls.forEach(({ control }) => { control.disabled = true; control._customSelectRefresh?.(); }); let reservationSaved = false; const message = document.querySelector('#reservation-message'); const value = { guestName: document.querySelector('#reservation-guest').value.trim(), clientId: document.querySelector('#reservation-client-id').value || null, phone: document.querySelector('#reservation-phone').value.trim(), date: document.querySelector('#reservation-date').value, time: document.querySelector('#reservation-time').value, tableId: document.querySelector('#reservation-table').value, guests: Number(document.querySelector('#reservation-guests').value), deposit: Number(document.querySelector('#reservation-deposit').value), notes: document.querySelector('#reservation-notes').value.trim(), createdByName: portalUser.name || undefined, createdByRole: portalRole[0] || undefined }; api('/api/reservations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) }).then(() => { reservationSaved = true; message.textContent = 'Бронь подтверждена'; message.className = 'form-message success-message'; event.target.reset(); document.querySelector('#reservation-date').value = localDateKey(); document.querySelector('#reservation-time').value = '21:00'; load(); }).catch((error) => { const reason = String(error.payload?.error || error.message || ''); message.className = 'form-message error-message'; message.textContent = reason === 'table_already_reserved' ? 'Этот стол уже занят на выбранное время' : reason.startsWith('vip_deposit_below_minimum') || reason === 'vip_deposit_below_minimum' ? `Для этой VIP-комнаты нужен депозит от ${money(error.payload?.requiredDeposit || Number(reason.split(':')[1] || 0))}` : reason === 'invalid_guest_phone' ? 'Проверьте телефон гостя' : reason === 'invalid_guest_count' ? 'Количество гостей должно быть от 1 до 50' : reason === 'invalid_reservation_datetime' ? 'Проверьте дату и время бронирования' : reason === 'guest_name_too_long' ? 'Имя гостя должно быть до 120 символов' : reason === 'reservation_notes_too_long' ? 'Комментарий должен быть до 2000 символов' : reason === 'table_unavailable' ? 'Это место закрыто для бронирований' : reason === 'table_capacity_exceeded' ? `Для этого места максимум ${error.payload?.maximumGuests || 0} гостей. Выберите другое место или уменьшите число гостей.` : 'Не удалось создать бронь'; }).finally(() => { controls.forEach(({ control, disabled }) => { control.disabled = disabled; control._customSelectRefresh?.(); }); form.dataset.submitting = '0'; if (submit) { submit.disabled = false; submit.textContent = 'Подтвердить бронь'; } if (reservationSaved) loadTables(); }); });
-  api('/api/clients').then((data) => {
+  api('/api/reservations/guests').then((data) => {
     const list = document.querySelector('#reservation-guests-list');
     const clients = data.items || [];
     const baseName = (client) => `${client.name}${client.nickname ? ` — ${client.nickname}` : ''}`;
@@ -4036,6 +4087,7 @@ if (page === 'finance_categories') renderFinanceCategories();
 if (page === 'finance_report') renderFinanceReport();
 if (page === 'reservations') renderReservations();
 if (page === 'dashboard' && location.hash === '#tasks') renderTasks();
+if (page === 'dashboard') setupPortalDashboardNavigation();
 
 // Cross-page navigation is handled by the browser's View Transition API where
 // available. Keep the content entrance animation for in-page/hash changes only.

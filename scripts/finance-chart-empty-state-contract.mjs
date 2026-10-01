@@ -22,7 +22,9 @@ for (const group of ['finance-chart', 'payment']) {
 assert.ok((portal.match(/item\.setAttribute\('aria-pressed', String\(item === button\)\)/g) || []).length >= 2, 'all view handlers synchronize pressed state');
 const bindingStart = portal.indexOf("document.querySelectorAll('[data-payment-view]').forEach((button) => { button.disabled = false; button.onclick");
 assert.ok(bindingStart >= 0, 'payment handlers replace the previous load closure');
-const binding = portal.slice(bindingStart, portal.indexOf(' const shift = shifts.current;', bindingStart));
+const bindingEnd = portal.indexOf(' renderFinanceShift(shifts.current);', bindingStart);
+assert.ok(bindingEnd > bindingStart, 'payment view handlers end before shared shift rendering');
+const binding = portal.slice(bindingStart, bindingEnd);
 const buttons = ['donut', 'bars', 'line', 'table'].map((view) => ({
   dataset: { paymentView: view }, classList: { toggle() {} },
   setAttribute(name, value) { this[name] = value; }

@@ -2068,6 +2068,10 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .product-image-preview{height:154px;border-radius:11px;overflow:hidden;background:#20262d;border:1px solid #363d47;display:grid;place-items:center}
 .velora-theme .product-image-preview>img{width:100%;height:100%;object-fit:cover}
 .velora-theme .product-image-preview .visual-product-placeholder{width:100%;height:100%}
+.velora-theme .visual-product{min-width:0;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto}
+.velora-theme .visual-product-image{min-width:0;width:100%;max-width:100%}
+.velora-theme .product-card-actions{min-width:0;flex-wrap:wrap}
+.velora-theme .product-card-actions>*{min-width:0;max-width:100%;white-space:normal}
 .velora-theme .product-image-empty{display:grid;justify-items:center;gap:5px;color:#85909c;text-align:center}
 .velora-theme .product-image-empty>span{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#29313a;color:#ff8b71;font-size:22px;line-height:1}
 .velora-theme .product-image-empty b{color:#cbd3dc;font-size:12px}
@@ -2077,7 +2081,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .product-editor-footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 0 20px}
 .velora-theme .product-editor-footer .form-message{margin:0;min-height:18px;font-size:12px}
 .velora-theme .product-editor-footer .toolbar-row{flex-wrap:wrap;justify-content:flex-end}
-.velora-theme .visual-product-copy{display:grid;gap:4px;min-width:0}
+.velora-theme .visual-product-copy{display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:4px;min-width:0}
+.velora-theme .visual-product-copy>*{min-width:0;overflow-wrap:anywhere}
 .velora-theme .visual-product-copy b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .velora-theme .visual-product-empty small{display:block;margin-top:5px;color:#87919c}
 @media(max-width:820px){.velora-theme .product-form-layout{grid-template-columns:1fr}.velora-theme .product-editor-preview{grid-template-columns:140px minmax(0,1fr);align-items:center}.velora-theme .product-preview-label{grid-column:1/-1}.velora-theme .product-image-preview{height:120px;grid-row:span 2}.velora-theme .product-image-upload{align-self:end}.velora-theme .product-editor-preview>.field-hint{align-self:start}}
@@ -2752,3 +2757,21 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .staff-theme .staff-header-user>.notification-bell:hover{background:#ffffff09;color:#e7edf6}
 .staff-theme .staff-header-user>.notification-bell:focus-visible{outline:2px solid #ff9a8f;outline-offset:2px}
 .staff-theme .staff-header-user>.notification-bell .icon{width:18px;height:18px}
+
+/* Keep brand and shared actions readable when the user selects the light theme. */
+.light-theme .hookah-pos-brand img{content:url('/assets/brand/hookah-pos-lockup-light-animated.svg?rev=2')}
+@media(prefers-reduced-motion:reduce){.light-theme .hookah-pos-brand img{content:url('/assets/brand/hookah-pos-lockup-light.svg?rev=2')}}
+@media(max-width:900px){.light-theme .hookah-pos-brand img{content:url('/assets/brand/hookah-pos-symbol.svg?rev=2')}}
+.portal.light-theme .portal-header .header-user-copy b{color:#20313d}
+.portal.light-theme .portal-header .header-user-copy small,.portal.light-theme .portal-header .header-date{color:#667782}
+.portal.light-theme .portal-header .header-right>.notification-bell,.portal.light-theme .portal-header .header-right>.lock-settings-button,.portal.light-theme .portal-header .header-right>#lock-screen-button{color:#526672}
+.portal.light-theme .portal-header .header-right>.notification-bell:hover,.portal.light-theme .portal-header .header-right>.lock-settings-button:hover,.portal.light-theme .portal-header .header-right>#lock-screen-button:hover{background:#edf2f5;color:#20313d}
+.light-theme .sidebar-footer .button{color:#405762;border-color:#cbd8df}
+.portal.light-theme .visual-product{background:#f8fbfc;border-color:#dfe8ec}
+.portal.light-theme .visual-product-copy b{color:#20313d}
+.portal.light-theme .visual-product-copy small{color:#667782}
+.portal.light-theme .product-card-actions .button,.portal.light-theme .product-card-actions .upload-button{background:#edf2f5;border-color:#cbd8df;color:#405762}
+.portal.light-theme .sidebar-nav-group,.portal.light-theme .sidebar-nav-group>summary{border-color:#e0e7eb;color:#405762}
+.portal.light-theme .logout-button{color:#405762;border-color:#cbd8df}
+.portal.light-theme .product-inventory-warning{color:#934323;background:#fff0e8}
+body.portal.light-theme .portal-header #lock-screen-button{color:#526672!important}

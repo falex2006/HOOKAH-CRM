@@ -53,6 +53,10 @@ assert.match(source, /path === '\/api\/expenses' && method === 'GET'[\s\S]*expen
 assert.match(source, /path === '\/api\/expenses' && method === 'POST'[\s\S]*demoState\.expenses\.push\(expense\)/, 'demo expense form persists entries into the same analytics data');
 assert.match(source, /data-current-date/, 'portal header dates are rendered from the current date');
 assert.match(source, /order\.clientId === client\.id \|\| order\.guestName === client\.name/, 'guest history links matching demo orders');
-assert.match(staffSource, /if\(staticStaffDemo\(\)\)\{let state=\{\};try\{state=JSON\.parse\(localStorage\.getItem\('territory_crm_demo_state'/, 'staff hall reads the same isolated demo floor data');
+const staffFloorStart = staffSource.indexOf('const refreshFloor=()=>{');
+const staffFloorEnd = staffSource.indexOf('if(staticStaffDemo())refreshFloor();', staffFloorStart);
+assert.ok(staffFloorStart >= 0 && staffFloorEnd > staffFloorStart);
+assert.match(staffSource.slice(staffFloorStart, staffFloorEnd), /staticStaffDemo\(\)\?Promise\.resolve\(\)\.then\(\(\)=>\{let state=\{\};try\{state=JSON\.parse\(localStorage\.getItem\('territory_crm_demo_state'/, 'staff hall reads the same isolated demo floor data through the asynchronous loader');
+assert.match(staffSource.slice(staffFloorStart, staffFloorEnd), /state\.floorByVenue\?\.\[venueId\]/, 'the generated floor remains scoped to the selected demo venue');
 assert.match(staffSource, /updateStaffHeaderClock[\s\S]*setInterval\(updateStaffHeaderClock,30000\)/, 'staff header date and time stay current');
 console.log(`DEMO SCENARIO CONTRACT: PASS (${orders.length} orders, ${tables.length} tables, ${state.staff.length} staff, ${state.inventory.length} stock items, ${state.expenses.length} expenses)`);

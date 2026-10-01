@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createRepositories, allocatePremixBatchConsumption } = require('./db');
+const { redactAuditData, sanitizeAuditEvent } = require('./audit-privacy');
 const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
 const { validateDataUrl: validatePurchasePaymentDocument } = require('./purchase-document-validation');
 const { isValidIsoDate, countInclusiveDays, calculatePayrollAmount, canTransitionPayroll } = require('./payroll');
@@ -614,6 +615,7 @@ const sessionFromRequest = async (req) => {
   return null;
 };
 const recordAudit = (req, action, entityType, entityId, beforeData, afterData) => {
+  beforeData = redactAuditData(beforeData ?? null); afterData = redactAuditData(afterData ?? null);
   const event = { venueId: notificationVenueScope(req, defaultVenueDbId), id: `audit-${Date.now()}-${auditEvents.length}`, action, entityType, entityId: entityId || null, actor: req.user?.name || 'demo', beforeData: beforeData || null, afterData: afterData || null, createdAt: new Date().toISOString() };
   auditEvents.push(event);
   if (repositories?.audit) return repositories.audit.record({ venueId: req.user?.venueId || defaultVenueDbId, actorId: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, action, entityType, entityId: /^[0-9a-f-]{36}$/i.test(entityId || '') ? entityId : null, beforeData, afterData }).catch(() => {});
@@ -1719,8 +1721,9 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const filters = { action: String(url.searchParams.get('action') || '').trim().slice(0, 120), entityType: String(url.searchParams.get('entityType') || '').trim().slice(0, 80), from: String(url.searchParams.get('from') || '').trim(), to: String(url.searchParams.get('to') || '').trim(), limit: url.searchParams.get('limit') };
     if (filters.from && !/^\d{4}-\d{2}-\d{2}$/.test(filters.from)) filters.from = '';
     if (filters.to && !/^\d{4}-\d{2}-\d{2}$/.test(filters.to)) filters.to = '';
-    if (repositories?.audit) { try { return json(res, 200, { items: await repositories.audit.list(venueDbId, filters), filters }); } catch (_) {} }
-    let items = auditEvents.slice().reverse();
+    if (repositories?.audit) { try { return json(res, 200, { items: await repositories.audit.list(venueDbId, filters), filters }); } catch (_) { return json(res, 503, { error: 'audit_unavailable' }); } }
+    if (process.env.DATABASE_URL) return json(res, 503, { error: 'audit_unavailable' });
+    let items = auditEvents.filter((item) => item.venueId === notificationVenueScope(req, venueDbId)).map(sanitizeAuditEvent).reverse();
     if (filters.action) items = items.filter((item) => item.action === filters.action);
     if (filters.entityType) items = items.filter((item) => item.entityType === filters.entityType);
     if (filters.from) items = items.filter((item) => String(item.createdAt).slice(0, 10) >= filters.from);
@@ -1879,7 +1882,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     });
   }
   if (pathname === '/api/floor') {
-    if (denyUnless(req, res, 'floor')) return;
+    if (denyUnlessAny(req, res, ['floor', 'reservations', 'settings'])) return;
     if (repositories?.pool) {
       if (requireOrganizationContext(req, res)) return;
       try {
@@ -2070,8 +2073,9 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const before = { ...category }; category.active = false; recordAudit(req, 'product_category.deactivated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
   if (pathname === '/api/products' && req.method === 'GET') {
-    if (denyUnless(req, res, 'floor')) return;
-    if (repositories?.products) { try { return json(res, 200, { items: await repositories.products.list(venueDbId) }); } catch (_) {} }
+    if (denyUnlessAny(req, res, ['floor', 'inventory_read'])) return;
+    if (repositories?.products) { try { return json(res, 200, { items: await repositories.products.list(venueDbId) }); } catch (_) { return json(res, 503, { error: 'products_unavailable' }); } }
+    if (process.env.DATABASE_URL) return json(res, 503, { error: 'products_unavailable' });
     return json(res, 200, { items: products });
   }
   if (pathname === '/api/recipes' && req.method === 'GET') {
@@ -2802,7 +2806,9 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/staff/schedule' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req); const userId = String(input.userId || '').trim(); const workDate = String(input.workDate || '').trim();
-    if (!userId || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return json(res, 400, { error: 'invalid_schedule_entry' });
+    if (!userId || !isValidIsoDate(workDate)) return json(res, 400, { error: 'invalid_schedule_entry' });
+    const validPlannedTime = (value) => value === undefined || value === null || value === '' || typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value) && isValidIsoDate(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
+    if (!validPlannedTime(input.plannedStart) || !validPlannedTime(input.plannedEnd) || input.plannedStart && input.plannedEnd && Date.parse(input.plannedEnd) <= Date.parse(input.plannedStart)) return json(res, 400, { error: 'invalid_schedule_time' });
     if (repositories?.pool) { if (!/^[0-9a-f-]{36}$/i.test(userId)) return json(res, 400, { error: 'invalid_schedule_employee' }); try { const employee = await repositories.pool.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [userId, venueDbId]); if (!employee.rows[0]) return json(res, 404, { error: 'staff_member_not_found' }); const { rows } = await repositories.pool.query('INSERT INTO staff_schedules (venue_id,user_id,work_date,planned_start,planned_end,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (venue_id,user_id,work_date) DO UPDATE SET planned_start=EXCLUDED.planned_start,planned_end=EXCLUDED.planned_end,note=EXCLUDED.note RETURNING *', [venueDbId, userId, workDate, input.plannedStart || null, input.plannedEnd || null, String(input.note || '').slice(0,500) || null, req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'schedule_save_failed', detail: error.message }); } }
   }
   if (pathname === '/api/staff/time' && req.method === 'GET') {
@@ -2830,6 +2836,17 @@ if (staffProfile && req.method === 'PATCH') {
     const source = String(input.source || 'manual');
     if (!/^[0-9a-f-]{36}$/i.test(userId) || Number.isNaN(startedAt.getTime()) || (endedAt && Number.isNaN(endedAt.getTime())) || (endedAt && endedAt <= startedAt) || !['manual','shift','device'].includes(source)) return json(res, 400, { error: 'invalid_work_log' });
     if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const employee = await client.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL FOR UPDATE', [userId,venueDbId]); if (!employee.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_member_not_found' }); } const overlapping = await client.query(`SELECT id FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at < COALESCE($4::timestamptz,'infinity'::timestamptz) AND COALESCE(ended_at,'infinity'::timestamptz) > $3::timestamptz LIMIT 1 FOR UPDATE`, [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null]); if (overlapping.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'work_log_overlaps_existing' }); } const { rows } = await client.query('INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source,note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null,source,String(input.note || '').slice(0,500) || null]); await client.query('COMMIT'); recordAudit(req, 'staff.work_time_recorded', 'staff', rows[0].user_id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'work_log_save_failed', detail: error.message }); } finally { client?.release(); } }
+  }
+  if (pathname === '/api/payroll/employees' && req.method === 'GET') {
+    if (denyUnless(req, res, 'finance')) return;
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query('SELECT id,full_name AS name,is_active AS active FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name', [venueDbId]);
+        return json(res, 200, { items: rows });
+      } catch (_) { return json(res, 503, { error: 'payroll_employees_unavailable' }); }
+    }
+    if (process.env.DATABASE_URL) return json(res, 503, { error: 'payroll_employees_unavailable' });
+    return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map((person) => ({ id: person.id, name: person.name, active: person.active !== false })) });
   }
   if (pathname === '/api/payroll/rules' && req.method === 'GET') {
     if (denyUnless(req, res, 'finance')) return;
@@ -3638,17 +3655,27 @@ if (staffProfile && req.method === 'PATCH') {
       catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
     }
     const requestedReportType = String(url.searchParams.get('type') || 'x');
-    const type = ['x', 'z', 'waiter'].includes(requestedReportType) ? requestedReportType : 'x';
+    const type = employeeFinanceView ? 'x' : ['x', 'z', 'waiter'].includes(requestedReportType) ? requestedReportType : 'x';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'invalid_finance_date' });
     const reportNumber = `R-${date.replace(/-/g, '')}-${type.toUpperCase()}-${String(Date.now()).slice(-6)}`;
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
-        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS checks_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date, timezone]);
+        const { rows } = await repositories.pool.query(`SELECT
+          (SELECT COALESCE(SUM(p.amount),0) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND o.opened_by=$2 AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4) AND p.created_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')) AS revenue,
+          (SELECT COUNT(*)::int FROM orders o WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4)) AS checks_count`, [venueDbId, actorId, date, timezone]);
         const report = { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber, checksCount: Number(rows[0]?.checks_count || 0), revenue: Number(rows[0]?.revenue || 0), employeeView: true };
         recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type: 'x', date, checksCount: report.checksCount, revenue: report.revenue });
         return json(res, 200, report);
       } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
+    }
+    if (employeeFinanceView) {
+      const ownOrders = orders.filter((order) => String(order.openedBy || order.openedById || '') === String(req.user?.id || ''));
+      const revenue = ownOrders.flatMap((order) => order.payments || []).filter((payment) => ['paid','partially_paid'].includes(payment.status) && payment.createdAt && businessDateKey(payment.createdAt) === date).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+      const checksCount = ownOrders.filter((order) => order.status === 'closed' && order.closedAt && businessDateKey(order.closedAt) === date).length;
+      const report = { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber, checksCount, revenue: Math.round(revenue * 100) / 100, employeeView: true };
+      recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type: 'x', date, checksCount, revenue: report.revenue });
+      return json(res, 200, report);
     }
     const byPaymentMethod = {}; const byStation = {}; const byStaff = {}; let revenue = 0; let paymentCount = 0; let closedOrders = [];
     const addOrder = (order) => {
@@ -3771,6 +3798,17 @@ if (staffProfile && req.method === 'PATCH') {
     if (deadline.error) return json(res, 400, { error: deadline.error });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(taskPath[1])) { try { const { rows: taskRows } = await repositories.pool.query('SELECT id,assignee_id AS "assigneeId" FROM tasks WHERE id=$1 AND venue_id=$2', [taskPath[1], venueDbId]); const task = taskRows[0]; if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); const fields = []; const values = [taskPath[1], venueDbId]; for (const key of allowed) if (input[key] !== undefined && !['dueAt','dueDate'].includes(key)) { if (key === 'status' && !['open','in_progress','done','cancelled'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_status' }); if (key === 'priority' && !['low','normal','high','urgent'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_priority' }); if (key === 'assigneeId' && input[key] !== null && input[key] !== '') { const assignee = await repositories.pool.query('SELECT 1 FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [String(input[key]), venueDbId]); if (!assignee.rows[0]) return json(res, 400, { error: 'task_assignee_not_found' }); } fields.push(`${key === 'assigneeId' ? 'assignee_id' : key === 'dueAt' ? 'due_at' : key}=$${values.length + 1}`); values.push(key === 'title' || key === 'description' ? String(input[key] || '').trim() : key === 'dueAt' && input[key] === '' || key === 'assigneeId' && input[key] === '' ? null : input[key]); } if (deadline.changed) { fields.push(`due_at=$${values.length + 1}`, `due_date=$${values.length + 2}`); values.push(deadline.dueAt, deadline.dueDate); } if (!fields.length) return json(res, 400, { error: 'task_fields_required' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE tasks SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 RETURNING id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",to_char(due_date,'YYYY-MM-DD') AS "dueDate",created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'task_not_found' }); recordAudit(req, 'task.updated', 'task', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'task_update_failed', detail: error.message }); } }
     const task = tasks.find((entry) => entry.id === taskPath[1]); if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); if (input.status !== undefined && !['open','in_progress','done','cancelled'].includes(String(input.status))) return json(res, 400, { error: 'invalid_task_status' }); if (input.priority !== undefined && !['low','normal','high','urgent'].includes(String(input.priority))) return json(res, 400, { error: 'invalid_task_priority' }); if (input.assigneeId && process.env.AUTH_REQUIRED === 'true' && !staff.some((person) => String(person.id) === String(input.assigneeId) && person.active !== false && !person.deletedAt)) return json(res, 400, { error: 'task_assignee_not_found' }); Object.assign(task, input, deadline.changed ? { dueAt: deadline.dueAt, dueDate: deadline.dueDate } : {}, { assigneeId: input.assigneeId === undefined ? task.assigneeId : input.assigneeId === '' ? null : input.assigneeId, updatedAt: new Date().toISOString() }); return json(res, 200, task);
+  }
+  if (pathname === '/api/reservations/guests' && req.method === 'GET') {
+    if (denyUnless(req, res, 'reservations')) return;
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query('SELECT id,full_name AS name,nickname,phone,phone_numbers AS "phoneNumbers" FROM guests WHERE venue_id=$1 AND archived_at IS NULL ORDER BY full_name,nickname,id', [venueDbId]);
+        return json(res, 200, { items: rows.map((guest) => ({ id: guest.id, name: guest.name, nickname: guest.nickname || '', phoneNumbers: guest.phoneNumbers?.length ? guest.phoneNumbers : guest.phone ? [{ number: guest.phone, primary: true }] : [] })) });
+      } catch (_) { return json(res, 503, { error: 'reservation_guests_unavailable' }); }
+    }
+    if (process.env.DATABASE_URL) return json(res, 503, { error: 'reservation_guests_unavailable' });
+    return json(res, 200, { items: clients.filter((guest) => !guest.archivedAt).map((guest) => ({ id: guest.id, name: guest.name, nickname: guest.nickname || '', phoneNumbers: guest.phoneNumbers || [] })) });
   }
   if (pathname === '/api/reservations' && req.method === 'GET') {
     if (denyUnless(req, res, 'reservations')) return;

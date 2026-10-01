@@ -16,9 +16,9 @@ const checks = [
   ['Guest card list has responsive grid', /\.client-grid\{display:grid;[\s\S]*@media\(max-width:900px\)\{\.client-grid\{grid-template-columns:1fr\}/, css],
   ['Inventory directory has department and category sections', /inventory-department-list[\s\S]*product-category-list/, portal],
   ['Employee table page renders selectable tables', /querySelectorAll\('\.table'\)|querySelectorAll\("\.table"\)/, app],
-  ['Order item removal uses an explicit item endpoint', /items\/\$\{item\.id\}/, app],
+  ['Order item removal uses an explicit item endpoint and DELETE method', /apiJson\(`\/api\/orders\/\$\{orderId\}\/items\/\$\{itemId\}`,\{method:deleted\?'DELETE':'PATCH'/, app],
   ['Order deletion requires reason and stock decision', /Причина удаления[\s\S]*Списать ингредиенты по технологической карте/, app],
-  ['Employee finance page returns after showing only turnover for orders opened by the employee', /МОЯ СМЕНА[\s\S]*Сумма оплаченных заказов, которые вы открыли за сегодня[\s\S]*return;[\s\S]*Динамика показателей/, portal],
+  ['Employee finance page returns after showing only own received payments today, including partial receipts', /МОЯ СМЕНА[\s\S]*Поступившие сегодня платежи по вашим заказам, включая частичные оплаты[\s\S]*return;[\s\S]*Динамика показателей/, portal],
 ];
 
 let failed = 0;

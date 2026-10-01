@@ -1,5 +1,16 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
+  const syncPlatformNavigation = () => {
+    const section = location.hash || '#overview';
+    document.querySelectorAll('.platform-sidebar .portal-nav a').forEach((link) => {
+      const active = (new URL(link.href, location.origin).hash || '#overview') === section;
+      link.classList.toggle('active', active);
+      if (active) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+  };
+  window.addEventListener('hashchange', syncPlatformNavigation);
+  syncPlatformNavigation();
   const state = { companies: [], loadError: null, health: 'checking' };
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const api = async (url, options = {}) => { const response = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options }); const payload = await response.json().catch(() => ({})); if (response.status === 401) { location.href = '/login?next=/platform'; throw new Error('Требуется войти в систему.'); } if (response.status === 403) throw new Error('Доступ только владельцу SaaS.'); if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`); return payload; };

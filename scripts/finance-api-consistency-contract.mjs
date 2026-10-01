@@ -47,7 +47,7 @@ assert.match(portal, /const totalPayroll = days\.reduce\(\(sum, row\) => sum \+ 
   'demo analytics exposes paid payroll separately and includes it in total expenses');
 assert.match(portal, /netProfit: totalRevenue - totalExpenses - totalCostOfGoods/,
   'demo analytics net profit subtracts both expenses and cost of goods');
-assert.match(subscription, /UPDATE organizations SET plan=\$1,updated_at=now\(\)/,
+assert.match(subscription, /UPDATE organizations SET plan=\$1,is_active=\$2,updated_at=now\(\) WHERE id=\$3/,
   'organization plan changes update the organization modification timestamp');
 assert.match(expenses, /LEFT JOIN LATERAL \(SELECT pe\.id,pe\.status,pe\.period_from,pe\.period_to FROM payroll_entries pe WHERE pe\.venue_id=e\.venue_id AND pe\.expense_id=e\.id ORDER BY pe\.created_at DESC,pe\.id DESC LIMIT 1\) payroll ON true/,
   'linked payroll period is read in a tenant-bound deterministic order');

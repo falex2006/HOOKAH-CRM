@@ -49,8 +49,16 @@ assert.match(css, /\.staff-theme header\{padding:0 16px;align-items:center\}/,
 assert.match(portal, /const currentUrl = new URL\(location\.href\);/);
 assert.match(portal, /href: '\/'/);
 assert.doesNotMatch(portal, /staff-workspace|href: '\/\?mode=/);
-assert.match(portal, /const dashboardHashChangeHandler = \(\) => \{\s*normalizeManagementSidebar\(\);[\s\S]*?target\._dashboardHashChangeHandler = dashboardHashChangeHandler;\s*window\.addEventListener\('hashchange', dashboardHashChangeHandler\);/s,
-  'dashboard hash navigation must normalize the sidebar through one replaceable listener');
+const navigationStart = portal.indexOf('function setupPortalDashboardNavigation()');
+const navigationEnd = portal.indexOf('function renderDashboard()', navigationStart);
+assert.ok(navigationStart >= 0 && navigationEnd > navigationStart, 'shared dashboard navigation helper exists');
+const navigation = portal.slice(navigationStart, navigationEnd);
+assert.match(navigation, /const navigate = \(\) => \{\s*normalizeManagementSidebar\(\);/,
+  'dashboard hash navigation must normalize the sidebar before routing');
+assert.match(navigation, /target\._portalDashboardNavigation\) return;/,
+  'dashboard rerenders must retain only one shared navigation listener');
+assert.match(navigation, /window\.addEventListener\('hashchange', navigate\);/,
+  'dashboard hash navigation must use that single listener');
 
 // Keep the canonical page tree aligned with the management sidebar's target
 // pages, so adding a link cannot silently point at a non-canonical filename.

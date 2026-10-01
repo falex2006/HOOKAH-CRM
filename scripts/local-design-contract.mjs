@@ -13,7 +13,8 @@ const syncScript = readFileSync(new URL('../scripts/sync-published-assets.mjs', 
 const cssRevision = Number(syncScript.match(/cssRevision = '(\d+)'/)?.[1]);
 const portalRevision = Number(syncScript.match(/portalRevision = '(\d+)'/)?.[1]);
 const appRevision = Number(syncScript.match(/appRevision = '(\d+)'/)?.[1]);
-assert.ok(Number.isInteger(cssRevision) && Number.isInteger(portalRevision), 'published asset revisions must be declared in the sync script');
+const platformRevision = Number(syncScript.match(/platformRevision = '(\d+)'/)?.[1]);
+assert.ok([cssRevision, portalRevision, appRevision, platformRevision].every(Number.isInteger), 'published asset revisions must be declared in the sync script');
 const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 assert.match(appSource, /floorPixelPlacement/, 'POS must convert floor layouts through one pixel contract');
 assert.match(appSource, /layout\.unit==='grid'/, 'legacy grid layouts must remain readable');
@@ -26,7 +27,7 @@ for (const file of htmlFiles) {
   if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, new RegExp(`portal\\.js\\?rev=${portalRevision}`), `${file} must use current portal JS cache version`);
   if (file === 'index.html') assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`), 'index.html must use current staff app JS cache version');
   if (file === 'index.html') assert.match(html, /assets\/tabler-icons\.svg\?rev=3#table-layout/, 'staff workspace must use the refreshed icon sprite');
-  if (file === 'platform.html') assert.match(html, /platform\.js\?rev=4/, 'platform.html must use platform JS');
+  if (file === 'platform.html') assert.match(html, new RegExp(`platform\\.js\\?rev=${platformRevision}`), 'platform.html must use current platform JS cache version');
 }
 const distRoot = new URL('../dist/', import.meta.url);
 const distHtmlFiles = [];
