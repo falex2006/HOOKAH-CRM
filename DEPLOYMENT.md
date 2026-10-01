@@ -84,3 +84,4 @@ docker compose ps
 Перед `deploy-vps.sh` задайте в `.env` непустые production-секреты и замените все значения `change_*` и `replace-*`, включая `STAFF_PASSPORT_KEY`; скрипт проверяет наличие Docker Compose plugin и `AUTH_REQUIRED=true`. Для HTTPS обязателен `COOKIE_SECURE=true`; HTTP допускается только для конкретного запуска с `COOKIE_SECURE=false` и `ALLOW_HTTP_DEPLOY_ONCE=true`.
 
 `backup-postgres.sh` после дампа проверяет непустой файл и целостность gzip через `gzip -t`, затем хранит последние 14 дней.
+
