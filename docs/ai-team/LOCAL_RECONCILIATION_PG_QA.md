@@ -35,7 +35,15 @@ Session creation keeps the configured per-user device limit. Browser verificatio
 - CRM process: terminal session `62004`, port 3107.
 - PostgreSQL container: `hookah-qa-pg-live`, port 55434.
 
-Keep both live for the coordinator's CUA reload and browser smoke verification. Remove them after that verification.
+These were temporary handles during the audit, not a persistent user service. The coordinator later restarted CRM in its own terminal session for final browser QA. After acceptance, the temporary CRM, proxy fixtures and memory QA process were stopped; `hookah-qa-pg-live` and its disposable anonymous volume were removed. Existing project containers were preserved.
+
+## Coordinator CUA evidence
+
+- The same Roman browser session survived a CRM restart without another password login; table1 reopened the same Darkside Blueberry quantity2/total2400 order.
+- Invalid staff PIN showed the expected error; correct PIN restored clickable orders. Confirmed logout redirected to login.
+- Synthetic owner password login, manual PIN lock, invalid/valid trusted PIN return, and correct owner identity were checked through CUA.
+- On mobile375×667, the numeric PIN keypad unlocked the screen; video paused after unlock. Opening the navigation drawer exposed logout, which successfully redirected to login. Clicking a hidden/inert drawer control was not treated as a working visible path.
+- Smoke browser/fixture evidence and media quality limits are documented in `../requirements/AUTH_SMOKE_BACKGROUND.md`. No production credentials or business data were used.
 
 ## Browser restart evidence
 

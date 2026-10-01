@@ -4380,11 +4380,12 @@ function staticFile(req, res) {
   const publicFiles = new Set([
     '/phone-format.js',
     ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
-    '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
+    '/login.js', '/auth-smoke.js', '/auth-smoke.css', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
     '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg',
+    '/assets/login-smoke-ambient.png', '/assets/login-smoke-ambient.mp4',
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
@@ -4394,11 +4395,44 @@ function staticFile(req, res) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
   if (relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(404); return res.end('Not found'); }
-  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf' };
-  const headers = { 'Content-Type': `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf', '.mp4': 'video/mp4' };
+  const extension = path.extname(file);
+  const mime = types[extension] || 'application/octet-stream';
+  const textual = ['.html', '.css', '.js', '.json', '.svg'].includes(extension);
+  const headers = { 'Content-Type': mime + (textual ? '; charset=utf-8' : ''), 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
   // The login document contains the initial setup form as a hidden alternative;
   // never let a browser keep an older first-run document after a local release.
   if (requestPath === '/login.html') headers['Cache-Control'] = 'no-store';
+  if (extension === '.mp4') {
+    const size = fs.statSync(file).size;
+    headers['Accept-Ranges'] = 'bytes';
+    headers['Content-Length'] = size;
+    // HEAD describes the full representation. Single byte ranges cover browser
+    // metadata requests and looping without exposing any extra filesystem path.
+    if (req.method === 'GET' && req.headers.range) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
+      let start = 0, end = size - 1;
+      let valid = Boolean(match && (match[1] || match[2]));
+      if (valid && !match[1]) {
+        const suffix = Number(match[2]);
+        valid = Number.isSafeInteger(suffix) && suffix > 0;
+        start = Math.max(0, size - suffix);
+      } else if (valid) {
+        start = Number(match[1]);
+        end = match[2] ? Number(match[2]) : size - 1;
+        valid = Number.isSafeInteger(start) && Number.isSafeInteger(end) && start <= end && start < size;
+        end = Math.min(end, size - 1);
+      }
+      if (!valid || !size) {
+        res.writeHead(416, { ...headers, 'Content-Range': `bytes */${size}`, 'Content-Length': 0 });
+        return res.end();
+      }
+      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
+      return fs.createReadStream(file, { start, end }).on('error', () => res.destroy()).pipe(res);
+    }
+    res.writeHead(200, headers);
+    return req.method === 'HEAD' ? res.end() : fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
+  }
   res.writeHead(200, headers);
   return res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(file));
 }

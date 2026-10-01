@@ -7,10 +7,12 @@ import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlF
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '365';
 const portalRevision = '415';
-const lockRevision = '19';
+const lockRevision = '20';
 const appRevision = '172';
 const staffProfileRevision = '6';
-const loginRevision = '93';
+const loginRevision = '96';
+const authSmokeRevision = '3';
+const authSmokeCssRevision = '1';
 const staffAdminCardRevision = '7';
 const purchaseDocumentValidationRevision = '1';
 // Keep flat pages and directory-index aliases in dist aligned with their source
@@ -39,6 +41,8 @@ for (const path of htmlFiles) {
     .replace(/app\.js\?rev=\d+/g, `app.js?rev=${appRevision}`)
     .replace(/staff-profile\.js\?rev=\d+/g, `staff-profile.js?rev=${staffProfileRevision}`)
     .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`)
+    .replace(/auth-smoke\.js\?rev=\d+/g, `auth-smoke.js?rev=${authSmokeRevision}`)
+    .replace(/auth-smoke\.css\?rev=\d+/g, `auth-smoke.css?rev=${authSmokeCssRevision}`)
     .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`);
   const versionedHtml = html.replace(/purchase-document-validation\.js\?rev=\d+/g, `purchase-document-validation.js?rev=${purchaseDocumentValidationRevision}`);
   writeFileSync(path, versionedHtml);
@@ -51,6 +55,8 @@ cpSync(resolve(root, 'vip-deposit-ui.js'), resolve(root, 'dist', 'vip-deposit-ui
 cpSync(resolve(root, 'staff-profile.js'), resolve(root, 'dist', 'staff-profile.js'));
 cpSync(resolve(root, 'login.js'), resolve(root, 'dist', 'login.js'));
 cpSync(resolve(root, 'style.css'), resolve(root, 'dist', 'style.css'));
+for (const name of ['auth-smoke.js', 'auth-smoke.css']) cpSync(resolve(root, name), resolve(root, 'dist', name));
+for (const name of ['login-smoke-ambient.png', 'login-smoke-ambient.mp4']) cpSync(resolve(root, 'assets', name), resolve(root, 'dist', 'assets', name));
 cpSync(resolve(root, 'staff-admin-card.js'), resolve(root, 'dist', 'staff-admin-card.js'));
 cpSync(resolve(root, 'purchase-document-validation.js'), resolve(root, 'dist', 'purchase-document-validation.js'));
 cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'assets', 'tabler-icons.svg'));

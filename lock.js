@@ -51,10 +51,23 @@
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || 'С';
   const avatarMarkup = user.avatarUrl ? `<img src="${escapeHtml(user.avatarUrl)}" alt="">` : `<span>${escapeHtml(initials)}</span>`;
 
+  if (!document.querySelector('link[data-auth-smoke]')) {
+    const smokeStyle = document.createElement('link');
+    smokeStyle.rel = 'stylesheet';
+    smokeStyle.href = '/auth-smoke.css?rev=1';
+    smokeStyle.dataset.authSmoke = 'true';
+    document.head.appendChild(smokeStyle);
+  }
+  if (!document.querySelector('script[data-auth-smoke]')) {
+    const smokeScript = document.createElement('script');
+    smokeScript.src = '/auth-smoke.js?rev=3';
+    smokeScript.dataset.authSmoke = 'true';
+    document.head.appendChild(smokeScript);
+  }
   const overlay = document.createElement('div');
   overlay.className = 'screen-lock-overlay';
   overlay.setAttribute('aria-hidden', 'true');
-  overlay.innerHTML = `<section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
+  overlay.innerHTML = `<div class="auth-smoke-backdrop" aria-hidden="true"><span class="auth-smoke-texture"></span><span class="auth-smoke-light"></span><span class="auth-smoke-vignette"></span></div><section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
     <div class="screen-lock-mark" aria-label="Аватар сотрудника">${avatarMarkup}</div>
     <p class="screen-lock-kicker">HOOKAH POS</p>
     <p class="screen-lock-eyebrow">РАБОЧЕЕ МЕСТО ЗАБЛОКИРОВАНО</p>

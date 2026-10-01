@@ -1,0 +1,27 @@
+/* Shared decorative smoke. The PNG remains still while video loads or fails. */
+:root:has(.login>.auth-smoke-backdrop){color-scheme:dark;scrollbar-width:thin;scrollbar-color:#4a515d #111317}
+.auth-smoke-backdrop{position:fixed;z-index:0;inset:0;overflow:hidden;pointer-events:none;isolation:isolate;background:#0d0f12}
+.auth-smoke-backdrop[hidden]{display:none!important}
+.auth-smoke-backdrop *{pointer-events:none}
+.auth-smoke-video,.auth-smoke-texture,.auth-smoke-cold,.auth-smoke-light,.auth-smoke-cold-light,.auth-smoke-vignette{position:absolute;inset:0;width:100%;height:100%;animation:none!important;transform:none}
+.auth-smoke-texture{background:url('/assets/login-smoke-ambient.png') center/cover no-repeat;opacity:.44;mix-blend-mode:screen}
+.auth-smoke-video{object-fit:cover;object-position:center;opacity:0;mix-blend-mode:screen}
+.auth-smoke-backdrop.video-ready:not(.video-fallback) .auth-smoke-video{opacity:.62}
+.auth-smoke-backdrop.video-ready:not(.video-fallback) .auth-smoke-texture{opacity:.14}
+.auth-smoke-backdrop.video-fallback .auth-smoke-video{display:none}
+.auth-smoke-backdrop.video-fallback .auth-smoke-texture{opacity:.44}
+.auth-smoke-cold,.auth-smoke-cold-light{display:none}
+.auth-smoke-light{background:radial-gradient(ellipse at 22% 48%,#e58a4b18 0,transparent 42%);opacity:.62}
+.auth-smoke-vignette{background:linear-gradient(90deg,#0d0f1240 0%,#0d0f121f 36%,#0d0f123d 100%),radial-gradient(ellipse at 52% 48%,transparent 28%,#0506078a 100%)}
+.login:has(.auth-smoke-backdrop){position:relative;isolation:isolate;align-items:center;align-content:center;background:#0d0f12;padding-block:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-bottom))}
+.login:has(.auth-smoke-backdrop)>.login-card{position:relative;z-index:1;max-height:none;overflow:visible;background:linear-gradient(145deg,#1b1e23f5,#121417f5)}
+.login:has(.auth-smoke-backdrop)::before,.login:has(.auth-smoke-backdrop)::after{display:none}
+.login:has(.auth-smoke-backdrop) .brand-mark:not(.has-logo){background:none;box-shadow:none}
+.login:has(.auth-smoke-backdrop) .brand-mark:not(.has-logo)>img{width:100%;height:100%;object-fit:contain}
+.login:has(.auth-smoke-backdrop)>.hookah-ambient,.login:has(.auth-smoke-backdrop)>.login-atmosphere{display:none}
+.screen-lock-overlay:has(.auth-smoke-backdrop){align-items:start;overflow-y:auto;overscroll-behavior:contain;padding-block:max(16px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-bottom));background:#0d0f12;backdrop-filter:none}
+.screen-lock-overlay:has(.auth-smoke-backdrop)::before,.screen-lock-overlay:has(.auth-smoke-backdrop)::after{display:none}
+.screen-lock-overlay .auth-smoke-backdrop{position:absolute}
+.screen-lock-overlay:has(.auth-smoke-backdrop) .screen-lock-card{position:relative;z-index:1;margin-block:auto;background:linear-gradient(145deg,#1b1e23f5,#121417f5)}
+@media(max-width:760px){.auth-smoke-video{object-position:42% center}.auth-smoke-texture{background-position:42% center;opacity:.36}.auth-smoke-vignette{background:linear-gradient(0deg,#0d0f1266 0%,transparent 68%),radial-gradient(ellipse at 50% 45%,transparent 20%,#05060788 100%)}}
+@media(prefers-reduced-motion:reduce){.auth-smoke-video{display:none!important}.auth-smoke-backdrop .auth-smoke-texture{opacity:.44!important}.auth-smoke-backdrop *{animation:none!important;transition:none!important}}
