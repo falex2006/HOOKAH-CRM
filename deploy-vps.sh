@@ -97,8 +97,8 @@ printf 'in-progress|%s|%s\n' "$release_fingerprint" "$backup_label" > "$state_fi
 chmod 600 "$state_file.tmp.$$"
 mv "$state_file.tmp.$$" "$state_file"
 BACKUP_DIR="$backup_dir" BACKUP_LABEL="$backup_label" ./backup-postgres.sh
-$COMPOSE pull
-$COMPOSE build --pull
+$COMPOSE pull db nginx
+$COMPOSE build --pull crm
 $COMPOSE up -d
 ./migrate-vps.sh
 $COMPOSE exec -T crm npm run db:seed-menu

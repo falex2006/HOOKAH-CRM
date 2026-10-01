@@ -71,6 +71,8 @@ assert.match(deploy, /already deployed and healthy; skipping duplicate deploymen
 assert.match(deploy, /BACKUP_LABEL="\$backup_label" \.\/backup-postgres\.sh/, 'each new release attempt must create or reuse its matching pre-release backup');
 assert.ok(deploy.indexOf("printf 'in-progress|") < deploy.indexOf('BACKUP_LABEL="$backup_label"'), 'the attempt and backup label must be persisted before writing the snapshot');
 assert.ok(deploy.indexOf('BACKUP_LABEL=') < deploy.indexOf('$COMPOSE pull'), 'the database backup must be verified before updating images');
+assert.match(deploy, /\$COMPOSE pull db nginx/, 'pull only published infrastructure images; the CRM image is built from source');
+assert.match(deploy, /\$COMPOSE build --pull crm/, 'build the CRM service from the checked-out release');
 assert.match(backup, /if \[ -e "\$file" \]/, 'repeated releases must reuse a verified backup instead of creating duplicates');
 assert.match(backup, /gzip -t "\$file"/, 'a reused backup must be integrity checked');
 assert.match(backup, /flock 9/, 'parallel backup attempts must be serialized');
