@@ -4400,7 +4400,7 @@ function staticFile(req, res) {
     ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
-    '/purchase-document-validation.js',
+    '/purchase-document-validation.js', '/notification-center.js', '/audit-privacy.js', '/staff-identity.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
     '/assets/tabler-icons.svg', '/assets/login-smoke-ambient.png', '/assets/login-smoke-ambient.mp4', '/auth-smoke.css', '/auth-smoke.js',
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
@@ -4455,6 +4455,7 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
+
 
 
 
