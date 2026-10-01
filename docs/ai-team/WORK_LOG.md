@@ -2420,3 +2420,7 @@
 - Свежие проверки PASS: notifications browser/API; SaaS quotas/suspension на disposable PostgreSQL; upgrade всех 56 миграций с сохранением legacy-строк и точности количества; POS browser PostgreSQL (оплата, разделение, скидка, роли, reload); purchase auto-order PostgreSQL (частичная поставка, отмена, полный приход); recipe depletion PostgreSQL (292 assertions); login/error, trusted-PIN return, protected default credentials; design/assets, platform, click, role, deploy и acceptance contracts; `node --check`, `git diff --check`, Docker Compose config.
 - Временная PostgreSQL была отдельным контейнером `codex-hookah-qa-pg`, привязанным к `127.0.0.1:55433`, и удалена после тестов. QA использовал синтетические организации и товары; production-схема и бизнес-данные не затрагивались.
 - Read-only доступ к VPS `/root/HOOKAH-CRM` проверен, но SSH отклонён (`Permission denied (publickey,password)`). Production-деплой из этой среды не запускался; для публикации на сервер нужен настроенный SSH-ключ/доступ. Текущий VPS остаётся на ранее записанном релизе `5f77a22`.
+## 2026-10-01 — GitHub publication follow-up
+
+- Проверенный релизный пакет опубликован fast-forward в GitHub: `codex/premix-batch-lifecycle`, feature commit `7dea2a0` (`Release warehouse, notifications and SaaS updates`).
+- VPS публикация остаётся незавершённой: SSH с текущей среды получает `Permission denied (publickey,password)`; production не изменён и остаётся на `5f77a22`.
