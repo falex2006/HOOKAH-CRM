@@ -789,8 +789,13 @@ async function api(req, res) {
     const attempt = loginAttempts.get(loginKey);
     if (attempt && attempt.blockedUntil > Date.now()) return json(res, 429, { error: 'too_many_login_attempts', retryAfter: Math.ceil((attempt.blockedUntil - Date.now()) / 1000) });
     let account = null;
-    if (!process.env.DATABASE_URL) {
-      account = [...demoAccounts, ...provisionedAccounts].find((entry) => entry.username === input.username && ((requestedPin && entry.pin === requestedPin) || (!requestedPin && entry.password === input.password)));
+    // The configured platform owner is an infrastructure identity, not a tenant
+    // row. It must remain available when PostgreSQL is enabled; tenant users are
+    // still resolved from the database below.
+    const configuredPlatformOwner = demoAccounts.find((entry) => entry.role === 'platform_owner' && entry.username === loginKey && entry.password === input.password);
+    if (configuredPlatformOwner) account = configuredPlatformOwner;
+    if (!account && !process.env.DATABASE_URL) {
+      account = [...demoAccounts, ...provisionedAccounts].find((entry) => entry.username === loginKey && ((requestedPin && entry.pin === requestedPin) || (!requestedPin && entry.password === input.password)));
       if (!account) { const person = staff.find((entry) => entry.active && entry.login === input.username); const credential = input.password; if (person && credential && await verifyPassword(credential, person.passwordHash)) account = { username: person.login, id: person.id, organizationId: person.organizationId || saasAccount.id, name: person.name, role: person.role, avatarUrl: person.avatarUrl, telegram: person.telegram, phoneNumbers: person.phoneNumbers, permissionScopes: person.permissionScopes || [], pinHash: person.pinHash || null, pinConfigured: Boolean(person.pinHash || person.pinCode) }; }
     }
     if (!account && repositories?.pool) {
