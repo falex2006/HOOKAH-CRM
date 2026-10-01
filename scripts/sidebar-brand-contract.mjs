@@ -10,7 +10,8 @@ assert.equal((css.match(/Shared sidebar logo slot/g)||[]).length,1,'one shared l
 assert.doesNotMatch(css,/Hookah POS product lockup in the employee workspace sidebar/,'duplicate staff-only logo rules removed');
 for(const file of ['index.html','admin.html','platform.html']){
  const html=fs.readFileSync(file,'utf8');assert.match(html,/<picture class="hookah-pos-brand"><source media="\(max-width:900px\)" srcset="\/assets\/brand\/hookah-pos-symbol.svg/);
- assert.match(html,/hookah-pos-lockup.svg[^>]*width="190" height="61"/,'intrinsic dimensions are preserved as layout hints');
+ assert.match(html,/hookah-pos-lockup-animated\.svg[^>]*width="190" height="61"/,'animated desktop lockup and intrinsic dimensions are present');
+ assert.match(html,/prefers-reduced-motion:reduce[^>]+hookah-pos-lockup\.svg/,'reduced-motion static fallback is present');
  assert.equal(html,fs.readFileSync(`dist/${file}`,'utf8'));
 }
 assert.equal(css,fs.readFileSync('dist/style.css','utf8'));

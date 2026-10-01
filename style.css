@@ -2737,6 +2737,11 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .platform-start-card{display:grid;grid-template-columns:minmax(240px,.85fr) minmax(0,1.5fr);gap:22px;align-items:center;margin-top:18px;padding:22px 24px;border:1px solid rgba(255,119,82,.35);border-radius:18px;background:linear-gradient(135deg,#211d21,#171b20)}.platform-start-card h2{margin:6px 0;font-size:21px}.platform-start-card p{margin:0;color:#9aa3af;line-height:1.45}.platform-start-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.platform-start-steps a{display:flex;align-items:flex-start;gap:10px;padding:13px;border:1px solid #303742;border-radius:12px;background:#12161a;color:#e9edf2;text-decoration:none}.platform-start-steps a:hover{border-color:#ff7752}.platform-start-steps strong{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#ff7752;color:#15171b;flex:none}.platform-start-steps span{display:flex;flex-direction:column;gap:4px}.platform-start-steps small{color:#8993a2;font-size:11px;line-height:1.3}@media(max-width:900px){.platform-start-card{grid-template-columns:1fr}.platform-start-steps{grid-template-columns:1fr}}
 
 /* Shared sidebar logo slot: fit the available width without cropping the asset. */
+/* Product brand stays distinct from venue logos and employee avatars. */
+.auth-product-brand{display:block;width:min(240px,100%);aspect-ratio:200/64;margin:0 0 24px}
+.auth-product-brand img{display:block;width:100%;height:100%;object-fit:contain;object-position:left center}
+.screen-lock-card .screen-lock-brand{width:min(180px,100%);margin:0 auto 18px}
+.screen-lock-brand img{object-position:center}
 .portal-sidebar .brand,.platform-sidebar .brand{min-width:0}
 .portal-sidebar .brand>.hookah-pos-brand,.platform-sidebar .brand>.hookah-pos-brand{display:block;flex:0 1 auto;width:min(190px,100%);max-width:100%;min-width:0;height:auto;max-height:61px;aspect-ratio:200/64}
 .portal-sidebar .hookah-pos-brand img,.platform-sidebar .hookah-pos-brand img{display:block;width:100%;height:100%;max-width:100%;object-fit:contain;object-position:left center}

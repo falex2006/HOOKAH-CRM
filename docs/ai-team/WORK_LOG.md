@@ -1,5 +1,13 @@
 # Рабочий журнал команды
 
+## 2026-10-01 — пользовательский Hookah POS brand kit
+
+- Изучен архив/README/USAGE/manifest/SVG и auth preview.21runtimeassets импортированы без выполнения вложенных генераторов. Пользователь отдельно выбрал animated sidebar: staff/admin/platform используют fullanimated, compact symbol остаётся static, reduced-motion выбирает staticfull. Авторизация fullanimated240×76.8; lock static180×57.6 отдельно от аватара. Login больше не подменяет продуктовый бренд логотипом заведения.
+- Favicon SVG/PNG/ICO, Safari/Apple/PWA/OG metadata подключены через единый sync41routes, server exactallowlist и MIME, source/dist. CSS369 login97 lock21 brandrev2. Никаких API/БД/роль/route изменений и миграций; Docker assets COPY уже покрывает комплект.
+- Brand-kit/sidebar-brand/local-login/local-lock/local-design/auth-smoke-runtime/static-boundary — PASS. CUA desktop login/admin/staff/platform logo currentSrc/contain проверены; animated SVG running5.4s и изменениеopacity подтверждены; lock/unlock синтетической учётки сохранены. Proof tmp/brand-kit внеrelease.
+- Независимые architect/code-health/design reviews приняты. Мобильный layout/QA отложен, остальные доработки отложены. Основной dirty checkout/production/VPS не менялись. Документ docs/design/HOOKAH_POS_BRAND_KIT.md содержит контракт и пределы проверки.
+- Docker build и HTTP всех21assets PASS с точным сравнением байтов, правильными MIME и404preview/generator. Локальный preview31921 оставлен для просмотра результата; прежний31907 не перезапускался, его memory-данные сохранены. Новый пакет в нём не подтверждён; для просмотра используется31921. Только локальный commit, безGitHub/VPS.
+
 ## 2026-10-01 — согласованные смены и уведомления руководителей
 
 - Проверены рабочий зал, главная и финансы; найдено отсутствие событий смены/колокольчика управляющего, несогласованное обновление UI, неатомарный аудит и memory venue isolation. Исправления в server/app/portal и общем notification-center; root/dist синхронны, asset добавлен в server whitelist и Docker COPY. Новых миграций нет.

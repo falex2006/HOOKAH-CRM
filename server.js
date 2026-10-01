@@ -4401,6 +4401,12 @@ function staticFile(req, res) {
     '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg',
     '/assets/login-smoke-ambient.png', '/assets/login-smoke-ambient.mp4',
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
+    '/assets/brand/hookah-pos-lockup-light.svg', '/assets/brand/hookah-pos-lockup-animated.svg',
+    '/assets/brand/hookah-pos-lockup-light-animated.svg', '/assets/brand/manifest.webmanifest',
+    ...['apple-touch-icon-180.png', 'apple-touch-icon-dark-180.png', 'favicon-16.png', 'favicon-32.png', 'favicon-48.png',
+      'favicon.ico', 'favicon.svg', 'mono-black-512.png', 'mono-white-512.png', 'mstile-150.png',
+      'og-image-1200x630.png', 'pwa-192.png', 'pwa-512.png', 'pwa-maskable-512.png', 'safari-pinned-tab.svg']
+      .map(name => `/assets/brand/icons/${name}`),
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
   if (!publicFiles.has(requestPath)) { res.writeHead(404); return res.end('Not found'); }
@@ -4409,10 +4415,10 @@ function staticFile(req, res) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
   if (relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(404); return res.end('Not found'); }
-  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf', '.mp4': 'video/mp4' };
+  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf', '.mp4': 'video/mp4' };
   const extension = path.extname(file);
   const mime = types[extension] || 'application/octet-stream';
-  const textual = ['.html', '.css', '.js', '.json', '.svg'].includes(extension);
+  const textual = ['.html', '.css', '.js', '.json', '.webmanifest', '.svg'].includes(extension);
   const headers = { 'Content-Type': mime + (textual ? '; charset=utf-8' : ''), 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
   // The login document contains the initial setup form as a hidden alternative;
   // never let a browser keep an older first-run document after a local release.

@@ -69,7 +69,7 @@
   overlay.setAttribute('aria-hidden', 'true');
   overlay.innerHTML = `<div class="auth-smoke-backdrop" aria-hidden="true"><span class="auth-smoke-texture"></span><span class="auth-smoke-light"></span><span class="auth-smoke-vignette"></span></div><section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
     <div class="screen-lock-mark" aria-label="Аватар сотрудника">${avatarMarkup}</div>
-    <p class="screen-lock-kicker">HOOKAH POS</p>
+    <picture class="auth-product-brand screen-lock-brand"><img src="/assets/brand/hookah-pos-lockup.svg?rev=2" width="200" height="64" alt="Hookah POS by AlphaSat"></picture>
     <p class="screen-lock-eyebrow">РАБОЧЕЕ МЕСТО ЗАБЛОКИРОВАНО</p>
     <h2 id="screen-lock-title">Вернитесь к работе</h2>
     <p class="screen-lock-user">${escapeHtml(displayName)}</p>

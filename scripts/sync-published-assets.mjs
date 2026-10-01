@@ -5,16 +5,28 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '368';
+const cssRevision = '369';
 const portalRevision = '416';
-const lockRevision = '20';
+const lockRevision = '21';
 const appRevision = '175';
 const staffProfileRevision = '6';
-const loginRevision = '96';
+const loginRevision = '97';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '1';
 const staffAdminCardRevision = '7';
 const purchaseDocumentValidationRevision = '1';
+const brandRevision = '2';
+const brandHead = `<!-- Hookah POS brand icons -->
+<link rel="icon" href="/assets/brand/icons/favicon.ico?rev=${brandRevision}" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/icons/favicon-32.png?rev=${brandRevision}">
+<link rel="icon" type="image/svg+xml" href="/assets/brand/icons/favicon.svg?rev=${brandRevision}">
+<link rel="mask-icon" href="/assets/brand/icons/safari-pinned-tab.svg?rev=${brandRevision}" color="#171A20">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/icons/apple-touch-icon-180.png?rev=${brandRevision}">
+<link rel="manifest" href="/assets/brand/manifest.webmanifest?rev=${brandRevision}">
+<meta name="msapplication-TileImage" content="/assets/brand/icons/mstile-150.png?rev=${brandRevision}">
+<meta name="theme-color" content="#171A20">
+<meta property="og:image" content="/assets/brand/icons/og-image-1200x630.png?rev=${brandRevision}">
+<!-- /Hookah POS brand icons -->`;
 // Keep flat pages and directory-index aliases in dist aligned with their source
 // templates. Static hosts commonly resolve /login/ to dist/login/index.html,
 // so every public route alias must receive the same safe initial markup.
@@ -35,6 +47,14 @@ const htmlFiles = [
 
 for (const path of htmlFiles) {
   const html = readFileSync(path, 'utf8')
+    .replace(/<!-- Hookah POS brand icons -->[\s\S]*?<!-- \/Hookah POS brand icons -->\s*/g, '')
+    .replace('</head>', `${brandHead}</head>`)
+    .replace(/(\/assets\/brand\/hookah-pos-[a-z-]+\.svg)(?:\?rev=\d+)?/g, `$1?rev=${brandRevision}`)
+    .replace(/(<picture class="hookah-pos-brand">)([\s\S]*?)(<\/picture>)/g, (_, open, content, close) => {
+      const animated = content.replace(/(<img src=")\/assets\/brand\/hookah-pos-lockup(?:-animated)?\.svg\?rev=\d+/, `$1/assets/brand/hookah-pos-lockup-animated.svg?rev=${brandRevision}`);
+      const withReducedMotion = animated.includes('prefers-reduced-motion') ? animated : animated.replace('<img ', `<source media="(prefers-reduced-motion:reduce)" srcset="/assets/brand/hookah-pos-lockup.svg?rev=${brandRevision}"><img `);
+      return open + withReducedMotion + close;
+    })
     .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
     .replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`)
     .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)
