@@ -1,5 +1,9 @@
 # Рабочий журнал команды
 
+## 2026-10-01 — публикация полного локального QA на VPS
+
+По явному запросу пользователя выпущен согласованный commit 7d573fe1 в GitHub main и на VPS. Code health и architect/release review GO; локальные 167/167 и static125/125, verified backup restore до обновления. Production .env/ключи/volume и количество рабочих записей сохранены, локальная QA база не переносилась. Новый image/commit/release fingerprint проверены, health PostgreSQL и39 exact public assets PASS. Реальный браузер: вход Романа с корректной identity, рабочий зал, Заказы, Гости, Задачи, личный отчёт/refresh/выход; SaaS вход/Компании/Настройки/hash reload/выход PASS, ошибок консоли нет. Полные SHA, rollback snapshot и ограничения — docs/design/RELEASE_FULL_QA_2026_10_01.md. Mobile/Fold и HTTPS остаются отложенными по запросу пользователя.
+
 ## 2026-10-01 — пользовательский Hookah POS brand kit
 
 - Изучен архив/README/USAGE/manifest/SVG и auth preview.21runtimeassets импортированы без выполнения вложенных генераторов. Пользователь отдельно выбрал animated sidebar: staff/admin/platform используют fullanimated, compact symbol остаётся static, reduced-motion выбирает staticfull. Авторизация fullanimated240×76.8; lock static180×57.6 отдельно от аватара. Login больше не подменяет продуктовый бренд логотипом заведения.
