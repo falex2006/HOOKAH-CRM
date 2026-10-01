@@ -48,9 +48,15 @@ assert.match(css, /@media\(max-width:768px\)\{[\s\S]*?\.notification-panel\{inse
 assert.match(portal, /header-shift-status[\s\S]*?Статус смены недоступен/, 'shift API failure has an explicit state');
 assert.match(lock, /lock-button-glyph[^\n]*width:18px!important;height:18px!important/, 'lock glyph matches the other 18px icons');
 assert.match(lock, /width="18" height="18" viewBox="0 0 24 24"/, 'inline lock icon dimensions match the shared icon scale');
+assert.match(css, /\.velora-theme \.portal-header \.header-right > \.notification-bell,\.velora-theme \.portal-header \.header-right > \.lock-settings-button,\.velora-theme \.portal-header \.header-right > #lock-screen-button\{border:0;outline:none;box-shadow:none;background:transparent;color:#c4cad1\}/, 'header action icons share borderless neutral styling');
+assert.match(css, /\.velora-theme \.portal-header \.header-right > \.notification-bell:focus-visible[\s\S]*?outline:2px solid #ff9a8f/, 'borderless actions retain a visible keyboard focus ring');
+assert.match(lock, /stroke="currentColor"/, 'lock glyph inherits the shared icon color');
+assert.doesNotMatch(lock, /stroke="#ff7a83"|color:#ff7a83!important/, 'lock glyph does not keep its old red accent');
+assert.match(server, /canSeeShiftOpener[\s\S]*?LEFT JOIN users u ON u\.id=s\.opened_by AND u\.venue_id=s\.venue_id/, 'shift opener identity is joined within the same venue');
+assert.match(portal, /Смена открыта\$\{openedByName \? ` · \$\{openedByName\}` : ''\}/, 'open shift status includes opener when the API provides one');
 assert.match(css, /Shared CRM top bar contract/, 'header rules are documented as the final shared contract');
 assert.match(css, /\.velora-theme \.portal-header \.header-right>\.notification-bell[^}]*flex:0 0 44px;width:44px;height:44px/, 'portal actions keep equal desktop hit targets');
-assert.match(css, /@media\(max-width:760px\)[\s\S]*?\.header-shift-status\{display:none\}/, 'compact header hides secondary state consistently');
+assert.match(css, /@media\(max-width:760px\)[\s\S]*?\.header-shift-status\{display:inline-block;max-width:clamp\(72px,22vw,140px\);font-size:11px\}/, 'compact header keeps shift status visible within a bounded width');
 assert.match(css, /\.portal\.velora-theme \.portal-shell\{height:100%;min-height:0;overflow:hidden\}/, 'legacy management shell uses the same bounded scroll frame');
 assert.match(css, /\.portal\.velora-theme \.portal-header,\.staff-theme main>header\{position:sticky;top:0;z-index:20\}/, 'management and employee action bars remain visible during workspace scrolling');
 assert.match(css, /@media\(min-width:651px\) and \(max-width:900px\)\{\.velora-theme \.portal-header\{padding-left:64px\}\}/, 'Fold portrait header reserves the floating menu button footprint');

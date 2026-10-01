@@ -20,9 +20,10 @@ const failure=refresh();pending[6].reject(Error('offline'));pending[7].reject(Er
 assert.equal((await failure).failed.length,3);assert.equal(node('.portal-header .header-shift-status').dataset.shiftState,'error');
 assert.equal(node('[data-venue-name]').textContent,'Заведение недоступно');
 assert.equal(node('#vip-minimum-summary').textContent,'Минимумы недоступны');
-const partial=refresh();pending[9].resolve({name:'C',logoUrl:'qa-logo',vipRoomMinimums:{vip_room_1:2000}});pending[10].reject(Error('metrics offline'));pending[11].resolve({current:{id:'shift'}});
+const partial=refresh();pending[9].resolve({name:'C',logoUrl:'qa-logo',vipRoomMinimums:{vip_room_1:2000}});pending[10].reject(Error('metrics offline'));pending[11].resolve({current:{id:'shift',openedByName:'QA Cash'}});
 assert.deepEqual((await partial).failed,['показатели']);
 assert.equal(node('[data-venue-name]').textContent,'C');assert.equal(node('.portal-header .header-shift-status').dataset.shiftState,'open');
+assert.equal(node('.portal-header .header-shift-status').textContent,'● Смена открыта · QA Cash');assert.equal(node('.portal-header .header-shift-status').title,'Смену открыл(а): QA Cash');
 assert.match(node('[data-admin-avatar]').innerHTML,/qa-logo/);assert.match(node('#vip-minimum-summary').textContent,/2000/);
 assert.doesNotMatch(source.slice(start,end),/network-form|network-name|renderNetwork\(/);
 console.log('PORTAL CONTEXT REFRESH QA: PASS (stale response, loading, partial failures, absent logo, draft untouched)');

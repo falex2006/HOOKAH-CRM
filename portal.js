@@ -1281,7 +1281,12 @@ const refreshPortalContext = async () => {
   } else failed.push('показатели');
   if (shift) {
     if (shiftResult.status === 'fulfilled' && shiftResult.value && Object.prototype.hasOwnProperty.call(shiftResult.value, 'current')) {
-      const open = Boolean(shiftResult.value.current); shift.textContent = open ? '● Смена открыта' : '● Смена закрыта'; shift.dataset.shiftState = open ? 'open' : 'closed'; shift.classList.toggle('offline', !open);
+      const currentShift = shiftResult.value.current;
+      const open = Boolean(currentShift);
+      const openedByName = open ? String(currentShift.openedByName || '').trim() : '';
+      shift.textContent = open ? `● Смена открыта${openedByName ? ` · ${openedByName}` : ''}` : '● Смена закрыта';
+      shift.title = open && openedByName ? `Смену открыл(а): ${openedByName}` : (open ? 'Смена открыта' : 'Смена закрыта');
+      shift.dataset.shiftState = open ? 'open' : 'closed'; shift.classList.toggle('offline', !open);
     } else { failed.push('смена'); shift.textContent = '● Статус смены недоступен'; shift.dataset.shiftState = 'error'; shift.classList.add('offline'); }
   }
   return { failed };

@@ -1274,6 +1274,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/shifts' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['floor', 'orders', 'finance_read'])) return;
+    const canSeeShiftOpener = ['owner', 'admin', 'manager', 'developer'].includes(String(req.user?.role || ''));
     if (isOperationalEmployee(req)) {
       if (repositories?.pool) {
         try {
@@ -1287,8 +1288,19 @@ async function api(req, res) {
       const current = shift ? { id: shift.id, openedAt: shift.openedAt, closedAt: null, openingCash: Number(shift.openingCash || 0) } : null;
       return json(res, 200, { items: current ? [current] : [], current });
     }
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT s.id,s.opened_at AS "openedAt",s.closed_at AS "closedAt",s.opening_cash AS "openingCash",s.closing_cash AS "closingCash",s.expected_cash AS "expectedCash",s.cash_variance AS "cashVariance",s.opened_at + (COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.shift_id=s.id AND p.method='cash' AND p.status IN ('paid','partially_paid')),0) * INTERVAL '0 second') AS "reconciliationAt" FROM shifts s WHERE s.venue_id=$1 ORDER BY s.opened_at DESC LIMIT 20`, [venueDbId]); const visible = hasPermission(req, 'finance_read') ? rows : rows.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash })); return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null }); } catch (_) {} }
-    const visible = hasPermission(req, 'finance_read') ? shifts.slice().reverse() : shifts.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash }));
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query(`SELECT s.id,s.opened_at AS "openedAt",s.closed_at AS "closedAt",s.opening_cash AS "openingCash",s.closing_cash AS "closingCash",s.expected_cash AS "expectedCash",s.cash_variance AS "cashVariance",CASE WHEN $2::boolean THEN COALESCE(NULLIF(u.full_name,''),u.login) END AS "openedByName",s.opened_at + (COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.shift_id=s.id AND p.method='cash' AND p.status IN ('paid','partially_paid')),0) * INTERVAL '0 second') AS "reconciliationAt" FROM shifts s LEFT JOIN users u ON u.id=s.opened_by AND u.venue_id=s.venue_id WHERE s.venue_id=$1 ORDER BY s.opened_at DESC LIMIT 20`, [venueDbId, canSeeShiftOpener]);
+        const visible = hasPermission(req, 'finance_read') ? rows : rows.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash }));
+        return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null });
+      } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
+    }
+    const includeOpener = (entry) => {
+      const { openedBy, openedByName, ...safeEntry } = entry;
+      const name = openedByName || openedBy;
+      return canSeeShiftOpener && name ? { ...safeEntry, openedByName: name } : safeEntry;
+    };
+    const visible = hasPermission(req, 'finance_read') ? shifts.slice().reverse().map(includeOpener) : shifts.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash }));
     return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null });
   }
   if (pathname === '/api/shifts' && req.method === 'POST') {
