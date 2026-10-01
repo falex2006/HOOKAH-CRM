@@ -36,6 +36,9 @@ assert.match(rules, /значок стоит у заголовка группы;
   'visual rules must keep expanded sidebar groups calm and readable');
 assert.deepEqual(map.staffHeaderPresentation.actions, ['shift', 'auto-lock-settings', 'screen-lock', 'profile']);
 assert.equal(map.staffHeaderPresentation.notifications, 'server-authorized-management-only');
+assert.deepEqual(map.sidebarBrandPresentation, {maxWidth:190,maxHeight:61,fit:'contain',compactMaxViewportWidth:900,compactWidth:42,compactHeight:40,compactDrawerAsset:'symbol'});
+assert.match(rules, /Логотип боковой панели целиком помещается во внутреннюю ширину/);
+assert.match(tree, /Размер исходного файла не увеличивает боковую панель/);
 assert.match(rules, /Смена закрыта · Открыть.*Смена открыта · Закрыть/);
 assert.match(tree, /смена → настройки автоблокировки → блокировка → профиль/);
 assert.deepEqual(map.navigationPresentation, {

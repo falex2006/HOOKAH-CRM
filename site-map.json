@@ -2,6 +2,15 @@
   "version": 1,
   "canonicalRoot": "/",
   "adminRoot": "/admin",
+  "sidebarBrandPresentation": {
+    "maxWidth": 190,
+    "maxHeight": 61,
+    "fit": "contain",
+    "compactMaxViewportWidth": 900,
+    "compactWidth": 42,
+    "compactHeight": 40,
+    "compactDrawerAsset": "symbol"
+  },
   "staffHeaderPresentation": {
     "title": "separate-left",
     "actions": ["shift", "auto-lock-settings", "screen-lock", "profile"],
