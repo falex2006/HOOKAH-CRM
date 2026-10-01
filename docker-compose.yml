@@ -1,6 +1,7 @@
-name: ${COMPOSE_PROJECT_NAME:-territory-crm}
+name: ${COMPOSE_PROJECT_NAME:-hookah-pos}
 services:
   crm:
+    image: hookah-pos:${CRM_RELEASE_ID:-unreleased}
     build:
       context: .
       args:
@@ -24,7 +25,7 @@ services:
       SAAS_OWNER_PASSWORD: ${SAAS_OWNER_PASSWORD:-}
       DATABASE_URL: postgresql://crm:${POSTGRES_PASSWORD:-change_me}@db:5432/crm
     labels:
-      com.territory.release-id: ${CRM_RELEASE_ID:-unreleased}
+      com.hookahpos.release-id: ${CRM_RELEASE_ID:-unreleased}
     depends_on:
       db:
         condition: service_healthy
@@ -64,5 +65,6 @@ services:
       retries: 10
 volumes:
   pgdata:
+    name: ${POSTGRES_VOLUME_NAME:-territory-crm_pgdata}
 
 

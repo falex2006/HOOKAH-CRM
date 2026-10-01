@@ -1,8 +1,8 @@
-# Hookah CRM
+# HOOKAH POS
 
-[![CRM contracts](https://github.com/falex2006/HOOKAH-CRM/actions/workflows/crm-contracts.yml/badge.svg)](https://github.com/falex2006/HOOKAH-CRM/actions/workflows/crm-contracts.yml)
+[![CRM contracts](https://github.com/falex2006/HOOKAH-POS/actions/workflows/crm-contracts.yml/badge.svg)](https://github.com/falex2006/HOOKAH-POS/actions/workflows/crm-contracts.yml)
 
-Веб-CRM для кальянной: рабочее место персонала, заказы, столы, бронирования, склад, финансы и административная аналитика.
+HOOKAH POS — система управления кальянным заведением: рабочее место персонала, заказы, столы, бронирования, склад, финансы и административная аналитика.
 
 Текущий локальный статус: acceptance-тесты и браузерный визуальный QA проходят. Финальный внешний этап — запуск на VPS с PostgreSQL, HTTPS и проверенным восстановлением резервной копии.
 

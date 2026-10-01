@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-const report = readFileSync(new URL('../HOOKAH_CRM_ADDITIONAL_ACCEPTANCE.md', import.meta.url), 'utf8');
+const report = readFileSync(new URL('../HOOKAH_POS_ADDITIONAL_ACCEPTANCE.md', import.meta.url), 'utf8');
 const sectionStart = report.indexOf('## Матрица исходных пунктов');
 const sectionEnd = report.indexOf('\n## Что блокирует заявление', sectionStart);
 assert.ok(sectionStart >= 0 && sectionEnd > sectionStart, 'the 50-point traceability section must exist');
@@ -17,4 +17,4 @@ const numbers = rows.map((line, index) => {
   return Number(columns[0]);
 });
 assert.deepEqual(numbers, Array.from({ length: 50 }, (_, index) => index + 1));
-process.stdout.write('HOOKAH CRM ADDITIONAL ACCEPTANCE CONTRACT: PASS (50 separate, consecutively numbered requirements with conservative status and evidence)\n');
+process.stdout.write('HOOKAH POS ADDITIONAL ACCEPTANCE CONTRACT: PASS (50 separate, consecutively numbered requirements with conservative status and evidence)\n');

@@ -26,7 +26,7 @@ for (const file of htmlFiles) {
   if (file !== 'index.html' && file !== 'login.html' && file !== 'platform.html') assert.match(html, new RegExp(`portal\\.js\\?rev=${portalRevision}`), `${file} must use current portal JS cache version`);
   if (file === 'index.html') assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`), 'index.html must use current staff app JS cache version');
   if (file === 'index.html') assert.match(html, /assets\/tabler-icons\.svg\?rev=3#table-layout/, 'staff workspace must use the refreshed icon sprite');
-  if (file === 'platform.html') assert.match(html, /platform\.js\?rev=3/, 'platform.html must use platform JS');
+  if (file === 'platform.html') assert.match(html, /platform\.js\?rev=4/, 'platform.html must use platform JS');
 }
 const distRoot = new URL('../dist/', import.meta.url);
 const distHtmlFiles = [];

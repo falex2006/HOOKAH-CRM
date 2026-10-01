@@ -35,6 +35,13 @@ try {
     await client.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
   }
 
+  // Restore the warehouse numeric scales that a real pre-055 database had.
+  await client.query('ALTER TABLE stock_movements ALTER COLUMN quantity TYPE numeric(12,3)');
+  await client.query('ALTER TABLE recipe_items ALTER COLUMN quantity TYPE numeric(12,3)');
+  await client.query('ALTER TABLE ingredients ALTER COLUMN pack_multiplier TYPE numeric(12,3), ALTER COLUMN min_stock TYPE numeric(12,3)');
+  await client.query('ALTER TABLE inventory_premix_batches ALTER COLUMN output_quantity TYPE numeric(12,3)');
+  await client.query('ALTER TABLE inventory_purchase_document_lines ALTER COLUMN quantity TYPE numeric(14,3), ALTER COLUMN pack_multiplier TYPE numeric(14,6), ALTER COLUMN stock_quantity TYPE numeric(14,6)');
+
   // schema.sql describes a fresh install and includes the current product mode;
   // remove it here to model a real pre-049 database before loading legacy rows.
   await client.query('ALTER TABLE products DROP COLUMN IF EXISTS inventory_mode');
@@ -99,6 +106,25 @@ try {
     await client.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
   }
 
+  const precisionColumns = await client.query(`SELECT table_name,column_name,numeric_precision,numeric_scale
+    FROM information_schema.columns
+    WHERE table_schema=$1 AND (table_name,column_name) IN (
+      ('stock_movements','quantity'),('recipe_items','quantity'),('ingredients','pack_multiplier'),
+      ('ingredients','min_stock'),('inventory_premix_batches','output_quantity'),
+      ('inventory_purchase_document_lines','quantity'),('inventory_purchase_document_lines','pack_multiplier'),
+      ('inventory_purchase_document_lines','stock_quantity'))`, [schema]);
+  assert.equal(precisionColumns.rowCount, 8, 'upgrade schema contains every six-decimal stock quantity column');
+  const precisionByColumn = new Map(precisionColumns.rows.map((column) => [`${column.table_name}.${column.column_name}`, column]));
+  for (const column of precisionColumns.rows.filter((entry) => entry.table_name !== 'inventory_purchase_document_lines' || entry.column_name !== 'quantity')) {
+    assert.equal(Number(column.numeric_precision), 15, `${column.table_name}.${column.column_name} keeps its previous integer range`);
+    assert.equal(Number(column.numeric_scale), 6, `${column.table_name}.${column.column_name} retains six decimal places`);
+  }
+  assert.equal(Number(precisionByColumn.get('inventory_purchase_document_lines.quantity')?.numeric_precision), 17,
+    'purchase line quantity keeps all 11 previous integer digits and gains six decimal places');
+  assert.equal(Number(precisionByColumn.get('inventory_purchase_document_lines.quantity')?.numeric_scale), 6);
+  assert.equal((await client.query('UPDATE recipe_items SET quantity=0.0006 WHERE product_id=$1 AND ingredient_id=$2 RETURNING quantity', [legacyRecipeProduct, recipeIngredient.id])).rows[0].quantity, '0.000600',
+    'legacy recipe quantities accept and preserve six decimal places after upgrade');
+
   const payment = await client.query('SELECT shift_id FROM payments WHERE id=$1', [oldPayment]);
   assert.equal(payment.rows[0].shift_id, null, '039 preserves unknown historical shift attribution rather than guessing');
   assert.equal((await client.query('SELECT id FROM shifts WHERE id=$1 AND closed_at IS NULL', [openShift])).rowCount, 1);
@@ -134,7 +160,7 @@ try {
   }
   assert.deepEqual((await client.query('SELECT id,status,amount FROM payroll_entries ORDER BY period_from')).rows,
     legacyPayrollIds, 'replaying latest migrations preserves legacy payroll');
-  console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline migrations + ${latest.length} new migrations; legacy records preserved; 047 nullable dates, 048 conservative hierarchy, 049 explicit product accounting modes verified; latest migrations replayed; schema rolled back)`);
+  console.log(`MIGRATIONS PG UPGRADE QA: PASS (${migrations.length} baseline migrations + ${latest.length} new migrations; legacy records preserved; six-decimal warehouse and recipe quantities verified; latest migrations replayed; schema rolled back)`);
 } finally {
   if (transaction) await client.query('ROLLBACK').catch(() => {});
   if (client._connected) await client.end();

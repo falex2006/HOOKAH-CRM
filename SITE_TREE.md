@@ -1,4 +1,4 @@
-# Дерево сайта Territory CRM
+# Дерево сайта HOOKAH POS
 
 Подробная карта с ролями и связями разделов хранится в [SITE_MAP.md](SITE_MAP.md), а машиночитаемый источник маршрутов — в [site-map.json](site-map.json).
 

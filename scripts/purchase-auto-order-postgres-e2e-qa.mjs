@@ -13,19 +13,30 @@ if (!['127.0.0.1', 'localhost'].includes(target.hostname) || target.port !== '32
 const databaseUrl = process.env.MIGRATIONS_PG_TEST_DATABASE_URL;
 const identity = validateQaDatabaseUrl(databaseUrl, 'purchase auto-order QA database');
 assert.equal(identity.database, 'territory_qa');
-assert.equal(Number(identity.url.port), 55433, 'use the disposable QA PostgreSQL port');
+const expectedPgPort = Number(process.env.MIGRATIONS_PG_TEST_PORT || 55433);
+assert.ok(Number.isInteger(expectedPgPort) && expectedPgPort > 0 && expectedPgPort <= 65535,
+  'MIGRATIONS_PG_TEST_PORT must be a valid TCP port');
+assert.equal(Number(identity.url.port), expectedPgPort, 'use the explicitly configured disposable QA PostgreSQL port');
 const pool = new Pool({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 5000 });
 try {
   const { rows } = await pool.query(`SELECT current_database() AS database, inet_server_addr()::text AS address,
     inet_server_port() AS port, COALESCE((SELECT rolsuper FROM pg_roles WHERE rolname=current_user),false) AS superuser`);
-  assertQaDatabaseIdentity(rows[0], identity.database, Number(identity.url.port), 'purchase auto-order QA database');
+  assertQaDatabaseIdentity(rows[0], identity.database, expectedPgPort, 'purchase auto-order QA database');
   const containerName = process.env.MIGRATIONS_PG_TEST_DOCKER_CONTAINER;
   if (!containerName) throw new Error('This fixture test requires a disposable QA PostgreSQL container');
   const inspected = spawnSync('docker', ['inspect', containerName], { encoding: 'utf8', windowsHide: true, timeout: 5000, maxBuffer: 1024 * 1024 });
   if (inspected.error || inspected.status !== 0) throw new Error('Disposable QA PostgreSQL container unavailable');
   const container = JSON.parse(inspected.stdout)[0];
-  assert.ok(isDisposableLoopbackQaContainer(container, rows[0].address, Number(rows[0].port), Number(identity.url.port)), 'QA PostgreSQL must be an auto-removed, loopback-only disposable container');
+  assert.ok(isDisposableLoopbackQaContainer(container, rows[0].address, Number(rows[0].port), expectedPgPort), 'QA PostgreSQL must be an auto-removed, loopback-only disposable container');
 } finally { await pool.end(); }
+const fixturePool = new Pool({ connectionString: databaseUrl, max: 1, connectionTimeoutMillis: 5000 });
+try {
+  await fixturePool.query("INSERT INTO venues (id,name) VALUES ('00000000-0000-0000-0000-000000000001','QA auto-order venue') ON CONFLICT (id) DO NOTHING");
+  await fixturePool.query("INSERT INTO inventory_departments (venue_id,code,name) VALUES ('00000000-0000-0000-0000-000000000001','bar','Бар') ON CONFLICT (venue_id,code) DO NOTHING");
+} catch (error) {
+  await fixturePool.end();
+  throw error;
+}
 await new Promise((resolve, reject) => {
   const probe = createServer();
   probe.once('error', reject);
@@ -103,6 +114,38 @@ assert.equal(Number(refreshedOrder.lines[0].receivedQuantity), 2000);
 const finalStock = (await request('/api/inventory')).items.find((entry) => entry.id === item.id);
 assert.equal(Number(finalStock.onHand), 2000);
 assert.equal(Number(finalStock.cost), 0.25);
+
+const fractionalItem = await request('/api/inventory/items', 'POST', {
+  name: `QA fractional receipt ${suffix}`, department: 'bar', itemType: 'ingredient', unit: 'кг',
+  purchaseUnit: 'микро-пачка', packMultiplier: 0.0006, cost: 0,
+}, 201);
+const fractionalDraft = await request('/api/inventory/purchase-documents', 'POST', {
+  supplierName: 'QA дробный поставщик', documentNumber: `QA-FRACTION-${suffix}`,
+  lines: [{ ingredientId: fractionalItem.id, quantity: 1, unit: 'микро-пачка', unitCost: 1 }],
+}, 201);
+assert.equal(Number(fractionalDraft.lines[0].stockQuantity), 0.0006, 'purchase document retains six-decimal stock quantity');
+await request(`/api/inventory/purchase-documents/${fractionalDraft.id}/post`, 'POST', undefined, 200);
+assert.equal(Number((await request('/api/inventory')).items.find((entry) => entry.id === fractionalItem.id).onHand), 0.0006,
+  'posted receipt and stock ledger preserve the exact fractional quantity');
+const fractionalMovement = await request('/api/inventory/movements', 'POST', {
+  itemId: fractionalItem.id, delta: -0.0006, unit: 'кг', reason: `QA exact fractional depletion ${suffix}`,
+}, 201);
+assert.equal(Number(fractionalMovement.onHandAfter), 0, 'manual depletion reaches exactly zero at six decimal places');
+assert.equal(Number((await request('/api/inventory')).items.find((entry) => entry.id === fractionalItem.id).onHand), 0,
+  're-read balance agrees with the fractional movement ledger');
+const fractionalSourceItem = await request('/api/inventory/items', 'POST', {
+  name: `QA fractional purchase quantity ${suffix}`, department: 'bar', itemType: 'ingredient', unit: 'мл',
+  purchaseUnit: 'бутылка', packMultiplier: 1000, cost: 0,
+}, 201);
+const fractionalSourceDraft = await request('/api/inventory/purchase-documents', 'POST', {
+  supplierName: 'QA точное количество', documentNumber: `QA-SOURCE-FRACTION-${suffix}`,
+  lines: [{ ingredientId: fractionalSourceItem.id, quantity: 0.0006, unit: 'бутылка', unitCost: 0.01 }],
+}, 201);
+assert.equal(Number(fractionalSourceDraft.lines[0].quantity), 0.0006, 'purchase source quantity retains six decimal places');
+assert.equal(Number(fractionalSourceDraft.lines[0].stockQuantity), 0.6, 'fractional source quantity converts exactly to base stock quantity');
+await request(`/api/inventory/purchase-documents/${fractionalSourceDraft.id}/post`, 'POST', undefined, 200);
+assert.equal(Number((await request('/api/inventory')).items.find((entry) => entry.id === fractionalSourceItem.id).onHand), 0.6,
+  'posted receipt preserves fractional source quantity through conversion and ledger reread');
 const cancellableOrder = await request('/api/inventory/auto-orders', 'POST', { items: [{ itemId: item.id, quantity: 1000 }] }, 201);
 const cancellableDraft = await createDraft('cancel', cancellableOrder.id);
 await request(`/api/inventory/auto-orders/${cancellableOrder.id}`, 'PATCH', { status: 'cancelled' }, 409);
@@ -132,4 +175,5 @@ console.log('PASS isolated PostgreSQL auto-order → draft → partial receipt �
     new Promise((resolve) => child.once('exit', resolve)),
     new Promise((resolve) => setTimeout(resolve, 3000)),
   ]);
+  await fixturePool.end();
 }

@@ -596,9 +596,17 @@ const sessionFromRequest = async (req) => {
   const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || '');
   if (!token) return null;
   if (process.env.DATABASE_URL || sessionRepository) {
-    if (sessionRepository) { try { const persisted = await sessionRepository.get(hashToken(token)); if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) } }; } catch (_) {} }
+    if (sessionRepository) {
+      try {
+        const persisted = await sessionRepository.get(hashToken(token));
+        if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) } };
+      } catch (_) { return null; }
+    }
     const memorySession = sessions.get(token);
-    if (memorySession) { if (Date.now() > Number(memorySession.expiresAt || memorySession.createdAt + SESSION_TTL_MS)) { sessions.delete(token); return null; } return memorySession; }
+    if (memorySession) {
+      if (Date.now() > Number(memorySession.expiresAt || memorySession.createdAt + SESSION_TTL_MS)) { sessions.delete(token); return null; }
+      return memorySession.user?.role === 'platform_owner' ? memorySession : null;
+    }
     return null;
   }
   const memorySession = sessions.get(token);
@@ -672,6 +680,40 @@ const requireOrganizationContext = (req, res) => {
     return true;
   }
   return false;
+};
+const loadOrganizationEntitlements = async (client, organizationId, { lock = false } = {}) => {
+  const suffix = lock ? ' FOR UPDATE OF o' : '';
+  const { rows } = await client.query(`SELECT o.id,o.is_active AS "organizationActive",s.status AS "subscriptionStatus",s.seats_limit AS "seatsLimit",s.venues_limit AS "venuesLimit"
+    FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE o.id=$1${suffix}`, [organizationId]);
+  return rows[0] || null;
+};
+const enforceOrganizationAccess = async (user) => {
+  if (!repositories?.pool || !user?.organizationId || user.role === 'platform_owner') return null;
+  try {
+    const { rows } = await repositories.pool.query(`SELECT o.is_active AS active,s.status AS "subscriptionStatus",m.status AS "membershipStatus"
+      FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id
+      LEFT JOIN organization_memberships m ON m.organization_id=o.id AND m.user_id=$2
+      WHERE o.id=$1`, [user.organizationId, user.id]);
+    const state = rows[0];
+    if (!state || state.active !== true || !['trialing','active','past_due'].includes(state.subscriptionStatus) || !['active','invited','suspended'].includes(state.membershipStatus)) return { status: 403, error: 'organization_suspended' };
+    if (state.membershipStatus !== 'active') return { status: 403, error: 'organization_membership_inactive' };
+    return null;
+  } catch (_) { return { status: 503, error: 'organization_access_unavailable' }; }
+};
+const checkOrganizationQuota = async (client, organizationId, kind) => {
+  const entitlement = await loadOrganizationEntitlements(client, organizationId, { lock: true });
+  if (!entitlement || entitlement.organizationActive !== true || !entitlement.subscriptionStatus) return { error: 'organization_unavailable', status: 403 };
+  if (entitlement.subscriptionStatus === 'cancelled') return { error: 'organization_suspended', status: 403 };
+  const isSeat = kind === 'seat';
+  const limit = Number(isSeat ? entitlement.seatsLimit : entitlement.venuesLimit);
+  if (!Number.isInteger(limit) || limit < 1) return { error: 'organization_limits_unavailable', status: 503 };
+  const table = isSeat ? 'users' : 'venues';
+  const { rows } = await client.query(isSeat
+    ? 'SELECT COUNT(*)::int AS used FROM users WHERE organization_id=$1 AND is_active=true AND deleted_at IS NULL'
+    : 'SELECT COUNT(*)::int AS used FROM venues WHERE organization_id=$1 AND is_active=true', [organizationId]);
+  const used = Number(rows[0]?.used || 0);
+  if (used >= limit) return { error: isSeat ? 'seat_limit_reached' : 'venue_limit_reached', status: 409, limit, used };
+  return { entitlement, limit, used };
 };
 const canSeeSensitiveStaff = (req) => Boolean(req.user && effectivePermissions(req.user).includes('staff_sensitive'));
 const canSeeStaffPhoto = (req) => Boolean(req.user && ['owner', 'admin', 'manager'].includes(req.user.role));
@@ -821,7 +863,12 @@ async function api(req, res) {
     if (!account && repositories?.pool) {
       try {
         const { rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",venue_id AS "venueId",full_name AS name,role,password_hash AS "passwordHash",pin_hash,pin_updated_at,preferences,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]);
-        const row = rows[0]; const credential = input.password; if (row && credential && await verifyPassword(credential, row.passwordHash)) account = { username: row.login, id: row.id, organizationId: row.organizationId || null, venueId: row.venueId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
+        const row = rows[0]; const credential = input.password; if (row && credential && await verifyPassword(credential, row.passwordHash)) {
+          if (!row.organizationId || !/^[0-9a-f-]{36}$/i.test(row.organizationId)) return json(res, 403, { error: 'organization_context_required' });
+          const accessError = await enforceOrganizationAccess({ id: row.id, organizationId: row.organizationId, role: row.role });
+          if (accessError) return json(res, accessError.status, { error: accessError.error });
+          account = { username: row.login, id: row.id, organizationId: row.organizationId || null, venueId: row.venueId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
+        }
       } catch (_) { return json(res, 503, { error: 'authentication_unavailable' }); }
     }
     if (!account) { const current = loginAttempts.get(loginKey) || { count: 0, firstAt: Date.now() }; const withinWindow = Date.now() - current.firstAt < 60_000; const next = withinWindow ? { count: current.count + 1, firstAt: current.firstAt } : { count: 1, firstAt: Date.now() }; if (next.count >= 5) next.blockedUntil = Date.now() + 60_000; loginAttempts.set(loginKey, next); return json(res, next.blockedUntil ? 429 : 401, { error: next.blockedUntil ? 'too_many_login_attempts' : 'invalid_credentials', ...(next.blockedUntil ? { retryAfter: 60 } : {}) }); }
@@ -860,6 +907,8 @@ async function api(req, res) {
     if (!session) return json(res, 401, { error: 'authentication_required' });
     else {
       req.user = session.user;
+      const accessError = await enforceOrganizationAccess(req.user);
+      if (accessError) return json(res, accessError.status, { error: accessError.error });
       if (req.user?.venueId && /^[0-9a-f-]{36}$/i.test(req.user.venueId)) venueDbId = req.user.venueId;
       // Refresh cookies issued before the longer session policy so an active
       // browser is not logged out simply because its old cookie reached 8 hours.
@@ -870,12 +919,12 @@ async function api(req, res) {
     if (repositories?.pool) {
       try {
         await repositories.pool.query('SELECT 1');
-        return json(res, 200, { status: 'ok', service: 'hookah-crm', database: 'postgres' });
+        return json(res, 200, { status: 'ok', service: 'hookah-pos', database: 'postgres' });
       } catch (error) {
-        return json(res, 503, { status: 'degraded', service: 'hookah-crm', database: 'unavailable' });
+        return json(res, 503, { status: 'degraded', service: 'hookah-pos', database: 'unavailable' });
       }
     }
-    return json(res, 200, { status: 'ok', service: 'hookah-crm', database: 'memory' });
+    return json(res, 200, { status: 'ok', service: 'hookah-pos', database: 'memory' });
   }
   if (pathname === '/api/session/unlock' && req.method === 'POST') {
     const input = await body(req); const pin = String(input.pin || '').trim();
@@ -1065,7 +1114,8 @@ async function api(req, res) {
           FROM organizations o
           LEFT JOIN organization_subscriptions s ON s.organization_id=o.id WHERE o.id=$1 LIMIT 1`, [req.user?.organizationId || saasAccount.id]);
         if (rows[0]) return json(res, 200, { ...rows[0], seatsLimit: Number(rows[0].seatsLimit), venuesLimit: Number(rows[0].venuesLimit), activeSeats: Number(rows[0].activeSeats), activeVenues: Number(rows[0].activeVenues) });
-      } catch (_) {}
+      } catch (_) { return json(res, 503, { error: 'saas_account_unavailable' }); }
+      return json(res, 404, { error: 'organization_not_found' });
     }
     const account = saasOrganizations.find((item) => item.id === req.user?.organizationId) || saasAccount;
     return json(res, 200, { ...account, subscriptionStatus: account.status || account.subscriptionStatus || 'trialing', subscriptionPlan: account.plan, activeSeats: Number(account.seats ?? staff.filter((person) => person.active).length), activeVenues: Number(account.venues ?? networkVenues.filter((item) => item.status !== 'archived').length) });
@@ -1076,12 +1126,12 @@ async function api(req, res) {
   }
   if (pathname === '/api/platform/overview' && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COUNT(*)::int AS companies, COUNT(*) FILTER (WHERE is_active=true)::int AS active_companies FROM organizations`); const subs = await repositories.pool.query(`SELECT COUNT(*)::int AS trials FROM organization_subscriptions WHERE status='trialing'`); return json(res, 200, { companies: Number(rows[0]?.companies || 0), activeCompanies: Number(rows[0]?.active_companies || 0), trials: Number(subs.rows[0]?.trials || 0) }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT COUNT(*)::int AS companies, COUNT(*) FILTER (WHERE is_active=true)::int AS active_companies FROM organizations`); const subs = await repositories.pool.query(`SELECT COUNT(*)::int AS trials FROM organization_subscriptions WHERE status='trialing'`); return json(res, 200, { companies: Number(rows[0]?.companies || 0), activeCompanies: Number(rows[0]?.active_companies || 0), trials: Number(subs.rows[0]?.trials || 0) }); } catch (_) { return json(res, 503, { error: 'platform_overview_unavailable' }); } }
     return json(res, 200, { companies: saasOrganizations.length, activeCompanies: saasOrganizations.filter((item) => item.isActive).length, trials: saasOrganizations.filter((item) => item.status === 'trialing').length });
   }
   if (pathname === '/api/platform/organizations' && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,(SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,(SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS seats,(SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id ORDER BY o.created_at DESC`); return json(res, 200, { items: rows }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,(SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,(SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS seats,(SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id ORDER BY o.created_at DESC`); return json(res, 200, { items: rows }); } catch (_) { return json(res, 503, { error: 'platform_organizations_unavailable' }); } }
     return json(res, 200, { items: saasOrganizations.slice().reverse().map((item) => ({ ...item, ...(saasPlans[item.plan] || saasPlans.starter), monthlyPrice: 0 })) });
   }
   if (pathname === '/api/platform/organizations' && req.method === 'POST') {
@@ -1129,7 +1179,10 @@ async function api(req, res) {
   const platformOrgSubscription = pathname.match(/^\/api\/platform\/organizations\/([^/]+)\/subscription$/);
   if (platformOrgSubscription && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(platformOrgSubscription[1])) { try { const { rows } = await repositories.pool.query(`SELECT organization_id AS "organizationId",plan,status,billing_mode AS "billingMode",monthly_price_cents AS "monthlyPriceCents",seats_limit AS "seatsLimit",venues_limit AS "venuesLimit",trial_ends_at AS "trialEndsAt" FROM organization_subscriptions WHERE organization_id=$1`, [platformOrgSubscription[1]]); if (rows[0]) return json(res, 200, { ...rows[0], monthlyPrice: Number(rows[0].monthlyPriceCents || 0) / 100 }); } catch (_) {} }
+    if (repositories?.pool) {
+      if (!/^[0-9a-f-]{36}$/i.test(platformOrgSubscription[1])) return json(res, 404, { error: 'organization_not_found' });
+      try { const { rows } = await repositories.pool.query(`SELECT organization_id AS "organizationId",plan,status,billing_mode AS "billingMode",monthly_price_cents AS "monthlyPriceCents",seats_limit AS "seatsLimit",venues_limit AS "venuesLimit",trial_ends_at AS "trialEndsAt" FROM organization_subscriptions WHERE organization_id=$1`, [platformOrgSubscription[1]]); if (rows[0]) return json(res, 200, { ...rows[0], monthlyPrice: Number(rows[0].monthlyPriceCents || 0) / 100 }); return json(res, 404, { error: 'subscription_not_found' }); } catch (_) { return json(res, 503, { error: 'subscription_unavailable' }); }
+    }
     const item = saasOrganizations.find((entry) => entry.id === platformOrgSubscription[1]); if (!item) return json(res, 404, { error: 'organization_not_found' }); const plan = saasPlans[item.plan] || saasPlans.starter; return json(res, 200, { organizationId: item.id, plan: item.plan, status: item.status, billingMode: 'test_free', monthlyPrice: 0, seatsLimit: plan.seatsLimit, venuesLimit: plan.venuesLimit, trialEndsAt: item.trialEndsAt || null });
   }
   if (platformOrgSubscription && req.method === 'PATCH') {
@@ -1137,8 +1190,9 @@ async function api(req, res) {
     const input = await body(req);
     const organizationId = platformOrgSubscription[1];
     const planKey = String(input.plan || '');
-    const status = ['active', 'trialing', 'past_due', 'cancelled'].includes(input.status) ? input.status : undefined;
+    const status = input.status === undefined ? undefined : (['active', 'trialing', 'past_due', 'cancelled'].includes(input.status) ? input.status : null);
     if (!saasPlans[planKey]) return json(res, 400, { error: 'invalid_plan' });
+    if (status === null) return json(res, 400, { error: 'invalid_subscription_status' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(organizationId)) {
       const client = await repositories.pool.connect();
       try {
@@ -1173,12 +1227,14 @@ async function api(req, res) {
   const platformOrgPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)$/);
   if (platformOrgPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'platform')) return;
+    if (repositories?.pool) return json(res, 410, { error: 'use_subscription_endpoint' });
     const input = await body(req);
     const name = input.name === undefined ? undefined : String(input.name).trim().slice(0, 120);
     const plan = input.plan === undefined ? undefined : String(input.plan);
     if (name !== undefined && !name) return json(res, 400, { error: 'organization_name_required' });
     if (plan !== undefined && !saasPlans[plan]) return json(res, 400, { error: 'invalid_plan' });
     const organizationId = platformOrgPath[1];
+    if (repositories?.pool) return json(res, 410, { error: 'use_subscription_endpoint' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(organizationId)) {
       try {
         const beforeResult = await repositories.pool.query('SELECT id,name,plan,is_active AS "isActive" FROM organizations WHERE id=$1 LIMIT 1', [organizationId]);
@@ -1372,10 +1428,16 @@ async function api(req, res) {
     if (process.env.DATABASE_URL || repositories?.pool) {
       if (!repositories?.pool) return json(res, 503, { error: 'network_unavailable' });
       if (requireOrganizationContext(req, res)) return;
+      const client = await repositories.pool.connect();
       try {
-        const { rows } = await repositories.pool.query('INSERT INTO venues (organization_id,name,format,city,address,phone,timezone,is_current) VALUES ($1,$2,$3,$4,$5,$6,$7,false) RETURNING id,name,format,city,address,phone,timezone,is_current AS "isCurrent"', [organizationId, name, item.format, city, address, item.phone || null, item.timezone]);
+        await client.query('BEGIN');
+        const quota = await checkOrganizationQuota(client, organizationId, 'venue');
+        if (quota.error) { await client.query('ROLLBACK'); return json(res, quota.status, { error: quota.error, ...(quota.limit ? { limit: quota.limit, used: quota.used } : {}) }); }
+        const { rows } = await client.query('INSERT INTO venues (organization_id,name,format,city,address,phone,timezone,is_current) VALUES ($1,$2,$3,$4,$5,$6,$7,false) RETURNING id,name,format,city,address,phone,timezone,is_current AS "isCurrent"', [organizationId, name, item.format, city, address, item.phone || null, item.timezone]);
+        await client.query('COMMIT');
         const created = { ...rows[0], status: 'active', isCurrent: false }; recordAudit(req, 'venue.created', 'venue', created.id, null, created); return json(res, 201, created);
-      } catch (error) { return json(res, 409, { error: 'venue_create_failed', detail: error.message }); }
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 503, { error: 'venue_create_failed' }); }
+      finally { client.release(); }
     }
     networkVenues.push(item); recordAudit(req, 'venue.created', 'venue', item.id, null, item); return json(res, 201, item);
   }
@@ -2381,7 +2443,36 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const createdPassport = input.passportData !== undefined ? staffPassportCipher.encrypt(input.passportData) : null;
     if (input.passportData !== undefined && !canSeeSensitiveStaff(req)) return json(res, 403, { error: 'sensitive_staff_permission_required' });
     if (input.passportData !== undefined && !createdPassport) return json(res, 503, { error: 'staff_passport_key_required' });
-    if (repositories?.pool) { try { const login = nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`); const passwordHash = nonCrmRole ? null : await hashPassword(input.password); let rows; try { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,password_hash,pin_hash,role,permission_scopes,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,NULL,$5,$6::jsonb,$7,$8,$9::date,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } catch (_) { ({ rows } = await repositories.pool.query(`INSERT INTO users (venue_id,full_name,login,password_hash,pin_hash,role,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,NULL,$5,$6,$7,$8::date,$9,$10::jsonb,$11,$12,$13,$14,$15) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`, [venueDbId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null])); } const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) }; if (!canSeeStaffPhoto(req)) delete result.photoUrl; recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result); } catch (error) { console.error('staff create failed:', error.message); return json(res, 409, { error: 'staff_create_failed', detail: error.message }); } }
+    if (repositories?.pool) {
+      const organizationId = requestOrganizationId(req);
+      if (!/^[0-9a-f-]{36}$/i.test(organizationId)) return json(res, 403, { error: 'organization_context_required' });
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const quota = await checkOrganizationQuota(client, organizationId, 'seat');
+        if (quota.error) { await client.query('ROLLBACK'); return json(res, quota.status, { error: quota.error, ...(quota.limit ? { limit: quota.limit, used: quota.used } : {}) }); }
+        const venueCheck = await client.query('SELECT id FROM venues WHERE id=$1 AND organization_id=$2 AND is_active=true FOR UPDATE', [venueDbId, organizationId]);
+        if (!venueCheck.rows[0]) { await client.query('ROLLBACK'); return json(res, 403, { error: 'venue_not_in_organization' }); }
+        const login = nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`);
+        const passwordHash = nonCrmRole ? null : await hashPassword(input.password);
+        const insert = async (legacySchema = false) => client.query(legacySchema
+          ? `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9::date,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`
+          : `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,permission_scopes,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7::jsonb,$8,$9,$10::date,$11,$12::jsonb,$13,$14,$15,$16,$17) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`,
+          legacySchema
+            ? [venueDbId, organizationId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null]
+            : [venueDbId, organizationId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null]);
+        let rows;
+        try { ({ rows } = await insert()); }
+        catch (error) { if (error.code !== '42703' && error.code !== '42704') throw error; ({ rows } = await insert(true)); }
+        const membershipRole = input.role === 'admin' ? 'admin' : 'member';
+        await client.query(`INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,$3,'active') ON CONFLICT (organization_id,user_id) DO UPDATE SET membership_role=EXCLUDED.membership_role,status='active'`, [organizationId, rows[0].id, membershipRole]);
+        await client.query('COMMIT');
+        const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) };
+        if (!canSeeStaffPhoto(req)) delete result.photoUrl;
+        recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'staff_create_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
     const person = { id: `u-${Date.now()}`, name: input.name, login: nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`), passwordHash: nonCrmRole ? null : await hashPassword(input.password), role: input.role, active: true, avatarUrl: input.avatarUrl || null, photoUrl: input.photoUrl || null, birthDate: input.birthDate, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: null, pinConfigured: false, pinUpdatedAt: null };
     staff.push(person);
     const { passwordHash, ...publicPerson } = person;
@@ -2393,7 +2484,24 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req); if (typeof input.active !== 'boolean') return json(res, 400, { error: 'active_boolean_required' });
     if (String(req.user?.id || '') === staffStatus[1] && !input.active) return json(res, 409, { error: 'self_deactivation_forbidden' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffStatus[1])) { try { const { rows } = await repositories.pool.query(`UPDATE users SET is_active=$1 WHERE id=$2 AND venue_id=$3 AND role <> 'owner' AND deleted_at IS NULL RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [input.active, staffStatus[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', rows[0].id, { active: !input.active }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'staff_status_update_failed', detail: error.message }); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(staffStatus[1])) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const current = await client.query(`SELECT id,organization_id AS "organizationId",is_active AS active FROM users WHERE id=$1 AND venue_id=$2 AND role <> 'owner' AND deleted_at IS NULL`, [staffStatus[1], venueDbId]);
+        if (!current.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); }
+        const person = current.rows[0];
+        if (input.active && !person.active) {
+          const quota = await checkOrganizationQuota(client, person.organizationId || requestOrganizationId(req), 'seat');
+          if (quota.error) { await client.query('ROLLBACK'); return json(res, quota.status, { error: quota.error, ...(quota.limit ? { limit: quota.limit, used: quota.used } : {}) }); }
+        }
+        const locked = await client.query(`SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND role <> 'owner' AND deleted_at IS NULL FOR UPDATE`, [staffStatus[1], venueDbId]);
+        if (!locked.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); }
+        const { rows } = await client.query(`UPDATE users SET is_active=$1 WHERE id=$2 AND venue_id=$3 RETURNING id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl"`, [input.active, staffStatus[1], venueDbId]);
+        await client.query('COMMIT'); recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', rows[0].id, { active: !input.active }, rows[0]); return json(res, 200, rows[0]);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'staff_status_update_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
     const person = staff.find((entry) => entry.id === staffStatus[1]); if (!person || person.role === 'owner' || person.deletedAt) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); const before = { active: person.active }; person.active = input.active; recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', person.id, before, { active: person.active }); return json(res, 200, person);
   }
   const staffDelete = pathname.match(/^\/api\/staff\/([^/]+)$/);

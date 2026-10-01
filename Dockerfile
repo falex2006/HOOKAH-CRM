@@ -1,6 +1,6 @@
 FROM node:20-alpine
 ARG CRM_RELEASE_ID=unreleased
-LABEL com.territory.release-id=$CRM_RELEASE_ID
+LABEL com.hookahpos.release-id=$CRM_RELEASE_ID
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts

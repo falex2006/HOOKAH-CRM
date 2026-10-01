@@ -1,4 +1,4 @@
-# Оркестратор Territory CRM
+# Оркестратор HOOKAH POS
 
 ## Решение
 

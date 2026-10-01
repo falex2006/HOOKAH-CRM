@@ -1,4 +1,4 @@
-# Правила цвета текста Territory CRM
+# Правила цвета текста HOOKAH POS
 
 Единая палитра применяется к тёмной CRM-панели (`.velora-theme` и `.staff-theme`).
 
