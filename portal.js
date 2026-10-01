@@ -393,7 +393,10 @@ const portalFooterAccess = document.querySelector('.sidebar-footer small');
 if (portalFooterRole) portalFooterRole.textContent = `● ${portalRole[0]}`;
 if (portalFooterAccess) portalFooterAccess.textContent = portalRole[1];
 document.querySelector('#logout')?.addEventListener('click', async (event) => {
-  if (event.currentTarget.disabled) return; event.currentTarget.disabled = true; try { await fetch('/api/logout', { method: 'POST', headers: authHeaders() }); } catch (_) {}
+  const button=event.currentTarget;
+  if (button.disabled) return; button.disabled = true;
+  try { if(!staticDemo()){const response=await fetch('/api/logout', { method: 'POST', headers: authHeaders() });if(!response.ok&&response.status!==401)throw new Error('logout_unavailable');} }
+  catch (_) {button.disabled=false;portalNotice('Не удалось завершить сессию. Повторите выход.','error');return;}
   window.__broadcastSessionEnd?.();
   localStorage.removeItem('crm_session_token');
   localStorage.removeItem('crm_session_user');

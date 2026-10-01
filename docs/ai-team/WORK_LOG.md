@@ -2450,3 +2450,11 @@
 - Source/dist выровнены (app171, CSS365); новые runtime identity/session/observer QA и независимые architect/code-health/frontend/QA проверки прошли. В CUA-браузере новый локальный Роман с Telegram входит, сохраняет имя после reload, открывает профиль/заказы/задачи без freeze; запрещённые пункты скрыты. Полный отчёт: `docs/ai-team/STAFF_IDENTITY_RECONCILIATION.md`.
 - Disposable PostgreSQL: schema+seed, persistence fixture creation и upgrade 56 миграций прошли. Не заявляем перезапуск приложения как проверенный на основании создания fixture. Production `/api/session` в этом шаге не проверен и production-БД не менялась.
 - Временные скрипты/скриншоты tmp исключены из коммита. GitHub/VPS не публиковались. Дымовой фон — следующий этап активной цели; этот пакет не объявляется завершением всей цели.
+
+## 2026-10-01 — подтверждение logout и живая PostgreSQL проверка
+
+- Первопричина: POST /api/logout отвечал 200 до завершения удаления persisted session. Теперь сервер ожидает удаление и отвечает 503 при сбое; Bearer/cookie используют общий приоритет. Cookie очищается, клиент сохраняет возможность повтора и не объявляет выход успешным при ошибке.
+- app/portal/PIN очищают локальную сессию и рассылают logout только после подтверждения 200/401; static demo совместим. Source/dist: app172, portal415, lock19, CSS365.
+- Независимые code-health и architect/security проверки приняты. logout-persistence-runtime-qa, session-authority, local-lock, trusted-pin-return, staff-mode-navigation, local-role, local-design, header-shell, local-deploy, migrations и premix contracts — PASS.
+- На disposable PostgreSQL подтверждены logout200 → тот же token401 → ноль auth_sessions; запрещённые сотруднику inventory/reservations/venue PATCH дают403. CUA-сессия Романа пережила перезапуск процесса без повторного входа; ранее созданный заказ сохранил quantity2 и сумму2400. Неверный PIN даёт ошибку, правильный возвращает к кликабельным заказам, подтверждённый logout открывает login. Детали: LOCAL_RECONCILIATION_PG_QA.md.
+- GitHub/VPS не менялись. Дымовой фон разрешён пользователем с сохранением выбранного водяного знака и переносится следующим пакетом.

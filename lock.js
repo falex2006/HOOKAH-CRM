@@ -34,7 +34,11 @@
   const redirectToLogin = () => { clearTimeout(timer); location.replace('/login'); };
   window.__broadcastSessionEnd = () => { try { localStorage.setItem(sessionEventKey, JSON.stringify({ action: 'logout', userId: String(user.id || ''), at: Date.now() })); } catch (_) {} };
   const logout = async () => {
-    try { await fetch('/api/logout', { method: 'POST', headers: headers() }); } catch (_) {}
+    const button=overlay.querySelector('#screen-lock-exit');
+    if(button.disabled)return;
+    button.disabled=true;
+    try { if(!String(localStorage.getItem('crm_session_token')||'').startsWith('demo-static-')){const response=await fetch('/api/logout', { method: 'POST', headers: headers() });if(!response.ok&&response.status!==401)throw new Error('logout_unavailable');} }
+    catch (_) {button.disabled=false;setMessage('Не удалось завершить сессию. Повторите выход.','error');return;}
     window.__broadcastSessionEnd();
     try { localStorage.removeItem(lockStateKey); } catch (_) {}
     localStorage.removeItem('crm_session_token');
