@@ -44,3 +44,10 @@ Manual interaction coverage of every authenticated control still requires an act
 - Branch: `codex/hookah-crm-full-audit-2026-09-29`
 - Latest published commit at report time: `b148c4f`
 - VPS health: `{"status":"ok","service":"hookah-crm","database":"postgres"}`
+
+## 17. Авторизованный браузерный обход (01.10.2026)
+- Сессия разблокирована пользователем непосредственно в браузере.
+- Проверены маршруты /admin, /orders, /clients, /reservations, /delivery, /inventory?view=products, /finance, /finance/categories, /finance/report, /integrations, /network, /platform.
+- Все 12 маршрутов открылись с корректным заголовком страницы и без горизонтального переполнения при viewport 920x764.
+- После обхода в браузерной консоли: 0 ошибок и 0 предупреждений.
+- Боковая панель визуально проверена: группы имеют единый размер строки, раскрытые пункты не вызывают горизонтального переполнения.
