@@ -2424,3 +2424,10 @@
 
 - Проверенный релизный пакет опубликован fast-forward в GitHub: `codex/premix-batch-lifecycle`, feature commit `7dea2a0` (`Release warehouse, notifications and SaaS updates`).
 - VPS публикация остаётся незавершённой: SSH с текущей среды получает `Permission denied (publickey,password)`; production не изменён и остаётся на `5f77a22`.
+## 2026-10-01 — VPS deployment compatibility follow-up
+
+- SSH succeeded using the existing `hookah-crm-vps` host alias and its configured key. The earlier `root@IP` invocation bypassed that SSH configuration; this was a command selection mistake in this chat, not missing VPS access.
+- First deploy attempt created and verified a database backup, then stopped before service changes because `docker-compose pull` tried to fetch the locally built `hookah-pos` CRM image. Updated the release script to pull only `db` and `nginx`, and build `crm` from the checked-out source. VPS uses Docker Compose v2.27 standalone; its configuration and the deploy script fallback both passed.
+- Deployed code commit `8628f70` to VPS `212.192.0.58`. Pre-release PostgreSQL backup created at `/var/backups/territory-crm/territory-crm/crm-pre-1b3af824414eb3ee246ee753a1526672ea91d4c03d531b2519b44d82cc3be381.sql.gz`. Migrations 001–056 replayed successfully; menu seed synchronized 10 categories and 66 products. CRM, PostgreSQL and Nginx are running; Docker release label matches the persisted `deployed` release fingerprint; worktree is clean.
+- Post-deploy read-only checks passed: container and public `/api/health` report `ok` with PostgreSQL; `/login`, `/platform`, `/inventory`, `/admin` returned 200 and referenced current assets (`style.css?rev=363`, `platform.js?rev=4`, `portal.js?rev=413`, notification bell present). No QA sale, receipt or stock movement was written to production.
+- Full tenant login/role acceptance was not repeated against production accounts; local synthetic PostgreSQL/browser coverage passed above. The production post-deploy login script was not run because no tenant credential was provided to this task.
