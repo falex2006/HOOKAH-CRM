@@ -1,4 +1,4 @@
-const staffIcon=(name)=>`<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=3#${name}"></use></svg>`; const pluralRu=(value,one,few,many)=>{const n=Math.abs(Number(value)||0),last10=n%10,last100=n%100;return last10===1&&last100!==11?one:last10>=2&&last10<=4&&(last100<12||last100>14)?few:many;};
+const staffIcon=(name)=>`<svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=6#${name}"></use></svg>`; const pluralRu=(value,one,few,many)=>{const n=Math.abs(Number(value)||0),last10=n%10,last100=n%100;return last10===1&&last100!==11?one:last10>=2&&last10<=4&&(last100<12||last100>14)?few:many;};
 const displayProductName=(value)=>String(value??'').trim().replace(/(^|[^\p{L}\p{N}])(\p{L})/gu,(_,prefix,letter)=>prefix+letter.toLocaleUpperCase('ru-RU'));
 const updateStaffHeaderClock=()=>{const node=document.querySelector('.staff-header-date');if(!node)return;const now=new Date();const date=new Intl.DateTimeFormat('ru-RU',{weekday:'short',day:'numeric',month:'short'}).format(now);const time=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit',hour12:false}).format(now);node.textContent=`${date} · ${time}`;};updateStaffHeaderClock();window.setInterval(updateStaffHeaderClock,30000);
 document.addEventListener('click', (event) => { const link = event.target.closest('a[href]'); if (!link) return; const target = new URL(link.href, location.href); if (target.origin === location.origin && target.pathname === '/admin' && !target.searchParams.has('mode')) { event.preventDefault(); location.assign(target.pathname + target.search + target.hash); } }, true);
@@ -114,7 +114,17 @@ const apiJson=(url,options={})=>{if(!staffSessionVerified)return Promise.reject(
 let currentShift=null;
 const shiftApi=(options={})=>{if(staticStaffDemo()){let saved;try{saved=JSON.parse(localStorage.getItem('territory_crm_shift')||'null');}catch(_){saved=null;}if(!options.method)return Promise.resolve({items:saved?[saved]:[],current:saved});if(options.method==='POST'&&options.url?.endsWith('/close')){if(!saved) return Promise.reject(new Error('shift_not_open'));if(saved){saved.closedAt=new Date().toISOString();saved.closingCash=Number(JSON.parse(options.body||'{}').closingCash||0);localStorage.setItem('territory_crm_shift',JSON.stringify(saved));}return Promise.resolve(saved);}const input=options.body?JSON.parse(options.body):{};if(saved&&!saved.closedAt)return Promise.reject(new Error('shift_already_open'));saved={id:`local-shift-${Date.now()}`,openedAt:new Date().toISOString(),closedAt:null,openingCash:Number(input.openingCash||0)};localStorage.setItem('territory_crm_shift',JSON.stringify(saved));return Promise.resolve(saved);}if(!staffSessionVerified)return Promise.reject(new Error('session_unverified'));return staffFetchJson(options.url||'/api/shifts',options).catch((error)=>{error.code=error.payload?.error;throw error;});};
 const shiftCloseFailureMessage=(error)=>{if(error?.code!=='shift_cash_attribution_unresolved')return 'Не удалось закрыть смену';const details=error.payload||{};const count=Number(details.count);const amount=Number(details.amount);const countText=Number.isFinite(count)&&count>=0?String(Math.floor(count)):'неизвестно';const amountText=Number.isFinite(amount)&&amount>=0?`${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:2}).format(amount)} ₽`:'неизвестна';return `Смена осталась открытой. Платежей без привязки: ${countText}; сумма: ${amountText}. Попросите управляющего сверить эти платежи, затем повторите закрытие.`;};
-const refreshShift=()=>{const button=document.querySelector('#shift-toggle');if(button){button.disabled=true;button.textContent='Проверяем смену…';}return shiftApi().then((result)=>{currentShift=result.current||null;if(button){button.innerHTML=currentShift?`${staffIcon('circle-check')}<span>Смена открыта</span>`:`${staffIcon('alert-triangle')}<span>Открыть смену</span>`;button.disabled=false;}}).catch(()=>{if(button)button.textContent='Смена недоступна';notice('Не удалось проверить состояние смены');});};
+const renderStaffShiftControl=(state)=>{
+  const button=document.querySelector('#shift-toggle');if(!button)return;
+  const view={loading:['Проверяем смену…','Проверка','Проверяем смену'],closed:['Смена закрыта','Открыть','Открыть смену'],open:['Смена открыта','Закрыть','Закрыть смену'],error:['Смена недоступна','Повтор','Повторить проверку смены'],saving:['Сохраняем смену…','Ждите','Сохраняем смену']}[state];
+  button.dataset.shiftState=state;button.disabled=state==='loading'||state==='saving';button.setAttribute('aria-busy',String(button.disabled));button.setAttribute('aria-label',view[2]);button.title=view[2];
+  button.innerHTML=`${staffIcon(state==='open'?'circle-check':'clock')}<span class="shift-state-label">${view[0]}</span><span class="shift-action-label">${view[1]}</span>`;
+};
+let shiftRefreshPending=null;
+const refreshShift=()=>{
+  if(shiftRefreshPending)return shiftRefreshPending;renderStaffShiftControl('loading');
+  shiftRefreshPending=shiftApi().then((result)=>{currentShift=result.current||null;renderStaffShiftControl(currentShift?'open':'closed');}).catch(()=>{renderStaffShiftControl('error');notice('Не удалось проверить состояние смены. Повторите проверку.');}).finally(()=>{shiftRefreshPending=null;});return shiftRefreshPending;
+};
 if(staffSessionVerified)refreshShift();
 const orderRows=document.querySelector('.items');
 function drawOrder(order){
@@ -462,8 +472,25 @@ document.querySelectorAll('aside nav button').forEach((button)=>button.addEventL
   document.querySelectorAll('aside nav button').forEach((item)=>{item.classList.remove('active');item.removeAttribute('aria-current');}); button.classList.add('active'); button.setAttribute('aria-current','page');
   const label=button.textContent.trim(); if(label.includes('Бронирования')) window.location.href=preserveWorkspaceRoute('/reservations'); else if(label.includes('Склад')) window.location.href=preserveWorkspaceRoute('/inventory'); else if(label.includes('Финансы')) window.location.href=preserveWorkspaceRoute('/finance'); else if(label.includes('Заказы')||label.includes('Задачи')) { drawQueue(label.includes('Задачи')?'ready':'all'); document.querySelector('.queue')?.scrollIntoView({behavior:'smooth'}); notice(label.includes('Задачи')?'Показаны готовые задачи':'Показаны активные заказы'); } else document.querySelector('.tables')?.scrollIntoView({behavior:'smooth'});
 }));
+let staffShiftActionPending=false;
 document.querySelector('#shift-toggle')?.addEventListener('click',async()=>{
-  if(document.querySelector('#shift-toggle')?.disabled)return;const closing=Boolean(currentShift);const choice=await requestStaffAction({title:closing?'Закрыть смену':'Открыть смену',description:closing?'Сверьте фактический остаток в кассе перед закрытием.':'Укажите стартовый остаток в кассе.',submitLabel:closing?'Закрыть смену':'Открыть смену',fields:[{name:closing?'closingCash':'openingCash',label:closing?'Фактическая сумма':'Остаток в кассе',type:'number',min:0,step:.01,placeholder:'0',required:true}]});if(!choice)return;const key=closing?'closingCash':'openingCash';if(choice[key] === '' || choice[key] === undefined){notice('Укажите сумму наличных');return;}const amount=Number(choice[key]);if(!Number.isFinite(amount)||amount<0){notice('Сумма должна быть неотрицательной');return;}if(closing&&!window.confirm('Подтвердите чек-лист: заказы закрыты, касса сверена, складские операции завершены. Закрыть смену?'))return;if(closing){shiftApi({url:`/api/shifts/${currentShift.id}/close`,method:'POST',body:JSON.stringify({closingCash:amount,checklistConfirmed:true})}).then(()=>{currentShift=null;refreshShift();notice('Смена закрыта');}).catch((error)=>notice(shiftCloseFailureMessage(error),8000));return;}shiftApi({method:'POST',body:JSON.stringify({openingCash:amount})}).then((shift)=>{currentShift=shift;refreshShift();notice('Смена открыта');}).catch(()=>notice('Не удалось открыть смену'));
+  const button=document.querySelector('#shift-toggle');if(button?.disabled||staffShiftActionPending)return;
+  if(button?.dataset.shiftState==='error'){await refreshShift();return;}
+  staffShiftActionPending=true;
+  try{
+    const closing=Boolean(currentShift);
+    const choice=await requestStaffAction({title:closing?'Закрыть смену':'Открыть смену',description:closing?'Сверьте фактический остаток в кассе перед закрытием.':'Укажите стартовый остаток в кассе.',submitLabel:closing?'Закрыть смену':'Открыть смену',fields:[{name:closing?'closingCash':'openingCash',label:closing?'Фактическая сумма':'Остаток в кассе',type:'number',min:0,step:.01,placeholder:'0',required:true}]});
+    if(!choice)return;const key=closing?'closingCash':'openingCash';
+    if(choice[key] === '' || choice[key] === undefined){notice('Укажите сумму наличных');return;}
+    const amount=Number(choice[key]);if(!Number.isFinite(amount)||amount<0){notice('Сумма должна быть неотрицательной');return;}
+    if(closing&&!window.confirm('Подтвердите чек-лист: заказы закрыты, касса сверена, складские операции завершены. Закрыть смену?'))return;
+    renderStaffShiftControl('saving');
+    try{
+      if(closing){await shiftApi({url:`/api/shifts/${currentShift.id}/close`,method:'POST',body:JSON.stringify({closingCash:amount,checklistConfirmed:true})});currentShift=null;}
+      else currentShift=await shiftApi({method:'POST',body:JSON.stringify({openingCash:amount})});
+      await refreshShift();notice(closing?'Смена закрыта':'Смена открыта');
+    }catch(error){renderStaffShiftControl(currentShift?'open':'closed');notice(closing?shiftCloseFailureMessage(error):'Не удалось открыть смену',8000);}
+  }finally{staffShiftActionPending=false;}
 });
 document.querySelectorAll('.actions button').forEach((button)=>button.addEventListener('click',()=>{
   if(!currentOrder?.id){notice('Сначала добавьте позицию в заказ');return;}

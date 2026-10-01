@@ -34,6 +34,10 @@ assert.match(portal, /const animateRouteContent\s*=\s*\(\)\s*=>/,
   'in-page/hash section changes keep their local transition');
 assert.match(rules, /значок стоит у заголовка группы; вложенные ссылки остаются текстовыми/,
   'visual rules must keep expanded sidebar groups calm and readable');
+assert.deepEqual(map.staffHeaderPresentation.actions, ['shift', 'auto-lock-settings', 'screen-lock', 'profile']);
+assert.equal(map.staffHeaderPresentation.notifications, 'server-authorized-management-only');
+assert.match(rules, /Смена закрыта · Открыть.*Смена открыта · Закрыть/);
+assert.match(tree, /смена → настройки автоблокировки → блокировка → профиль/);
 assert.deepEqual(map.navigationPresentation, {
   expandableGroupIcon: 'summary-only', childLinks: 'text-only', childTextAlignment: 'group-label'
 }, 'the site map must document the canonical sidebar visual hierarchy');

@@ -2,6 +2,13 @@
   "version": 1,
   "canonicalRoot": "/",
   "adminRoot": "/admin",
+  "staffHeaderPresentation": {
+    "title": "separate-left",
+    "actions": ["shift", "auto-lock-settings", "screen-lock", "profile"],
+    "mobileActionsRowMaxWidth": 650,
+    "compactShiftLabelMaxWidth": 480,
+    "notifications": "server-authorized-management-only"
+  },
   "navigationPresentation": {
     "expandableGroupIcon": "summary-only",
     "childLinks": "text-only",

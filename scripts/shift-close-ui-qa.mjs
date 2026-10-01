@@ -9,14 +9,11 @@ assert.ok(apiStart >= 0 && messageStart > apiStart && refreshStart > messageStar
 
 const apiSource = source.slice(apiStart, messageStart).trim();
 const messageSource = source.slice(messageStart, refreshStart).trim();
-assert.match(source, /\.catch\(\(error\)=>notice\(shiftCloseFailureMessage\(error\),8000\)\)/,
-  'the shift-close action must show the specific server error message long enough to read');
-
-const shiftApi = new Function('staticStaffDemo', 'localStorage', 'fetch', 'sessionHeaders', `${apiSource}; return shiftApi;`)(
-  () => false,
-  {},
-  async () => ({ ok: false, status: 409, json: async () => ({ error: 'shift_cash_attribution_unresolved', count: 3, amount: 1234.5 }) }),
-  () => ({ Authorization: 'Bearer qa' }),
+assert.match(source, /shiftCloseFailureMessage\(error\).*8000/,
+  'the shift-close action must retain its specific server error message');
+const shiftApi = new Function('staticStaffDemo', 'localStorage', 'staffSessionVerified', 'staffFetchJson', `${apiSource}; return shiftApi;`)(
+  () => false, {}, true,
+  async () => { const error = new Error('shift_cash_attribution_unresolved'); error.status=409; error.payload={error:'shift_cash_attribution_unresolved',count:3,amount:1234.5}; throw error; },
 );
 const failureMessage = new Function(`${messageSource}; return shiftCloseFailureMessage;`)();
 
