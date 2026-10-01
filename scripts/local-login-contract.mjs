@@ -13,7 +13,7 @@ const localDemoFallback = js.indexOf('const user = demoUsers', loginRequestStart
 const responseHandlingStart = js.indexOf('const data = await response.json()', loginRequestStart);
 const required = [
   ['password toggle', html.includes('login-password-toggle') && js.includes('passwordToggle')],
-  ['idle hookah scene', html.includes('login-atmosphere') && html.includes('login-hookah')],
+  ['video background only', html.includes('login-video-backdrop') && html.includes('/assets/login-background.mp4') && distHtml.includes('/assets/login-background.mp4') && distDirectoryHtml.includes('/assets/login-background.mp4') && !html.includes('auth-smoke') && !css.includes('@keyframes loginSmoke') && fs.existsSync('assets/login-background.mp4') && fs.existsSync('dist/assets/login-background.mp4') && !fs.existsSync('assets/login-smoke-ambient.png')],
   ['real hookah photo', fs.existsSync('assets/login-hookah-reference.jpg') && css.includes('login-hookah-reference.jpg')],
   ['login state hook', js.includes('setLoginState')],
   ['transition layer', js.includes('showLoginTransition')],
@@ -24,8 +24,7 @@ const required = [
   ['tobacco animation', css.includes('@keyframes tobaccoDrop')],
   ['metal animation', css.includes('@keyframes metalDrop')],
   ['coal animation', css.includes('@keyframes coalGlow')],
-  ['smoke animation', css.includes('@keyframes smokeRise') && css.includes('@keyframes loginSmoke')],
-  ['failure collapse', css.includes('@keyframes loginCollapse')],
+  ['no smoke animation', !css.includes('@keyframes smokeRise') && !css.includes('@keyframes loginSmoke') && !lock.includes('auth-smoke')],
   ['screen lock PIN mode', lock.includes('PIN') && lock.includes('pin')],
   ['PIN validation', profile.includes('staff-profile-pin') && profile.includes('\\\\d{4}')],
   ['self-service PIN settings', profile.includes('staff-profile-pin') && profile.includes('__syncStaffPin')],

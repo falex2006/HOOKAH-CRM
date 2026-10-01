@@ -50,7 +50,7 @@
   const overlay = document.createElement('div');
   overlay.className = 'screen-lock-overlay';
   overlay.setAttribute('aria-hidden', 'true');
-  overlay.innerHTML = `<section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
+  overlay.innerHTML = `<div class="login-video-backdrop screen-lock-video" aria-hidden="true"><video class="login-video" autoplay muted loop playsinline preload="auto"><source src="/assets/login-background.mp4" type="video/mp4"></video><span class="login-video-overlay"></span></div><section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
     <div class="screen-lock-mark" aria-label="Аватар сотрудника">${avatarMarkup}</div>
     <p class="screen-lock-kicker">HOOKAH POS</p>
     <p class="screen-lock-eyebrow">РАБОЧЕЕ МЕСТО ЗАБЛОКИРОВАНО</p>

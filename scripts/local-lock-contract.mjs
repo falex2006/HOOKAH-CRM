@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const lock = fs.readFileSync('lock.js', 'utf8');
+const distLock = fs.readFileSync('dist/lock.js', 'utf8');
 const server = fs.readFileSync('server.js', 'utf8');
+const css = fs.readFileSync('style.css', 'utf8');
+assert.match(lock, /class="login-video-backdrop screen-lock-video" aria-hidden="true"/);
+assert.match(distLock, /class="login-video-backdrop screen-lock-video" aria-hidden="true"/);
+assert.match(lock, /login-background\.mp4/);
+assert.match(css, /\.screen-lock-video\{position:absolute\}/);
+assert.doesNotMatch(css, /auth-smoke|login-smoke|@keyframes smokeRise|@keyframes loginSmoke/);
 assert.match(lock, /api\/session\/unlock/);
 assert.match(lock, /if \(!token\) return;/, 'lock screen must not recover a bearer token from a trusted cookie before PIN return');
 assert.doesNotMatch(lock, /if \(!token\)[\s\S]{0,240}fetch\('\/api\/session'/, 'lock screen must not call /api/session to bootstrap localStorage token from cookie');

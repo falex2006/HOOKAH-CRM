@@ -4406,17 +4406,13 @@ function staticFile(req, res) {
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
-    '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg', '/assets/login-smoke-ambient.png',
-    '/assets/login-smoke-preview-watermarked.mp4', '/auth-smoke-preview.css', '/auth-smoke.js',
+    '/assets/tabler-icons.svg', '/assets/login-background.mp4',
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
-  const isSmokePreview = requestPath === '/assets/login-smoke-preview-watermarked.mp4';
-  const smokePreviewEnabled = process.env.AUTH_SMOKE_PREVIEW_ENABLED === 'true' && process.env.NODE_ENV !== 'production';
-  if (isSmokePreview && !smokePreviewEnabled) { res.writeHead(404); return res.end('Not found'); }
   if (!publicFiles.has(requestPath)) { res.writeHead(404); return res.end('Not found'); }
   if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end(); }
-  const localPreviewFiles = { '/assets/login-smoke-preview-watermarked.mp4': 'tmp/auth-preview/login-smoke-preview-watermarked.mp4' };
+  const localPreviewFiles = {};
   const file = path.resolve(root, localPreviewFiles[requestPath] || `.${requestPath}`);
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
