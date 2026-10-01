@@ -1270,6 +1270,16 @@ const demoJson = async (url, options = {}) => {
 };
 const api = (url, options = {}) => { if (staticDemo()) return demoJson(url, options); return fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then(async (response) => { if (response.status === 401) { try { localStorage.removeItem('crm_session_token'); localStorage.removeItem('crm_session_user'); } catch {} window.location.href = '/login'; const error = new Error('authentication_required'); error.status = 401; error.payload = { error: 'authentication_required' }; throw error; } const payload = await response.json().catch(() => ({})); if (!response.ok) { const error = new Error(payload.error || `HTTP ${response.status}`); error.payload = payload; throw error; } return payload; }); };
 window.__crmApi = api;
+const refreshSidebarCounters = () => api('/api/metrics').then((metrics) => {
+  const counters = [['/orders', metrics.openOrders, 'Открытые заказы'], ['/reservations', metrics.reservationsToday, 'Брони на сегодня'], ['/inventory?view=stock', metrics.lowStock, 'Позиции ниже минимума'], ['/admin#tasks', metrics.discountRequests, 'Заявки, требующие внимания']];
+  counters.forEach(([href, value, label]) => document.querySelectorAll(`.portal-sidebar a[href="${href}"]`).forEach((link) => {
+    const count = Number(value || 0); let badge = link.querySelector('.sidebar-count');
+    if (!count) { badge?.remove(); return; }
+    if (!badge) { badge = document.createElement('span'); badge.className = 'sidebar-count'; link.append(badge); }
+    badge.textContent = count > 99 ? '99+' : String(count); badge.title = label; badge.setAttribute('aria-label', `${label}: ${count}`);
+  }));
+}).catch(() => {});
+refreshSidebarCounters();
 refreshLeaderNotifications(); setInterval(refreshLeaderNotifications, 20000);
 
 document.addEventListener('submit', (event) => { const form = event.target; if (['client-form', 'reservation-form', 'movement-form', 'inventory-item-form', 'recipe-form', 'product-form', 'purchase-document-form', 'loyalty-form-visible', 'expense-form'].includes(form.id) || form.classList?.contains('payable-payment-form')) return; const button = form?.querySelector('button[type=submit],button:not([type])'); if (!button || button.disabled) return; button.disabled = true; button.dataset.submitLabel = button.textContent; button.textContent = 'Сохранение…'; window.setTimeout(() => { if (button.isConnected) { button.disabled = false; button.textContent = button.dataset.submitLabel || 'Сохранить'; } }, 6000); });
