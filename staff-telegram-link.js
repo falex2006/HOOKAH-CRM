@@ -6,7 +6,10 @@
     let link=host.querySelector('.staff-telegram-link');
     if(!value){link?.remove();return;}
     if(!link){link=document.createElement('a');link.className='staff-telegram-link';link.target='_blank';link.rel='noopener noreferrer';link.addEventListener('click',(event)=>event.stopPropagation());host.append(link);}
-    link.href=value.startsWith('@')?'https://t.me/'+value.slice(1):value; link.textContent='Telegram'; link.title='Открыть Telegram сотрудника';
+    const href=value.startsWith('@')?'https://t.me/'+value.slice(1):value;
+    if(link.getAttribute('href')!==href)link.setAttribute('href',href);
+    if(link.textContent!=='Telegram')link.textContent='Telegram';
+    if(link.title!=='Открыть Telegram сотрудника')link.title='Открыть Telegram сотрудника';
   };
   mount(); new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});
 })();

@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '364';
+const cssRevision = '365';
 const portalRevision = '414';
 const lockRevision = '18';
-const appRevision = '169';
+const appRevision = '171';
 const staffProfileRevision = '6';
 const loginRevision = '93';
 const staffAdminCardRevision = '7';
@@ -46,6 +46,8 @@ for (const path of htmlFiles) {
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
+cpSync(resolve(root, 'staff-telegram-link.js'), resolve(root, 'dist', 'staff-telegram-link.js'));
+cpSync(resolve(root, 'vip-deposit-ui.js'), resolve(root, 'dist', 'vip-deposit-ui.js'));
 cpSync(resolve(root, 'staff-profile.js'), resolve(root, 'dist', 'staff-profile.js'));
 cpSync(resolve(root, 'login.js'), resolve(root, 'dist', 'login.js'));
 cpSync(resolve(root, 'style.css'), resolve(root, 'dist', 'style.css'));

@@ -22,7 +22,9 @@ const staffNavButtons = [...html.matchAll(/<button\b([^>]*)data-permission="[^"]
 assert.ok(staffNavButtons.length > 0, 'staff navigation must contain permission-filtered buttons');
 assert.ok(staffNavButtons.every(([, before, after]) => /aria-label="[^"]+"/.test(before + after)),
   'icon-only staff navigation buttons must preserve their labels for assistive technology');
-assert.match(app, /else fetch\('\/api\/session'/);
+assert.match(app, /staffFetchJson\('\/api\/session'\)/);
+assert.doesNotMatch(app, /cachedSession|releasePendingStaffNavigation/);
+assert.match(app, /data-staff-session-retry/);
 assert.match(app, /if\(!s\?\.user\)return/);
 assert.match(app, /item\.hidden=!hasStaffPermission\(item\.dataset\.permission,permissions\)/,
   'every nav item must be both hidden when forbidden and restored when its permission is granted');
@@ -54,5 +56,13 @@ assert.match(app, /manager:\['floor','orders','reservations','inventory_read','f
 assert.equal(distApp, app);
 assert.equal(distHtml, html);
 assert.match(html, new RegExp(`app\\.js\\?rev=${appRevision}`));
+assert.doesNotMatch(html, /Мария|Darkside Blueberry|2 100 ₽|<span>Смена открыта<\/span>/,
+  'initial workspace must not impersonate a demo employee or show a fake order/shift');
+assert.match(html, /<section class="order" inert>/, 'order actions remain inert until session verification');
+assert.match(app, /localStorage\.setItem\('crm_session_user',JSON\.stringify\(session\.user\)\);\s*mountStaffExtensions\(\);/,
+  'cached profile extensions mount only after server identity replaces stale local data');
+const css = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+assert.match(css, /\.staff-theme \.portal-sidebar \.portal-nav button\[hidden\][\s\S]*?display:none!important/,
+  'server-hidden buttons must stay visually hidden despite authored display rules');
 
 console.log('STAFF SESSION NAVIGATION CONTRACT: PASS (server-driven permissions, manager links, fail-closed loading, root/dist parity)');
