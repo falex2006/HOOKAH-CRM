@@ -54,7 +54,7 @@
   if (!document.querySelector('link[data-auth-smoke]')) {
     const smokeStyle = document.createElement('link');
     smokeStyle.rel = 'stylesheet';
-    smokeStyle.href = '/auth-smoke.css?rev=1';
+    smokeStyle.href = '/auth-smoke.css?rev=2';
     smokeStyle.dataset.authSmoke = 'true';
     document.head.appendChild(smokeStyle);
   }

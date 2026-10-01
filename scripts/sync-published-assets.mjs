@@ -7,12 +7,12 @@ import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlF
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const cssRevision = '369';
 const portalRevision = '416';
-const lockRevision = '21';
+const lockRevision = '22';
 const appRevision = '175';
 const staffProfileRevision = '6';
 const loginRevision = '97';
 const authSmokeRevision = '3';
-const authSmokeCssRevision = '1';
+const authSmokeCssRevision = '2';
 const staffAdminCardRevision = '7';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';

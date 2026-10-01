@@ -23,5 +23,7 @@
 .screen-lock-overlay:has(.auth-smoke-backdrop)::before,.screen-lock-overlay:has(.auth-smoke-backdrop)::after{display:none}
 .screen-lock-overlay .auth-smoke-backdrop{position:absolute}
 .screen-lock-overlay:has(.auth-smoke-backdrop) .screen-lock-card{position:relative;z-index:1;margin-block:auto;background:linear-gradient(145deg,#1b1e23f5,#121417f5)}
+/* Keep the bottom edge of the selected clip outside the desktop scene. */
+@media(min-width:901px){.auth-smoke-video,.auth-smoke-texture{transform:scale(1.2);transform-origin:50% 0}}
 @media(max-width:760px){.auth-smoke-video{object-position:42% center}.auth-smoke-texture{background-position:42% center;opacity:.36}.auth-smoke-vignette{background:linear-gradient(0deg,#0d0f1266 0%,transparent 68%),radial-gradient(ellipse at 50% 45%,transparent 20%,#05060788 100%)}}
 @media(prefers-reduced-motion:reduce){.auth-smoke-video{display:none!important}.auth-smoke-backdrop .auth-smoke-texture{opacity:.44!important}.auth-smoke-backdrop *{animation:none!important;transition:none!important}}
