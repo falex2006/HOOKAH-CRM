@@ -24,12 +24,14 @@ const nodes = {
   '#premix-recipe': { value: 'recipe-1' },
   '#premix-output': { value: 'stock-1' },
   '#premix-multiplier': { value: '2' },
+  '#premix-actual-output': { value: '1.75' },
+  '#premix-expires-at': { value: '2026-10-02T10:00' },
   '#premix-message': message,
 };
 const document = { querySelector: (selector) => nodes[selector] || null };
 const api = (path, options) => {
   assert.equal(path, '/api/inventory/premixes/produce');
-  assert.deepEqual(JSON.parse(options.body), { recipeId: 'recipe-1', outputItemId: 'stock-1', multiplier: 2 });
+  assert.deepEqual(JSON.parse(options.body), { recipeId: 'recipe-1', outputItemId: 'stock-1', multiplier: 2, actualOutput: 1.75, expiresAt: new Date('2026-10-02T10:00').toISOString() });
   requests += 1;
   return new Promise((resolve, reject) => pending.push({ resolve, reject }));
 };

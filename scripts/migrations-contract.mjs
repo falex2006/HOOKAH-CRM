@@ -19,11 +19,33 @@ for (const file of files) {
 const expenses = fs.readFileSync(path.join(migrationDir, '022_expenses.sql'), 'utf8');
 const capacity = fs.readFileSync(path.join(migrationDir, '024_table_capacity_range.sql'), 'utf8');
 const shifts = fs.readFileSync(path.join(migrationDir, '041_single_open_shift.sql'), 'utf8');
+const stockPrecision = fs.readFileSync(path.join(migrationDir, '055_stock_movement_precision.sql'), 'utf8');
+const premixLifecycle = fs.readFileSync(path.join(migrationDir, '056_premix_batch_lifecycle.sql'), 'utf8');
 assert.match(expenses, /DO\s+\$\$[\s\S]*payroll_entries_expense_fk[\s\S]*END\s*\$\$;/, 'expense FK must be guarded');
 assert.match(capacity, /DROP\s+CONSTRAINT\s+IF\s+EXISTS\s+tables_capacity_range_check[\s\S]*DO\s+\$\$[\s\S]*tables_capacity_range_check[\s\S]*END\s*\$\$;/, 'capacity constraint must be replay-safe');
 assert.doesNotMatch(expenses, /^ALTER\s+TABLE\s+payroll_entries\s+ADD\s+CONSTRAINT/m, 'expense FK must not be added unconditionally');
 assert.doesNotMatch(capacity, /^ALTER\s+TABLE\s+tables\s+ADD\s+CONSTRAINT/m, 'capacity constraint must not be added unconditionally');
 assert.match(shifts, /HAVING COUNT\(\*\) > 1[\s\S]*RAISE EXCEPTION[\s\S]*CREATE UNIQUE INDEX IF NOT EXISTS shifts_one_open_per_venue_idx/, 'single-open-shift migration must fail safely on duplicate data and enforce the venue invariant');
+for (const [table, column] of [
+  ['stock_movements', 'quantity'],
+  ['recipe_items', 'quantity'],
+  ['ingredients', 'pack_multiplier'],
+  ['ingredients', 'min_stock'],
+  ['inventory_premix_batches', 'output_quantity'],
+  ['inventory_purchase_document_lines', 'pack_multiplier'],
+  ['inventory_purchase_document_lines', 'stock_quantity'],
+]) {
+  assert.match(stockPrecision, new RegExp(`ALTER TABLE ${table}\\s+[\\s\\S]*?ALTER COLUMN ${column} TYPE numeric\\(15,6\\)`),
+    `${table}.${column} keeps six decimal places and the prior integer range`);
+}
+assert.match(stockPrecision, /ALTER TABLE inventory_purchase_document_lines\s+[\s\S]*?ALTER COLUMN quantity TYPE numeric\(17,6\)/,
+  'purchase line quantity gains six decimal places without reducing its prior integer range');
+assert.match(premixLifecycle, /UPDATE inventory_premix_batches[\s\S]*planned_output_quantity=output_quantity/,
+  'legacy batches receive a compatible planned-output snapshot');
+assert.match(premixLifecycle, /inventory_premix_batch_movements[\s\S]*quantity_delta numeric\(15,6\)/,
+  'per-lot stock allocations use append-only precise quantities');
+assert.match(premixLifecycle, /BEFORE UPDATE OR DELETE ON inventory_premix_batch_movements/,
+  'lot movement history cannot be rewritten or deleted');
 
 const migrationRunner = fs.readFileSync(path.join(root, 'migrate-vps.sh'), 'utf8');
 assert.match(migrationRunner, /migrations\/\*\.sql/);

@@ -32,6 +32,7 @@ $checks = @(
   @{ file = 'inventory-responsive-contract.mjs'; node = $true },
   @{ file = 'inventory-critical-state-qa.mjs'; node = $true },
   @{ file = 'inventory-premix-load-state-qa.mjs'; node = $true },
+  @{ file = 'premix-batch-lifecycle-qa.mjs'; node = $true },
   @{ file = 'inventory-movement-transaction-qa.mjs'; node = $true },
   @{ file = 'directory-rename-runtime-qa.mjs'; node = $true },
   @{ file = 'demo-premix-unit-runtime-qa.mjs'; node = $true },

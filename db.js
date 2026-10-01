@@ -2,6 +2,46 @@
 
 const PURCHASE_UNIT_FACTORS = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
 
+// Allocate new stock issues against tracked premix lots. Unallocated legacy
+// stock is consumed first because its production date cannot be reconstructed.
+// Callers hold the ingredient row lock and have inserted the aggregate stock
+// movement in the same transaction before invoking this helper.
+async function allocatePremixBatchConsumption(client, input) {
+  const { venueId, ingredientId, stockMovementId, quantity, onHandBefore, createdBy, reason } = input;
+  const { rows } = await client.query(`
+    SELECT b.id, b.output_quantity,
+      COALESCE((SELECT SUM(m.quantity_delta) FROM inventory_premix_batch_movements m WHERE m.batch_id=b.id),0)::numeric AS allocated_delta,
+      b.expires_at, (b.expires_at IS NOT NULL AND b.expires_at<=now()) AS expired, b.created_at
+    FROM inventory_premix_batches b
+    WHERE b.venue_id=$1 AND b.output_ingredient_id=$2 AND b.status='produced'
+    ORDER BY b.expires_at ASC NULLS LAST, b.created_at ASC, b.id ASC
+    FOR UPDATE OF b`, [venueId, ingredientId]);
+  const lots = rows.map((row) => ({
+    id: row.id,
+    remaining: Math.max(0, Number(row.output_quantity) + Number(row.allocated_delta || 0)),
+    expired: Boolean(row.expired),
+  })).filter((lot) => lot.remaining > 0.0000001);
+  const trackedBefore = lots.reduce((sum, lot) => sum + lot.remaining, 0);
+  let legacyRemaining = Math.max(0, Number(onHandBefore || 0) - trackedBefore);
+  let toAllocate = Number(quantity);
+  const fromLegacy = Math.min(legacyRemaining, toAllocate);
+  toAllocate -= fromLegacy;
+  for (const lot of lots.filter((entry) => !entry.expired)) {
+    if (toAllocate <= 0.0000001) break;
+    const allocated = Math.min(lot.remaining, toAllocate);
+    await client.query(`INSERT INTO inventory_premix_batch_movements
+      (venue_id,batch_id,stock_movement_id,movement_type,quantity_delta,reason,created_by)
+      VALUES ($1,$2,$3,'consumption',$4,$5,$6)`,
+    [venueId, lot.id, stockMovementId, -allocated, reason || 'Списание со склада', createdBy || null]);
+    toAllocate -= allocated;
+  }
+  if (toAllocate > 0.0000001) {
+    const error = new Error(lots.some((lot) => lot.expired) ? 'expired_premix_stock' : 'premix_batch_balance_mismatch');
+    error.available = Number(quantity) - toAllocate;
+    throw error;
+  }
+}
+
 /** PostgreSQL repositories. They are optional so the local demo can run without a database. */
 class OrderRepository {
   constructor(pool) { this.pool = pool; }
@@ -90,6 +130,11 @@ class InventoryRepository {
       }
       const { rows } = await client.query(`INSERT INTO stock_movements (venue_id, ingredient_id, direction, quantity, reason, created_by)
         VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, ingredient_id AS "itemId", quantity, direction, reason, created_at AS "createdAt"`, [input.venueId, input.ingredientId, input.direction, quantity, input.reason || null, input.createdBy || null]);
+      if (['out','waste'].includes(input.direction)) await allocatePremixBatchConsumption(client, {
+        venueId: input.venueId, ingredientId: input.ingredientId, stockMovementId: rows[0].id,
+        quantity, onHandBefore, createdBy: input.createdBy,
+        reason: input.reason || (input.direction === 'waste' ? 'Списание порчи' : 'Списание со склада'),
+      });
       const sign = ['out','waste'].includes(input.direction) ? -1 : 1;
       const result = { ...rows[0], itemName: item.name, unit: item.unit, onHandBefore, onHandAfter: Number((onHandBefore + sign * quantity).toFixed(6)) };
       await client.query('COMMIT');
@@ -577,4 +622,4 @@ function createRepositories(databaseUrl = process.env.DATABASE_URL) {
 
 function createOrderRepository(databaseUrl = process.env.DATABASE_URL) { return createRepositories(databaseUrl)?.orders || null; }
 
-module.exports = { OrderRepository, InventoryRepository, PurchaseDocumentRepository, ProductRepository, TobaccoCatalogRepository, AlcoholCatalogRepository, ReservationRepository, AuditRepository, SessionRepository, createRepositories, createOrderRepository };
+module.exports = { OrderRepository, InventoryRepository, PurchaseDocumentRepository, ProductRepository, TobaccoCatalogRepository, AlcoholCatalogRepository, ReservationRepository, AuditRepository, SessionRepository, createRepositories, createOrderRepository, allocatePremixBatchConsumption };

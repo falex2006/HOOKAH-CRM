@@ -11,9 +11,9 @@ assert.ok(routeStart >= 0 && routeEnd > routeStart, 'actual demo premix producti
 
 const parserSource = portal.slice(parserStart, parserEnd);
 const routeSource = portal.slice(routeStart, routeEnd);
-const execute = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', `${parserSource}\nreturn (async () => { ${routeSource} })();`);
-const produce = (state, payload) => execute('/api/inventory/premixes/produce', 'POST', payload, new Set(['inventory']), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' });
-const stateFor = (recipe, inventory) => ({ recipes: [recipe], inventory, premixBatches: [], audit: [] });
+const execute = new Function('path', 'method', 'input', 'portalPermissions', 'demoState', 'demoSave', 'portalUser', 'demoAllocatePremixConsumption', `${parserSource}\nreturn (async () => { ${routeSource} })();`);
+const produce = (state, payload) => execute('/api/inventory/premixes/produce', 'POST', payload, new Set(['inventory']), state, () => { state.saved = (state.saved || 0) + 1; }, { name: 'QA' }, () => []);
+const stateFor = (recipe, inventory) => ({ recipes: [recipe], inventory, premixBatches: [], movements: [], audit: [] });
 
 const itemRouteStart = portal.indexOf("if (path === '/api/inventory/items' && method === 'POST')");
 const itemRouteEnd = portal.indexOf('\n', itemRouteStart);
