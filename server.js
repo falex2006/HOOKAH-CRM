@@ -1081,9 +1081,9 @@ async function api(req, res) {
     }
     let notificationId;
     try { notificationId = decodeURIComponent(notificationReadPath[1]); } catch (_) { return json(res, 400, { error: 'invalid_notification_id' }); }
-    if (!/^(discount|inventory_auto_order|order_deleted|staff_pin_updated):[A-Za-z0-9-]{1,150}$/.test(notificationId)) return json(res, 404, { error: 'notification_not_found' });
+    if (!/^(discount|inventory_auto_order|order_deleted):[A-Za-z0-9-]{1,150}$/.test(notificationId)) return json(res, 404, { error: 'notification_not_found' });
     const type = notificationId.slice(0, notificationId.indexOf(':'));
-    if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders) || (type === 'staff_pin_updated' && !access.staffPins)) return json(res, 404, { error: 'notification_not_found' });
+    if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders)) return json(res, 404, { error: 'notification_not_found' });
     try {
       if (repositories?.pool) {
         const notificationVenueId = notificationVenueScope(req, venueDbId);
@@ -4455,6 +4455,7 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
+
 
 
 
