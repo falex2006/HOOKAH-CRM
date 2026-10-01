@@ -9,6 +9,9 @@ const distHtml = fs.readFileSync(new URL('../dist/index.html', import.meta.url),
 const syncScript = fs.readFileSync(new URL('../scripts/sync-published-assets.mjs', import.meta.url), 'utf8');
 const appRevision = syncScript.match(/appRevision = '(\d+)'/)?.[1];
 assert.ok(appRevision, 'app cache revision must be declared in the asset sync script');
+assert.doesNotMatch(app, /staff-telegram-link\.js|__staffTelegramLinkLoaded/, 'staff sidebar must not mount a Telegram contact shortcut');
+assert.doesNotMatch(html, /staff-telegram-link/, 'staff markup must not include a Telegram footer link');
+assert.doesNotMatch(distHtml, /staff-telegram-link/, 'published staff markup must not include a Telegram footer link');
 
 assert.match(app, /const preserveWorkspaceRoute=\(href\)=>/);
 assert.match(app, /queryParams\.delete\('mode'\)/);

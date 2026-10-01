@@ -583,7 +583,6 @@ if(!window.__staffProfileLoaded){window.__staffProfileLoaded=true;const script=d
 if(!window.__staffAuditLoaded){window.__staffAuditLoaded=true;const script=document.createElement('script');script.src='/staff-audit.js?rev=1';document.head.append(script);}
 if(!window.__vipDepositLoaded){window.__vipDepositLoaded=true;const script=document.createElement('script');script.src='/vip-deposit.js?rev=1';document.head.append(script);}
 if(!window.__vipDepositUiLoaded){window.__vipDepositUiLoaded=true;const script=document.createElement('script');script.src='/vip-deposit-ui.js?rev=3';document.head.append(script);}
-if(!window.__staffTelegramLinkLoaded){window.__staffTelegramLinkLoaded=true;const script=document.createElement('script');script.src='/staff-telegram-link.js?rev=2';document.head.append(script);}
 }
 if(staffSessionVerified){mountStaffExtensions();document.querySelector('.order')?.removeAttribute('inert');}
 drawOrder(null);drawQueue();
