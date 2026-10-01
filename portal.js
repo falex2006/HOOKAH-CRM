@@ -324,8 +324,35 @@ const normalizeManagementSidebar = () => {
   let disclosureRoot = sidebar.querySelector(':scope > .sidebar-nav-groups');
   if (!disclosureRoot) { disclosureRoot = document.createElement('div'); disclosureRoot.className = 'sidebar-nav-groups'; }
   disclosureRoot.className = 'sidebar-nav-groups';
+  let menuSearch = sidebar.querySelector(':scope > .sidebar-menu-search');
+  if (!menuSearch) {
+    menuSearch = document.createElement('label');
+    menuSearch.className = 'sidebar-menu-search';
+    menuSearch.innerHTML = '<span class="sr-only">Поиск по меню</span><svg class="icon" aria-hidden="true"><use href="/assets/tabler-icons.svg?rev=5#search"></use></svg><input type="search" id="sidebar-menu-search" placeholder="Найти раздел" autocomplete="off">';
+    mainNav.after(menuSearch);
+  }
+  const menuSearchInput = menuSearch.querySelector('input');
+  const applyMenuSearch = () => {
+    const query = String(menuSearchInput?.value || '').trim().toLocaleLowerCase('ru-RU');
+    sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((group) => {
+      const links = [...group.querySelectorAll('.portal-nav a')];
+      const visibleLinks = links.filter((link) => !link.hidden || link.dataset.menuSearchHidden !== 'true');
+      const matching = visibleLinks.filter((link) => String(link.textContent || '').toLocaleLowerCase('ru-RU').includes(query));
+      const groupMatches = String(group.querySelector(':scope > summary')?.textContent || '').toLocaleLowerCase('ru-RU').includes(query);
+      links.forEach((link) => {
+        if (link.hidden && link.dataset.permission && !portalPermissions.has(link.dataset.permission)) return;
+        const hide = Boolean(query) && !String(link.textContent || '').toLocaleLowerCase('ru-RU').includes(query);
+        link.dataset.menuSearchHidden = hide ? 'true' : 'false';
+        if (!link.hidden || !hide) link.hidden = hide;
+      });
+      if (query) group.hidden = !groupMatches && matching.length === 0;
+      if (query && !group.hidden && matching.length) group.open = true;
+    });
+  };
+  if (menuSearchInput && !menuSearchInput.dataset.bound) { menuSearchInput.dataset.bound = 'true'; menuSearchInput.addEventListener('input', applyMenuSearch); }
   mainNav.after(disclosureRoot);
   disclosureRoot.replaceChildren(...['operations', 'menu', 'inventory', 'finance', 'team', 'system'].map((key) => key === 'menu' ? menuGroup : key === 'inventory' ? inventoryGroup : key === 'finance' ? financeGroup : disclosureGroups.get(key)).filter(Boolean));
+  applyMenuSearch();
   sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((group) => {
     group.open = savedGroupState(group.dataset.navGroup) ?? defaultGroupOpen(group.dataset.navGroup);
     group.querySelector(':scope > summary')?.setAttribute('aria-expanded', String(group.open));
