@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { createRepositories, allocatePremixBatchConsumption } = require('./db');
 const { redactAuditData, sanitizeAuditEvent } = require('./audit-privacy');
+const { normalizeStaffEmail, normalizeStaffLogin, publicStaffProfile } = require('./staff-identity');
 const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
 const { validateDataUrl: validatePurchasePaymentDocument } = require('./purchase-document-validation');
 const { isValidIsoDate, countInclusiveDays, calculatePayrollAmount, canTransitionPayroll } = require('./payroll');
@@ -906,7 +907,7 @@ async function api(req, res) {
     // The platform owner is an infrastructure identity and may not have a
     // tenant row for the auth_sessions foreign key. Keep that session in the
     // process memory; tenant users continue to use persisted PostgreSQL sessions.
-    if (sessionRepository && account.role !== 'platform_owner') { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) { return json(res, 503, { error: 'session_unavailable' }); } }
+    if (sessionRepository && account.role !== 'platform_owner') { try { const saved = await sessionRepository.create({ userId, expectedLogin: account.username, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (error) { if (error.code === 'AUTH_IDENTITY_CHANGED') return json(res, 401, { error: 'invalid_credentials' }); return json(res, 503, { error: 'session_unavailable' }); } }
     if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
     sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now(), expiresAt });
     [...sessions.entries()].filter(([, session]) => session.user?.id === userId).sort(([, left], [, right]) => right.createdAt - left.createdAt).slice(2).forEach(([sessionToken]) => sessions.delete(sessionToken));
@@ -2451,12 +2452,17 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
-    return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { person.pinConfigured = Boolean(person.pinCode || person.pinHash || person.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!canSeeStaffPhoto(req)) delete person.photoUrl; if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
+    return json(res, 200, { items: staff.filter((person) => !person.deletedAt && (!req.user?.venueId || (person.venueId || currentVenueId) === req.user.venueId)).map((entry) => { const person = publicStaffProfile(entry); person.pinConfigured = Boolean(entry.pinCode || entry.pinHash || entry.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!canSeeStaffPhoto(req)) delete person.photoUrl; if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req);
+    let contactEmail = null;
+    try { if (input.email !== undefined) contactEmail = normalizeStaffEmail(input.email); } catch (_) { return json(res, 400, { error: 'invalid_staff_email' }); }
+    if (input.login !== undefined && typeof input.login !== 'string') return json(res, 400, { error: 'invalid_staff_login' });
+    if (typeof input.login === 'string') input.login = input.login.trim();
+    if (input.login && [...demoAccounts, ...provisionedAccounts].some(entry => entry.username?.toLowerCase() === input.login.toLowerCase())) return json(res, 409, { error: 'reserved_staff_login' });
     if (!input.name || !rolePermissions[input.role] || input.role === 'owner') return json(res, 400, { error: 'name_and_valid_role_required' });
     const nonCrmRole = ['cleaner','security','technician','other_staff'].includes(input.role);
     if (!nonCrmRole && !input.password) return json(res, 400, { error: 'password_required' });
@@ -2493,24 +2499,28 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         const login = nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`);
         const passwordHash = nonCrmRole ? null : await hashPassword(input.password);
         const insert = async (legacySchema = false) => client.query(legacySchema
-          ? `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9::date,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`
-          : `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,permission_scopes,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7::jsonb,$8,$9,$10::date,$11,$12::jsonb,$13,$14,$15,$16,$17) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`,
+          ? `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9::date,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes"`
+          : `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,permission_scopes,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7::jsonb,$8,$9,$10::date,$11,$12::jsonb,$13,$14,$15,$16,$17) RETURNING id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes"`,
           legacySchema
             ? [venueDbId, organizationId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null]
             : [venueDbId, organizationId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null]);
         let rows;
         try { ({ rows } = await insert()); }
         catch (error) { if (error.code !== '42703' && error.code !== '42704') throw error; ({ rows } = await insert(true)); }
+        if (input.email !== undefined) await client.query('UPDATE users SET contact_email=$1 WHERE id=$2', [contactEmail, rows[0].id]);
         const membershipRole = input.role === 'admin' ? 'admin' : 'member';
         await client.query(`INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,$3,'active') ON CONFLICT (organization_id,user_id) DO UPDATE SET membership_role=EXCLUDED.membership_role,status='active'`, [organizationId, rows[0].id, membershipRole]);
         await client.query('COMMIT');
-        const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) };
+        const result = { ...rows[0], email: contactEmail, permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) };
         if (!canSeeStaffPhoto(req)) delete result.photoUrl;
         recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result);
-      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'staff_create_failed', detail: error.message }); }
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, error.code === '42703' ? 503 : 409, { error: error.code === '23505' ? 'login_already_exists' : error.code === '42703' ? 'staff_profile_migration_required' : 'staff_create_failed' }); }
       finally { client.release(); }
     }
-    const person = { venueId: req.user?.venueId || currentVenueId, id: `u-${Date.now()}`, name: input.name, login: nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`), passwordHash: nonCrmRole ? null : await hashPassword(input.password), role: input.role, active: true, avatarUrl: input.avatarUrl || null, photoUrl: input.photoUrl || null, birthDate: input.birthDate, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: null, pinConfigured: false, pinUpdatedAt: null };
+    if (input.login && staff.some(entry => entry.login === input.login)) return json(res, 409, { error: 'login_already_exists' });
+    const person = { email: contactEmail, venueId: req.user?.venueId || currentVenueId, id: `u-${Date.now()}`, name: input.name, login: nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`), passwordHash: nonCrmRole ? null : await hashPassword(input.password), role: input.role, active: true, avatarUrl: input.avatarUrl || null, photoUrl: input.photoUrl || null, birthDate: input.birthDate, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: null, pinConfigured: false, pinUpdatedAt: null };
+    if (staff.some(entry => entry.login === person.login)) return json(res, 409, { error: 'login_already_exists' });
+    if ([...demoAccounts, ...provisionedAccounts].some(entry => entry.username?.toLowerCase() === person.login.toLowerCase())) return json(res, 409, { error: 'reserved_staff_login' });
     staff.push(person);
     const { passwordHash, ...publicPerson } = person;
     recordAudit(req, 'staff.created', 'staff', person.id, null, publicPerson);
@@ -2616,7 +2626,7 @@ if (staffProfile && req.method === 'GET') {
   if (!canRead) return json(res, 403, { error: 'forbidden', permission: 'staff_view' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
+      const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt",(pin_updated_at IS NOT NULL) AS "pinConfigured",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1`, [personId, venueDbId]);
       if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
       const profile = { ...rows[0], workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: rows[0].permissionScopes }) };
       if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
@@ -2626,7 +2636,7 @@ if (staffProfile && req.method === 'GET') {
     } catch (error) {
       // Keep migration 002 contact data available when the employment migration is not applied yet.
       try {
-        const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
+        const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1`, [personId, venueDbId]);
         if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
         const profile = { ...rows[0], permissionScopes: [], employmentStartedAt: null, workNotes: '', workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: [] }) };
         if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
@@ -2635,16 +2645,16 @@ if (staffProfile && req.method === 'GET') {
         return json(res, 200, profile);
       } catch (_) {
         try {
-          const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
+          const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1`, [personId, venueDbId]);
           if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
           return json(res, 200, { ...rows[0], telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '', workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: [] }) });
         } catch (fallbackError) { return json(res, 409, { error: 'staff_profile_read_failed', detail: fallbackError.message }); }
       }
     }
   }
-  const person = staff.find((entry) => entry.id === personId);
+  const person = staff.find((entry) => entry.id === personId && !entry.deletedAt && (!req.user?.venueId || (entry.venueId || currentVenueId) === req.user.venueId));
   if (!person) return json(res, 404, { error: 'staff_not_found' });
-  const profile = { ...person, workspacePermissions: effectivePermissions(person) }; if (!canSeeSensitiveStaff(req)) delete profile.passportData; if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
+  const profile = { ...publicStaffProfile(person), workspacePermissions: effectivePermissions(person) }; if (!canSeeSensitiveStaff(req)) delete profile.passportData; if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
   return json(res, 200, profile);
 }
 if (staffProfile && req.method === 'PATCH') {
@@ -2654,16 +2664,39 @@ if (staffProfile && req.method === 'PATCH') {
   const isSelf = String(req.user?.id || '') === personId;
   if (!canManage && !isSelf) return json(res, 403, { error: 'forbidden', permission: 'staff' });
   const input = await body(req);
-  const memoryPerson = staff.find((entry) => entry.id === personId);
+  const memoryPerson = !repositories?.pool ? staff.find((entry) => entry.id === personId && !entry.deletedAt && (!req.user?.venueId || (entry.venueId || currentVenueId) === req.user.venueId)) : null;
+  let profileClient = null;
+  let profileCommitted = false;
+  try {
   let before = memoryPerson ? { ...memoryPerson, phoneNumbers: Array.isArray(memoryPerson.phoneNumbers) ? memoryPerson.phoneNumbers.map((phone) => ({ ...phone })) : [] } : null;
   if (!before && repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
+      profileClient = await repositories.pool.connect();
+      await profileClient.query('BEGIN');
+      const { rows } = await profileClient.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1 FOR UPDATE`, [personId, venueDbId]);
       before = rows[0] || null;
-    } catch (_) {}
+    } catch (_) { return json(res, 503, { error: 'staff_profile_unavailable' }); }
   }
   if (!before) return json(res, 404, { error: 'staff_not_found' });
   if (before.role === 'owner' && req.user?.role !== 'owner') return json(res, 403, { error: 'owner_staff_protected' });
+  let contactEmail = before.email || null;
+  let nextLogin = before.login;
+  if (input.login !== undefined) {
+    if (!canManage) return json(res, 403, { error: 'staff_management_required' });
+    if (typeof input.login !== 'string') return json(res, 400, { error: 'invalid_staff_login' });
+    nextLogin = input.login.trim();
+    if (nextLogin !== before.login) {
+      if (!canAssignStaffRole(req, before.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
+      if (!(before.loginConfigured ?? Boolean(before.passwordHash)) || ['cleaner','security','technician','other_staff'].includes(before.role)) return json(res, 400, { error: 'staff_crm_access_not_configured' });
+      try { nextLogin = normalizeStaffLogin(input.login); } catch (_) { return json(res, 400, { error: 'invalid_staff_login' }); }
+      if ([...demoAccounts, ...provisionedAccounts].some(entry => entry.username?.toLowerCase() === nextLogin.toLowerCase())) return json(res, 409, { error: 'reserved_staff_login' });
+      if (!repositories?.pool && staff.some(entry => entry.id !== personId && entry.login === nextLogin)) return json(res, 409, { error: 'login_already_exists' });
+    }
+  }
+  if (input.email !== undefined) {
+    try { contactEmail = normalizeStaffEmail(input.email); } catch (_) { return json(res, 400, { error: 'invalid_staff_email' }); }
+  }
+  const loginChanged = nextLogin !== before.login;
   const auditBefore = { ...before, phoneNumbers: Array.isArray(before.phoneNumbers) ? before.phoneNumbers.map((phone) => ({ ...phone })) : [] };
   if (!canManageSensitive) delete auditBefore.passportData;
   if (input.name !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
@@ -2709,22 +2742,44 @@ if (staffProfile && req.method === 'PATCH') {
   const clearPassportData = clearPassportRequested && canManageSensitive;
   const hasPassportData = input.passportData !== undefined && input.passportData && typeof input.passportData === 'object' && ['number', 'issuedAt', 'issuer'].some((key) => String(input.passportData[key] || '').trim());
   if (clearPassportData) before.passportData = null; else if (hasPassportData) before.passportData = input.passportData;
+  before.login = nextLogin;
+  before.email = contactEmail;
   const encryptedPassport = hasPassportData && canManageSensitive ? staffPassportCipher.encrypt(input.passportData) : null;
   if (hasPassportData && repositories?.pool && canManageSensitive && !encryptedPassport) return json(res, 503, { error: 'staff_passport_key_required' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      try { await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,employment_started_at=CASE WHEN $11 THEN $12::date ELSE employment_started_at END,work_notes=CASE WHEN $13 THEN $14 ELSE work_notes END,passport_data_encrypted=CASE WHEN $24 THEN NULL ELSE COALESCE($15,passport_data_encrypted) END,passport_data_iv=CASE WHEN $24 THEN NULL ELSE COALESCE($16,passport_data_iv) END,passport_data_tag=CASE WHEN $24 THEN NULL ELSE COALESCE($17,passport_data_tag) END,full_name=CASE WHEN $18 THEN $19 ELSE full_name END,role=CASE WHEN $20 THEN $21 ELSE role END WHERE id=$22 AND venue_id=$23', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', input.employmentStartedAt !== undefined, input.employmentStartedAt || null, input.workNotes !== undefined, input.workNotes !== undefined ? String(input.workNotes || '').slice(0, 4000) : null, encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]); } catch (_) {
-        await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,passport_data_encrypted=CASE WHEN $20 THEN NULL ELSE COALESCE($11,passport_data_encrypted) END,passport_data_iv=CASE WHEN $20 THEN NULL ELSE COALESCE($12,passport_data_iv) END,passport_data_tag=CASE WHEN $20 THEN NULL ELSE COALESCE($13,passport_data_tag) END,full_name=CASE WHEN $14 THEN $15 ELSE full_name END,role=CASE WHEN $16 THEN $17 ELSE role END WHERE id=$18 AND venue_id=$19', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]);
+      await profileClient.query('SAVEPOINT profile_fields');
+      try { await profileClient.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,employment_started_at=CASE WHEN $11 THEN $12::date ELSE employment_started_at END,work_notes=CASE WHEN $13 THEN $14 ELSE work_notes END,passport_data_encrypted=CASE WHEN $24 THEN NULL ELSE COALESCE($15,passport_data_encrypted) END,passport_data_iv=CASE WHEN $24 THEN NULL ELSE COALESCE($16,passport_data_iv) END,passport_data_tag=CASE WHEN $24 THEN NULL ELSE COALESCE($17,passport_data_tag) END,full_name=CASE WHEN $18 THEN $19 ELSE full_name END,role=CASE WHEN $20 THEN $21 ELSE role END WHERE id=$22 AND venue_id=$23', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', input.employmentStartedAt !== undefined, input.employmentStartedAt || null, input.workNotes !== undefined, input.workNotes !== undefined ? String(input.workNotes || '').slice(0, 4000) : null, encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]); } catch (error) {
+        if (!['42703','42704'].includes(error.code)) throw error;
+        await profileClient.query('ROLLBACK TO SAVEPOINT profile_fields');
+        await profileClient.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,passport_data_encrypted=CASE WHEN $20 THEN NULL ELSE COALESCE($11,passport_data_encrypted) END,passport_data_iv=CASE WHEN $20 THEN NULL ELSE COALESCE($12,passport_data_iv) END,passport_data_tag=CASE WHEN $20 THEN NULL ELSE COALESCE($13,passport_data_tag) END,full_name=CASE WHEN $14 THEN $15 ELSE full_name END,role=CASE WHEN $16 THEN $17 ELSE role END WHERE id=$18 AND venue_id=$19', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]);
       }
-      if (input.permissionScopes !== undefined) { await repositories.pool.query('UPDATE users SET permission_scopes=$1::jsonb WHERE id=$2 AND venue_id=$3', [JSON.stringify(before.permissionScopes || []), personId, venueDbId]); }
-    } catch (error) { return json(res, 409, { error: 'staff_profile_save_failed', detail: error.message }); }
+      await profileClient.query('RELEASE SAVEPOINT profile_fields');
+      if (input.email !== undefined) await profileClient.query('UPDATE users SET contact_email=$1 WHERE id=$2 AND venue_id=$3', [contactEmail, personId, venueDbId]);
+      if (loginChanged) {
+        await profileClient.query('UPDATE users SET login=$1 WHERE id=$2 AND venue_id=$3', [nextLogin, personId, venueDbId]);
+        await profileClient.query('DELETE FROM auth_sessions WHERE user_id=$1', [personId]);
+        await profileClient.query("INSERT INTO audit_events(venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES($1,$2,'staff.login_updated','staff',$3,$4,$5)", [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, personId, {login:auditBefore.login}, {login:nextLogin,sessionsRevoked:true}]);
+      }
+      if (input.permissionScopes !== undefined) { await profileClient.query('UPDATE users SET permission_scopes=$1::jsonb WHERE id=$2 AND venue_id=$3', [JSON.stringify(before.permissionScopes || []), personId, venueDbId]); }
+      await profileClient.query("INSERT INTO audit_events(venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES($1,$2,'staff.profile_updated','staff',$3,$4,$5)", [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, personId, redactAuditData({...publicStaffProfile(auditBefore),email:auditBefore.email ? '[redacted]' : null}), redactAuditData({...publicStaffProfile(before),email:contactEmail ? '[redacted]' : null})]);
+      await profileClient.query('COMMIT');
+      profileCommitted = true;
+    } catch (error) { return json(res, error.code === '42703' ? 503 : error.code === '23505' ? 409 : 503, { error: error.code === '23505' ? 'login_already_exists' : error.code === '42703' ? 'staff_profile_migration_required' : 'staff_profile_save_failed' }); }
   }
   if (memoryPerson) Object.assign(memoryPerson, before);
-  const publicPerson = { ...before };
+  if (loginChanged) for (const [token, session] of sessions) if (String(session.user?.id || '') === personId) sessions.delete(token);
+  const publicPerson = publicStaffProfile(before);
   if (!canManageSensitive) delete publicPerson.passportData;
   if (!canSeeStaffPhoto(req)) delete publicPerson.photoUrl;
-  recordAudit(req, 'staff.profile_updated', 'staff', before.id, auditBefore, publicPerson);
-  return json(res, 200, publicPerson);
+  if (!profileClient) {
+    if (loginChanged) recordAudit(req, 'staff.login_updated', 'staff', before.id, {login:auditBefore.login}, {login:nextLogin,sessionsRevoked:true});
+    recordAudit(req, 'staff.profile_updated', 'staff', before.id, publicStaffProfile(auditBefore), publicPerson);
+  }
+  return json(res, 200, {...publicPerson, sessionsRevoked:loginChanged});
+  } finally {
+    if (profileClient) { if (!profileCommitted) await profileClient.query('ROLLBACK').catch(() => {}); profileClient.release(); }
+  }
 }
   if (pathname === '/api/staff/schedule' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;

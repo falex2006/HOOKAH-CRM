@@ -22,6 +22,8 @@ const suites = new Set([
   'saas-quota-suspension-postgres-qa.mjs', 'audit-privacy-postgres-qa.mjs',
   'scoped-role-dependencies-postgres-qa.mjs',
   'reservation-local-date-postgres-qa.mjs',
+  'staff-identity-postgres-qa.mjs',
+  'staff-login-race-postgres-qa.mjs',
 ]);
 
 function validateConfig(c) {

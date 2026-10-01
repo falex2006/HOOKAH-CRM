@@ -592,6 +592,16 @@ class SessionRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      // Share the user lock with login changes so an in-flight old login cannot
+      // create a surviving session after the rename transaction revokes access.
+      if (input.expectedLogin !== undefined) {
+        const { rows } = await client.query('SELECT login FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL FOR UPDATE', [input.userId]);
+        if (!rows[0] || rows[0].login !== input.expectedLogin) {
+          const error = new Error('authentication_identity_changed');
+          error.code = 'AUTH_IDENTITY_CHANGED';
+          throw error;
+        }
+      }
       await client.query(`INSERT INTO auth_sessions (user_id,device_id,token_hash,expires_at,active_venue_id) VALUES ($1,$2,$3,$4,$5)
         ON CONFLICT (user_id,device_id) DO UPDATE SET token_hash=EXCLUDED.token_hash,expires_at=EXCLUDED.expires_at,active_venue_id=COALESCE(EXCLUDED.active_venue_id,auth_sessions.active_venue_id),created_at=now()`, [input.userId, input.deviceId, input.tokenHash, input.expiresAt, input.activeVenueId || null]);
       await client.query(`WITH ranked AS (SELECT token_hash,row_number() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS position FROM auth_sessions WHERE user_id=$1 AND expires_at>now()) DELETE FROM auth_sessions WHERE token_hash IN (SELECT token_hash FROM ranked WHERE position>2)`, [input.userId]);

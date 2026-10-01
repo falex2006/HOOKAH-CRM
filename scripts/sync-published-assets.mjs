@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '371';
-const portalRevision = '420';
+const cssRevision = '375';
+const portalRevision = '425';
 const lockRevision = '22';
 const appRevision = '176';
 const platformRevision = '5';
@@ -14,7 +14,7 @@ const staffProfileRevision = '6';
 const loginRevision = '97';
 const authSmokeRevision = '3';
 const authSmokeCssRevision = '2';
-const staffAdminCardRevision = '7';
+const staffAdminCardRevision = '11';
 const purchaseDocumentValidationRevision = '1';
 const brandRevision = '2';
 const brandHead = `<!-- Hookah POS brand icons -->

@@ -107,6 +107,9 @@ const staticTests = [
   "shift-transaction-qa.mjs",
   "sidebar-brand-contract.mjs",
   "sidebar-navigation-contract.mjs",
+  "sidebar-scrollbar-contract.mjs",
+  "sidebar-disclosure-runtime-qa.mjs",
+  "sidebar-venue-header-contract.mjs",
   "site-structure-contract.mjs",
   "staff-active-count-contract.mjs",
   "staff-catalog-add-pending-qa.mjs",
@@ -161,6 +164,7 @@ const postgresTests = [
   'purchase-auto-order-postgres-e2e-qa.mjs', 'saas-quota-suspension-postgres-qa.mjs',
   'audit-privacy-postgres-qa.mjs', 'scoped-role-dependencies-postgres-qa.mjs',
   'reservation-local-date-postgres-qa.mjs',
+  'staff-identity-postgres-qa.mjs', 'staff-login-race-postgres-qa.mjs',
 ];
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const folder = path.join(root, 'tmp', 'full-local-qa');
@@ -170,7 +174,7 @@ const mode = process.argv[2] || '--all';
 assert.ok(process.argv.length <= 3, 'Only one runner mode may be supplied');
 assert.ok(['--all','--static','--memory','--postgres','--list','--check-guards'].includes(mode), 'Allowed modes: --all, --static, --memory, --postgres, --list, --check-guards');
 const groups = {
-  static: [...staticTests, 'local-api-read-failure-qa.mjs', 'local-employee-report-ui-qa.mjs', 'local-navigation-state-qa.mjs', 'local-dashboard-navigation-qa.mjs'],
+  static: [...staticTests, 'local-api-read-failure-qa.mjs', 'local-employee-report-ui-qa.mjs', 'local-navigation-state-qa.mjs', 'local-dashboard-navigation-qa.mjs', 'staff-identity-demo-qa.mjs'],
   memory: memoryTests,
   postgres: postgresTests,
 };

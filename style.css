@@ -584,8 +584,8 @@
 .staff-theme .table strong,.staff-theme .table em,.staff-theme .table small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .staff-theme .table strong{font-size:clamp(16px,1.65vw,22px);line-height:1.1}
 /* Keep navigation visible while long pages scroll. */
-.velora-theme .portal-sidebar,.staff-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden;z-index:10;scrollbar-width:thin;scrollbar-color:#4a515d transparent;overscroll-behavior:contain}
-.velora-theme .portal-sidebar::-webkit-scrollbar,.staff-theme .portal-sidebar::-webkit-scrollbar{width:4px;height:4px}
+.velora-theme .portal-sidebar,.staff-theme .portal-sidebar{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden;z-index:10;scrollbar-width:none;overscroll-behavior:contain}
+.velora-theme .portal-sidebar::-webkit-scrollbar,.staff-theme .portal-sidebar::-webkit-scrollbar{width:0;height:0;display:none}
 .velora-theme .portal-sidebar::-webkit-scrollbar-track,.staff-theme .portal-sidebar::-webkit-scrollbar-track{background:transparent}
 .velora-theme .portal-sidebar::-webkit-scrollbar-thumb,.staff-theme .portal-sidebar::-webkit-scrollbar-thumb{background:#30343c;border:1px solid #17191d;border-radius:999px}
 /* Match native scrollbars to the dark Velora surface instead of the browser light default. */
@@ -2476,14 +2476,15 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .portal.velora-theme .portal-sidebar>.sidebar-nav-groups{
   flex:1 1 0;
   min-height:0;
+  min-width:0;
+  max-width:100%;
   align-content:start;
   overflow-y:auto;
   overflow-x:hidden;
   overscroll-behavior:contain;
-  scrollbar-width:thin;
-  scrollbar-color:#4a515d transparent;
+  scrollbar-width:none;
 }
-.portal.velora-theme .portal-sidebar>.sidebar-nav-groups::-webkit-scrollbar{width:4px;height:4px}
+.portal.velora-theme .portal-sidebar>.sidebar-nav-groups::-webkit-scrollbar{width:0;height:0;display:none}
 .portal.velora-theme .portal-sidebar>.sidebar-nav-groups::-webkit-scrollbar-track{background:transparent}
 .portal.velora-theme .portal-sidebar>.sidebar-nav-groups::-webkit-scrollbar-thumb{background:#30343c;border:1px solid #17191d;border-radius:999px}
 @media(prefers-reduced-motion:reduce){.velora-theme .portal-sidebar .sidebar-nav-group>summary::after{transition:none!important}}
@@ -2694,6 +2695,29 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 }
 @media(prefers-reduced-motion:reduce){.notification-panel,.notification-panel *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 
+/* Shared desktop rhythm for forms, dates, filters and action rows. */
+.velora-theme .toolbar-row{align-items:center;flex-wrap:wrap;gap:10px}
+.velora-theme input[type="date"],.velora-theme input[type="time"],.velora-theme input[type="tel"],.velora-theme input[type="number"],.velora-theme input[type="text"],.velora-theme input[type="search"],.velora-theme select,.velora-theme textarea,.velora-theme .table-search,.velora-theme .date-input{min-height:44px;box-sizing:border-box}
+.velora-theme .custom-select-trigger{min-height:44px;height:44px;box-sizing:border-box}
+.velora-theme .form-grid,.velora-theme .form-row{align-items:start;gap:14px}
+.velora-theme .form-grid>label,.velora-theme .form-row>label{min-width:0}
+.velora-theme label>small{display:block;min-height:18px;line-height:1.35}
+.velora-theme .network-row>div:first-child{min-width:0;flex:1}
+.velora-theme .network-row small{overflow-wrap:anywhere}
+.velora-theme .network-row .toolbar-row{flex-wrap:wrap;justify-content:flex-end}
+.velora-theme .finance-payroll-filters .custom-select-trigger,.velora-theme #payroll-reload{min-height:48px;height:48px}
+.velora-theme .finance-category-filters .custom-select-trigger{min-height:44px;height:44px}
+.velora-theme .task-card{min-width:0;display:grid;gap:10px}
+.velora-theme .finance-expenses-filters input,.velora-theme .finance-expenses-filters .button,.velora-theme .report-controls input,.velora-theme .report-controls .custom-select-trigger{min-height:44px;height:44px}
+.velora-theme .report-controls .toolbar-row{grid-template-columns:minmax(160px,.8fr) minmax(180px,1.5fr) auto;min-width:0}
+.velora-theme .report-controls .toolbar-row>*{min-width:0}
+.velora-theme .finance-chart-controls{align-items:end;gap:10px}
+.velora-theme .finance-chart-controls label{display:grid;gap:6px;align-content:end}
+.velora-theme .finance-chart-controls .custom-select-trigger{min-height:44px;height:44px}
+.velora-theme .loyalty-program>div:first-child{min-width:0}
+.velora-theme .loyalty-program .toolbar-row{flex-wrap:wrap}
+.portal.light-theme :is(input[type="date"],input[type="time"],input[type="datetime-local"],select){color-scheme:light}
+
 /* Final sidebar geometry contract: primary item and disclosure headers share one grid. */
 .velora-theme .portal-sidebar .sidebar-nav-group>summary{display:flex;align-items:center;gap:11px;min-height:46px;height:46px;box-sizing:border-box;padding:0 13px;color:#aeb4bd;font-size:13px;line-height:17px;letter-spacing:.04em;font-weight:600}
 .velora-theme .portal-sidebar .sidebar-nav-group>summary>.icon{width:18px;height:18px;flex:0 0 18px}
@@ -2704,6 +2728,26 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 
 /* Keep disclosure groups keyboard-visible in the dark sidebar. */
 .velora-theme .portal-sidebar .sidebar-nav-group>summary:focus-visible{outline:2px solid #ff687a;outline-offset:-2px;border-radius:10px}
+
+/* Desktop disclosures share one text column and keep a compact vertical rhythm. */
+.velora-theme .header-context>.muted{display:inline-flex;min-width:0;white-space:nowrap;gap:4px}
+.velora-theme .header-context>.muted>[data-venue-name]{min-width:0;max-width:clamp(100px,18vw,300px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(min-width:901px){
+  .velora-theme .portal-sidebar .portal-nav a:hover,.staff-theme .portal-sidebar .portal-nav a:hover,.staff-theme .portal-sidebar .portal-nav button:hover{transform:none}
+  .staff-theme .portal-sidebar .staff-admin-nav{min-width:0;grid-template-columns:minmax(0,1fr)}
+  .staff-theme .portal-sidebar .staff-admin-nav-link{min-width:0;max-width:100%;width:100%}
+  .staff-theme .portal-sidebar .staff-admin-nav-link strong{overflow-wrap:anywhere}
+  .velora-theme .portal-sidebar>.sidebar-nav-groups{margin-top:4px;gap:4px}
+  .velora-theme .portal-sidebar .sidebar-nav-group{padding:0;border-top:0;border-radius:10px}
+  .velora-theme .portal-sidebar .sidebar-nav-group[open]{background:var(--sidebar-open-bg,#ffffff04)}
+  .velora-theme .portal-sidebar .sidebar-nav-group>summary{min-height:44px;height:44px;font-size:14px;font-weight:600;letter-spacing:0}
+  .velora-theme .portal-sidebar .sidebar-nav-group[open]>summary{color:var(--text,#f3f5f7)}
+  .velora-theme .portal-sidebar .sidebar-nav-group[open]>summary>.icon{color:#ff7957}
+  .velora-theme .portal-sidebar>.portal-nav a{min-height:44px;font-size:14px;font-weight:600}
+  .velora-theme .portal-sidebar>.portal-nav a[href="/admin"]{margin-top:0}
+  .velora-theme .portal-sidebar .sidebar-nav-group .portal-nav{gap:2px;margin:0}
+  .velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a{min-height:44px;padding-left:42px;min-width:0}
+}
 
 /* Author display rules must not reveal actions hidden by server permissions. */
 .staff-theme .portal-sidebar .portal-nav button[hidden],
@@ -2775,3 +2819,29 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .portal.light-theme .logout-button{color:#405762;border-color:#cbd8df}
 .portal.light-theme .product-inventory-warning{color:#934323;background:#fff0e8}
 body.portal.light-theme .portal-header #lock-screen-button{color:#526672!important}
+
+/* Employee contact and access groups use the existing card typography. */
+.staff-admin-section{min-width:0;margin:22px 0 0;padding:16px;border:1px solid #363b44;border-radius:12px}
+.staff-admin-section legend{padding:0 7px;color:#eef1f3;font-size:14px;font-weight:600}
+.staff-admin-section>.staff-admin-field:first-of-type{margin-top:2px}
+.staff-admin-section .staff-admin-pin{margin-top:16px}
+.staff-admin-hint{display:block;margin-top:8px;color:#9fa7b1;font-size:12px;line-height:1.5}
+.staff-admin-login-confirm{display:flex;align-items:flex-start;gap:9px;margin-top:14px;font-size:12px;line-height:1.5;color:#ffd0b7}
+.staff-admin-login-confirm[hidden]{display:none}
+.staff-admin-login-confirm input{flex:none;margin-top:3px;accent-color:#ff784b}
+.staff-admin-section input[readonly]{opacity:.7;cursor:default}
+.portal.light-theme .staff-admin-section{border-color:#d5d9e0;background:#fff}
+.portal.light-theme .staff-admin-section legend{color:#263041}
+.portal.light-theme .staff-admin-hint{color:#596574}
+.portal.light-theme .staff-admin-login-confirm{color:#8c391b}
+.portal.light-theme .staff-admin-section .staff-admin-field{color:#425164}
+.portal.light-theme .staff-admin-section .staff-admin-field input{background:#f7f9fc;border-color:#c9d1dc;color:#263041}
+.portal.light-theme .staff-admin-box{background:#fff;border-color:#d5d9e0;color:#263041}
+.portal.light-theme .staff-admin-field,.portal.light-theme .staff-admin-phone-row label{color:#425164}
+.portal.light-theme .staff-admin-field input,.portal.light-theme .staff-admin-field textarea,.portal.light-theme .staff-admin-phone-row input,.portal.light-theme .staff-admin-phone-row select{background:#f7f9fc;border-color:#c9d1dc;color:#263041}
+.portal.light-theme .staff-admin-passport{background:#f2f5f9;color:#526171}
+.portal.light-theme .staff-admin-box .custom-select-trigger,.portal.light-theme .staff-admin-pin-grid input,.portal.light-theme .staff-admin-passport-grid input{background:#f7f9fc;border-color:#c9d1dc;color:#263041}
+.portal.light-theme .staff-admin-pin{background:#f2f7f6;border-color:#c8dcd5}
+.portal.light-theme .staff-admin-pin-head{color:#263041}
+.portal.light-theme .staff-admin-pin-state{color:#16734c}
+.portal.light-theme .staff-admin-pin>small,.portal.light-theme .staff-admin-pin-grid label,.portal.light-theme .staff-admin-passport-grid label{color:#526171}
