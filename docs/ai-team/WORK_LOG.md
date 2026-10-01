@@ -2519,3 +2519,9 @@
 - Причина: object-fit:cover оставлял нижний watermark одобренного MP4 в desktop viewport. Минимальная правка: от901px video и PNG texture scale1.2 с origin50%0 внутри существующего overflow:hidden. Форма/бренд/controller и исходные активы сохранены; CSSrev2 и lock22 синхронизированы с dist.
 - CUA default1170×764,1024×768,1280×720,1920×1080: watermark не виден, video проигрывается, карточка381.6×584.95 не масштабируется. Shared PIN scene подтверждена synthetic brand_qa. Стабильные final raw screenshots и JSON в tmp/smoke-crop; первые resize captures исключены из evidence.
 - Crop/login/lock/design/brand/static-boundary, smoke runtime/assets HTTP QA и независимые code_health/design/frontend/QA/release reviews — PASS. Подробности: docs/design/AUTH_SMOKE_DESKTOP_CROP.md. Мобильные проверки отложены. Главный dirty checkout, preview31907 и VPS сохранены; GitHub/VPS не публиковались.
+
+## 2026-10-01 — разрешён выпуск накопленного пакета
+
+- Пользователь разрешил commit/GitHub/VPS. Runtime baseline be9315ee интегрирует согласованные локальные исправления поверх606800d; dirty drafts/tmp/секреты исключены. Архитектор подтвердил отсутствие значимых функций вне candidate в заявленной области.
+- Code-health/system-architect/release/QA reviews приняты. Docker build, dependency audit0 vulnerabilities, session/identity/observer contracts, изолированный PostgreSQL56migrations twice/legacy upgrade и shift-notification transactional/restart E2E — PASS.
+- VPS backup gzip/restore PASS. Прежний dirty checkout606800d и image сохранены, volume territory-crm_pgdata остаётся. План публикации и отката: docs/design/RELEASE_2026_10_01.md. Domain/HTTPS и мобильная адаптация отложены. Post-deploy verification выполняется после штатного deploy.
