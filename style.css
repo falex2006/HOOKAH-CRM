@@ -2705,3 +2705,5 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 
 /* Keep disclosure groups keyboard-visible in the dark sidebar. */
 .velora-theme .portal-sidebar .sidebar-nav-group>summary:focus-visible{outline:2px solid #ff687a;outline-offset:-2px;border-radius:10px}
+
+.platform-settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.platform-settings-grid>div{display:flex;flex-direction:column;gap:7px;padding:16px;border:1px solid #303742;border-radius:12px;background:#12161a}.platform-settings-grid span{color:#8993a2;font-size:13px;line-height:1.45}@media(max-width:900px){.platform-settings-grid{grid-template-columns:1fr}}
