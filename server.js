@@ -579,6 +579,8 @@ const sessionFromRequest = async (req) => {
   if (!token) return null;
   if (process.env.DATABASE_URL || sessionRepository) {
     if (sessionRepository) { try { const persisted = await sessionRepository.get(hashToken(token)); if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) } }; } catch (_) {} }
+    const memorySession = sessions.get(token);
+    if (memorySession) { if (Date.now() > Number(memorySession.expiresAt || memorySession.createdAt + SESSION_TTL_MS)) { sessions.delete(token); return null; } return memorySession; }
     return null;
   }
   const memorySession = sessions.get(token);
@@ -823,7 +825,10 @@ async function api(req, res) {
     }
     const ttlMs = input.trustDevice && canUseTrustedDevice(account.role) ? TRUSTED_SESSION_TTL_MS : STANDARD_SESSION_TTL_MS;
     const expiresAt = Date.now() + ttlMs;
-    if (sessionRepository) { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) { return json(res, 503, { error: 'session_unavailable' }); } }
+    // The platform owner is an infrastructure identity and may not have a
+    // tenant row for the auth_sessions foreign key. Keep that session in the
+    // process memory; tenant users continue to use persisted PostgreSQL sessions.
+    if (sessionRepository && account.role !== 'platform_owner') { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) { return json(res, 503, { error: 'session_unavailable' }); } }
     if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
     sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now(), expiresAt });
     [...sessions.entries()].filter(([, session]) => session.user?.id === userId).sort(([, left], [, right]) => right.createdAt - left.createdAt).slice(2).forEach(([sessionToken]) => sessions.delete(sessionToken));
