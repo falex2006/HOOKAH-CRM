@@ -3,8 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { createRepositories, allocatePremixBatchConsumption } = require('./db');
-const { redactAuditData, sanitizeAuditEvent } = require('./audit-privacy');
-const { normalizeStaffEmail, normalizeStaffLogin, publicStaffProfile } = require('./staff-identity');
 const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
 const { validateDataUrl: validatePurchasePaymentDocument } = require('./purchase-document-validation');
 const { isValidIsoDate, countInclusiveDays, calculatePayrollAmount, canTransitionPayroll } = require('./payroll');
@@ -62,7 +60,7 @@ const networkVenues = [{ id: venue.id, name: venue.name, format: venue.format, c
 let currentVenueId = venue.id;
 const saasAccount = { id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', subscriptionStatus: 'trialing', seatsLimit: 5, venuesLimit: 1 };
 const saasPlans = { starter: { name: 'Starter', monthlyPrice: 0, seatsLimit: 5, venuesLimit: 1, description: 'Для первого тестового заведения' }, growth: { name: 'Growth', monthlyPrice: 0, seatsLimit: 15, venuesLimit: 3, description: 'Для растущей команды' }, network: { name: 'Network', monthlyPrice: 0, seatsLimit: 50, venuesLimit: 10, description: 'Для сети заведений' }, enterprise: { name: 'Enterprise', monthlyPrice: 0, seatsLimit: 9999, venuesLimit: 9999, description: 'Индивидуальные лимиты' } };
-const saasOrganizations = [{ id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', status: 'trialing', city: 'Тюмень', venues: 1, seats: 2, seatsLimit: 5, venuesLimit: 1, monthlyPrice: 0, createdAt: '2026-09-16T00:00:00.000Z', isActive: true }];
+const saasOrganizations = [{ id: 'org-territory', name: 'Территория', slug: 'territory', plan: 'starter', status: 'trialing', city: 'Тюмень', venues: 1, seats: 2, seatsLimit: 5, venuesLimit: 1, monthlyPrice: 0, createdAt: '2026-09-16T00:00:00.000Z', isActive: true, ownerName: 'Владелец организации', ownerLogin: 'owner@example.com', ownerActive: true, owners: [{ id: 'owner-territory', name: 'Владелец организации', login: 'owner@example.com', active: true }] }];
 const products = [
   { id: 'hookah-darkside', name: 'Кальян — Darkside Blueberry', price: 1200, station: 'hookah', aliases: ['кальян', 'darkside', 'blueberry'], imageUrl: null },
   { id: 'lemonade-maracuya', name: 'Лимонад Маракуйя', price: 300, station: 'bar', aliases: ['лимонад', 'маракуйя', 'maracuya'], imageUrl: null },
@@ -198,7 +196,7 @@ const staffPassportCipher = {
 };const rolePermissions = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
   admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
-  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty'],
+  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'tasks_manage', 'settings', 'loyalty'],
   senior_bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
   bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
@@ -230,7 +228,7 @@ const normalizePermissionScopes = (value) => [...new Set((Array.isArray(value) ?
 const effectivePermissions = (user) => {
   const base = rolePermissions[user?.role] || [];
   const scopes = normalizePermissionScopes(user?.permissionScopes);
-  if (user?.role !== 'admin' || !scopes.length) return base;
+  if (!scopes.length) return base;
   const restricted = new Set(Object.values(scopedPermissionMap).flat());
   return [...new Set([...base.filter((permission) => !restricted.has(permission)), ...scopes.flatMap((scope) => scopedPermissionMap[scope] || [])])];
 };
@@ -616,8 +614,7 @@ const sessionFromRequest = async (req) => {
   return null;
 };
 const recordAudit = (req, action, entityType, entityId, beforeData, afterData) => {
-  beforeData = redactAuditData(beforeData ?? null); afterData = redactAuditData(afterData ?? null);
-  const event = { venueId: notificationVenueScope(req, defaultVenueDbId), id: `audit-${Date.now()}-${auditEvents.length}`, action, entityType, entityId: entityId || null, actor: req.user?.name || 'demo', beforeData: beforeData || null, afterData: afterData || null, createdAt: new Date().toISOString() };
+  const event = { id: `audit-${Date.now()}-${auditEvents.length}`, action, entityType, entityId: entityId || null, actor: req.user?.name || 'demo', beforeData: beforeData || null, afterData: afterData || null, createdAt: new Date().toISOString() };
   auditEvents.push(event);
   if (repositories?.audit) return repositories.audit.record({ venueId: req.user?.venueId || defaultVenueDbId, actorId: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, action, entityType, entityId: /^[0-9a-f-]{36}$/i.test(entityId || '') ? entityId : null, beforeData, afterData }).catch(() => {});
 };
@@ -645,7 +642,9 @@ const normalizePurchaseInput = (input) => {
 const validImageData = (value) => /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(value || '')) && String(value).length <= 700_000;
 const hasPermission = (req, permission) => process.env.AUTH_REQUIRED !== 'true' || Boolean(req.user && effectivePermissions(req.user).includes(permission));
 const isOperationalEmployee = (req) => ['bartender','hookah_master','senior_bartender','senior_hookah_master','cleaner','security','technician','other_staff'].includes(String(req.user?.role || '').toLowerCase());
-const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (['admin', 'developer'].includes(req.user?.role) && !['owner', 'admin', 'developer'].includes(role));
+const canAssignStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner';
+const canCreateStaffRole = (req, role) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (req.user?.role === 'admin' && ['senior_bartender','senior_hookah_master','bartender','hookah_master','cleaner','security','technician','other_staff'].includes(role));
+const canManageStaffTarget = (req, targetRole) => process.env.AUTH_REQUIRED !== 'true' || req.user?.role === 'owner' || (req.user?.role === 'admin' && targetRole !== 'owner') || (req.user?.role === 'manager' && !['owner','admin','developer'].includes(targetRole));
 const canManageVenueIdentity = (req) => process.env.AUTH_REQUIRED !== 'true' || ['owner', 'admin', 'developer'].includes(req.user?.role);
 const requestOrganizationId = (req) => String(req.user?.organizationId || '').trim();
 const runFloorMutation = async (req, res, expectedVenueId, selectedVenueId, operation) => {
@@ -724,12 +723,6 @@ const validBirthDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')
 const denyUnless = (req, res, permission) => { if (hasPermission(req, permission)) return false; json(res, 403, { error: 'forbidden', permission }); return true; };
 const denyUnlessAny = (req, res, permissions) => { if (permissions.some((permission) => hasPermission(req, permission))) return false; json(res, 403, { error: 'forbidden', permission: permissions.join(' or ') }); return true; };
 const notificationMemoryReads = new Map();
-const validShiftCash = (value) => {
-  if (typeof value !== 'number' && typeof value !== 'string') return false;
-  if (typeof value === 'string' && !/^\d+(?:\.\d{1,2})?$/.test(value)) return false;
-  const amount = Number(value);
-  return Number.isFinite(amount) && amount >= 0 && amount <= 100000000 && Math.abs(amount * 100 - Math.round(amount * 100)) < 1e-7;
-};
 const notificationRoles = new Set(['owner', 'admin', 'manager', 'developer']);
 const notificationVenueScope = (req, venueDbId) => {
   if (repositories?.pool) return venueDbId;
@@ -744,8 +737,6 @@ const notificationAccess = (req) => {
     discounts: (unrestricted || ['owner', 'admin'].includes(role)) && hasPermission(req, 'finance_read') && hasPermission(req, 'orders'),
     autoOrders: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'inventory_read'),
     deletedOrders: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && hasPermission(req, 'orders'),
-    staffPins: (unrestricted || ['owner', 'admin'].includes(role)) && (hasPermission(req, 'staff_view') || hasPermission(req, 'staff')),
-    shifts: (unrestricted || ['owner', 'admin', 'manager'].includes(role)) && ['floor', 'orders', 'finance_read'].some((permission) => hasPermission(req, permission)),
   };
 };
 async function collectNotificationEvents(req, venueId, limit = 100) {
@@ -765,12 +756,6 @@ async function collectNotificationEvents(req, venueId, limit = 100) {
     if (access.deletedOrders) queries.push(repositories.pool.query(`SELECT 'order_deleted:'||e.id::text AS id,'order_deleted' AS type,'Заказ удалён' AS title,'Проверьте событие в журнале заказов' AS summary,e.created_at AS "createdAt",e.entity_id AS "orderId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/orders' AS href,false AS "requiresAction"
       FROM audit_events e LEFT JOIN notification_reads r ON r.venue_id=e.venue_id AND r.user_id=$2 AND r.notification_key='order_deleted:'||e.id::text
       WHERE e.venue_id=$1 AND e.action='order.deleted' ORDER BY e.created_at DESC LIMIT $3`, [venueId, userId, limit]));
-    if (access.staffPins) queries.push(repositories.pool.query(`SELECT 'staff_pin_updated:'||e.id::text AS id,'staff_pin_updated' AS type,'PIN сотрудника обновлён','PIN не отображается в уведомлении' AS summary,e.created_at AS "createdAt",e.entity_id AS "staffId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",'/admin' AS href,false AS "requiresAction"
-      FROM audit_events e LEFT JOIN users u ON u.id=e.entity_id AND u.venue_id=e.venue_id LEFT JOIN notification_reads r ON r.venue_id=e.venue_id AND r.user_id=$2 AND r.notification_key='staff_pin_updated:'||e.id::text
-      WHERE e.venue_id=$1 AND e.action='staff.pin_updated' AND (u.id IS NULL OR (u.is_active=true AND u.deleted_at IS NULL)) ORDER BY e.created_at DESC LIMIT $3`, [venueId, userId, limit]));
-    if (access.shifts) queries.push(repositories.pool.query(`SELECT replace(e.action,'.','_')||':'||e.id::text AS id,replace(e.action,'.','_') AS type,CASE WHEN e.action='shift.opened' THEN 'Смена открыта' ELSE 'Смена закрыта' END AS title,'Состояние рабочей смены изменилось' AS summary,e.created_at AS "createdAt",e.entity_id AS "shiftId",r.read_at AS "readAt",count(*) FILTER (WHERE r.read_at IS NULL) OVER()::int AS "sourceUnreadCount",$4::text AS href,false AS "requiresAction"
-      FROM audit_events e LEFT JOIN notification_reads r ON r.venue_id=e.venue_id AND r.user_id=$2 AND r.notification_key=replace(e.action,'.','_')||':'||e.id::text
-      WHERE e.venue_id=$1 AND e.action IN ('shift.opened','shift.closed') ORDER BY e.created_at DESC LIMIT $3`, [venueId, userId, limit, hasPermission(req, 'floor') || hasPermission(req, 'orders') ? '/admin#shift-control' : '/finance']));
     const results = await Promise.all(queries);
     for (const result of results) {
       unreadCount += Number(result.rows[0]?.sourceUnreadCount || 0);
@@ -781,12 +766,11 @@ async function collectNotificationEvents(req, venueId, limit = 100) {
     const recipientMatches = (item, roles) => !item.notificationRecipients?.length || !req.user?.role || (roles || item.notificationRecipients).includes(req.user.role);
     if (access.discounts) items.push(...discountRequests.filter((item) => venueMatches(item) && item.status === 'requested' && recipientMatches(item, ['owner', 'admin'])).map((item) => ({ id: `discount:${item.id}`, type: 'discount', title: 'Запрошена скидка', summary: 'Запрос ожидает решения', createdAt: item.createdAt, orderId: item.orderId, href: '/orders', requiresAction: true })));
     if (access.autoOrders) items.push(...autoOrderRequests.filter((item) => venueMatches(item) && item.status === 'sent' && recipientMatches(item, ['owner', 'admin', 'manager'])).map((item) => ({ id: `inventory_auto_order:${String(item.id).replace(/^auto-order:/, '')}`, type: 'inventory_auto_order', title: 'Заявка на пополнение', summary: 'Заявка отправлена и ожидает обработки', createdAt: item.createdAt, autoOrderId: item.id, href: '/inventory?view=auto-orders', requiresAction: false })));
-    if (access.deletedOrders || access.staffPins) items.push(...staffNotifications.filter((item) => venueMatches(item) && ((access.deletedOrders && item.type === 'order_deleted' && recipientMatches(item, ['owner', 'admin', 'manager'])) || (access.staffPins && item.type === 'staff_pin_updated' && recipientMatches(item, ['owner', 'admin'])))).map((item) => ({ id: `${item.type}:${item.id}`, type: item.type, title: item.type === 'order_deleted' ? 'Заказ удалён' : 'PIN сотрудника обновлён', summary: item.type === 'order_deleted' ? 'Проверьте событие в журнале заказов' : 'PIN не отображается в уведомлении', createdAt: item.createdAt, ...(item.orderId ? { orderId: item.orderId } : {}), ...(item.staffId ? { staffId: item.staffId } : {}), href: item.type === 'order_deleted' ? '/orders' : '/admin', requiresAction: false })));
-    if (access.shifts) items.push(...auditEvents.filter((item) => venueMatches(item) && ['shift.opened', 'shift.closed'].includes(item.action)).map((item) => ({ id: `${item.action.replace('.', '_')}:${item.id}`, type: item.action.replace('.', '_'), title: item.action === 'shift.opened' ? 'Смена открыта' : 'Смена закрыта', summary: 'Состояние рабочей смены изменилось', createdAt: item.createdAt, shiftId: item.entityId, href: hasPermission(req, 'floor') || hasPermission(req, 'orders') ? '/admin#shift-control' : '/finance', requiresAction: false })));
+    if (access.deletedOrders) items.push(...staffNotifications.filter((item) => venueMatches(item) && item.type === 'order_deleted' && recipientMatches(item, ['owner', 'admin', 'manager'])).map((item) => ({ id: `${item.type}:${item.id}`, type: item.type, title: 'Заказ удалён', summary: 'Проверьте событие в журнале заказов', createdAt: item.createdAt, ...(item.orderId ? { orderId: item.orderId } : {}), href: '/orders', requiresAction: false })));
     items.forEach((item) => { const key = `${venueId}:${userId}:${item.id}`; item.readAt = notificationMemoryReads.get(key) || null; });
     unreadCount = items.filter((item) => !item.readAt).length;
   }
-  items.sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0) || String(right.id).localeCompare(String(left.id)));
+  items.sort((left, right) => Number(Boolean(right.requiresAction)) - Number(Boolean(left.requiresAction)) || new Date(right.createdAt || 0) - new Date(left.createdAt || 0) || String(right.id).localeCompare(String(left.id)));
   return { items, unreadCount };
 }
 const employeeNeedsShift = (req) => process.env.AUTH_REQUIRED === 'true' && ['bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'staff', 'manager'].includes(req.user?.role);
@@ -796,7 +780,7 @@ const requireOpenShift = async (req, res) => {
     if (repositories?.pool) {
       const result = await repositories.pool.query('SELECT 1 FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1', [req.user?.venueId || defaultVenueDbId]);
       if (result.rows[0]) return false;
-    } else if (shifts.some((entry) => entry.venueId === notificationVenueScope(req, defaultVenueDbId) && !entry.closedAt)) return false;
+    } else if (shifts.some((entry) => !entry.closedAt)) return false;
   } catch (_) { json(res, 503, { error: 'shift_status_unavailable' }); return true; }
   json(res, 409, { error: 'active_shift_required', message: 'Откройте смену перед началом работы' }); return true;
 };
@@ -858,6 +842,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
+    if (input.resetToken && input.newPassword && repositories?.pool) { const tokenHash = crypto.createHash('sha256').update(String(input.resetToken)).digest('hex'); const newPassword = String(input.newPassword); if (newPassword.length < 8) return json(res, 400, { error: 'password_too_short' }); try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const result = await client.query('SELECT id,login,organization_id AS \"organizationId\" FROM users WHERE password_reset_token_hash=$1 AND password_reset_expires_at>now() AND is_active=true AND deleted_at IS NULL FOR UPDATE', [tokenHash]); if (!result.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'reset_token_invalid_or_expired' }); } const row = result.rows[0]; await client.query('UPDATE users SET password_hash=$1,password_reset_token_hash=NULL,password_reset_expires_at=NULL WHERE id=$2', [await hashPassword(newPassword), row.id]); await client.query('DELETE FROM auth_sessions WHERE user_id=$1', [row.id]); await client.query('COMMIT'); recordAudit(req, 'auth.password_reset_completed', 'organization_owner', row.id, null, { organizationId: row.organizationId, login: row.login }); return json(res, 200, { ok: true, login: row.login }); } catch (error) { await client.query('ROLLBACK').catch(()=>{}); return json(res, 503, { error: 'password_reset_failed' }); } finally { client.release(); } } catch (_) { return json(res, 503, { error: 'authentication_unavailable' }); } }
     if (process.env.DATABASE_URL && (!repositories?.pool || !sessionRepository)) return json(res, 503, { error: 'authentication_unavailable' });
     if (String(input.website || '').trim()) return json(res, 400, { error: 'bot_detected' });
     const loginKey = String(input.username || '').trim().toLowerCase() || 'anonymous';
@@ -889,7 +874,7 @@ async function api(req, res) {
     loginAttempts.delete(loginKey);
     const userId = account.id || (account.username === 'owner' ? '20000000-0000-0000-0000-000000000001' : '20000000-0000-0000-0000-000000000002');
     const organizationId = account.organizationId === undefined ? '00000000-0000-0000-0000-000000000010' : account.organizationId;
-    const userVenueId = account.venueId || (!repositories?.pool && account.role !== 'platform_owner' ? 'venue-territory' : null);
+    const userVenueId = account.venueId || null;
     const preferenceAccountKey = `${organizationId || 'none'}:${account.id || account.username}`;
     if (!repositories?.pool && !memoryPreferencesByAccount.has(preferenceAccountKey)) memoryPreferencesByAccount.set(preferenceAccountKey, account.preferences || {});
     const accountPreferences = repositories?.pool ? (account.preferences || {}) : memoryPreferencesByAccount.get(preferenceAccountKey);
@@ -907,21 +892,14 @@ async function api(req, res) {
     // The platform owner is an infrastructure identity and may not have a
     // tenant row for the auth_sessions foreign key. Keep that session in the
     // process memory; tenant users continue to use persisted PostgreSQL sessions.
-    if (sessionRepository && account.role !== 'platform_owner') { try { const saved = await sessionRepository.create({ userId, expectedLogin: account.username, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (error) { if (error.code === 'AUTH_IDENTITY_CHANGED') return json(res, 401, { error: 'invalid_credentials' }); return json(res, 503, { error: 'session_unavailable' }); } }
+    if (sessionRepository && account.role !== 'platform_owner') { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) { return json(res, 503, { error: 'session_unavailable' }); } }
     if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
     sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now(), expiresAt });
     [...sessions.entries()].filter(([, session]) => session.user?.id === userId).sort(([, left], [, right]) => right.createdAt - left.createdAt).slice(2).forEach(([sessionToken]) => sessions.delete(sessionToken));
     res.setHeader('Set-Cookie', [`crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionTtlSeconds(ttlMs)}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`, `crm_device_id=${encodeURIComponent(deviceId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`]);
     return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: sessionTtlSeconds(ttlMs), trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
   }
-  if (pathname === '/api/logout' && req.method === 'POST') {
-    const token = requestAuthToken(req);
-    res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
-    try { if (token && sessionRepository) await sessionRepository.remove(hashToken(token)); }
-    catch (_) { return json(res, 503, { error: 'logout_unavailable' }); }
-    sessions.delete(token);
-    return json(res, 200, { ok: true });
-  }
+  if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
   if ((process.env.AUTH_REQUIRED === 'true' || hasRequestCredential) && pathname !== '/api/health' && pathname !== '/api/login' && pathname !== '/api/public/venue-brand') {
     const session = await sessionFromRequest(req);
@@ -1086,7 +1064,6 @@ async function api(req, res) {
           if (access.deletedOrders) inserts.push(repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key)
             SELECT e.venue_id,$2,'order_deleted:'||e.id::text FROM audit_events e WHERE e.venue_id=$1 AND e.action='order.deleted'
             ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
-          if (access.shifts) inserts.push(repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key) SELECT e.venue_id,$2,replace(e.action,'.','_')||':'||e.id::text FROM audit_events e WHERE e.venue_id=$1 AND e.action IN ('shift.opened','shift.closed') ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
           if (access.staffPins) inserts.push(repositories.pool.query(`INSERT INTO notification_reads (venue_id,user_id,notification_key)
             SELECT e.venue_id,$2,'staff_pin_updated:'||e.id::text FROM audit_events e WHERE e.venue_id=$1 AND e.action='staff.pin_updated'
             ON CONFLICT (venue_id,user_id,notification_key) DO UPDATE SET read_at=now()`, [venueDbId, userId]));
@@ -1104,9 +1081,9 @@ async function api(req, res) {
     }
     let notificationId;
     try { notificationId = decodeURIComponent(notificationReadPath[1]); } catch (_) { return json(res, 400, { error: 'invalid_notification_id' }); }
-    if (!/^(discount|inventory_auto_order|order_deleted|staff_pin_updated|shift_opened|shift_closed):[A-Za-z0-9-]{1,150}$/.test(notificationId)) return json(res, 404, { error: 'notification_not_found' });
+    if (!/^(discount|inventory_auto_order|order_deleted|staff_pin_updated):[A-Za-z0-9-]{1,150}$/.test(notificationId)) return json(res, 404, { error: 'notification_not_found' });
     const type = notificationId.slice(0, notificationId.indexOf(':'));
-    if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders) || (type === 'staff_pin_updated' && !access.staffPins) || (['shift_opened', 'shift_closed'].includes(type) && !access.shifts)) return json(res, 404, { error: 'notification_not_found' });
+    if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders) || (type === 'staff_pin_updated' && !access.staffPins)) return json(res, 404, { error: 'notification_not_found' });
     try {
       if (repositories?.pool) {
         const notificationVenueId = notificationVenueScope(req, venueDbId);
@@ -1153,7 +1130,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/platform/organizations' && req.method === 'GET') {
     if (denyUnless(req, res, 'platform')) return;
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,(SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,(SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS seats,(SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id ORDER BY o.created_at DESC`); return json(res, 200, { items: rows }); } catch (_) { return json(res, 503, { error: 'platform_organizations_unavailable' }); } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT o.id,o.name,o.slug,o.plan,o.is_active AS "isActive",o.created_at AS "createdAt",o.timezone,COALESCE(s.status,'trialing') AS status,(SELECT COUNT(*)::int FROM venues v WHERE v.organization_id=o.id AND v.is_active=true) AS venues,(SELECT COUNT(*)::int FROM users u WHERE u.organization_id=o.id AND u.is_active=true) AS seats,(SELECT city FROM venues v2 WHERE v2.organization_id=o.id ORDER BY v2.created_at LIMIT 1) AS city,(SELECT json_agg(json_build_object('id',u.id,'name',u.full_name,'login',u.login,'active',u.is_active,'isPrimary',m.is_primary) ORDER BY u.full_name) FROM users u JOIN organization_memberships m ON m.user_id=u.id AND m.organization_id=o.id WHERE u.organization_id=o.id AND m.membership_role='owner' AND u.deleted_at IS NULL) AS owners FROM organizations o LEFT JOIN organization_subscriptions s ON s.organization_id=o.id ORDER BY o.created_at DESC`); return json(res, 200, { items: rows }); } catch (_) { return json(res, 503, { error: 'platform_organizations_unavailable' }); } }
     return json(res, 200, { items: saasOrganizations.slice().reverse().map((item) => ({ ...item, ...(saasPlans[item.plan] || saasPlans.starter), monthlyPrice: 0 })) });
   }
   if (pathname === '/api/platform/organizations' && req.method === 'POST') {
@@ -1247,6 +1224,46 @@ async function api(req, res) {
     return json(res, 200, { organizationId: item.id, plan: item.plan, status: item.status, billingMode: 'test_free', monthlyPrice: 0, seatsLimit: item.seatsLimit, venuesLimit: item.venuesLimit });
   }
   const platformOrgPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)$/);
+  const platformOwnersPath = pathname.match(/^\/api\/platform\/organizations\/([^/]+)\/owners(?:\/([^/]+))?(?:\/(reset|transfer))?$/);
+  if (platformOwnersPath && ['GET','POST','PATCH','DELETE'].includes(req.method) || (platformOwnersPath && req.method === 'POST')) {
+    if (denyUnless(req, res, 'platform')) return;
+    const organizationId = platformOwnersPath[1]; const targetId = platformOwnersPath[2]; const action = platformOwnersPath[3];
+    if (!repositories?.pool || !/^[0-9a-f-]{36}$/i.test(organizationId)) return json(res, 503, { error: 'owner_management_requires_database' });
+    try {
+      if (req.method === 'GET') {
+        const { rows } = await repositories.pool.query(`SELECT u.id,u.full_name AS name,u.login,u.is_active AS active,m.status,m.is_primary AS "isPrimary",m.created_at AS "createdAt" FROM users u JOIN organization_memberships m ON m.user_id=u.id AND m.organization_id=u.organization_id WHERE u.organization_id=$1 AND m.membership_role='owner' AND u.deleted_at IS NULL ORDER BY m.is_primary DESC,u.full_name`, [organizationId]);
+        return json(res, 200, { items: rows });
+      }
+      if (req.method === 'POST' && action === 'reset' && targetId) {
+        const token = crypto.randomBytes(32).toString('hex'); const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        const result = await repositories.pool.query(`UPDATE users u SET password_reset_token_hash=$1,password_reset_expires_at=now()+interval '30 minutes' FROM organization_memberships m WHERE u.id=$2 AND u.organization_id=$3 AND m.user_id=u.id AND m.organization_id=$3 AND m.membership_role='owner' RETURNING u.id,u.login`, [tokenHash,targetId,organizationId]);
+        if (!result.rows[0]) return json(res, 404, { error: 'owner_not_found' });
+        recordAudit(req, 'platform.owner_reset_issued', 'organization_owner', targetId, null, { organizationId, login: result.rows[0].login, expiresInMinutes: 30 });
+        return json(res, 200, { userId: targetId, login: result.rows[0].login, resetToken: token, expiresInMinutes: 30 });
+      }
+      if (req.method === 'POST' && action === 'transfer' && targetId) {
+        const client = await repositories.pool.connect(); try { await client.query('BEGIN');
+          const current = await client.query(`SELECT u.id,u.full_name AS name,u.login,m.is_primary AS "isPrimary" FROM users u JOIN organization_memberships m ON m.user_id=u.id AND m.organization_id=$1 WHERE u.organization_id=$1 AND m.membership_role='owner' AND m.is_primary=true FOR UPDATE`, [organizationId]);
+          const target = await client.query(`SELECT u.id,u.full_name AS name,u.login FROM users u JOIN organization_memberships m ON m.user_id=u.id AND m.organization_id=$1 WHERE u.id=$2 AND u.organization_id=$1 AND m.membership_role='owner' AND u.is_active=true FOR UPDATE`, [organizationId,targetId]);
+          if (!target.rows[0]) { await client.query('ROLLBACK'); return json(res,404,{error:'owner_not_found'}); }
+          await client.query('UPDATE organization_memberships SET is_primary=false WHERE organization_id=$1 AND membership_role=\'owner\'', [organizationId]);
+          await client.query('UPDATE organization_memberships SET is_primary=true,status=\'active\' WHERE organization_id=$1 AND user_id=$2', [organizationId,targetId]); await client.query('COMMIT');
+          recordAudit(req,'platform.owner_transferred','organization_owner',targetId,current.rows[0]||null,target.rows[0]); return json(res,200,{owner:target.rows[0]});
+        } catch (error) { await client.query('ROLLBACK').catch(()=>{}); return json(res,503,{error:'owner_transfer_failed',detail:error.message}); } finally { client.release(); }
+      }
+      if (req.method === 'POST' && !action) {
+        const input = await body(req); const name=String(input.name||'').trim(); const login=String(input.login||'').trim().toLowerCase(); const password=String(input.password||'');
+        if (!name || !/^[^\s@]+@[^\s@]+$/.test(login) || password.length < 8) return json(res,400,{error:'valid_owner_credentials_required'});
+        const org = await repositories.pool.query('SELECT id FROM organizations WHERE id=$1',[organizationId]); if (!org.rows[0]) return json(res,404,{error:'organization_not_found'});
+        const venue = await repositories.pool.query('SELECT id FROM venues WHERE organization_id=$1 ORDER BY created_at LIMIT 1',[organizationId]); if (!venue.rows[0]) return json(res,409,{error:'organization_venue_required'});
+        const hash=await hashPassword(password); const client=await repositories.pool.connect(); try { await client.query('BEGIN'); const u=await client.query(`INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role) VALUES ($1,$2,$3,$4,$5,NULL,'owner') RETURNING id,full_name AS name,login,is_active AS active`,[venue.rows[0].id,organizationId,name,login,hash]); await client.query(`INSERT INTO organization_memberships (organization_id,user_id,membership_role,status,is_primary) VALUES ($1,$2,'owner','active',false)`,[organizationId,u.rows[0].id]); await client.query('COMMIT'); recordAudit(req,'platform.owner_added','organization_owner',u.rows[0].id,null,{organizationId,...u.rows[0]}); return json(res,201,{...u.rows[0],isPrimary:false}); } catch(error) { await client.query('ROLLBACK').catch(()=>{}); return json(res,409,{error:error.code==='23505'?'owner_login_already_exists':'owner_create_failed'}); } finally { client.release(); }
+      }
+      if (!targetId) return json(res,400,{error:'owner_id_required'});
+      const current = await repositories.pool.query(`SELECT u.id,u.full_name AS name,u.login,u.is_active AS active,m.is_primary AS "isPrimary" FROM users u JOIN organization_memberships m ON m.user_id=u.id AND m.organization_id=$1 WHERE u.id=$2 AND u.organization_id=$1 AND m.membership_role='owner'`,[organizationId,targetId]); if (!current.rows[0]) return json(res,404,{error:'owner_not_found'});
+      if (req.method === 'DELETE') { if (current.rows[0].isPrimary) return json(res,409,{error:'transfer_primary_owner_first'}); await repositories.pool.query('UPDATE users SET deleted_at=now(),is_active=false WHERE id=$1',[targetId]); await repositories.pool.query('UPDATE organization_memberships SET status=\'suspended\' WHERE organization_id=$1 AND user_id=$2',[organizationId,targetId]); recordAudit(req,'platform.owner_removed','organization_owner',targetId,current.rows[0],null); return json(res,200,{ok:true}); }
+      const input=await body(req); if (input.active === false && current.rows[0].isPrimary) return json(res,409,{error:'primary_owner_must_be_transferred_first'}); if (input.isPrimary === true && current.rows[0].active === false) return json(res,409,{error:'inactive_owner_cannot_be_primary'}); if (input.login !== undefined && !/^[^\s@]+@[^\s@]+$/.test(String(input.login).trim())) return json(res,400,{error:'valid_owner_email_required'}); if (req.method === 'PATCH' && input.isPrimary === true) { const client=await repositories.pool.connect(); try { await client.query('BEGIN'); await client.query('UPDATE organization_memberships SET is_primary=false WHERE organization_id=$1 AND membership_role=\'owner\'', [organizationId]); await client.query('UPDATE organization_memberships SET is_primary=true,status=\'active\' WHERE organization_id=$1 AND user_id=$2 AND membership_role=\'owner\'', [organizationId,targetId]); await client.query('COMMIT'); recordAudit(req,'platform.owner_transferred','organization_owner',targetId,current.rows[0],{...current.rows[0],isPrimary:true}); return json(res,200,{...current.rows[0],isPrimary:true}); } catch(error) { await client.query('ROLLBACK').catch(()=>{}); return json(res,503,{error:'owner_transfer_failed'}); } finally { client.release(); } } const fields=[]; const values=[]; if(input.name!==undefined){values.push(String(input.name).trim());fields.push(`full_name=$${values.length}`);} if(input.login!==undefined){values.push(String(input.login).trim().toLowerCase());fields.push(`login=$${values.length}`);} if(input.password){ if(String(input.password).length<8)return json(res,400,{error:'password_too_short'}); values.push(await hashPassword(input.password));fields.push(`password_hash=$${values.length}`);} if(input.active!==undefined){values.push(Boolean(input.active));fields.push(`is_active=$${values.length}`);} if(!fields.length)return json(res,200,current.rows[0]); values.push(targetId); const updated=await repositories.pool.query(`UPDATE users SET ${fields.join(',')} WHERE id=$${values.length} RETURNING id,full_name AS name,login,is_active AS active`,values); if(input.password || input.active === false) { await repositories.pool.query('DELETE FROM auth_sessions WHERE user_id=$1',[targetId]); for (const [sessionToken, session] of sessions) if (session.user?.id === targetId) sessions.delete(sessionToken); } recordAudit(req,'platform.owner_updated','organization_owner',targetId,current.rows[0],updated.rows[0]); return json(res,200,updated.rows[0]);
+    } catch (error) { return json(res,503,{error:'owner_management_failed'}); }
+  }
   if (platformOrgPath && req.method === 'PATCH') {
     if (denyUnless(req, res, 'platform')) return;
     if (repositories?.pool) return json(res, 410, { error: 'use_subscription_endpoint' });
@@ -1294,11 +1311,8 @@ async function api(req, res) {
     recordAudit(req, 'platform.organization_updated', 'organization', item.id, before, item);
     return json(res, 200, item);
   }
-  if ((pathname === '/api/shifts' || /^\/api\/shifts\/[^/]+\/close$/.test(pathname)) && process.env.DATABASE_URL && !repositories?.pool) return json(res, 503, { error: 'shift_status_unavailable' });
-  const shiftVenueId = notificationVenueScope(req, venueDbId);
   if (pathname === '/api/shifts' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['floor', 'orders', 'finance_read'])) return;
-    const canSeeShiftOpener = ['owner', 'admin', 'manager', 'developer'].includes(String(req.user?.role || ''));
     if (isOperationalEmployee(req)) {
       if (repositories?.pool) {
         try {
@@ -1308,46 +1322,35 @@ async function api(req, res) {
           return json(res, 200, { items: current ? [current] : [], current });
         } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
       }
-      const shift = shifts.find((entry) => entry.venueId === shiftVenueId && !entry.closedAt);
+      const shift = shifts.find((entry) => !entry.closedAt);
       const current = shift ? { id: shift.id, openedAt: shift.openedAt, closedAt: null, openingCash: Number(shift.openingCash || 0) } : null;
       return json(res, 200, { items: current ? [current] : [], current });
     }
-    if (repositories?.pool) {
-      try {
-        const { rows } = await repositories.pool.query(`SELECT s.id,s.opened_at AS "openedAt",s.closed_at AS "closedAt",s.opening_cash AS "openingCash",s.closing_cash AS "closingCash",s.expected_cash AS "expectedCash",s.cash_variance AS "cashVariance",CASE WHEN $2::boolean THEN COALESCE(NULLIF(u.full_name,''),u.login) END AS "openedByName",s.opened_at + (COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.shift_id=s.id AND p.method='cash' AND p.status IN ('paid','partially_paid')),0) * INTERVAL '0 second') AS "reconciliationAt" FROM shifts s LEFT JOIN users u ON u.id=s.opened_by AND (u.venue_id=s.venue_id OR u.organization_id=(SELECT organization_id FROM venues WHERE id=s.venue_id)) WHERE s.venue_id=$1 ORDER BY s.opened_at DESC LIMIT 20`, [venueDbId, canSeeShiftOpener]);
-        const visible = hasPermission(req, 'finance_read') ? rows : rows.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash }));
-        return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null });
-      } catch (_) { return json(res, 503, { error: 'database_unavailable' }); }
-    }
-    const includeOpener = (entry) => {
-      const { openedBy, openedByName, ...safeEntry } = entry;
-      const name = openedByName || openedBy;
-      return canSeeShiftOpener && name ? { ...safeEntry, openedByName: name } : safeEntry;
-    };
-    const visible = hasPermission(req, 'finance_read') ? shifts.filter((entry) => entry.venueId === shiftVenueId).slice().reverse().map(includeOpener) : shifts.filter((entry) => entry.venueId === shiftVenueId && !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash }));
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT s.id,s.opened_at AS "openedAt",s.closed_at AS "closedAt",s.opening_cash AS "openingCash",s.closing_cash AS "closingCash",s.expected_cash AS "expectedCash",s.cash_variance AS "cashVariance",s.opened_at + (COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.shift_id=s.id AND p.method='cash' AND p.status IN ('paid','partially_paid')),0) * INTERVAL '0 second') AS "reconciliationAt" FROM shifts s WHERE s.venue_id=$1 ORDER BY s.opened_at DESC LIMIT 20`, [venueDbId]); const visible = hasPermission(req, 'finance_read') ? rows : rows.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash })); return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null }); } catch (_) {} }
+    const visible = hasPermission(req, 'finance_read') ? shifts.slice().reverse() : shifts.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash }));
     return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null });
   }
   if (pathname === '/api/shifts' && req.method === 'POST') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
     const input = await body(req);
-    if (!validShiftCash(input.openingCash)) return json(res, 400, { error: 'opening_cash_required' });
-    if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); await client.query("SELECT pg_advisory_xact_lock(hashtext('territory_crm_open_shift'),hashtext($1::text))", [venueDbId]); const open = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1 FOR UPDATE', [venueDbId]); if (open.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'shift_already_open' }); } const openedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001'; const { rows } = await client.query('INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,$3) RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash"', [venueDbId, openedBy, Number(input.openingCash || 0)]); await client.query("INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES ($1,$2,$3,'shift',$4,$5)", [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, 'shift.opened', rows[0].id, rows[0]]); await client.query('COMMIT'); return json(res, 201, rows[0]); } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); if (error.code === '23505') return json(res, 409, { error: 'shift_already_open' }); return json(res, 409, { error: 'shift_open_failed', detail: error.message }); } finally { client?.release(); } }
-    if (shifts.some((entry) => entry.venueId === shiftVenueId && !entry.closedAt)) return json(res, 409, { error: 'shift_already_open' });
-    const shift = { venueId: shiftVenueId, id: `shift-${crypto.randomUUID()}`, openedAt: new Date().toISOString(), closedAt: null, openingCash: Number(input.openingCash), closingCash: null, openedBy: req.user?.name || 'сотрудник' }; shifts.push(shift); recordAudit(req, 'shift.opened', 'shift', shift.id, null, { ...shift }); return json(res, 201, shift);
+    if (!Object.prototype.hasOwnProperty.call(input, 'openingCash') || input.openingCash === '' || !Number.isFinite(Number(input.openingCash)) || Number(input.openingCash) < 0 || Number(input.openingCash) > 100000000) return json(res, 400, { error: 'opening_cash_required' });
+    if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); await client.query("SELECT pg_advisory_xact_lock(hashtext('territory_crm_open_shift'),hashtext($1::text))", [venueDbId]); const open = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL LIMIT 1 FOR UPDATE', [venueDbId]); if (open.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'shift_already_open' }); } const openedBy = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : '20000000-0000-0000-0000-000000000001'; const { rows } = await client.query('INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,$3) RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash"', [venueDbId, openedBy, Number(input.openingCash || 0)]); await client.query('COMMIT'); recordAudit(req, 'shift.opened', 'shift', rows[0].id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); if (error.code === '23505') return json(res, 409, { error: 'shift_already_open' }); return json(res, 409, { error: 'shift_open_failed', detail: error.message }); } finally { client?.release(); } }
+    if (shifts.some((entry) => !entry.closedAt)) return json(res, 409, { error: 'shift_already_open' });
+    const shift = { id: `shift-${Date.now()}`, openedAt: new Date().toISOString(), closedAt: null, openingCash: Number(input.openingCash), closingCash: null, openedBy: req.user?.name || 'сотрудник' }; shifts.push(shift); recordAudit(req, 'shift.opened', 'shift', shift.id, null, shift); return json(res, 201, shift);
   }
   const shiftClose = pathname.match(/^\/api\/shifts\/([^/]+)\/close$/);
   if (shiftClose && req.method === 'POST') {
     if (denyUnlessAny(req, res, ['floor', 'orders'])) return;
     const input = await body(req);
     if (input.checklistConfirmed !== true) return json(res, 400, { error: 'shift_checklist_required', message: 'Подтвердите чек-лист закрытия смены' });
-    if (!validShiftCash(input.closingCash)) return json(res, 400, { error: 'closing_cash_required' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(shiftClose[1])) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const { rows: shiftRows } = await client.query('SELECT id,venue_id,opening_cash AS "openingCash",opened_at AS "openedAt" FROM shifts WHERE id=$1 AND venue_id=$2 AND closed_at IS NULL FOR UPDATE', [shiftClose[1], venueDbId]); if (!shiftRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } const unresolvedLegacyCash = await client.query("SELECT COUNT(*)::int AS count, COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id IS NULL AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at >= $2 AND p.created_at < now()", [venueDbId, shiftRows[0].openedAt]); if (Number(unresolvedLegacyCash.rows[0]?.count || 0) > 0) { await client.query('ROLLBACK'); return json(res, 409, { error: 'shift_cash_attribution_unresolved', count: Number(unresolvedLegacyCash.rows[0].count), amount: Number(unresolvedLegacyCash.rows[0].amount || 0) }); } const payments = await client.query("SELECT COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id=$2 AND p.method='cash' AND p.status IN ('paid','partially_paid')", [venueDbId, shiftClose[1]]); const expectedCash = Number(shiftRows[0].openingCash || 0) + Number(payments.rows[0]?.amount || 0); const { rows } = await client.query('UPDATE shifts SET closed_at=now(),closing_cash=$1::numeric,expected_cash=$2::numeric,cash_variance=$1::numeric-$2::numeric WHERE id=$3 AND venue_id=$4 AND closed_at IS NULL RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash",expected_cash AS "expectedCash",cash_variance AS "cashVariance"', [Number(input.closingCash), expectedCash, shiftClose[1], venueDbId]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } await client.query("INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES ($1,$2,$3,'shift',$4,$5)", [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, 'shift.closed', rows[0].id, rows[0]]); await client.query('COMMIT'); return json(res, 200, rows[0]); } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'shift_close_failed', detail: error.message }); } finally { client?.release(); } }
-    const shift = shifts.find((entry) => entry.venueId === shiftVenueId && entry.id === shiftClose[1]); if (!shift || shift.closedAt) return json(res, 404, { error: 'shift_not_found_or_closed' });
-    const cashPayments = orders.filter((order) => String(order.venueId || defaultVenueDbId) === String(shiftVenueId)).flatMap((order) => order.payments || []).filter((payment) => payment.method === 'cash' && ['paid', 'partially_paid'].includes(payment.status) && new Date(payment.createdAt || 0) >= new Date(shift.openedAt));
+    if (!Object.prototype.hasOwnProperty.call(input, 'closingCash') || input.closingCash === '' || !Number.isFinite(Number(input.closingCash)) || Number(input.closingCash) < 0 || Number(input.closingCash) > 100000000) return json(res, 400, { error: 'closing_cash_required' });
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(shiftClose[1])) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const { rows: shiftRows } = await client.query('SELECT id,venue_id,opening_cash AS "openingCash",opened_at AS "openedAt" FROM shifts WHERE id=$1 AND venue_id=$2 AND closed_at IS NULL FOR UPDATE', [shiftClose[1], venueDbId]); if (!shiftRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } const unresolvedLegacyCash = await client.query("SELECT COUNT(*)::int AS count, COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id IS NULL AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at >= $2 AND p.created_at < now()", [venueDbId, shiftRows[0].openedAt]); if (Number(unresolvedLegacyCash.rows[0]?.count || 0) > 0) { await client.query('ROLLBACK'); return json(res, 409, { error: 'shift_cash_attribution_unresolved', count: Number(unresolvedLegacyCash.rows[0].count), amount: Number(unresolvedLegacyCash.rows[0].amount || 0) }); } const payments = await client.query("SELECT COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id=$2 AND p.method='cash' AND p.status IN ('paid','partially_paid')", [venueDbId, shiftClose[1]]); const expectedCash = Number(shiftRows[0].openingCash || 0) + Number(payments.rows[0]?.amount || 0); const { rows } = await client.query('UPDATE shifts SET closed_at=now(),closing_cash=$1::numeric,expected_cash=$2::numeric,cash_variance=$1::numeric-$2::numeric WHERE id=$3 AND venue_id=$4 AND closed_at IS NULL RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash",expected_cash AS "expectedCash",cash_variance AS "cashVariance"', [Number(input.closingCash), expectedCash, shiftClose[1], venueDbId]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } await client.query('COMMIT'); recordAudit(req, 'shift.closed', 'shift', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'shift_close_failed', detail: error.message }); } finally { client?.release(); } }
+    const shift = shifts.find((entry) => entry.id === shiftClose[1]); if (!shift || shift.closedAt) return json(res, 404, { error: 'shift_not_found_or_closed' });
+    const cashPayments = orders.flatMap((order) => order.payments || []).filter((payment) => payment.method === 'cash' && ['paid', 'partially_paid'].includes(payment.status) && new Date(payment.createdAt || 0) >= new Date(shift.openedAt));
     const unassignedCashPayments = cashPayments.filter((payment) => !payment.shiftId);
     if (unassignedCashPayments.length) return json(res, 409, { error: 'shift_cash_attribution_unresolved', count: unassignedCashPayments.length, amount: unassignedCashPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0) });
-    const expectedCash = Math.round((Number(shift.openingCash || 0) + cashPayments.filter((payment) => payment.shiftId === shift.id).reduce((sum, payment) => sum + Number(payment.amount || 0), 0)) * 100) / 100;
-    shift.closedAt = new Date().toISOString(); shift.expectedCash = expectedCash; shift.closingCash = Number(input.closingCash); shift.cashVariance = Math.round((shift.closingCash - expectedCash) * 100) / 100; recordAudit(req, 'shift.closed', 'shift', shift.id, null, { ...shift }); return json(res, 200, shift);
+    const expectedCash = Number(shift.openingCash || 0) + cashPayments.filter((payment) => payment.shiftId === shift.id).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    shift.closedAt = new Date().toISOString(); shift.expectedCash = expectedCash; shift.closingCash = Number(input.closingCash); shift.cashVariance = shift.closingCash - expectedCash; recordAudit(req, 'shift.closed', 'shift', shift.id, null, shift); return json(res, 200, shift);
   }
   if (pathname === '/api/venue' && req.method === 'GET') {
     if (process.env.DATABASE_URL && !repositories?.pool) return json(res, 503, { error: 'venue_unavailable' });
@@ -1722,9 +1725,8 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const filters = { action: String(url.searchParams.get('action') || '').trim().slice(0, 120), entityType: String(url.searchParams.get('entityType') || '').trim().slice(0, 80), from: String(url.searchParams.get('from') || '').trim(), to: String(url.searchParams.get('to') || '').trim(), limit: url.searchParams.get('limit') };
     if (filters.from && !/^\d{4}-\d{2}-\d{2}$/.test(filters.from)) filters.from = '';
     if (filters.to && !/^\d{4}-\d{2}-\d{2}$/.test(filters.to)) filters.to = '';
-    if (repositories?.audit) { try { return json(res, 200, { items: await repositories.audit.list(venueDbId, filters), filters }); } catch (_) { return json(res, 503, { error: 'audit_unavailable' }); } }
-    if (process.env.DATABASE_URL) return json(res, 503, { error: 'audit_unavailable' });
-    let items = auditEvents.filter((item) => item.venueId === notificationVenueScope(req, venueDbId)).map(sanitizeAuditEvent).reverse();
+    if (repositories?.audit) { try { return json(res, 200, { items: await repositories.audit.list(venueDbId, filters), filters }); } catch (_) {} }
+    let items = auditEvents.slice().reverse();
     if (filters.action) items = items.filter((item) => item.action === filters.action);
     if (filters.entityType) items = items.filter((item) => item.entityType === filters.entityType);
     if (filters.from) items = items.filter((item) => String(item.createdAt).slice(0, 10) >= filters.from);
@@ -1883,7 +1885,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     });
   }
   if (pathname === '/api/floor') {
-    if (denyUnlessAny(req, res, ['floor', 'reservations', 'settings'])) return;
+    if (denyUnless(req, res, 'floor')) return;
     if (repositories?.pool) {
       if (requireOrganizationContext(req, res)) return;
       try {
@@ -2074,9 +2076,8 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const before = { ...category }; category.active = false; recordAudit(req, 'product_category.deactivated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
   if (pathname === '/api/products' && req.method === 'GET') {
-    if (denyUnlessAny(req, res, ['floor', 'inventory_read'])) return;
-    if (repositories?.products) { try { return json(res, 200, { items: await repositories.products.list(venueDbId) }); } catch (_) { return json(res, 503, { error: 'products_unavailable' }); } }
-    if (process.env.DATABASE_URL) return json(res, 503, { error: 'products_unavailable' });
+    if (denyUnless(req, res, 'floor')) return;
+    if (repositories?.products) { try { return json(res, 200, { items: await repositories.products.list(venueDbId) }); } catch (_) {} }
     return json(res, 200, { items: products });
   }
   if (pathname === '/api/recipes' && req.method === 'GET') {
@@ -2452,27 +2453,21 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
-    return json(res, 200, { items: staff.filter((person) => !person.deletedAt && (!req.user?.venueId || (person.venueId || currentVenueId) === req.user.venueId)).map((entry) => { const person = publicStaffProfile(entry); person.pinConfigured = Boolean(entry.pinCode || entry.pinHash || entry.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!canSeeStaffPhoto(req)) delete person.photoUrl; if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
+    return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { person.pinConfigured = Boolean(person.pinCode || person.pinHash || person.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!canSeeStaffPhoto(req)) delete person.photoUrl; if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req);
-    let contactEmail = null;
-    try { if (input.email !== undefined) contactEmail = normalizeStaffEmail(input.email); } catch (_) { return json(res, 400, { error: 'invalid_staff_email' }); }
-    if (input.login !== undefined && typeof input.login !== 'string') return json(res, 400, { error: 'invalid_staff_login' });
-    if (typeof input.login === 'string') input.login = input.login.trim();
-    if (input.login && [...demoAccounts, ...provisionedAccounts].some(entry => entry.username?.toLowerCase() === input.login.toLowerCase())) return json(res, 409, { error: 'reserved_staff_login' });
     if (!input.name || !rolePermissions[input.role] || input.role === 'owner') return json(res, 400, { error: 'name_and_valid_role_required' });
     const nonCrmRole = ['cleaner','security','technician','other_staff'].includes(input.role);
     if (!nonCrmRole && !input.password) return json(res, 400, { error: 'password_required' });
     if (!nonCrmRole && input.password !== undefined && (String(input.password).length < 4 || String(input.password).length > 11)) return json(res, 400, { error: 'password_length_invalid' });
-        if (!canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
+        if (!canCreateStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
     const requestedScopes = normalizePermissionScopes(input.permissionScopes);
     if (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || requestedScopes.length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
     if (input.permissionScopes !== undefined && process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'permission_scopes_owner_required' });
-    if (input.permissionScopes !== undefined && input.role !== 'admin') return json(res, 400, { error: 'permission_scopes_admin_only' });
-    const assignedScopes = input.role === 'admin' ? requestedScopes : [];
+    const assignedScopes = input.permissionScopes === undefined ? [] : requestedScopes;
     if (!validBirthDate(input.birthDate)) return json(res, 400, { error: 'birth_date_required' });
     if (!validEmploymentDate(input.employmentStartedAt)) return json(res, 400, { error: 'invalid_employment_date' });
     if (input.workNotes !== undefined && String(input.workNotes).length > 4000) return json(res, 400, { error: 'work_notes_too_long' });
@@ -2499,28 +2494,24 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
         const login = nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`);
         const passwordHash = nonCrmRole ? null : await hashPassword(input.password);
         const insert = async (legacySchema = false) => client.query(legacySchema
-          ? `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9::date,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes"`
-          : `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,permission_scopes,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7::jsonb,$8,$9,$10::date,$11,$12::jsonb,$13,$14,$15,$16,$17) RETURNING id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes"`,
+          ? `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7,$8,$9::date,$10,$11::jsonb,$12,$13,$14,$15,$16) RETURNING id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`
+          : `INSERT INTO users (venue_id,organization_id,full_name,login,password_hash,pin_hash,role,permission_scopes,avatar_url,photo_url,birth_date,telegram_url,phone_numbers,employment_started_at,work_notes,passport_data_encrypted,passport_data_iv,passport_data_tag) VALUES ($1,$2,$3,$4,$5,NULL,$6,$7::jsonb,$8,$9,$10::date,$11,$12::jsonb,$13,$14,$15,$16,$17) RETURNING id,full_name AS name,login,role,permission_scopes AS "permissionScopes",is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes"`,
           legacySchema
             ? [venueDbId, organizationId, input.name, login, passwordHash, input.role, input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null]
             : [venueDbId, organizationId, input.name, login, passwordHash, input.role, JSON.stringify(assignedScopes), input.avatarUrl || null, input.photoUrl || null, input.birthDate, input.telegram || null, JSON.stringify(contactNumbers), input.employmentStartedAt || null, String(input.workNotes || '').slice(0, 4000), createdPassport?.data || null, createdPassport?.iv || null, createdPassport?.tag || null]);
         let rows;
         try { ({ rows } = await insert()); }
         catch (error) { if (error.code !== '42703' && error.code !== '42704') throw error; ({ rows } = await insert(true)); }
-        if (input.email !== undefined) await client.query('UPDATE users SET contact_email=$1 WHERE id=$2', [contactEmail, rows[0].id]);
         const membershipRole = input.role === 'admin' ? 'admin' : 'member';
         await client.query(`INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,$3,'active') ON CONFLICT (organization_id,user_id) DO UPDATE SET membership_role=EXCLUDED.membership_role,status='active'`, [organizationId, rows[0].id, membershipRole]);
         await client.query('COMMIT');
-        const result = { ...rows[0], email: contactEmail, permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) };
+        const result = { ...rows[0], permissionScopes: rows[0].permissionScopes || assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000) };
         if (!canSeeStaffPhoto(req)) delete result.photoUrl;
         recordAudit(req, 'staff.created', 'staff', rows[0].id, null, result); return json(res, 201, result);
-      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, error.code === '42703' ? 503 : 409, { error: error.code === '23505' ? 'login_already_exists' : error.code === '42703' ? 'staff_profile_migration_required' : 'staff_create_failed' }); }
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'staff_create_failed', detail: error.message }); }
       finally { client.release(); }
     }
-    if (input.login && staff.some(entry => entry.login === input.login)) return json(res, 409, { error: 'login_already_exists' });
-    const person = { email: contactEmail, venueId: req.user?.venueId || currentVenueId, id: `u-${Date.now()}`, name: input.name, login: nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`), passwordHash: nonCrmRole ? null : await hashPassword(input.password), role: input.role, active: true, avatarUrl: input.avatarUrl || null, photoUrl: input.photoUrl || null, birthDate: input.birthDate, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: null, pinConfigured: false, pinUpdatedAt: null };
-    if (staff.some(entry => entry.login === person.login)) return json(res, 409, { error: 'login_already_exists' });
-    if ([...demoAccounts, ...provisionedAccounts].some(entry => entry.username?.toLowerCase() === person.login.toLowerCase())) return json(res, 409, { error: 'reserved_staff_login' });
+    const person = { id: `u-${Date.now()}`, name: input.name, login: nonCrmRole ? `staff_${Date.now()}` : (input.login || `user_${Date.now()}`), passwordHash: nonCrmRole ? null : await hashPassword(input.password), role: input.role, active: true, avatarUrl: input.avatarUrl || null, photoUrl: input.photoUrl || null, birthDate: input.birthDate, telegram: input.telegram || null, phoneNumbers: contactNumbers, permissionScopes: assignedScopes, employmentStartedAt: input.employmentStartedAt || null, workNotes: String(input.workNotes || '').slice(0, 4000), passportData: input.passportData || null, pinCode: null, pinConfigured: false, pinUpdatedAt: null };
     staff.push(person);
     const { passwordHash, ...publicPerson } = person;
     recordAudit(req, 'staff.created', 'staff', person.id, null, publicPerson);
@@ -2549,7 +2540,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
       } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'staff_status_update_failed', detail: error.message }); }
       finally { client.release(); }
     }
-    const person = staff.find((entry) => entry.id === staffStatus[1]); if (!person || person.role === 'owner' || person.deletedAt) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); const before = { active: person.active }; person.active = input.active; recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', person.id, before, { active: person.active }); return json(res, 200, person);
+    const person = staff.find((entry) => entry.id === staffStatus[1]); if (!person || person.role === 'owner' || person.deletedAt) return json(res, 404, { error: 'staff_not_found_or_archived_or_owner' }); if (!canManageStaffTarget(req, person.role)) return json(res, 403, { error: 'staff_management_required' }); const before = { active: person.active }; person.active = input.active; recordAudit(req, input.active ? 'staff.activated' : 'staff.deactivated', 'staff', person.id, before, { active: person.active }); return json(res, 200, person);
   }
   const staffDelete = pathname.match(/^\/api\/staff\/([^/]+)$/);
   if (staffDelete && req.method === 'DELETE') {
@@ -2626,7 +2617,7 @@ if (staffProfile && req.method === 'GET') {
   if (!canRead) return json(res, 403, { error: 'forbidden', permission: 'staff_view' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt",(pin_updated_at IS NOT NULL) AS "pinConfigured",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1`, [personId, venueDbId]);
+      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
       if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
       const profile = { ...rows[0], workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: rows[0].permissionScopes }) };
       if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
@@ -2636,7 +2627,7 @@ if (staffProfile && req.method === 'GET') {
     } catch (error) {
       // Keep migration 002 contact data available when the employment migration is not applied yet.
       try {
-        const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1`, [personId, venueDbId]);
+        const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
         if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
         const profile = { ...rows[0], permissionScopes: [], employmentStartedAt: null, workNotes: '', workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: [] }) };
         if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
@@ -2645,16 +2636,16 @@ if (staffProfile && req.method === 'GET') {
         return json(res, 200, profile);
       } catch (_) {
         try {
-          const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1`, [personId, venueDbId]);
+          const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
           if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
           return json(res, 200, { ...rows[0], telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '', workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: [] }) });
         } catch (fallbackError) { return json(res, 409, { error: 'staff_profile_read_failed', detail: fallbackError.message }); }
       }
     }
   }
-  const person = staff.find((entry) => entry.id === personId && !entry.deletedAt && (!req.user?.venueId || (entry.venueId || currentVenueId) === req.user.venueId));
+  const person = staff.find((entry) => entry.id === personId);
   if (!person) return json(res, 404, { error: 'staff_not_found' });
-  const profile = { ...publicStaffProfile(person), workspacePermissions: effectivePermissions(person) }; if (!canSeeSensitiveStaff(req)) delete profile.passportData; if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
+  const profile = { ...person, workspacePermissions: effectivePermissions(person) }; if (!canSeeSensitiveStaff(req)) delete profile.passportData; if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
   return json(res, 200, profile);
 }
 if (staffProfile && req.method === 'PATCH') {
@@ -2664,39 +2655,16 @@ if (staffProfile && req.method === 'PATCH') {
   const isSelf = String(req.user?.id || '') === personId;
   if (!canManage && !isSelf) return json(res, 403, { error: 'forbidden', permission: 'staff' });
   const input = await body(req);
-  const memoryPerson = !repositories?.pool ? staff.find((entry) => entry.id === personId && !entry.deletedAt && (!req.user?.venueId || (entry.venueId || currentVenueId) === req.user.venueId)) : null;
-  let profileClient = null;
-  let profileCommitted = false;
-  try {
+  const memoryPerson = staff.find((entry) => entry.id === personId);
   let before = memoryPerson ? { ...memoryPerson, phoneNumbers: Array.isArray(memoryPerson.phoneNumbers) ? memoryPerson.phoneNumbers.map((phone) => ({ ...phone })) : [] } : null;
   if (!before && repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      profileClient = await repositories.pool.connect();
-      await profileClient.query('BEGIN');
-      const { rows } = await profileClient.query(`SELECT id,full_name AS name,login,to_jsonb(users)->>'contact_email' AS email,(password_hash IS NOT NULL) AS "loginConfigured",role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",to_char(birth_date,'YYYY-MM-DD') AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",to_char(employment_started_at,'YYYY-MM-DD') AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1 FOR UPDATE`, [personId, venueDbId]);
+      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE id=$1 AND venue_id=$2 LIMIT 1', [personId, venueDbId]);
       before = rows[0] || null;
-    } catch (_) { return json(res, 503, { error: 'staff_profile_unavailable' }); }
+    } catch (_) {}
   }
   if (!before) return json(res, 404, { error: 'staff_not_found' });
-  if (before.role === 'owner' && req.user?.role !== 'owner') return json(res, 403, { error: 'owner_staff_protected' });
-  let contactEmail = before.email || null;
-  let nextLogin = before.login;
-  if (input.login !== undefined) {
-    if (!canManage) return json(res, 403, { error: 'staff_management_required' });
-    if (typeof input.login !== 'string') return json(res, 400, { error: 'invalid_staff_login' });
-    nextLogin = input.login.trim();
-    if (nextLogin !== before.login) {
-      if (!canAssignStaffRole(req, before.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
-      if (!(before.loginConfigured ?? Boolean(before.passwordHash)) || ['cleaner','security','technician','other_staff'].includes(before.role)) return json(res, 400, { error: 'staff_crm_access_not_configured' });
-      try { nextLogin = normalizeStaffLogin(input.login); } catch (_) { return json(res, 400, { error: 'invalid_staff_login' }); }
-      if ([...demoAccounts, ...provisionedAccounts].some(entry => entry.username?.toLowerCase() === nextLogin.toLowerCase())) return json(res, 409, { error: 'reserved_staff_login' });
-      if (!repositories?.pool && staff.some(entry => entry.id !== personId && entry.login === nextLogin)) return json(res, 409, { error: 'login_already_exists' });
-    }
-  }
-  if (input.email !== undefined) {
-    try { contactEmail = normalizeStaffEmail(input.email); } catch (_) { return json(res, 400, { error: 'invalid_staff_email' }); }
-  }
-  const loginChanged = nextLogin !== before.login;
+  if (!canManageStaffTarget(req, before.role)) return json(res, 403, { error: before.role === 'owner' ? 'owner_staff_protected' : 'staff_management_required' });
   const auditBefore = { ...before, phoneNumbers: Array.isArray(before.phoneNumbers) ? before.phoneNumbers.map((phone) => ({ ...phone })) : [] };
   if (!canManageSensitive) delete auditBefore.passportData;
   if (input.name !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
@@ -2706,7 +2674,6 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.role !== undefined && !canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
   if (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || normalizePermissionScopes(input.permissionScopes).length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
   if (input.permissionScopes !== undefined && process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'permission_scopes_owner_required' });
-  if (input.permissionScopes !== undefined && before.role !== 'admin') return json(res, 400, { error: 'permission_scopes_admin_only' });
   if (input.employmentStartedAt !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.birthDate !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.workNotes !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
@@ -2742,44 +2709,22 @@ if (staffProfile && req.method === 'PATCH') {
   const clearPassportData = clearPassportRequested && canManageSensitive;
   const hasPassportData = input.passportData !== undefined && input.passportData && typeof input.passportData === 'object' && ['number', 'issuedAt', 'issuer'].some((key) => String(input.passportData[key] || '').trim());
   if (clearPassportData) before.passportData = null; else if (hasPassportData) before.passportData = input.passportData;
-  before.login = nextLogin;
-  before.email = contactEmail;
   const encryptedPassport = hasPassportData && canManageSensitive ? staffPassportCipher.encrypt(input.passportData) : null;
   if (hasPassportData && repositories?.pool && canManageSensitive && !encryptedPassport) return json(res, 503, { error: 'staff_passport_key_required' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      await profileClient.query('SAVEPOINT profile_fields');
-      try { await profileClient.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,employment_started_at=CASE WHEN $11 THEN $12::date ELSE employment_started_at END,work_notes=CASE WHEN $13 THEN $14 ELSE work_notes END,passport_data_encrypted=CASE WHEN $24 THEN NULL ELSE COALESCE($15,passport_data_encrypted) END,passport_data_iv=CASE WHEN $24 THEN NULL ELSE COALESCE($16,passport_data_iv) END,passport_data_tag=CASE WHEN $24 THEN NULL ELSE COALESCE($17,passport_data_tag) END,full_name=CASE WHEN $18 THEN $19 ELSE full_name END,role=CASE WHEN $20 THEN $21 ELSE role END WHERE id=$22 AND venue_id=$23', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', input.employmentStartedAt !== undefined, input.employmentStartedAt || null, input.workNotes !== undefined, input.workNotes !== undefined ? String(input.workNotes || '').slice(0, 4000) : null, encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]); } catch (error) {
-        if (!['42703','42704'].includes(error.code)) throw error;
-        await profileClient.query('ROLLBACK TO SAVEPOINT profile_fields');
-        await profileClient.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,passport_data_encrypted=CASE WHEN $20 THEN NULL ELSE COALESCE($11,passport_data_encrypted) END,passport_data_iv=CASE WHEN $20 THEN NULL ELSE COALESCE($12,passport_data_iv) END,passport_data_tag=CASE WHEN $20 THEN NULL ELSE COALESCE($13,passport_data_tag) END,full_name=CASE WHEN $14 THEN $15 ELSE full_name END,role=CASE WHEN $16 THEN $17 ELSE role END WHERE id=$18 AND venue_id=$19', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]);
+      try { await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,employment_started_at=CASE WHEN $11 THEN $12::date ELSE employment_started_at END,work_notes=CASE WHEN $13 THEN $14 ELSE work_notes END,passport_data_encrypted=CASE WHEN $24 THEN NULL ELSE COALESCE($15,passport_data_encrypted) END,passport_data_iv=CASE WHEN $24 THEN NULL ELSE COALESCE($16,passport_data_iv) END,passport_data_tag=CASE WHEN $24 THEN NULL ELSE COALESCE($17,passport_data_tag) END,full_name=CASE WHEN $18 THEN $19 ELSE full_name END,role=CASE WHEN $20 THEN $21 ELSE role END WHERE id=$22 AND venue_id=$23', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', input.employmentStartedAt !== undefined, input.employmentStartedAt || null, input.workNotes !== undefined, input.workNotes !== undefined ? String(input.workNotes || '').slice(0, 4000) : null, encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]); } catch (_) {
+        await repositories.pool.query('UPDATE users SET avatar_url=CASE WHEN $1 THEN $2 ELSE avatar_url END,photo_url=CASE WHEN $3 THEN $4 ELSE photo_url END,birth_date=CASE WHEN $5 THEN $6::date ELSE birth_date END,telegram_url=CASE WHEN $7 THEN $8 ELSE telegram_url END,phone_numbers=CASE WHEN $9 THEN $10::jsonb ELSE phone_numbers END,passport_data_encrypted=CASE WHEN $20 THEN NULL ELSE COALESCE($11,passport_data_encrypted) END,passport_data_iv=CASE WHEN $20 THEN NULL ELSE COALESCE($12,passport_data_iv) END,passport_data_tag=CASE WHEN $20 THEN NULL ELSE COALESCE($13,passport_data_tag) END,full_name=CASE WHEN $14 THEN $15 ELSE full_name END,role=CASE WHEN $16 THEN $17 ELSE role END WHERE id=$18 AND venue_id=$19', [input.avatarUrl !== undefined, input.avatarUrl || null, input.photoUrl !== undefined, input.photoUrl || null, input.birthDate !== undefined, input.birthDate || null, input.telegram !== undefined, input.telegram !== undefined ? (input.telegram || null) : null, input.phoneNumbers !== undefined, contactJson || '[]', encryptedPassport?.data || null, encryptedPassport?.iv || null, encryptedPassport?.tag || null, input.name !== undefined, before.name, input.role !== undefined, before.role, personId, venueDbId, clearPassportData]);
       }
-      await profileClient.query('RELEASE SAVEPOINT profile_fields');
-      if (input.email !== undefined) await profileClient.query('UPDATE users SET contact_email=$1 WHERE id=$2 AND venue_id=$3', [contactEmail, personId, venueDbId]);
-      if (loginChanged) {
-        await profileClient.query('UPDATE users SET login=$1 WHERE id=$2 AND venue_id=$3', [nextLogin, personId, venueDbId]);
-        await profileClient.query('DELETE FROM auth_sessions WHERE user_id=$1', [personId]);
-        await profileClient.query("INSERT INTO audit_events(venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES($1,$2,'staff.login_updated','staff',$3,$4,$5)", [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, personId, {login:auditBefore.login}, {login:nextLogin,sessionsRevoked:true}]);
-      }
-      if (input.permissionScopes !== undefined) { await profileClient.query('UPDATE users SET permission_scopes=$1::jsonb WHERE id=$2 AND venue_id=$3', [JSON.stringify(before.permissionScopes || []), personId, venueDbId]); }
-      await profileClient.query("INSERT INTO audit_events(venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES($1,$2,'staff.profile_updated','staff',$3,$4,$5)", [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, personId, redactAuditData({...publicStaffProfile(auditBefore),email:auditBefore.email ? '[redacted]' : null}), redactAuditData({...publicStaffProfile(before),email:contactEmail ? '[redacted]' : null})]);
-      await profileClient.query('COMMIT');
-      profileCommitted = true;
-    } catch (error) { return json(res, error.code === '42703' ? 503 : error.code === '23505' ? 409 : 503, { error: error.code === '23505' ? 'login_already_exists' : error.code === '42703' ? 'staff_profile_migration_required' : 'staff_profile_save_failed' }); }
+      if (input.permissionScopes !== undefined) { await repositories.pool.query('UPDATE users SET permission_scopes=$1::jsonb WHERE id=$2 AND venue_id=$3', [JSON.stringify(before.permissionScopes || []), personId, venueDbId]); }
+    } catch (error) { return json(res, 409, { error: 'staff_profile_save_failed', detail: error.message }); }
   }
   if (memoryPerson) Object.assign(memoryPerson, before);
-  if (loginChanged) for (const [token, session] of sessions) if (String(session.user?.id || '') === personId) sessions.delete(token);
-  const publicPerson = publicStaffProfile(before);
+  const publicPerson = { ...before };
   if (!canManageSensitive) delete publicPerson.passportData;
   if (!canSeeStaffPhoto(req)) delete publicPerson.photoUrl;
-  if (!profileClient) {
-    if (loginChanged) recordAudit(req, 'staff.login_updated', 'staff', before.id, {login:auditBefore.login}, {login:nextLogin,sessionsRevoked:true});
-    recordAudit(req, 'staff.profile_updated', 'staff', before.id, publicStaffProfile(auditBefore), publicPerson);
-  }
-  return json(res, 200, {...publicPerson, sessionsRevoked:loginChanged});
-  } finally {
-    if (profileClient) { if (!profileCommitted) await profileClient.query('ROLLBACK').catch(() => {}); profileClient.release(); }
-  }
+  recordAudit(req, 'staff.profile_updated', 'staff', before.id, auditBefore, publicPerson);
+  return json(res, 200, publicPerson);
 }
   if (pathname === '/api/staff/schedule' && req.method === 'GET') {
     if (denyUnlessAny(req, res, ['staff_manage', 'staff_view'])) return;
@@ -2861,9 +2806,7 @@ if (staffProfile && req.method === 'PATCH') {
   if (pathname === '/api/staff/schedule' && req.method === 'POST') {
     if (denyUnless(req, res, 'staff_manage')) return;
     const input = await body(req); const userId = String(input.userId || '').trim(); const workDate = String(input.workDate || '').trim();
-    if (!userId || !isValidIsoDate(workDate)) return json(res, 400, { error: 'invalid_schedule_entry' });
-    const validPlannedTime = (value) => value === undefined || value === null || value === '' || typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d{1,3})?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value) && isValidIsoDate(value.slice(0, 10)) && Number.isFinite(Date.parse(value));
-    if (!validPlannedTime(input.plannedStart) || !validPlannedTime(input.plannedEnd) || input.plannedStart && input.plannedEnd && Date.parse(input.plannedEnd) <= Date.parse(input.plannedStart)) return json(res, 400, { error: 'invalid_schedule_time' });
+    if (!userId || !/^\d{4}-\d{2}-\d{2}$/.test(workDate)) return json(res, 400, { error: 'invalid_schedule_entry' });
     if (repositories?.pool) { if (!/^[0-9a-f-]{36}$/i.test(userId)) return json(res, 400, { error: 'invalid_schedule_employee' }); try { const employee = await repositories.pool.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [userId, venueDbId]); if (!employee.rows[0]) return json(res, 404, { error: 'staff_member_not_found' }); const { rows } = await repositories.pool.query('INSERT INTO staff_schedules (venue_id,user_id,work_date,planned_start,planned_end,note,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (venue_id,user_id,work_date) DO UPDATE SET planned_start=EXCLUDED.planned_start,planned_end=EXCLUDED.planned_end,note=EXCLUDED.note RETURNING *', [venueDbId, userId, workDate, input.plannedStart || null, input.plannedEnd || null, String(input.note || '').slice(0,500) || null, req.user?.id || null]); return json(res, 201, rows[0]); } catch (error) { return json(res, 409, { error: 'schedule_save_failed', detail: error.message }); } }
   }
   if (pathname === '/api/staff/time' && req.method === 'GET') {
@@ -2891,17 +2834,6 @@ if (staffProfile && req.method === 'PATCH') {
     const source = String(input.source || 'manual');
     if (!/^[0-9a-f-]{36}$/i.test(userId) || Number.isNaN(startedAt.getTime()) || (endedAt && Number.isNaN(endedAt.getTime())) || (endedAt && endedAt <= startedAt) || !['manual','shift','device'].includes(source)) return json(res, 400, { error: 'invalid_work_log' });
     if (repositories?.pool) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const employee = await client.query('SELECT id FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL FOR UPDATE', [userId,venueDbId]); if (!employee.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'staff_member_not_found' }); } const overlapping = await client.query(`SELECT id FROM staff_work_logs WHERE venue_id=$1 AND user_id=$2 AND started_at < COALESCE($4::timestamptz,'infinity'::timestamptz) AND COALESCE(ended_at,'infinity'::timestamptz) > $3::timestamptz LIMIT 1 FOR UPDATE`, [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null]); if (overlapping.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'work_log_overlaps_existing' }); } const { rows } = await client.query('INSERT INTO staff_work_logs (venue_id,user_id,started_at,ended_at,source,note) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *', [venueDbId,userId,startedAt.toISOString(),endedAt?.toISOString() || null,source,String(input.note || '').slice(0,500) || null]); await client.query('COMMIT'); recordAudit(req, 'staff.work_time_recorded', 'staff', rows[0].user_id, null, rows[0]); return json(res, 201, rows[0]); } catch (error) { await client?.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'work_log_save_failed', detail: error.message }); } finally { client?.release(); } }
-  }
-  if (pathname === '/api/payroll/employees' && req.method === 'GET') {
-    if (denyUnless(req, res, 'finance')) return;
-    if (repositories?.pool) {
-      try {
-        const { rows } = await repositories.pool.query('SELECT id,full_name AS name,is_active AS active FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name', [venueDbId]);
-        return json(res, 200, { items: rows });
-      } catch (_) { return json(res, 503, { error: 'payroll_employees_unavailable' }); }
-    }
-    if (process.env.DATABASE_URL) return json(res, 503, { error: 'payroll_employees_unavailable' });
-    return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map((person) => ({ id: person.id, name: person.name, active: person.active !== false })) });
   }
   if (pathname === '/api/payroll/rules' && req.method === 'GET') {
     if (denyUnless(req, res, 'finance')) return;
@@ -3617,7 +3549,7 @@ if (staffProfile && req.method === 'PATCH') {
       return json(res, 200, { date: reportDate, timezone: businessTimezone, employeeView: true, selectedShiftId: null,
         shifts: [{ id: 'employee-today' }], totals, unassignedPaymentCount: 0, ambiguousPaymentCount: 0 });
     }
-    const localShifts = shifts.filter((shift) => shift.venueId === notificationVenueScope(req, venueDbId) && businessDateKey(shift.openedAt) === reportDate);
+    const localShifts = shifts.filter((shift) => businessDateKey(shift.openedAt) === reportDate);
     const matches = localShifts;
     const selectedShiftId = requestedShiftId;
     if (selectedShiftId && !matches.some((shift) => shift.id === selectedShiftId)) return json(res, 404, { error: 'shift_not_found_for_date' });
@@ -3700,7 +3632,7 @@ if (staffProfile && req.method === 'PATCH') {
     const closed = orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date);
     const byType = {}; let revenue = 0; let paymentCount = 0;
     closed.forEach((order) => { const payments = (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)); if (payments.length) payments.forEach((payment) => { const amount = Number(payment.amount || 0); paymentCount += 1; revenue += amount; const key = payment.method || 'не указан'; byType[key] = (byType[key] || 0) + amount; }); else if (!employeeFinanceView) { const amount = Number(order.finalTotal !== undefined && order.finalTotal !== null ? order.finalTotal : orderNetTotal(order)); revenue += amount; const key = order.paymentMethod || 'не указан'; byType[key] = (byType[key] || 0) + amount; } });
-    const pending = pendingPaymentSummary(); const currentShift = shifts.find((shift) => shift.venueId === notificationVenueScope(req, venueDbId) && !shift.closedAt); const shiftClosed = currentShift ? orders.filter((order) => order.status === 'closed' && String(order.closedInShiftId || '') === String(currentShift.id)) : []; const shiftCheckTotal = shiftClosed.reduce((sum, order) => sum + (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)).reduce((orderSum, payment) => orderSum + Number(payment.amount || 0), 0), 0); const fullSummary = { date, revenue, closedOrders: closed.length, paymentCount, byPaymentMethod: byType, currentShiftOrders: shiftClosed.length, currentShiftAverageCheck: shiftClosed.length ? shiftCheckTotal / shiftClosed.length : 0, pendingOrders: pending.pendingOrders, pendingRevenue: pending.pendingRevenue, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length }; return json(res, 200, employeeFinanceView ? { date, revenue, employeeView: true } : fullSummary);
+    const pending = pendingPaymentSummary(); const currentShift = shifts.find((shift) => !shift.closedAt); const shiftClosed = currentShift ? orders.filter((order) => order.status === 'closed' && String(order.closedInShiftId || '') === String(currentShift.id)) : []; const shiftCheckTotal = shiftClosed.reduce((sum, order) => sum + (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)).reduce((orderSum, payment) => orderSum + Number(payment.amount || 0), 0), 0); const fullSummary = { date, revenue, closedOrders: closed.length, paymentCount, byPaymentMethod: byType, currentShiftOrders: shiftClosed.length, currentShiftAverageCheck: shiftClosed.length ? shiftCheckTotal / shiftClosed.length : 0, pendingOrders: pending.pendingOrders, pendingRevenue: pending.pendingRevenue, pendingDiscounts: discountRequests.filter((request) => request.status === 'requested').length }; return json(res, 200, employeeFinanceView ? { date, revenue, employeeView: true } : fullSummary);
   }
   if (pathname === '/api/finance/report' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'finance_read')) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
@@ -3710,27 +3642,17 @@ if (staffProfile && req.method === 'PATCH') {
       catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
     }
     const requestedReportType = String(url.searchParams.get('type') || 'x');
-    const type = employeeFinanceView ? 'x' : ['x', 'z', 'waiter'].includes(requestedReportType) ? requestedReportType : 'x';
+    const type = ['x', 'z', 'waiter'].includes(requestedReportType) ? requestedReportType : 'x';
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json(res, 400, { error: 'invalid_finance_date' });
     const reportNumber = `R-${date.replace(/-/g, '')}-${type.toUpperCase()}-${String(Date.now()).slice(-6)}`;
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
-        const { rows } = await repositories.pool.query(`SELECT
-          (SELECT COALESCE(SUM(p.amount),0) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND o.opened_by=$2 AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4) AND p.created_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')) AS revenue,
-          (SELECT COUNT(*)::int FROM orders o WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4)) AS checks_count`, [venueDbId, actorId, date, timezone]);
+        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS checks_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date, timezone]);
         const report = { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber, checksCount: Number(rows[0]?.checks_count || 0), revenue: Number(rows[0]?.revenue || 0), employeeView: true };
         recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type: 'x', date, checksCount: report.checksCount, revenue: report.revenue });
         return json(res, 200, report);
       } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
-    }
-    if (employeeFinanceView) {
-      const ownOrders = orders.filter((order) => String(order.openedBy || order.openedById || '') === String(req.user?.id || ''));
-      const revenue = ownOrders.flatMap((order) => order.payments || []).filter((payment) => ['paid','partially_paid'].includes(payment.status) && payment.createdAt && businessDateKey(payment.createdAt) === date).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-      const checksCount = ownOrders.filter((order) => order.status === 'closed' && order.closedAt && businessDateKey(order.closedAt) === date).length;
-      const report = { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber, checksCount, revenue: Math.round(revenue * 100) / 100, employeeView: true };
-      recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type: 'x', date, checksCount, revenue: report.revenue });
-      return json(res, 200, report);
     }
     const byPaymentMethod = {}; const byStation = {}; const byStaff = {}; let revenue = 0; let paymentCount = 0; let closedOrders = [];
     const addOrder = (order) => {
@@ -3750,7 +3672,7 @@ if (staffProfile && req.method === 'PATCH') {
         const itemsByOrder = new Map(); itemRows.rows.forEach((item) => { if (!itemsByOrder.has(item.orderId)) itemsByOrder.set(item.orderId, []); itemsByOrder.get(item.orderId).push(item); }); closedOrders.forEach((order) => { order.items = itemsByOrder.get(order.id) || []; addOrder(order); });
       } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
     } else { closedOrders = orders.filter((order) => order.status === 'closed' && businessDateKey(order.closedAt || order.createdAt) === date && (!employeeFinanceView || String(order.openedBy || order.openedById || '') === String(req.user?.id || ''))); closedOrders.forEach(addOrder); }
-    const activeShift = repositories?.pool ? null : shifts.find((shift) => shift.venueId === notificationVenueScope(req, venueDbId) && !shift.closedAt);
+    const activeShift = repositories?.pool ? null : shifts.find((shift) => !shift.closedAt);
     const report = { type, date, generatedAt: new Date().toISOString(), reportNumber, cashier: req.user?.name || 'Кассир', checksCount: closedOrders.length, closedOrders: closedOrders.length, paymentCount, revenue: Math.round(revenue * 100) / 100, cash: Math.round(Number(byPaymentMethod.cash || 0) * 100) / 100, card: Math.round(Number(byPaymentMethod.card || 0) * 100) / 100, qr: Math.round(Number(byPaymentMethod.qr || 0) * 100) / 100, byPaymentMethod, byStation, byStaff: type === 'waiter' ? byStaff : undefined, shift: { id: activeShift?.id || null, status: activeShift ? 'open' : 'closed', isFinal: type === 'z' } };
     recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type, date, checksCount: report.checksCount, revenue: report.revenue });
     return json(res, 200, employeeFinanceView ? { type: 'x', date, generatedAt: report.generatedAt, reportNumber: report.reportNumber, checksCount: report.checksCount, revenue: report.revenue, employeeView: true } : report);
@@ -3853,17 +3775,6 @@ if (staffProfile && req.method === 'PATCH') {
     if (deadline.error) return json(res, 400, { error: deadline.error });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(taskPath[1])) { try { const { rows: taskRows } = await repositories.pool.query('SELECT id,assignee_id AS "assigneeId" FROM tasks WHERE id=$1 AND venue_id=$2', [taskPath[1], venueDbId]); const task = taskRows[0]; if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); const fields = []; const values = [taskPath[1], venueDbId]; for (const key of allowed) if (input[key] !== undefined && !['dueAt','dueDate'].includes(key)) { if (key === 'status' && !['open','in_progress','done','cancelled'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_status' }); if (key === 'priority' && !['low','normal','high','urgent'].includes(String(input[key]))) return json(res, 400, { error: 'invalid_task_priority' }); if (key === 'assigneeId' && input[key] !== null && input[key] !== '') { const assignee = await repositories.pool.query('SELECT 1 FROM users WHERE id=$1 AND venue_id=$2 AND is_active=true AND deleted_at IS NULL', [String(input[key]), venueDbId]); if (!assignee.rows[0]) return json(res, 400, { error: 'task_assignee_not_found' }); } fields.push(`${key === 'assigneeId' ? 'assignee_id' : key === 'dueAt' ? 'due_at' : key}=$${values.length + 1}`); values.push(key === 'title' || key === 'description' ? String(input[key] || '').trim() : key === 'dueAt' && input[key] === '' || key === 'assigneeId' && input[key] === '' ? null : input[key]); } if (deadline.changed) { fields.push(`due_at=$${values.length + 1}`, `due_date=$${values.length + 2}`); values.push(deadline.dueAt, deadline.dueDate); } if (!fields.length) return json(res, 400, { error: 'task_fields_required' }); fields.push('updated_at=now()'); const { rows } = await repositories.pool.query(`UPDATE tasks SET ${fields.join(',')} WHERE id=$1 AND venue_id=$2 RETURNING id,title,description,status,priority,assignee_id AS "assigneeId",due_at AS "dueAt",to_char(due_date,'YYYY-MM-DD') AS "dueDate",created_at AS "createdAt",updated_at AS "updatedAt"`, values); if (!rows[0]) return json(res, 404, { error: 'task_not_found' }); recordAudit(req, 'task.updated', 'task', rows[0].id, null, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'task_update_failed', detail: error.message }); } }
     const task = tasks.find((entry) => entry.id === taskPath[1]); if (!task) return json(res, 404, { error: 'task_not_found' }); if (!canManageTasks && String(task.assigneeId || '') !== String(req.user?.id || '')) return json(res, 403, { error: 'task_update_forbidden' }); if (!canManageTasks && Object.keys(input).some((key) => !allowed.includes(key))) return json(res, 403, { error: 'task_update_forbidden' }); if (input.status !== undefined && !['open','in_progress','done','cancelled'].includes(String(input.status))) return json(res, 400, { error: 'invalid_task_status' }); if (input.priority !== undefined && !['low','normal','high','urgent'].includes(String(input.priority))) return json(res, 400, { error: 'invalid_task_priority' }); if (input.assigneeId && process.env.AUTH_REQUIRED === 'true' && !staff.some((person) => String(person.id) === String(input.assigneeId) && person.active !== false && !person.deletedAt)) return json(res, 400, { error: 'task_assignee_not_found' }); Object.assign(task, input, deadline.changed ? { dueAt: deadline.dueAt, dueDate: deadline.dueDate } : {}, { assigneeId: input.assigneeId === undefined ? task.assigneeId : input.assigneeId === '' ? null : input.assigneeId, updatedAt: new Date().toISOString() }); return json(res, 200, task);
-  }
-  if (pathname === '/api/reservations/guests' && req.method === 'GET') {
-    if (denyUnless(req, res, 'reservations')) return;
-    if (repositories?.pool) {
-      try {
-        const { rows } = await repositories.pool.query('SELECT id,full_name AS name,nickname,phone,phone_numbers AS "phoneNumbers" FROM guests WHERE venue_id=$1 AND archived_at IS NULL ORDER BY full_name,nickname,id', [venueDbId]);
-        return json(res, 200, { items: rows.map((guest) => ({ id: guest.id, name: guest.name, nickname: guest.nickname || '', phoneNumbers: guest.phoneNumbers?.length ? guest.phoneNumbers : guest.phone ? [{ number: guest.phone, primary: true }] : [] })) });
-      } catch (_) { return json(res, 503, { error: 'reservation_guests_unavailable' }); }
-    }
-    if (process.env.DATABASE_URL) return json(res, 503, { error: 'reservation_guests_unavailable' });
-    return json(res, 200, { items: clients.filter((guest) => !guest.archivedAt).map((guest) => ({ id: guest.id, name: guest.name, nickname: guest.nickname || '', phoneNumbers: guest.phoneNumbers || [] })) });
   }
   if (pathname === '/api/reservations' && req.method === 'GET') {
     if (denyUnless(req, res, 'reservations')) return;
@@ -3973,7 +3884,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (input.tableId && orders.some((entry) => entry.tableId === input.tableId && ['open', 'in_progress', 'ready'].includes(entry.status))) return json(res, 409, { error: 'table_has_active_order' });
     const tableMinimum = floor.flatMap((zone) => zone.tables || []).find((table) => table.id === input.tableId)?.minimumOrderTotal || 0;
     const minimumOrderTotal = Math.max(requestedMinimumOrderTotal, Number(tableMinimum));
-    const order = { venueId: notificationVenueScope(req, venueDbId), id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal, notes: input.notes || '', items: [], createdByName: req.user?.name || 'сотрудник', openedBy: req.user?.id || null, createdAt: new Date().toISOString() };
+    const order = { id: `ord-${Date.now()}`, tableId: input.tableId || null, status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal, notes: input.notes || '', items: [], createdByName: req.user?.name || 'сотрудник', openedBy: req.user?.id || null, createdAt: new Date().toISOString() };
     orders.push(order);
     setMemoryTableStatus(order.tableId, 'occupied');
     recordAudit(req, 'order.created', 'order', order.id, null, order);
@@ -4270,7 +4181,7 @@ if (staffProfile && req.method === 'PATCH') {
     }
     const order = orders.find((entry) => entry.id === paymentPath[1]); if (!order) return json(res, 404, { error: 'order_not_found' }); if (req.method === 'POST' && (order.status === 'closed' || order.status === 'cancelled')) return json(res, 409, { error: 'order_already_final' }); order.payments ||= []; const subtotal = orderTotal(order); const discount = approvedDiscountTotal(order.id, subtotal); const due = roundMoney(Math.max(subtotal - discount, Number(order.minimumOrderTotal || 0))); const paid = receivedOrderPayments(order);
     if (req.method === 'GET') return json(res, 200, { items: order.payments, due, paid, remaining: Math.max(0, due - paid) });
-    const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!validPaymentAmount(amount) || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' }); if (orderBalanceConflict({ due, paid: paid + amount })) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const activeShift = shifts.find((shift) => shift.venueId === notificationVenueScope(req, venueDbId) && !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' }); const nextPaid = paid + amount; const closed = moneyCents(nextPaid) >= moneyCents(due); let depletion = null; if (closed) { try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'expired_premix_stock') return json(res, 409, { error: 'expired_premix_stock' }); if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); } } const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', shiftId: activeShift.id, createdAt: new Date().toISOString() }; order.payments.push(payment); if (closed) { order.status = 'closed'; order.closedAt = payment.createdAt; order.closedInShiftId = activeShift.id; order.subtotal = subtotal; order.discountTotal = discount; order.finalTotal = due; order.minimumAdjustment = Math.max(0, Number(order.minimumOrderTotal || 0) - (subtotal - discount)); order.paymentMethod = order.payments.length === 1 ? method : 'mixed'; order.paid = nextPaid; order.remaining = 0; order.costOfGoods = Number(depletion?.totalCost || 0); releaseMemoryTableIfIdle(order.tableId); } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, { ...payment, orderId: order.id, paid: nextPaid, due, closed, costOfGoods: closed ? order.costOfGoods : undefined }); return json(res, 201, { ...payment, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...(closed ? { finalTotal: order.finalTotal, discountTotal: order.discountTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod, costOfGoods: order.costOfGoods } : {}) });
+    const input = await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); if (!validPaymentAmount(amount) || !['cash', 'card', 'qr'].includes(method)) return json(res, 400, { error: 'valid_method_and_amount_required' }); if (orderBalanceConflict({ due, paid: paid + amount })) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' }); const nextPaid = paid + amount; const closed = moneyCents(nextPaid) >= moneyCents(due); let depletion = null; if (closed) { try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'expired_premix_stock') return json(res, 409, { error: 'expired_premix_stock' }); if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); } } const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', shiftId: activeShift.id, createdAt: new Date().toISOString() }; order.payments.push(payment); if (closed) { order.status = 'closed'; order.closedAt = payment.createdAt; order.closedInShiftId = activeShift.id; order.subtotal = subtotal; order.discountTotal = discount; order.finalTotal = due; order.minimumAdjustment = Math.max(0, Number(order.minimumOrderTotal || 0) - (subtotal - discount)); order.paymentMethod = order.payments.length === 1 ? method : 'mixed'; order.paid = nextPaid; order.remaining = 0; order.costOfGoods = Number(depletion?.totalCost || 0); releaseMemoryTableIfIdle(order.tableId); } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, { ...payment, orderId: order.id, paid: nextPaid, due, closed, costOfGoods: closed ? order.costOfGoods : undefined }); return json(res, 201, { ...payment, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...(closed ? { finalTotal: order.finalTotal, discountTotal: order.discountTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod, costOfGoods: order.costOfGoods } : {}) });
   }
   const orderPath = pathname.match(/^\/api\/orders\/([^/]+)\/(summary|close|split|discount-requests)$/);
   if (orderPath && req.method === 'GET' && orderPath[2] === 'summary') {
@@ -4358,7 +4269,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (['closed', 'cancelled'].includes(order.status)) return json(res, 409, { error: 'order_already_final' });
     const input = await body(req); const paymentMethod = String(input.paymentMethod || 'cash'); if (!['cash', 'card', 'qr'].includes(paymentMethod)) return json(res, 400, { error: 'valid_payment_method_required' });
     const total = orderTotal(order); const discount = approvedDiscountTotal(order.id, total); const minimum = Number(order.minimumOrderTotal || 0);
-    const activeShift = shifts.find((shift) => shift.venueId === notificationVenueScope(req, venueDbId) && !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' });
+    const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' });
     const closeBalance = memoryOrderBalance(order); if (orderBalanceConflict(closeBalance)) return json(res, 409, orderBalanceConflictBody(closeBalance));
     let depletion; try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'expired_premix_stock') return json(res, 409, { error: 'expired_premix_stock' }); if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); }
     order.status = 'closed'; order.closedAt = new Date().toISOString(); order.closedInShiftId = activeShift.id; releaseMemoryTableIfIdle(order.tableId); order.subtotal = total; order.discountTotal = discount; order.finalTotal = roundMoney(Math.max(total - discount, minimum)); order.payments ||= []; const alreadyPaid = receivedOrderPayments(order); const remaining = Math.max(0, order.finalTotal - alreadyPaid); if (remaining > 0) order.payments.push({ id: `pay-${Date.now()}`, method: paymentMethod, amount: remaining, status: 'paid', shiftId: activeShift.id, createdAt: order.closedAt }); order.paid = alreadyPaid + remaining; order.remaining = 0; order.minimumAdjustment = Math.max(0, minimum - (total - discount)); order.paymentMethod = paymentMethod; order.costOfGoods = Number(depletion?.totalCost || 0);
@@ -4486,66 +4397,52 @@ function staticFile(req, res) {
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
     '/phone-format.js',
-    ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/notification-center.js', '/header-shell.js', '/admin.js',
-    '/login.js', '/auth-smoke.js', '/auth-smoke.css', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
+    ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
+    '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
-    '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg',
-    '/assets/login-smoke-ambient.png', '/assets/login-smoke-ambient.mp4',
+    '/assets/tabler-icons.svg', '/assets/login-background.mp4',
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
-    '/assets/brand/hookah-pos-lockup-light.svg', '/assets/brand/hookah-pos-lockup-animated.svg',
-    '/assets/brand/hookah-pos-lockup-light-animated.svg', '/assets/brand/manifest.webmanifest',
-    ...['apple-touch-icon-180.png', 'apple-touch-icon-dark-180.png', 'favicon-16.png', 'favicon-32.png', 'favicon-48.png',
-      'favicon.ico', 'favicon.svg', 'mono-black-512.png', 'mono-white-512.png', 'mstile-150.png',
-      'og-image-1200x630.png', 'pwa-192.png', 'pwa-512.png', 'pwa-maskable-512.png', 'safari-pinned-tab.svg']
-      .map(name => `/assets/brand/icons/${name}`),
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
   if (!publicFiles.has(requestPath)) { res.writeHead(404); return res.end('Not found'); }
   if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end(); }
-  const file = path.resolve(root, `.${requestPath}`);
+  const localPreviewFiles = {};
+  const file = path.resolve(root, localPreviewFiles[requestPath] || `.${requestPath}`);
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
   if (relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(404); return res.end('Not found'); }
-  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.ico': 'image/x-icon', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.ttf': 'font/ttf', '.mp4': 'video/mp4' };
-  const extension = path.extname(file);
-  const mime = types[extension] || 'application/octet-stream';
-  const textual = ['.html', '.css', '.js', '.json', '.webmanifest', '.svg'].includes(extension);
-  const headers = { 'Content-Type': mime + (textual ? '; charset=utf-8' : ''), 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.mp4': 'video/mp4', '.ttf': 'font/ttf' };
+  const isVideo = path.extname(file) === '.mp4';
+  const headers = { 'Content-Type': isVideo ? 'video/mp4' : `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
+  if (isVideo) {
+    const size = fs.statSync(file).size;
+    headers['Accept-Ranges'] = 'bytes';
+    headers['Content-Length'] = String(size);
+    const range = req.headers.range;
+    if (range && req.method === 'GET') {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (!match || (!match[1] && !match[2])) {
+        res.writeHead(416, { ...headers, 'Content-Length': '0', 'Content-Range': `bytes */${size}` });
+        return res.end();
+      }
+      const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));
+      const end = match[1] ? (match[2] ? Number(match[2]) : size - 1) : size - 1;
+      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= size) {
+        res.writeHead(416, { ...headers, 'Content-Length': '0', 'Content-Range': `bytes */${size}` });
+        return res.end();
+      }
+      const last = Math.min(end, size - 1);
+      headers['Content-Range'] = `bytes ${start}-${last}/${size}`;
+      headers['Content-Length'] = String(last - start + 1);
+      res.writeHead(206, headers);
+      return fs.createReadStream(file, { start, end: last }).pipe(res);
+    }
+  }
   // The login document contains the initial setup form as a hidden alternative;
   // never let a browser keep an older first-run document after a local release.
   if (requestPath === '/login.html') headers['Cache-Control'] = 'no-store';
-  if (extension === '.mp4') {
-    const size = fs.statSync(file).size;
-    headers['Accept-Ranges'] = 'bytes';
-    headers['Content-Length'] = size;
-    // HEAD describes the full representation. Single byte ranges cover browser
-    // metadata requests and looping without exposing any extra filesystem path.
-    if (req.method === 'GET' && req.headers.range) {
-      const match = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
-      let start = 0, end = size - 1;
-      let valid = Boolean(match && (match[1] || match[2]));
-      if (valid && !match[1]) {
-        const suffix = Number(match[2]);
-        valid = Number.isSafeInteger(suffix) && suffix > 0;
-        start = Math.max(0, size - suffix);
-      } else if (valid) {
-        start = Number(match[1]);
-        end = match[2] ? Number(match[2]) : size - 1;
-        valid = Number.isSafeInteger(start) && Number.isSafeInteger(end) && start <= end && start < size;
-        end = Math.min(end, size - 1);
-      }
-      if (!valid || !size) {
-        res.writeHead(416, { ...headers, 'Content-Range': `bytes */${size}`, 'Content-Length': 0 });
-        return res.end();
-      }
-      res.writeHead(206, { ...headers, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
-      return fs.createReadStream(file, { start, end }).on('error', () => res.destroy()).pipe(res);
-    }
-    res.writeHead(200, headers);
-    return req.method === 'HEAD' ? res.end() : fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
-  }
   res.writeHead(200, headers);
   return res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(file));
 }
