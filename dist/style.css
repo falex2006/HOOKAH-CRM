@@ -2732,3 +2732,6 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 @keyframes authSmokeLightSweep{0%{transform:translate3d(-5%,1%,0) scale(.96)}100%{transform:translate3d(9%,-2%,0) scale(1.1)}}
 @media(max-width:760px){.auth-smoke-texture,.auth-smoke-cold{background-position:42% center}.auth-smoke-texture{opacity:.3}.auth-smoke-vignette{background:linear-gradient(0deg,#0d0f1266 0%,transparent 68%),radial-gradient(ellipse at 50% 45%,transparent 20%,#05060788 100%)}}
 @media(prefers-reduced-motion:reduce){.auth-smoke-texture,.auth-smoke-cold,.auth-smoke-light,.auth-smoke-cold-light{animation:none!important}.auth-smoke-cold,.auth-smoke-cold-light{opacity:0}.auth-smoke-light{opacity:.45;filter:blur(24px)}}
+
+.owner-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.compact-button{padding:8px 12px;font-size:12px}.owner-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 10px;padding:10px 0;border-bottom:1px solid #2b313a}.owner-main{display:grid;gap:3px}.owner-actions{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}.danger-action{color:#ff8998}.owner-main-toggle{display:flex!important;grid-template-columns:auto 1fr;align-items:center;gap:8px}.owner-main-toggle input{width:16px!important;min-height:16px!important}.owner-detail{display:grid;gap:0}
+
