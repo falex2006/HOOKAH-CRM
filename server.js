@@ -4406,7 +4406,8 @@ function staticFile(req, res) {
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
-  if (!publicFiles.has(requestPath)) { res.writeHead(404); return res.end('Not found'); }
+  const isBrandAsset = requestPath.startsWith('/assets/brand/');
+  if (!publicFiles.has(requestPath) && !isBrandAsset) { res.writeHead(404); return res.end('Not found'); }
   if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end(); }
   const localPreviewFiles = {};
   const file = path.resolve(root, localPreviewFiles[requestPath] || `.${requestPath}`);
@@ -4454,4 +4455,6 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
+
+
 
