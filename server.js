@@ -196,7 +196,7 @@ const staffPassportCipher = {
 };const rolePermissions = {
   owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
   admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
-  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'tasks_manage', 'settings', 'loyalty'],
+  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty'],
   senior_bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
   bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],

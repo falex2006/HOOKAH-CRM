@@ -26,7 +26,7 @@ const portalScopedPermissionMap = { loyalty: ['loyalty'], orders: ['orders', 'fl
 const portalBasePermissions = {
   owner: new Set(['dashboard', 'floor', 'loyalty', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery']),
   admin: new Set(['dashboard', 'floor', 'loyalty', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery']),
-  manager: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'tasks_manage', 'settings', 'loyalty']),
+  manager: new Set(['dashboard', 'floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty']),
   bartender: new Set(['dashboard', 'floor', 'orders', 'bar_tasks', 'finance_read']),
   hookah_master: new Set(['dashboard', 'floor', 'orders', 'hookah_tasks', 'finance_read']),
   senior_bartender: new Set(['dashboard', 'floor', 'orders', 'bar_tasks', 'finance_read']),
