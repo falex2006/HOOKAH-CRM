@@ -20,6 +20,8 @@
     "qa:notifications:api": "node scripts/notifications-api-qa.mjs",
     "qa:notifications:browser": "node scripts/notifications-browser-qa.mjs",
     "qa:notifications:postgres": "node scripts/notifications-postgres-qa.mjs",
+    "qa:shifts:notifications": "node scripts/shift-notifications-e2e-qa.mjs",
+    "qa:shifts:state": "node scripts/shift-state-runtime-qa.mjs",
     "db:seed-menu": "node scripts/seed-menu-catalog.js"
   },
   "engines": {

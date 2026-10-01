@@ -1,5 +1,14 @@
 # Рабочий журнал команды
 
+## 2026-10-01 — согласованные смены и уведомления руководителей
+
+- Проверены рабочий зал, главная и финансы; найдено отсутствие событий смены/колокольчика управляющего, несогласованное обновление UI, неатомарный аудит и memory venue isolation. Исправления в server/app/portal и общем notification-center; root/dist синхронны, asset добавлен в server whitelist и Docker COPY. Новых миграций нет.
+- PostgreSQL смена+аудит сохраняются одной транзакцией; строгие суммы, повторные/конкурентные действия, per-venue scope и per-user read receipts проверены. Права управления floor/orders; финансовое чтение без action. UI перечитывает состояние при изменении, ошибке, focus/visibility/visible20s; KPI подписаны на переходы.
+- Memory и выделенная PostgreSQL shift-notifications E2E — PASS, включая audit failure rollback и restart persistence. Shift-state runtime, header-shell, finance-load-race, staff-header-actions — PASS. Профильные shift transaction/cash/concurrency/close/attribution — PASS. Code-health, system architect/frontend/design и finance/backend review приняты; release review обнаружил пропуск нового файла в Docker COPY, исправлено.
+- CUA owner/admin/Roman/manager: реальные формы open/close, cancel, повторное отображение в finance, индивидуальное прочтение. Управляющий открыл в / и закрыл в /admin; header/control/KPI обновились без reload, bell2→3→4, оба события доступны. Актуальный Роман входит под своим именем и не видит руководительский inbox. Proof tmp/shift-qa вне Git/release.
+- Мобильная компоновка/QA остановлены по прямому указанию пользователя; будущая адаптация для телефона отдельным этапом. Проверка не подтверждает production: только локальный пакет, без GitHub/VPS. Реальная касса и основной dirty checkout сохранены. Уведомления внутри CRM; Telegram не реализован, чек-лист закрытия подтверждается вручную. Подробности docs/ai-team/SHIFT_LIFECYCLE_AUDIT.md.
+- Итоговый release review принял Docker COPY. Локальная Docker build PASS, health ok и HTTP200 нового модуля проверены во временном контейнере; временные QA-сервисы/контейнеры после проверки убираются. Static inbox runtime дополнительно подтвердил per-user/per-venue прочтение.
+
 ## 2026-10-01 — единый стиль действий шапки и контекст открытой смены
 
 - Цель: убрать рамки с иконок настроек, блокировки и уведомлений и показать руководителям автора активной смены, сохранив уже выпущенный счётчик непрочитанных уведомлений.

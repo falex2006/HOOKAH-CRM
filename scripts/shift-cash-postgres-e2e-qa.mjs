@@ -12,6 +12,9 @@ const { Client, Pool } = require('pg');
 const setup = new Client({ connectionString: databaseUrl });
 const pool = new Pool({ connectionString: databaseUrl, max: 4 });
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const validShiftCashStart = server.indexOf('const validShiftCash =');
+const validShiftCashEnd = server.indexOf('\n};', validShiftCashStart) + 3;
+const validShiftCashSource = server.slice(validShiftCashStart, validShiftCashEnd);
 const shiftStart = server.indexOf("if (pathname === '/api/shifts' && req.method === 'GET')");
 const shiftEnd = server.indexOf("if (pathname === '/api/venue' && req.method === 'GET')", shiftStart);
 const paymentStart = server.indexOf('const paymentPath = pathname.match(');
@@ -29,7 +32,7 @@ const callShiftApi = async ({ path, method = 'POST', body = {}, role = 'owner' }
   let response;
   const pathname = path;
   const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts','isOperationalEmployee','hasPermission',
-    `return (async()=>{${shiftRoute}})();`)(
+    `${validShiftCashSource}\nreturn (async()=>{${shiftRoute}})();`)(
     pathname, { method, user: { id: userId, name: 'Cash QA', role } }, {}, { pool }, venueId,
     () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {}, [], () => false,
     (_req, permission) => permission === 'finance_read' && ['owner','admin','manager','developer'].includes(role),

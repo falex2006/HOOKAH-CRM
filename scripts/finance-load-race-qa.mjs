@@ -13,8 +13,9 @@ const node = (selector) => {
 const requests = [];
 const api = (url) => new Promise((resolve, reject) => requests.push({ url, resolve, reject }));
 const notices = [];
-const load = new Function('api', 'document', 'window', 'money', 'pluralRu', 'formatRuDate', 'esc', 'displayName', 'drawFinanceChart', 'portalNotice', `${implementation}\nreturn load;`)(
-  api, { querySelector: node, querySelectorAll: () => [] }, {}, String, () => 'заказов', String, String, String, () => {}, (...args) => notices.push(args),
+const portalShiftListeners = new Set();
+const load = new Function('api', 'document', 'window', 'money', 'pluralRu', 'formatRuDate', 'esc', 'displayName', 'drawFinanceChart', 'portalNotice', 'portalShiftListeners', 'refreshPortalShiftState', 'canManagePortalShift', 'adminNavigationAllowed', `${implementation}\nreturn load;`)(
+  api, { querySelector: node, querySelectorAll: () => [] }, {}, String, () => 'заказов', String, String, String, () => {}, (...args) => notices.push(args), portalShiftListeners, () => api('/api/shifts'), () => true, true,
 );
 const initial = load();
 node('#finance-date').value = '2026-09-28';

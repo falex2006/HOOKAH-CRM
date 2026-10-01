@@ -11,6 +11,7 @@ const pages = [
 ];
 const shell = fs.readFileSync('header-shell.js', 'utf8');
 const portal = fs.readFileSync('portal.js', 'utf8');
+const notifications = fs.readFileSync('notification-center.js', 'utf8');
 const css = fs.readFileSync('style.css', 'utf8');
 const server = fs.readFileSync('server.js', 'utf8');
 const lock = fs.readFileSync('lock.js', 'utf8');
@@ -29,19 +30,19 @@ for (const file of ['orders.html', 'delivery.html', 'integrations.html']) {
 
 assert.match(shell, /header\.dataset\.shellReady = 'true'/, 'header normalization is idempotent');
 assert.match(shell, /bell\.setAttribute\('aria-label', 'Уведомления'\)/, 'bell has one accessible meaning');
-assert.match(portal, /notificationBell\?\.setAttribute\('aria-controls', 'notification-panel'\)/, 'bell controls the notification tray');
-assert.match(portal, /notificationPanel\.setAttribute\('role', 'dialog'\)/, 'notification tray has dialog semantics');
+assert.match(notifications, /notificationBell\?\.setAttribute\('aria-controls', 'notification-panel'\)/, 'bell controls the notification tray');
+assert.match(notifications, /notificationPanel\.setAttribute\('role', 'dialog'\)/, 'notification tray has dialog semantics');
 assert.match(shell, /shift\.dataset\.shiftState = 'loading'/, 'shift starts in a truthful loading state');
 assert.match(shell, /actions\.replaceChildren\(\.\.\.ordered\)/, 'header actions use one predictable order');
-assert.match(portal, /api\(`\/api\/notifications\?limit=20&filter=\$\{notificationFilter\}`\)/, 'tray loads its list and unread count from one server endpoint');
-assert.match(portal, /api\(`\/api\/notifications\/\$\{encodeURIComponent\(id\)\}\/read`, \{ method: 'PUT' \}\)/, 'single notification read state is saved on the server');
-assert.match(portal, /api\('\/api\/notifications', \{ method: 'POST' \}\)/, 'mark-all read is a server action');
-assert.doesNotMatch(portal, /territory_crm_seen_(?:manager|discount)_notifications/, 'read state is not stored in shared browser-local keys');
-assert.match(portal, /notificationChannel\?\.addEventListener\('message'/, 'read updates refresh other tabs');
+assert.ok(notifications.includes('api(`/api/notifications?limit=20&filter=${notificationFilter}`'), 'tray loads its list and unread count from one server endpoint');
+assert.ok(notifications.includes('api(`/api/notifications/${encodeURIComponent(id)}/read`'), 'single notification read state is saved on the server');
+assert.ok(notifications.includes("api('/api/notifications', { method: 'POST'"), 'mark-all read is a server action');
+assert.doesNotMatch(notifications, /territory_crm_seen_(?:manager|discount)_notifications/, 'read state is not stored in shared browser-local keys');
+assert.match(notifications, /notificationChannel\?\.addEventListener\('message'/, 'read updates refresh other tabs');
 assert.match(server, /notification_reads/, 'server persists per-user read receipts');
 assert.match(server, /req\.user\.id, notificationId/, 'single-read API binds state to authenticated session user');
 assert.match(server, /venue_id=\$1 AND d\.status='requested'/, 'notification source queries are scoped to active venue');
-assert.match(portal, /event\.key === 'Escape'[\s\S]*?closeNotificationPanel\(\)/, 'Escape closes the tray and returns focus');
+assert.match(notifications, /event\.key === 'Escape'[\s\S]*?closeNotificationPanel\(\)/, 'Escape closes the tray and returns focus');
 assert.match(css, /prefers-reduced-motion:reduce\).*notification-panel/, 'tray respects reduced-motion preference');
 assert.match(css, /\.notification-panel\{position:fixed/, 'notification tray is positioned independently from page flow');
 assert.match(css, /@media\(max-width:768px\)\{[\s\S]*?\.notification-panel\{inset:0/, 'tablet and mobile tray uses a full-screen surface');
@@ -52,8 +53,8 @@ assert.match(css, /\.velora-theme \.portal-header \.header-right > \.notificatio
 assert.match(css, /\.velora-theme \.portal-header \.header-right > \.notification-bell:focus-visible[\s\S]*?outline:2px solid #ff9a8f/, 'borderless actions retain a visible keyboard focus ring');
 assert.match(lock, /stroke="currentColor"/, 'lock glyph inherits the shared icon color');
 assert.doesNotMatch(lock, /stroke="#ff7a83"|color:#ff7a83!important/, 'lock glyph does not keep its old red accent');
-assert.match(server, /canSeeShiftOpener[\s\S]*?LEFT JOIN users u ON u\.id=s\.opened_by AND u\.venue_id=s\.venue_id/, 'shift opener identity is joined within the same venue');
-assert.match(portal, /Смена открыта\$\{openedByName \? ` · \$\{openedByName\}` : ''\}/, 'open shift status includes opener when the API provides one');
+assert.match(server, /canSeeShiftOpener[\s\S]*?LEFT JOIN users u ON u\.id=s\.opened_by AND \(u\.venue_id=s\.venue_id OR u\.organization_id=/, 'shift opener identity is joined within the same venue or organization');
+assert.match(portal, /Смена открыта\$\{name\?` · \$\{name\}`:''\}/, 'open shift status includes opener when the API provides one');
 assert.match(css, /Shared CRM top bar contract/, 'header rules are documented as the final shared contract');
 assert.match(css, /\.velora-theme \.portal-header \.header-right>\.notification-bell[^}]*flex:0 0 44px;width:44px;height:44px/, 'portal actions keep equal desktop hit targets');
 assert.match(css, /@media\(max-width:760px\)[\s\S]*?\.header-shift-status\{display:inline-block;max-width:clamp\(72px,22vw,140px\);font-size:11px\}/, 'compact header keeps shift status visible within a bounded width');

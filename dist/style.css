@@ -2725,7 +2725,7 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .staff-theme .staff-header-user>#lock-settings-button,.staff-theme .staff-header-user>#lock-screen-button{width:44px;min-width:44px;height:44px;min-height:44px;padding:0;margin:0;border:0!important;background:transparent!important;box-shadow:none!important;color:#c1c8d0}
 .staff-theme .staff-header-user>#lock-settings-button:hover,.staff-theme .staff-header-user>#lock-screen-button:hover{color:#f3f5f7}
 .staff-theme .staff-header-user>#lock-settings-button:focus-visible,.staff-theme .staff-header-user>#lock-screen-button:focus-visible{outline:2px solid #ff9a8f;outline-offset:-2px}
-@media(max-width:1000px){.staff-theme .staff-header-toolbar .staff-header-date{display:none}}
+@media(max-width:1100px){.staff-theme .staff-header-toolbar .staff-header-date{display:none}}
 @media(max-width:900px){.staff-theme .staff-header-toolbar .staff-header-copy{display:none}}
 @media(max-width:650px){.staff-theme main>header{gap:6px;min-height:96px}.staff-theme main>header>.staff-header-title{flex:1 1 100%}.staff-theme .staff-header-toolbar{flex:1 1 100%;justify-content:space-between;gap:8px}.staff-theme .staff-header-toolbar>.staff-header-user{flex:0 0 auto;gap:0}.staff-theme .staff-header-toolbar>.shift-control{padding:0 8px;gap:6px}}
 @media(max-width:480px){.staff-theme .shift-control>.shift-state-label{display:none}.staff-theme .shift-control>.shift-action-label{display:inline;color:#f3f5f7;padding:0;border:0}.staff-theme .shift-control[data-shift-state="loading"]>.shift-action-label,.staff-theme .shift-control[data-shift-state="saving"]>.shift-action-label{display:inline}}
@@ -2741,3 +2741,9 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .portal-sidebar .brand>.hookah-pos-brand,.platform-sidebar .brand>.hookah-pos-brand{display:block;flex:0 1 auto;width:min(190px,100%);max-width:100%;min-width:0;height:auto;max-height:61px;aspect-ratio:200/64}
 .portal-sidebar .hookah-pos-brand img,.platform-sidebar .hookah-pos-brand img{display:block;width:100%;height:100%;max-width:100%;object-fit:contain;object-position:left center}
 @media(max-width:900px){.portal-sidebar .brand>.hookah-pos-brand,.platform-sidebar .brand>.hookah-pos-brand{width:min(42px,100%);height:40px;max-height:40px;aspect-ratio:auto}.portal-sidebar .hookah-pos-brand img,.platform-sidebar .hookah-pos-brand img{object-position:center}}
+
+/* Management roles keep the same notification center in the staff shell. */
+.staff-theme .staff-header-user>.notification-bell{position:relative;flex:0 0 44px;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:10px;background:transparent;color:#aeb8c4;display:inline-flex;align-items:center;justify-content:center}
+.staff-theme .staff-header-user>.notification-bell:hover{background:#ffffff09;color:#e7edf6}
+.staff-theme .staff-header-user>.notification-bell:focus-visible{outline:2px solid #ff9a8f;outline-offset:2px}
+.staff-theme .staff-header-user>.notification-bell .icon{width:18px;height:18px}

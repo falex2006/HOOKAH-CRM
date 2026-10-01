@@ -6,6 +6,10 @@ const start = source.indexOf("if (pathname === '/api/shifts' && req.method === '
 const end = source.indexOf("if (pathname === '/api/venue' && req.method === 'GET')", start);
 assert.ok(start >= 0 && end > start, 'shift open/close API block is available');
 const block = source.slice(start, end);
+const validShiftCashStart = source.indexOf('const validShiftCash =');
+const validShiftCashEnd = source.indexOf('\n};', validShiftCashStart) + 3;
+const validShiftCashSource = source.slice(validShiftCashStart, validShiftCashEnd);
+assert.match(validShiftCashSource, /const validShiftCash/);
 const shiftId = '33333333-3333-4333-8333-333333333333';
 
 const makePool = ({ active = false, unresolvedLegacyCashCount = 0, unresolvedLegacyCashAmount = 0, attributedCashAmount = 300 } = {}) => {
@@ -17,6 +21,7 @@ const makePool = ({ active = false, unresolvedLegacyCashCount = 0, unresolvedLeg
     if (normalized === 'BEGIN' || normalized === 'COMMIT' || normalized === 'ROLLBACK' || normalized.startsWith('SELECT pg_advisory_xact_lock')) return { rows: [] };
     if (normalized.startsWith('SELECT id FROM shifts WHERE venue_id=') && normalized.includes('LIMIT 1 FOR UPDATE')) return { rows: state.active ? [{ id: shiftId }] : [] };
     if (normalized.startsWith('INSERT INTO shifts')) { state.active = true; state.inserted = true; return { rows: [{ id: shiftId, openedAt: '2026-09-27T10:00:00Z', closedAt: null, openingCash: params[2], closingCash: null }] }; }
+    if (normalized.startsWith('INSERT INTO audit_events')) { state.audits.push({ action: params[2], id: params[3], after: params[4] }); return { rows: [] }; }
     if (normalized.startsWith('SELECT id,venue_id,opening_cash AS')) return { rows: state.active && !state.closed ? [{ id: shiftId, venue_id: params[1], openingCash: '1000', openedAt: '2026-09-27T10:00:00Z' }] : [] };
     if (normalized.startsWith('SELECT COUNT(*)::int AS count, COALESCE(SUM(p.amount),0) AS amount')) return { rows: [{ count: unresolvedLegacyCashCount, amount: String(unresolvedLegacyCashAmount) }] };
     if (normalized.startsWith('SELECT COALESCE(SUM(p.amount),0)')) return { rows: [{ amount: String(attributedCashAmount) }] };
@@ -28,7 +33,7 @@ const makePool = ({ active = false, unresolvedLegacyCashCount = 0, unresolvedLeg
 
 const run = async ({ db, pathname, payload }) => {
   const req = { method: 'POST', user: { id: '11111111-1111-4111-8111-111111111111', name: 'QA' } };
-  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts', `return (async()=>{${block}})();`)(
+  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts', `${validShiftCashSource}\nreturn (async()=>{${block}})();`)(
     pathname, req, {}, { pool: db.pool }, '22222222-2222-4222-8222-222222222222', () => false, async () => payload,
     (_res, status, data) => ({ status, data }), (_req, action, _type, id, before, after) => db.state.audits.push({ action, id, before, after }), [],
   );
