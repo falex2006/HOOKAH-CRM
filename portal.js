@@ -282,19 +282,21 @@ const normalizeManagementSidebar = () => {
     if (!adminNav) { adminNav = document.createElement('nav'); adminNav.className = 'portal-nav staff-nav'; adminNav.dataset.staffNav = ''; adminLabel.after(adminNav); }
     const adminLinks = [
       { href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'id-badge' },
+      { href: '/admin#staff', permission: 'staff_manage', label: 'Роли и права', iconName: 'shield-lock' },
       { href: '/admin#tasks', permission: 'orders', label: 'Задачи', iconName: 'list-check' },
       { href: '/admin#loyalty', permission: 'loyalty', label: 'Система лояльности', iconName: 'gift' },
-      { href: '/admin#settings', permission: 'settings', label: 'Настройки', iconName: 'settings' },
+      { href: '/admin#company', permission: 'settings', label: 'Заведение', iconName: 'building-store' },
+      { href: '/admin#settings-dashboard-modules', permission: 'settings', label: 'Интерфейс', iconName: 'layout-dashboard' },
+      { href: '/admin#lock-security', permission: 'settings', label: 'Безопасность', iconName: 'lock' },
+      { href: '/admin#audit', permission: 'settings', label: 'Журнал действий', iconName: 'history' },
       { href: '/integrations', permission: 'integrations', label: 'Telegram', iconName: 'send' },
       { href: '/network', permission: 'settings', label: 'Моя сеть', iconName: 'building' },
       { href: '/admin#diagnostics', permission: 'diagnostics', label: 'Диагностика', iconName: 'alert-triangle' },
     ];
-    adminLinks.forEach((item) => {
-      let link = adminNav.querySelector(`a[href="${item.href}"]`);
-      if (!link) { link = makeLink(item); adminNav.append(link); }
-      else { link.dataset.permission = item.permission; link.innerHTML = `${iconMarkup(item.iconName)}<span>${item.label}</span>`; }
-    });
-    adminLinks.forEach((item) => { const link = adminNav.querySelector(`a[href="${item.href}"]`); if (link) adminNav.append(link); });
+    // Rebuild this small administrative list from one canonical definition.
+    // This prevents duplicate or stale links left by older page templates and
+    // allows two useful entries to share the staff screen (#staff).
+    adminNav.replaceChildren(...adminLinks.map((item) => makeLink(item)));
     // Keep the sidebar calm: team actions and system configuration are
     // expandable groups while daily operations remain visible.
     const existingGroups = sidebar.querySelector(':scope > .sidebar-nav-groups');
@@ -305,11 +307,11 @@ const normalizeManagementSidebar = () => {
         const saved = savedGroupState(key); details.open = saved === null ? defaultGroupOpen(key) : saved;
         const summary = document.createElement('summary'); summary.setAttribute('aria-label', label); summary.title = label; summary.innerHTML = `${iconMarkup(key === 'team' ? 'users' : 'settings')}<span>${label}</span>`; details.append(summary);
         const nav = document.createElement('nav'); nav.className = 'portal-nav staff-nav'; nav.dataset.staffNav = '';
-        hrefs.forEach((href) => { const link = adminNav.querySelector(`a[href="${href}"]`); if (link) nav.append(link); });
+        hrefs.forEach((href) => { adminNav.querySelectorAll(`a[href="${href}"]`).forEach((link) => nav.append(link)); });
         details.append(nav); rememberGroupState(details, key); return details;
       };
       groupRoot.append(makeGroup('Команда', ['/admin#staff', '/admin#tasks'], 'team'));
-      groupRoot.append(makeGroup('Система', ['/admin#loyalty', '/admin#settings', '/integrations', '/network', '/admin#diagnostics'], 'system'));
+      groupRoot.append(makeGroup('Система', ['/admin#loyalty', '/admin#company', '/admin#settings-dashboard-modules', '/admin#lock-security', '/admin#audit', '/integrations', '/network', '/admin#diagnostics'], 'system'));
       adminLabel.replaceWith(groupRoot); adminNav.remove();
     }
     // After the first grouping pass, subsequent hash navigation must not
