@@ -6,7 +6,7 @@ const portal = fs.readFileSync('portal.js', 'utf8');
 const style = fs.readFileSync('style.css', 'utf8');
 const titleMap = portal.match(/const adminSectionTitles = \{([^}]+)\}/)?.[1] || '';
 const greeting = portal.match(/function updateDashboardGreeting\(\) \{([^}]+)\}/)?.[1] || '';
-const staffBranchStart = portal.indexOf("} else if (dashboardFocus === 'staff') {");
+const staffBranchStart = portal.indexOf("} else if (dashboardFocus === 'staff' || dashboardFocus === 'permissions') {");
 const staffBranchEnd = portal.indexOf("} else if (dashboardFocus === 'company') {", staffBranchStart);
 const staffBranch = portal.slice(staffBranchStart, staffBranchEnd);
 
@@ -20,8 +20,8 @@ assert.match(portal, /window\.addEventListener\('hashchange', updateAdminSection
   'admin top bar title updates when the selected subsection changes');
 assert.ok(/window\.location\.hash && window\.location\.hash !== '#'/.test(greeting) || /stable title; no recurring greeting/.test(greeting),
   'dashboard greeting must not overwrite a subsection heading or reappear as a recurring flash');
-assert.match(staffBranch, /staffTitle\.textContent = 'Сотрудники'/,
-  'staff subsection page heading remains explicit');
+assert.match(staffBranch, /staffTitle\.textContent = dashboardFocus === 'permissions' \? 'Роли и права доступа' : 'Сотрудники'/,
+  'staff and permissions subsection headings remain explicit');
 assert.ok(staffBranch.includes(`setDashboardPanelVisibility('[data-dashboard-module="kpi"]`),
   'staff subsection hides both the KPI cards and their separate heading');
 assert.match(portal, /dashboard-live-heading" data-dashboard-module="kpi"/,
