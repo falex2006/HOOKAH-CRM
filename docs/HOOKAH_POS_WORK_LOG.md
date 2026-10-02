@@ -18,3 +18,5 @@
 - Не менять сервер, IP, production, закреплённые порты или Docker volume без отдельного разрешения.
 - Не смешивать POS-коммиты с SaaS-файлами.
 - Для изменений меню проверять структуру, одну раскрытую группу, маршруты, права, мобильность, клавиатуру и source/dist parity.
+
+- Playwright QA стабилизирован локально: POS browser-скрипты принимают PLAYWRIGHT_EXECUTABLE_PATH; проверены sidebar preference QA и responsive emulator (19 размеров, 3 маршрута) на установленном Chromium 1243. Коммит d2de5cba.
