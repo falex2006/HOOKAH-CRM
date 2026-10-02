@@ -2036,10 +2036,13 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .auto-order-explainer p{margin:0;color:var(--text-muted,#9299a6);font-size:13px;line-height:1.5}
 .velora-theme .auto-order-table-wrap{margin-top:4px}
 .velora-theme .auto-order-table-wrap table{min-width:900px}
+.velora-theme .auto-order-table-wrap th,.velora-theme .auto-order-table-wrap td{font-family:var(--font-ui);font-size:13px;line-height:1.25;vertical-align:middle}
+.velora-theme .auto-order-table-wrap tbody tr{height:58px}
 .velora-theme .auto-order-check-col{width:42px;text-align:center}
 .velora-theme .auto-order-check-col input{width:17px;height:17px;accent-color:#ff5b70}
 .velora-theme .auto-order-table-wrap td small{display:block;margin-top:4px;color:var(--text-muted,#9299a6);font-size:12px}
-.velora-theme .auto-order-quantity{width:112px;min-height:36px;padding:7px 9px}
+.velora-theme .auto-order-quantity{box-sizing:border-box;width:112px;height:40px;min-height:40px;padding:0 10px;border:1px solid #46515e;border-radius:9px;background:#11151a;color:#eef1f4;font:500 13px/1.2 var(--font-ui);text-align:left;vertical-align:middle}
+.velora-theme .auto-order-quantity:focus{border-color:#ff6372;outline:0;box-shadow:0 0 0 3px #ff63721c}
 .velora-theme .auto-order-note{margin:12px 0 0;font-size:12px}
 .velora-theme .auto-order-empty{padding:35px 20px}
 .velora-theme .auto-order-empty strong{display:block;color:var(--text-strong,#f3f4f6);margin-bottom:5px}
