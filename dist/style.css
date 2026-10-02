@@ -3225,7 +3225,7 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .velora-theme #product-category-form:not([hidden])>label:nth-of-type(3){grid-column:1/-1!important}
 .velora-theme #product-category-form:not([hidden])>label:nth-of-type(3) input{width:100%;box-sizing:border-box}
 .velora-theme #product-category-form:not([hidden]) .toolbar-row{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin-top:2px}
-.velora-theme #product-category-form:not([hidden]) .toolbar-row>button{min-height:46px;padding:0 22px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;font:inherit;font-size:16px;font-weight:700;line-height:1;white-space:nowrap}
+.velora-theme #product-category-form:not([hidden]) .toolbar-row>button{height:46px;min-height:46px;margin:0;padding:0 22px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;transform:none!important;font:inherit;font-size:16px;font-weight:700;line-height:1;white-space:nowrap}
 .velora-theme #product-category-form:not([hidden]) .toolbar-row>#delete-product-category{border:1px solid rgba(255,113,128,.5);border-radius:10px;background:rgba(100,34,45,.16);color:#ff8c99}
 .velora-theme #product-category-form:not([hidden]) .form-message{grid-column:1/-1}
 .velora-theme:has(#product-category-form:not([hidden]))::after{content:'';position:fixed;z-index:1001;inset:0;background:rgba(4,7,11,.72);backdrop-filter:blur(3px);pointer-events:none}
