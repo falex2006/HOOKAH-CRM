@@ -1,4 +1,4 @@
-@font-face{font-family:Manrope;src:url('/assets/fonts/manrope-400.ttf') format('truetype');font-weight:400;font-style:normal;font-display:block}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}@font-face{font-family:Manrope;src:url('/assets/fonts/manrope-400.ttf') format('truetype');font-weight:400;font-style:normal;font-display:block}
 @font-face{font-family:Manrope;src:url('/assets/fonts/manrope-500.ttf') format('truetype');font-weight:500;font-style:normal;font-display:block}
 @font-face{font-family:Manrope;src:url('/assets/fonts/manrope-600.ttf') format('truetype');font-weight:600;font-style:normal;font-display:block}
 @font-face{font-family:Manrope;src:url('/assets/fonts/manrope-700.ttf') format('truetype');font-weight:700;font-style:normal;font-display:block}
@@ -20,8 +20,8 @@
 .visual-catalog-panel{margin-top:20px}.visual-catalog{display:grid;grid-template-columns:repeat(6,minmax(130px,1fr));gap:13px}.visual-product{border:1px solid #e2ebef;border-radius:11px;padding:10px;display:grid;gap:7px}.visual-product-image{height:105px;border-radius:8px;background:#eaf2f5;display:grid;place-items:center;text-align:center;color:#8aa0aa;font-size:12px;overflow:hidden}.visual-product-image img{width:100%;height:100%;object-fit:cover}.visual-product b{font-size:13px;color:#1f3d4a}.visual-product small{color:#ff7180}.upload-button{display:block;text-align:center;padding:7px;border-radius:7px;background:#e8f7fb;color:#d97868;font-size:11px;cursor:pointer}.product{display:grid;gap:8px}.product img,.product-placeholder{width:100%;height:78px;object-fit:cover;border-radius:7px;background:#304b57;display:grid;place-items:center;color:#ff7180;font-size:23px}.product span{line-height:1.25}@media(max-width:1100px){.visual-catalog{grid-template-columns:repeat(4,minmax(130px,1fr))}}@media(max-width:650px){.visual-catalog{grid-template-columns:repeat(2,minmax(120px,1fr))}}
 
 /* Velora-inspired dark operations theme */
-.velora-theme{background:#0d0f12;color:#f5f7f8;font-family:var(--font-ui)}.velora-theme .portal-app{background:#0d0f12}.velora-theme .portal-sidebar{width:244px;background:#17191d;color:#b8bec7;border-right:1px solid #2a2d33;padding:26px 16px}.velora-theme .brand{padding:0 10px 34px}.velora-theme .brand b{color:#f7f8fa;letter-spacing:-.02em}.velora-theme .brand small{color:#777e89}.velora-theme .brand-icon{width:38px;height:38px;border-radius:12px;background:linear-gradient(145deg,#ff4f65,#ff9b3d);box-shadow:0 6px 18px #ff5b5228}.velora-theme .portal-sidebar > .side-label:first-of-type{display:none!important}.velora-theme .side-label{color:#6d737e;letter-spacing:.16em}
-.velora-theme .portal-sidebar > .side-label:first-of-type{display:none!important}.velora-theme .side-label{padding-left:13px;padding-right:13px;line-height:1.2}.velora-theme .portal-nav{gap:6px}.velora-theme .portal-nav a{color:#aeb4bd;border-radius:12px;padding:12px 13px}.velora-theme .portal-nav a:hover:not(.active){background:#24272d;color:#fff}.velora-theme .portal-nav a.active{background:linear-gradient(100deg,#ff4164,#ff963d) !important;color:#fff;box-shadow:0 8px 18px #ff5b4c25}.velora-theme .sidebar-footer{border-top-color:#2b2e35;color:#707782}.velora-theme .sidebar-footer b{color:#dfe2e6}.velora-theme .portal-main{background:radial-gradient(circle at 84% -10%,#26303a 0,#111418 34%,#0d0f12 68%)}.velora-theme .portal-header{height:78px;background:#111317cc;border-bottom:1px solid #292c33;color:#bbc1ca;padding:0 42px;backdrop-filter:blur(14px)}.velora-theme .muted{color:#9aa3ae}.velora-theme .live-dot{color:#63e2ad}.velora-theme .avatar{background:linear-gradient(145deg,#ff4569,#ff963e);box-shadow:0 0 0 3px #292d36}.velora-theme .portal-content{max-width:1500px;padding:40px 42px}.velora-theme .eyebrow{color:#7c838e}.velora-theme .page-title h1{color:#f7f8fa;font-size:34px;letter-spacing:-.035em}.velora-theme .page-title .muted{color:#878e99}.velora-theme .kpi-grid{gap:14px}.velora-theme .kpi{position:relative;overflow:hidden;background:linear-gradient(145deg,#1c1f24,#17191d);border:1px solid #2b2f36;border-radius:16px;box-shadow:0 14px 34px #00000028;padding:20px}.velora-theme .kpi:after{content:"";position:absolute;right:-28px;bottom:-44px;width:100px;height:100px;border-radius:50%;background:radial-gradient(circle,#ff5b6d30,transparent 67%)}.velora-theme .kpi span{color:#8d949e}.velora-theme .kpi strong{color:#f7f8fa;font-size:31px;letter-spacing:-.04em}.velora-theme .kpi small{color:#8d96a1}.velora-theme .kpi small.positive{color:#57dfa8}.velora-theme .panel{background:linear-gradient(145deg,#1b1e23,#17191d);border:1px solid #2a2e35;border-radius:16px;box-shadow:0 14px 34px #00000028;color:#e8ebee}.velora-theme .panel h2{color:#f3f5f7}
+.velora-theme{background:#0d0f12;color:#f5f7f8;font-family:var(--font-ui)}.velora-theme .portal-app{background:#0d0f12}.velora-theme .portal-sidebar{width:244px;background:#17191d;color:#b8bec7;border-right:1px solid #2a2d33;padding:26px 16px}.velora-theme .brand{padding:0 10px 34px;justify-content:center}.velora-theme .brand b{color:#f7f8fa;letter-spacing:-.02em}.velora-theme .brand small{color:#777e89}.velora-theme .brand-icon{width:38px;height:38px;border-radius:12px;background:linear-gradient(145deg,#ff4f65,#ff9b3d);box-shadow:0 6px 18px #ff5b5228}.velora-theme .portal-sidebar > .side-label:first-of-type{display:none!important}.velora-theme .side-label{color:#6d737e;letter-spacing:.16em}
+.velora-theme .portal-sidebar > .side-label:first-of-type{display:none!important}.velora-theme .side-label{padding-left:13px;padding-right:13px;line-height:1.2}.velora-theme .portal-nav{gap:6px}.velora-theme .portal-nav a{color:#aeb4bd;border-radius:12px;padding:12px 13px;transition:background-color .22s ease,color .22s ease,box-shadow .22s ease,transform .22s ease}.velora-theme .portal-nav a:hover:not(.active){background:#24272d;color:#fff;transform:translateX(2px)}.velora-theme .portal-nav a.active{background:linear-gradient(100deg,#ff4164,#ff963d) !important;color:#fff;box-shadow:0 8px 18px #ff5b4c25}.velora-theme .sidebar-footer{border-top-color:#2b2e35;color:#707782}.velora-theme .sidebar-footer b{color:#dfe2e6}.velora-theme .portal-main{background:radial-gradient(circle at 84% -10%,#26303a 0,#111418 34%,#0d0f12 68%)}.velora-theme .portal-header{height:78px;background:#111317cc;border-bottom:1px solid #292c33;color:#bbc1ca;padding:0 42px;backdrop-filter:blur(14px)}.velora-theme .muted{color:#9aa3ae}.velora-theme .live-dot{color:#63e2ad}.velora-theme .avatar{background:linear-gradient(145deg,#ff4569,#ff963e);box-shadow:0 0 0 3px #292d36}.velora-theme .portal-content{max-width:1500px;padding:40px 42px}.velora-theme .eyebrow{color:#7c838e}.velora-theme .page-title h1{color:#f7f8fa;font-size:34px;letter-spacing:-.035em}.velora-theme .page-title .muted{color:#878e99}.velora-theme .kpi-grid{gap:14px}.velora-theme .kpi{position:relative;overflow:hidden;background:linear-gradient(145deg,#1c1f24,#17191d);border:1px solid #2b2f36;border-radius:16px;box-shadow:0 14px 34px #00000028;padding:20px}.velora-theme .kpi:after{content:"";position:absolute;right:-28px;bottom:-44px;width:100px;height:100px;border-radius:50%;background:radial-gradient(circle,#ff5b6d30,transparent 67%)}.velora-theme .kpi span{color:#8d949e}.velora-theme .kpi strong{color:#f7f8fa;font-size:31px;letter-spacing:-.04em}.velora-theme .kpi small{color:#8d96a1}.velora-theme .kpi small.positive{color:#57dfa8}.velora-theme .panel{background:linear-gradient(145deg,#1b1e23,#17191d);border:1px solid #2a2e35;border-radius:16px;box-shadow:0 14px 34px #00000028;color:#e8ebee}.velora-theme .panel h2{color:#f3f5f7}
 /* Cosmetic polish: consistent rhythm, controls and empty states across portal screens. */
 .velora-theme .panel-head h2,.velora-theme .panel-head h3{line-height:1.2;letter-spacing:-.015em}
 .velora-theme .muted{line-height:1.45}
@@ -1100,10 +1100,16 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
   align-items:center;
   gap:9px;
   padding:0 12px 8px;
-  line-height:20px;
+  line-height:20px;;font-size:15px;font-weight:700;
 }
 .velora-theme .portal-sidebar .sidebar-nav-group>summary .icon{width:18px;height:18px;flex:0 0 16px;color:#8d949e}
 .velora-theme .portal-sidebar .sidebar-nav-group>summary::after{float:none;margin-left:auto}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary{border-radius:12px;color:#aeb4bd;transition:background-color .22s ease,color .22s ease,box-shadow .22s ease}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary:hover{background:#24272d;color:#fff}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary:focus-visible,.velora-theme .portal-nav a:focus-visible{outline:2px solid #ff8b72;outline-offset:2px;box-shadow:none}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary.has-active-child{color:#f0f2f4}
+.velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a:hover:not(.active){box-shadow:none}
+.velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a.active{transform:none}
 .velora-theme .portal-sidebar .sidebar-nav-group .portal-nav{
   flex:0 0 auto;
   gap:6px;
@@ -1115,7 +1121,7 @@ body[data-page="clients"] #client-form>label{gap:6px;font-size:12px;color:#a8b0b
   gap:0;
   padding:0 13px 0 37px;
   line-height:1.25;
-  font-size:15px;
+  font-size:14px;
 }
 .velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a>.icon{display:none}
 
@@ -2725,6 +2731,12 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .velora-theme .portal-sidebar .sidebar-nav-group>summary{display:flex;align-items:center;gap:11px;min-height:46px;height:46px;box-sizing:border-box;padding:0 13px;color:#aeb4bd;font-size:13px;line-height:17px;letter-spacing:.04em;font-weight:600}
 .velora-theme .portal-sidebar .sidebar-nav-group>summary>.icon{width:18px;height:18px;flex:0 0 18px}
 .velora-theme .portal-sidebar .sidebar-nav-group>summary::after{float:none;margin-left:auto}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary{border-radius:12px;color:#aeb4bd;transition:background-color .22s ease,color .22s ease,box-shadow .22s ease}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary:hover{background:#24272d;color:#fff}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary:focus-visible,.velora-theme .portal-nav a:focus-visible{outline:2px solid #ff8b72;outline-offset:2px;box-shadow:none}
+.velora-theme .portal-sidebar .sidebar-nav-group>summary.has-active-child{color:#f0f2f4}
+.velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a:hover:not(.active){box-shadow:none}
+.velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a.active{transform:none}
 
 /* Nested sidebar links use the same type scale as primary navigation. */
 .velora-theme .portal-sidebar .sidebar-nav-group .portal-nav a{font-size:14px;line-height:17.5px;font-weight:400}
@@ -2849,3 +2861,18 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .portal.light-theme .staff-admin-pin-state{color:#16734c}
 .portal.light-theme .staff-admin-pin>small,.portal.light-theme .staff-admin-pin-grid label,.portal.light-theme .staff-admin-passport-grid label{color:#526171}
 
+
+/* Codex desktop preview: use ?desktop=1 when the embedded browser viewport is narrow. */
+@media (max-width:900px){
+  html.desktop-preview .portal-sidebar{width:244px!important;min-width:244px!important;padding:26px 16px!important;position:sticky!important;top:0!important;transform:none!important;visibility:visible!important;}
+  html.desktop-preview .portal-sidebar .brand{justify-content:center!important;padding:0 10px 34px!important;}
+  html.desktop-preview .portal-sidebar .brand div,
+  html.desktop-preview .portal-sidebar .side-label,
+  html.desktop-preview .portal-sidebar .portal-nav span,
+  html.desktop-preview .portal-sidebar .sidebar-footer{display:block!important;}
+  html.desktop-preview .portal-sidebar .portal-nav a{width:auto!important;height:auto!important;justify-content:flex-start!important;padding:12px 13px!important;font-size:14px!important;}
+  html.desktop-preview .portal-sidebar .sidebar-nav-group .portal-nav a{padding:0 13px 0 37px!important;min-height:46px!important;}
+  html.desktop-preview .sidebar-mobile-toggle,
+  html.desktop-preview .sidebar-backdrop{display:none!important;}
+  html.desktop-preview .portal-main{min-width:0!important;}
+}

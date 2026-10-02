@@ -1,4 +1,7 @@
 if (!localStorage.getItem('crm_session_token')) { window.location.replace('/login'); throw new Error('authentication_required'); }
+const desktopPreviewParam = new URLSearchParams(window.location.search).get('desktop');
+const desktopPreview = desktopPreviewParam === '1' || (desktopPreviewParam !== '0' && localStorage.getItem('hookah_pos_desktop_preview') === '1');
+if (desktopPreview) document.documentElement.classList.add('desktop-preview');
 let portalUser = {};
 try { portalUser = JSON.parse(localStorage.getItem('crm_session_user') || '{}'); if (!['owner', 'admin', 'developer', 'manager', 'bartender', 'hookah_master', 'senior_bartender', 'senior_hookah_master', 'cleaner', 'security', 'technician', 'other_staff', 'staff'].includes(portalUser.role)) { window.location.replace('/'); throw new Error('portal_permission_required'); }  } catch (error) { if (error.message === 'portal_permission_required' || error.message === 'developer_dashboard_redirect') throw error; }
 const compressUploadedImage = (file, maxSide = 256) => new Promise((resolve, reject) => { const reader = new FileReader(); reader.onerror = reject; reader.onload = () => { const image = new Image(); image.onerror = reject; image.onload = () => { const sourceWidth = image.naturalWidth || image.width; const sourceHeight = image.naturalHeight || image.height; const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight)); const canvas = document.createElement('canvas'); canvas.width = Math.max(1, Math.round(sourceWidth * scale)); canvas.height = Math.max(1, Math.round(sourceHeight * scale)); canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); resolve(canvas.toDataURL('image/webp', 0.78)); }; image.src = String(reader.result || ''); }; reader.readAsDataURL(file); });
@@ -366,8 +369,18 @@ const normalizeManagementSidebar = () => {
   mainNav.after(disclosureRoot);
   disclosureRoot.replaceChildren(...['operations', 'menu', 'inventory', 'finance', 'team', 'system'].map((key) => key === 'menu' ? menuGroup : key === 'inventory' ? inventoryGroup : key === 'finance' ? financeGroup : disclosureGroups.get(key)).filter(Boolean));
   const normalizedGroups = [...disclosureRoot.querySelectorAll('details.sidebar-nav-group[data-nav-group]')];
-  const preferredGroup = normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) || normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true);
+  const preferredGroup = currentPath === '/admin' && !currentHash ? null : (normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) || normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true));
   normalizedGroups.forEach((group) => { group.open = group === preferredGroup; });
+  const homeLink = sidebar.querySelector(':scope > a[href="/admin"]');
+  if (homeLink && homeLink.dataset.homeDisclosureBound !== 'true') {
+    homeLink.dataset.homeDisclosureBound = 'true';
+    homeLink.addEventListener('click', () => {
+      normalizedGroups.forEach((group) => {
+        group.open = false;
+        try { localStorage.setItem(groupStorageKey(group.dataset.navGroup), 'closed'); } catch (_) {}
+      });
+    });
+  }
   applyMenuSearch();
   // Keep the single-disclosure invariant after reload. The preferred group
   // already accounts for the active route and the user's saved preference;
