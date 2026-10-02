@@ -2250,7 +2250,7 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 /* Keep warehouse actions and section navigation balanced at laptop widths. */
 .velora-theme .inventory-page-title{align-items:flex-start}
 .velora-theme .inventory-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
-.velora-theme .inventory-header-actions>.button{min-height:44px;white-space:nowrap}
+.velora-theme .inventory-header-actions>.button{min-height:48px;min-width:170px;padding-inline:18px;white-space:nowrap;justify-content:center}
 .velora-theme .inventory-context-kpis>.kpi{min-width:0}
 .velora-theme .inventory-context-kpis{gap:10px;margin-bottom:12px}
 .velora-theme .inventory-context-kpis>.kpi{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;min-height:64px;padding:10px 14px;border-radius:11px}
