@@ -39,7 +39,7 @@ try {
     const created = await request('/api/staff', 'POST', admin.data.token, { name: `Finance QA ${role}`, login, password: staffPassword, role, birthDate: '1990-01-01' });
     assert.equal(created.status, 201, `${role} account created: ${JSON.stringify(created.data)}`);
   }
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {}) });
   for (const role of ['bartender', 'manager']) {
     const context = await browser.newContext({ viewport: { width: 320, height: 800 }, locale: 'ru-RU' });
     try {
