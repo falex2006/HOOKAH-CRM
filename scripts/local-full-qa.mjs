@@ -133,6 +133,7 @@ const staticTests = [
 ];
 const memoryTests = [
   "discount-groups-memory-qa.mjs",
+  "guest-account-ledger-memory-qa.mjs",
   "finance-rbac-runtime-qa.mjs",
   "local-static-boundary.mjs",
   "notifications-api-qa.mjs",

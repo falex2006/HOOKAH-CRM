@@ -22,6 +22,7 @@ const suites = new Set([
   'saas-quota-suspension-postgres-qa.mjs', 'audit-privacy-postgres-qa.mjs',
   'scoped-role-dependencies-postgres-qa.mjs',
   'reservation-local-date-postgres-qa.mjs',
+  'reservation-prepayment-postgres-qa.mjs',
   'staff-identity-postgres-qa.mjs',
   'staff-login-race-postgres-qa.mjs',
 ]);
@@ -118,7 +119,7 @@ async function runSuite(value) {
     RECIPE_DEPLETION_PG_TEST_DATABASE_URL: urlFor(c), SHIFT_NOTIFICATIONS_TEST_DATABASE_URL: urlFor(c),
     MIGRATIONS_PG_TEST_DOCKER_CONTAINER: c.regressionContainer };
   async function freshDatabase(database) {
-    assert.match(database, /^(?:shifts_qa_[a-f0-9]+|notifications_qa_[a-f0-9]+|territory_qa)$/);
+    assert.match(database, /^(?:orders_qa_[a-f0-9]+|shifts_qa_[a-f0-9]+|reservations_qa_[a-f0-9]+|notifications_qa_[a-f0-9]+|territory_qa)$/);
     await verifyTarget(c);
     const admin = new Pool({ connectionString: urlFor(c), max: 1 });
     try {
@@ -136,6 +137,9 @@ async function runSuite(value) {
     await verifyTarget(c);
     if (name === 'shift-notifications-e2e-qa.mjs') env.SHIFT_NOTIFICATIONS_TEST_DATABASE_URL = await freshDatabase('shifts_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'notifications-postgres-qa.mjs') env.NOTIFICATIONS_TEST_DATABASE_URL = await freshDatabase('notifications_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (['paid-order-balance-postgres-qa.mjs', 'shift-cash-postgres-e2e-qa.mjs', 'dashboard-pending-metrics-postgres-qa.mjs', 'finance-shift-analytics-postgres-qa.mjs'].includes(name)) env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('orders_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (name === 'reservation-prepayment-postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('reservations_qa_' + crypto.randomBytes(8).toString('hex'));
+    if (name === 'reservation-local-date-postgres-qa.mjs') env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('reservations_qa_' + crypto.randomBytes(8).toString('hex'));
     if (name === 'purchase-auto-order-postgres-e2e-qa.mjs') {
       env.MIGRATIONS_PG_TEST_DATABASE_URL = await freshDatabase('territory_qa');
       env.CRM_QA_DATABASE_NAME = 'territory_qa'; env.MIGRATIONS_PG_TEST_PORT = '31931';

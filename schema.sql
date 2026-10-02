@@ -150,6 +150,32 @@ CREATE TABLE guests (
     ON DELETE SET NULL (discount_group_id),
   UNIQUE (venue_id, phone)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS guests_venue_id_id_uq ON guests (venue_id,id);
+CREATE TABLE IF NOT EXISTS guest_account_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL REFERENCES venues(id) ON DELETE RESTRICT,
+  guest_id uuid NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+  account_type text NOT NULL CHECK (account_type IN ('bonus','deposit')),
+  amount numeric(12,2) NOT NULL CHECK (amount <> 0),
+  reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 1 AND 500),
+  source_type text NOT NULL CHECK (source_type IN ('opening_balance','manual_adjustment','order','reservation','refund','reversal')),
+  source_id uuid,
+  source_key text,
+  actor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (account_type <> 'bonus' OR amount = trunc(amount)),
+  UNIQUE (venue_id, id),
+  UNIQUE (guest_id, account_type, source_key),
+  CONSTRAINT guest_account_entries_guest_venue_fk FOREIGN KEY (venue_id,guest_id)
+    REFERENCES guests (venue_id,id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS guest_account_entries_guest_created_idx
+  ON guest_account_entries (venue_id, guest_id, account_type, created_at DESC, id);
+CREATE INDEX IF NOT EXISTS guest_account_entries_source_idx
+  ON guest_account_entries (source_type, source_id) WHERE source_id IS NOT NULL;
+ALTER TABLE guest_account_entries DROP CONSTRAINT IF EXISTS guest_account_entries_source_type_check;
+ALTER TABLE guest_account_entries ADD CONSTRAINT guest_account_entries_source_type_check
+  CHECK (source_type IN ('opening_balance','manual_adjustment','order','reservation','refund','reversal','deposit_top_up'));
 ALTER TABLE guests ADD COLUMN IF NOT EXISTS phone_numbers jsonb NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE guests ADD COLUMN IF NOT EXISTS telegram text;
 ALTER TABLE guests ADD COLUMN IF NOT EXISTS tobacco_preferences text[] NOT NULL DEFAULT '{}';
@@ -168,9 +194,11 @@ CREATE TABLE reservations (
   guests_count int NOT NULL DEFAULT 1,
   deposit_required numeric(12,2) NOT NULL DEFAULT 0,
   deposit_paid numeric(12,2) NOT NULL DEFAULT 0,
+  verified_deposit_paid numeric(12,2) NOT NULL DEFAULT 0 CHECK (verified_deposit_paid >= 0),
   status text NOT NULL DEFAULT 'new',
   notes text
 );
+CREATE UNIQUE INDEX IF NOT EXISTS reservations_venue_id_id_uq ON reservations (venue_id,id);
 
 CREATE TABLE products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -234,6 +262,31 @@ CREATE TABLE orders (
   created_at timestamptz NOT NULL DEFAULT now(),
   closed_at timestamptz
 );
+CREATE UNIQUE INDEX IF NOT EXISTS orders_venue_id_id_uq ON orders (venue_id,id);
+CREATE UNIQUE INDEX IF NOT EXISTS orders_venue_reservation_id_uq ON orders (venue_id,reservation_id) WHERE reservation_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS orders_venue_reservation_id_triplet_uq ON orders (venue_id,reservation_id,id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='orders_venue_reservation_fk' AND conrelid='orders'::regclass) THEN
+    ALTER TABLE orders ADD CONSTRAINT orders_venue_reservation_fk
+      FOREIGN KEY (venue_id,reservation_id) REFERENCES reservations (venue_id,id) ON DELETE RESTRICT;
+  END IF;
+END $$;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS loyalty_bonus_percent numeric(5,2) CHECK (loyalty_bonus_percent BETWEEN 0 AND 100);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS loyalty_bonus_base numeric(12,2) CHECK (loyalty_bonus_base >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS loyalty_bonus_earned int CHECK (loyalty_bonus_earned >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS group_discount_group_id uuid;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS group_discount_name text;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS group_discount_percent numeric(5,2) CHECK (group_discount_percent BETWEEN 0 AND 100);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS group_discount_base numeric(12,2) CHECK (group_discount_base >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS group_discount_amount numeric(12,2) CHECK (group_discount_amount >= 0 AND group_discount_amount <= group_discount_base);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS effective_discount_source text CHECK (effective_discount_source IN ('none','guest_group','manual'));
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS subtotal_snapshot numeric(12,2) CHECK (subtotal_snapshot >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS discount_total_snapshot numeric(12,2) CHECK (discount_total_snapshot >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS minimum_adjustment_snapshot numeric(12,2) CHECK (minimum_adjustment_snapshot >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS final_total_snapshot numeric(12,2) CHECK (final_total_snapshot >= 0);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS pricing_version smallint CHECK (pricing_version > 0);
+ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_group_discount_amount_check;
+ALTER TABLE orders ADD CONSTRAINT orders_group_discount_amount_check CHECK ((group_discount_base IS NULL AND group_discount_amount IS NULL) OR (group_discount_base IS NOT NULL AND group_discount_amount IS NOT NULL AND group_discount_base >= 0 AND group_discount_amount >= 0 AND group_discount_amount <= group_discount_base));
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS notes text;
 CREATE TABLE order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -265,9 +318,15 @@ CREATE TABLE payments (
   amount numeric(12,2) NOT NULL CHECK (amount > 0),
   status payment_status NOT NULL DEFAULT 'pending',
   external_id text,
+  idempotency_key text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS payments_order_id_id_uq ON payments (order_id,id);
 CREATE INDEX IF NOT EXISTS idx_payments_order_status ON payments (order_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS payments_order_idempotency_key_uq
+  ON payments (order_id,idempotency_key) WHERE idempotency_key IS NOT NULL;
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_bonus_whole_points_check;
+ALTER TABLE payments ADD CONSTRAINT payments_bonus_whole_points_check CHECK (method <> 'bonus' OR amount = trunc(amount));
 
 CREATE TABLE stock_movements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -302,6 +361,78 @@ CREATE TABLE shifts (
   opening_cash numeric(12,2) NOT NULL DEFAULT 0,
   closing_cash numeric(12,2)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS shifts_venue_id_id_uq ON shifts (venue_id,id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS reservations_venue_id_id_uq ON reservations (venue_id,id);
+
+CREATE TABLE IF NOT EXISTS reservation_pre_payment_receipts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL,
+  reservation_id uuid NOT NULL,
+  shift_id uuid NOT NULL,
+  amount numeric(12,2) NOT NULL CHECK (amount > 0),
+  payment_method text NOT NULL CHECK (payment_method IN ('cash','card','qr')),
+  reason text NOT NULL DEFAULT 'Предоплата по бронированию' CHECK (length(btrim(reason)) BETWEEN 1 AND 500),
+  idempotency_key text NOT NULL CHECK (length(idempotency_key) BETWEEN 8 AND 120),
+  actor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id,idempotency_key),
+  UNIQUE (venue_id,id),
+  FOREIGN KEY (venue_id,reservation_id) REFERENCES reservations (venue_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,shift_id) REFERENCES shifts (venue_id,id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS reservation_pre_payment_receipts_booking_idx
+  ON reservation_pre_payment_receipts (venue_id,reservation_id,created_at,id);
+CREATE INDEX IF NOT EXISTS reservation_pre_payment_receipts_shift_cash_idx
+  ON reservation_pre_payment_receipts (venue_id,shift_id,created_at) WHERE payment_method='cash';
+CREATE UNIQUE INDEX IF NOT EXISTS reservation_pre_payment_receipts_venue_reservation_id_uq ON reservation_pre_payment_receipts (venue_id,reservation_id,id);
+
+CREATE TABLE IF NOT EXISTS reservation_pre_payment_allocations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL,
+  reservation_id uuid NOT NULL,
+  receipt_id uuid NOT NULL,
+  order_id uuid NOT NULL,
+  payment_id uuid NOT NULL,
+  shift_id uuid NOT NULL,
+  amount numeric(12,2) NOT NULL CHECK (amount > 0),
+  idempotency_key text NOT NULL CHECK (length(idempotency_key) BETWEEN 8 AND 120),
+  actor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id,idempotency_key),
+  UNIQUE (venue_id,id),
+  FOREIGN KEY (venue_id,reservation_id) REFERENCES reservations (venue_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,receipt_id) REFERENCES reservation_pre_payment_receipts (venue_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,order_id) REFERENCES orders (venue_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (order_id,payment_id) REFERENCES payments (order_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,shift_id) REFERENCES shifts (venue_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,reservation_id,receipt_id) REFERENCES reservation_pre_payment_receipts (venue_id,reservation_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,reservation_id,order_id) REFERENCES orders (venue_id,reservation_id,id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS reservation_pre_payment_allocations_receipt_idx
+  ON reservation_pre_payment_allocations (venue_id,receipt_id,created_at,id);
+CREATE INDEX IF NOT EXISTS reservation_pre_payment_allocations_order_idx
+  ON reservation_pre_payment_allocations (venue_id,order_id,created_at,id);
+CREATE TABLE IF NOT EXISTS guest_deposit_receipts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL,
+  guest_id uuid NOT NULL,
+  shift_id uuid NOT NULL,
+  amount numeric(12,2) NOT NULL CHECK (amount > 0),
+  payment_method text NOT NULL CHECK (payment_method IN ('cash','card','qr')),
+  reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 1 AND 500),
+  idempotency_key text NOT NULL CHECK (length(idempotency_key) BETWEEN 8 AND 120),
+  actor_id uuid REFERENCES users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (venue_id,idempotency_key),
+  UNIQUE (venue_id,id),
+  FOREIGN KEY (venue_id,guest_id) REFERENCES guests (venue_id,id) ON DELETE RESTRICT,
+  FOREIGN KEY (venue_id,shift_id) REFERENCES shifts (venue_id,id) ON DELETE RESTRICT
+);
+CREATE INDEX IF NOT EXISTS guest_deposit_receipts_guest_created_idx
+  ON guest_deposit_receipts (venue_id,guest_id,created_at DESC,id);
+CREATE INDEX IF NOT EXISTS guest_deposit_receipts_shift_cash_idx
+  ON guest_deposit_receipts (venue_id,shift_id,created_at) WHERE payment_method='cash';
 CREATE TABLE audit_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   venue_id uuid REFERENCES venues(id),
@@ -426,3 +557,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS tobacco_catalog_org_variant_unique
 CREATE UNIQUE INDEX IF NOT EXISTS tobacco_catalog_venue_variant_unique
   ON tobacco_catalog_items (organization_id, venue_id, lower(btrim(brand)), lower(btrim(COALESCE(product_line,''))), lower(btrim(flavor)), product_type, COALESCE(package_grams,0))
   WHERE scope='venue' AND is_active=true;
+
+CREATE TABLE IF NOT EXISTS inventory_deletion_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  venue_id uuid NOT NULL REFERENCES venues(id) ON DELETE CASCADE,
+  entity_type text NOT NULL CHECK (entity_type IN ('department','subdepartment','category')),
+  entity_id text NOT NULL,
+  entity_name text NOT NULL,
+  parent_name text,
+  reason text NOT NULL DEFAULT '',
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  requested_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  requested_by_name text NOT NULL DEFAULT '',
+  requested_at timestamptz NOT NULL DEFAULT now(),
+  decided_by uuid REFERENCES users(id) ON DELETE SET NULL,
+  decided_by_name text NOT NULL DEFAULT '',
+  decided_at timestamptz
+);
+CREATE UNIQUE INDEX IF NOT EXISTS inventory_deletion_requests_pending_entity_uq
+  ON inventory_deletion_requests (venue_id, entity_type, entity_id)
+  WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS inventory_deletion_requests_venue_status_idx
+  ON inventory_deletion_requests (venue_id, status, requested_at DESC);
