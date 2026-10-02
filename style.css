@@ -2581,6 +2581,17 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .velora-theme .finance-expenses-panel #expense-document{box-sizing:border-box;width:100%;min-width:0;min-height:48px;padding:6px 8px;border:1px solid #363b44;border-radius:10px;background:#111317;color:#aeb6c0;font:inherit}
 .velora-theme .finance-expenses-panel #expense-document::file-selector-button{min-height:32px;margin-right:10px;padding:6px 11px;border:1px solid #3d4651;border-radius:8px;background:#20252c;color:#e8edf1;font:inherit;cursor:pointer}
 .velora-theme .finance-expenses-panel #expense-document::file-selector-button:hover{border-color:#ff6372;background:#292d34}
+.velora-theme .finance-payroll-panel,.velora-theme .finance-expenses-panel{display:grid;gap:16px}
+.velora-theme .finance-payroll-panel>.panel-head,.velora-theme .finance-expenses-panel>.panel-head{align-items:center;margin-bottom:0;gap:16px}
+.velora-theme .finance-payroll-panel .finance-payroll-filters{margin:0;padding:14px 0 0;border-top:1px solid #2a3038}
+.velora-theme .finance-payroll-filters>label>:is(input,select){height:42px;min-height:42px;padding-top:0;padding-bottom:0;font:500 13px/1.2 var(--font-ui)}
+.velora-theme .finance-payroll-filters>#payroll-reload{height:42px;min-height:42px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center}
+.velora-theme .finance-expenses-panel #expense-form{display:grid;gap:14px}
+.velora-theme .finance-expenses-panel #expense-form>.form-row{gap:12px}
+.velora-theme .finance-expenses-panel #expense-form>.form-row label{gap:6px;color:#aab2bd;font-size:12px;line-height:1.35}
+.velora-theme .finance-expenses-panel #expense-form :is(input,select,textarea){font:500 13px/1.25 var(--font-ui)}
+.velora-theme .finance-expenses-panel #expense-form :is(input,select){height:42px;min-height:42px;padding-top:0;padding-bottom:0}
+.velora-theme .finance-expenses-panel #expense-form textarea{min-height:84px}
 .portal.light-theme .finance-payroll-filters>label{color:#667782}
 .portal.light-theme .finance-expenses-panel #expense-document{border-color:#d3dfe5;background:#fff;color:#526672}
 .portal.light-theme .finance-expenses-panel #expense-document::file-selector-button{border-color:#d3dfe5;background:#f1f5f7;color:#304651}
