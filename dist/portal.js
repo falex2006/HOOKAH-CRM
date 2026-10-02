@@ -2297,7 +2297,10 @@ function renderDashboard() {
     };
     return targets[hash] ? target.querySelector(targets[hash]) : target.querySelector('.page-title');
   };
-  const settingsHash = ['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash); const dashboardFocus = settingsHash ? 'settings' : window.location.hash.slice(1);
+  const settingsHash = ['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash);
+  const requestedDashboardFocus = settingsHash ? 'settings' : window.location.hash.slice(1);
+  const dashboardFocus = requestedDashboardFocus === 'permissions' && !portalPermissions.has('staff_manage') ? 'staff' : requestedDashboardFocus;
+  if (requestedDashboardFocus === 'permissions' && dashboardFocus !== requestedDashboardFocus) window.history.replaceState({}, '', '/admin#staff');
   const setDashboardPanelVisibility = (selector, visible) => target.querySelectorAll(selector).forEach((node) => { node.hidden = !visible; });
   setDashboardPanelVisibility('#help', dashboardFocus === 'help');
   setDashboardPanelVisibility('.dashboard-page-actions', !dashboardFocus);

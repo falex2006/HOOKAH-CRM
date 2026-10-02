@@ -8,4 +8,5 @@ assert.ok(portal.includes('const refreshSidebarCounters = () =>'));
 for (const source of ['/api/metrics','/api/notifications?limit=1&filter=unread','/api/shifts','/api/integrations']) assert.ok(portal.includes(`api('${source}')`), `indicator source missing: ${source}`);
 assert.ok(portal.includes('sidebar-menu-search'));
 assert.ok(portal.includes("summary.setAttribute('aria-expanded'"));
+assert.match(portal, /requestedDashboardFocus === 'permissions' && !portalPermissions\.has\('staff_manage'\)/, 'permissions route is guarded by the effective server permission');
 console.log(`SIDEBAR MENU AUDIT CONTRACT: PASS (${labels.length} labels, 26 routes, counters and accessibility hooks)`);
