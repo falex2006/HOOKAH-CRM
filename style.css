@@ -3244,6 +3244,14 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row{justify-content:flex-start;width:100%;gap:7px}
   .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row .button{min-height:36px;padding-inline:10px;font-size:12px}
   .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row .button{display:inline-flex;align-items:center;justify-content:center;min-width:88px}
+  /* Inline department editors live inside narrow hierarchy columns. Keep the
+     editor contained in its own column so its fields never spill underneath
+     the neighbouring subdepartment/category column. */
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .department-editor{grid-template-columns:minmax(0,1fr);align-items:stretch;min-width:0;box-sizing:border-box;margin-top:12px}
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .department-editor .department-field,
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .department-editor input,
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .department-editor select{min-width:0;width:100%;box-sizing:border-box}
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .department-editor .button{width:100%;min-width:0}
   .velora-theme .inventory-departments-panel>.catalog-tree-section .empty{min-height:70px;display:grid;place-items:center;margin:0;padding:14px;text-align:center;border:1px dashed #343c47;border-radius:11px;font-size:12px;line-height:1.45}
   .velora-theme .inventory-departments-panel>.inventory-department-filter-label{grid-column:1;align-self:center;margin:12px 0 0;font-size:12px}
   .velora-theme .inventory-departments-panel>.inventory-directory-controls{grid-column:1/-1;justify-self:end;align-self:center;width:max-content;max-width:100%;margin:12px 0 0;padding:8px 12px}
