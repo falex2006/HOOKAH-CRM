@@ -2062,6 +2062,9 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .auto-order-request-row>div:first-child{flex:1;min-width:0}
 .velora-theme .auto-order-request-row b,.velora-theme .auto-order-request-row small{display:block}
 .velora-theme .auto-order-request-row small{margin-top:4px;color:var(--text-muted,#9299a6)}
+.velora-theme .auto-order-request-row>.toolbar-row{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:0 0 auto;min-height:42px}
+.velora-theme .auto-order-request-row>.toolbar-row>.badge{display:inline-flex;align-items:center;justify-content:center;height:36px;min-height:36px;box-sizing:border-box;padding:0 11px;border-radius:9px;line-height:1;white-space:nowrap}
+.velora-theme .auto-order-request-row>.toolbar-row>.button{display:inline-flex;align-items:center;justify-content:center;height:42px;min-height:42px;box-sizing:border-box;padding:0 14px;white-space:nowrap;line-height:1.2}
 .velora-theme .text-danger{color:#ff7282}
 @media (max-width:1100px){.velora-theme .inventory-auto-order-panel .panel-head{align-items:stretch;flex-direction:column;gap:12px}.velora-theme .inventory-auto-order-panel .panel-head>div:first-child{min-width:0}.velora-theme .inventory-auto-order-panel .panel-head .toolbar-row{width:100%;justify-content:flex-start}}
 @media (max-width:760px){.velora-theme .auto-order-explainer{padding:13px}.velora-theme .auto-order-request-row{align-items:flex-start;flex-wrap:wrap}.velora-theme .auto-order-request-row .button{width:100%}.velora-theme .inventory-auto-order-panel .panel-head{align-items:flex-start;flex-direction:column}.velora-theme .inventory-auto-order-panel .panel-head .toolbar-row{width:100%}.velora-theme .inventory-auto-order-panel .panel-head .button{width:100%}}
