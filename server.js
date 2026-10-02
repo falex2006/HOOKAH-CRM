@@ -6,6 +6,7 @@ const { createRepositories, allocatePremixBatchConsumption } = require('./db');
 const { scaleBatchRecipeIngredients } = require('./recipe-depletion');
 const { validateDataUrl: validatePurchasePaymentDocument } = require('./purchase-document-validation');
 const { normalizeStaffAvatarData } = require('./staff-avatar-image');
+const { evaluateLoyaltyPricing } = require('./loyalty-pricing');
 const { isValidIsoDate, countInclusiveDays, calculatePayrollAmount, canTransitionPayroll } = require('./payroll');
 const isValidIsoTimestamp = (value) => {
   if (typeof value !== 'string' || !value.trim()) return false;
@@ -162,6 +163,47 @@ const discountGroups = [
   { id: 'regular', name: 'Постоянный гость', discountPercent: 5, bonusPercent: 1, depositMin: 0, active: true },
   { id: 'vip', name: 'VIP', discountPercent: 10, bonusPercent: 2, depositMin: 3000, active: true }
 ];
+const loyaltyProgramSettings = new Map();
+const loyaltyPromotions = [];
+const normalizePromotionInput = (input, base = {}) => {
+  const value = { ...base, ...input };
+  const name = String(value.name || '').trim();
+  const description = String(value.description || '').trim();
+  const timezone = String(value.timezone || '').trim();
+  const dateInput = (date) => date instanceof Date ? date.toISOString() : String(date || '');
+  const startsAt = dateInput(value.startsAt);
+  const endsAt = dateInput(value.endsAt);
+  const benefitKind = String(value.benefitKind || '');
+  const benefitValue = Number(value.benefitValue);
+  const priority = Number(value.priority ?? 0);
+  let timezoneValid = false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(0); timezoneValid = true; } catch (_) { /* invalid IANA timezone */ }
+  const explicitOffset = (date) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/.test(date);
+  const productIds = (key) => Array.isArray(value[key]) ? [...new Set(value[key].map((id) => String(id).trim()))] : null;
+  const includeProductIds = productIds('includeProductIds');
+  const excludeProductIds = productIds('excludeProductIds');
+  const includeCategories = Array.isArray(value.includeCategories) ? [...new Set(value.includeCategories.map((item) => String(item).trim()).filter(Boolean))] : null;
+  const excludeCategories = Array.isArray(value.excludeCategories) ? [...new Set(value.excludeCategories.map((item) => String(item).trim()).filter(Boolean))] : null;
+  const status = String(value.status || 'draft');
+  const validMoney = Number.isFinite(benefitValue) && benefitValue > 0 && benefitValue <= 1000000 && Math.abs(benefitValue * 100 - Math.round(benefitValue * 100)) < 1e-6;
+  if (!name || name.length > 100 || description.length > 500 || !timezoneValid || !explicitOffset(startsAt) || !explicitOffset(endsAt)
+    || !Number.isFinite(Date.parse(startsAt)) || !Number.isFinite(Date.parse(endsAt)) || Date.parse(endsAt) <= Date.parse(startsAt)
+    || !['percent', 'fixed'].includes(benefitKind) || !validMoney || (benefitKind === 'percent' && benefitValue > 100)
+    || !Number.isInteger(priority) || priority < -100000 || priority > 100000
+    || !includeProductIds || !excludeProductIds || !includeCategories || !excludeCategories
+    || !['draft', 'active', 'archived'].includes(status)
+    || (!includeProductIds.length && !includeCategories.length)
+    || includeProductIds.some((id) => excludeProductIds.includes(id))
+    || includeCategories.some((category) => excludeCategories.includes(category))) return null;
+  const productKey = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
+  if ([...includeProductIds, ...excludeProductIds].some((id) => !productKey.test(id)) || [...includeCategories, ...excludeCategories].some((item) => item.length > 80)) return null;
+  return { name, description, timezone, startsAt: new Date(startsAt).toISOString(), endsAt: new Date(endsAt).toISOString(), benefitKind, benefitValue, priority, status, includeProductIds, excludeProductIds, includeCategories, excludeCategories };
+};
+const promotionTermsEqual = (left, right) => ['name','description','timezone','startsAt','endsAt','benefitKind','benefitValue','priority','includeProductIds','excludeProductIds','includeCategories','excludeCategories'].every((key) => {
+  const normalize = (value) => key === 'benefitValue' ? Number(value) : Array.isArray(value) ? [...value].sort() : value;
+  const a = normalize(left[key]); const b = normalize(right[key]);
+  return JSON.stringify(a) === JSON.stringify(b);
+});
 discountGroups.length = 0;
 const clients = [
   { id: 'client-anna', name: 'Анна Смирнова', phoneNumbers: [{ label: 'Основной', number: '+79991112233', primary: true }], telegram: '@anna_sm', tobaccoPreferences: ['Darkside', 'Мята'], bowlPreferences: ['Кальянная чаша'], barPreferences: ['Лимонад маракуйя', 'Red Bull'], allergies: '', notes: 'Предпочитает среднюю крепость', loyaltyPoints: 420, bonusBalance: 420, depositBalance: 0, discountGroupId: 'regular', visits: 6, totalSpent: 18400, lastVisitAt: '2026-09-18T21:30:00.000Z' },
@@ -465,20 +507,17 @@ const calculateOrderDiscount = (subtotal, entries) => {
   const discount = Math.min(moneyCents(base), moneyCents(requested)) / 100;
   return { subtotal: base, discount, net: roundMoney(base - discount) };
 };
-const selectOrderDiscount = (subtotal, approvedEntries, groupPercent = 0, hasGroup = false) => {
-  const manual = calculateOrderDiscount(subtotal, approvedEntries);
-  const group = hasGroup ? calculateOrderDiscount(subtotal, [{ type: 'percent', value: groupPercent }]) : { subtotal: roundMoney(subtotal), discount: 0, net: roundMoney(subtotal) };
-  const useGroup = hasGroup && group.discount >= manual.discount;
-  const discount = useGroup ? group.discount : manual.discount;
-  return { discount, net: roundMoney(Math.max(0, roundMoney(subtotal) - discount)), source: discount <= 0 ? 'none' : useGroup ? 'guest_group' : 'manual', groupDiscount: group.discount };
-};
+const selectOrderDiscount = (subtotal, approvedEntries, groupPercent = 0, hasGroup = false, promotions = [], lines = [], now = new Date(), groupName = null) => evaluateLoyaltyPricing({ subtotal, approvedDiscounts: approvedEntries, groupPercent, groupName, hasGroup, promotions, lines, now });
 const approvedDiscountTotal = (orderId, subtotal) => calculateOrderDiscount(subtotal, discountRequests.filter((request) => request.orderId === orderId && request.status === 'approved')).discount;
 const memoryOrderPricing = (order) => {
-  if (order?.status === 'closed' && order.pricingVersion && order.finalTotalSnapshot != null) return { subtotal: Number(order.subtotalSnapshot), discount: Number(order.discountTotalSnapshot), net: roundMoney(Number(order.subtotalSnapshot) - Number(order.discountTotalSnapshot)), due: Number(order.finalTotalSnapshot), minimumAdjustment: Number(order.minimumAdjustmentSnapshot || 0), source: order.effectiveDiscountSource || 'none', groupDiscountAmount: order.groupDiscountAmount ?? null, groupDiscountGroupId: order.groupDiscountGroupId || null, groupDiscountName: order.groupDiscountName || null, groupDiscountPercent: order.groupDiscountPercent ?? null, groupDiscountBase: order.groupDiscountBase ?? null };
+  if (order?.pricingLockedAt && order.pricingVersion && order.finalTotalSnapshot != null || order?.status === 'closed' && order.pricingVersion && order.finalTotalSnapshot != null) return { subtotal: Number(order.subtotalSnapshot), discount: Number(order.discountTotalSnapshot), net: roundMoney(Number(order.subtotalSnapshot) - Number(order.discountTotalSnapshot)), due: Number(order.finalTotalSnapshot), minimumAdjustment: Number(order.minimumAdjustmentSnapshot || 0), source: order.effectiveDiscountSource || 'none', groupDiscountAmount: order.groupDiscountAmount ?? null, groupDiscountGroupId: order.groupDiscountGroupId || null, groupDiscountName: order.groupDiscountName || null, groupDiscountPercent: order.groupDiscountPercent ?? null, groupDiscountBase: order.groupDiscountBase ?? null, selectedPromotion: order.selectedPromotionSnapshot || null, offers: order.pricingOffersSnapshot || [] };
   const subtotal = roundMoney(orderTotal(order));
-  const selected = selectOrderDiscount(subtotal, discountRequests.filter((request) => request.orderId === order.id && request.status === 'approved'), Number(order.groupDiscountPercent || 0), Boolean(order.groupDiscountGroupId));
+  const latestPromotions = new Map();
+  for (const item of loyaltyPromotions.filter((entry) => String(entry.venueId) === String(order.venueId))) if (!latestPromotions.has(item.promotionId) || Number(latestPromotions.get(item.promotionId).version) < Number(item.version)) latestPromotions.set(item.promotionId, item);
+  const lines = (order.items || []).map((item) => { const product = products.find((entry) => String(entry.id) === String(item.productId)); return { productId: item.productId, quantity: item.quantity, unitPrice: item.unitPrice, category: product?.category || product?.station || item.station, productActive: product?.active !== false }; });
+  const selected = selectOrderDiscount(subtotal, discountRequests.filter((request) => request.orderId === order.id && request.status === 'approved'), Number(order.groupDiscountPercent || 0), Boolean(order.groupDiscountGroupId), [...latestPromotions.values()].filter((item) => item.status === 'active'), lines, new Date(), order.groupDiscountName);
   const minimum = Number(order.minimumOrderTotal || 0);
-  return { ...selected, subtotal, due: roundMoney(Math.max(selected.net, minimum)), minimumAdjustment: roundMoney(Math.max(0, minimum - selected.net)), groupDiscountGroupId: order.groupDiscountGroupId || null, groupDiscountName: order.groupDiscountName || null, groupDiscountPercent: order.groupDiscountPercent ?? null, groupDiscountBase: order.groupDiscountGroupId ? subtotal : null, groupDiscountAmount: order.groupDiscountGroupId ? (selected.source === 'guest_group' ? selected.groupDiscount : 0) : null };
+  return { ...selected, subtotal, due: roundMoney(Math.max(selected.net, minimum)), minimumAdjustment: roundMoney(Math.max(0, minimum - selected.net)), groupDiscountGroupId: order.groupDiscountGroupId || null, groupDiscountName: order.groupDiscountName || null, groupDiscountPercent: order.groupDiscountPercent ?? null };
 };
 const orderNetTotal = (order) => memoryOrderPricing(order).net;
 const receivedOrderPayments = (order) => (order.payments || []).filter((payment) => ['paid', 'partially_paid'].includes(payment.status)).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
@@ -503,26 +542,35 @@ const memoryOrderBalance = (order) => ({ due: memoryOrderPricing(order).due, pai
 const orderBalanceConflict = ({ due, paid }) => moneyCents(paid) > moneyCents(due);
 const orderBalanceConflictBody = ({ due, paid }) => ({ error: 'paid_order_total_conflict', due, paid });
 async function pgOrderPricing(client, orderId, minimumOrderTotal = 0) {
-  const { rows: orderRows } = await client.query('SELECT status,group_discount_group_id AS "groupDiscountGroupId",group_discount_name AS "groupDiscountName",group_discount_percent AS "groupDiscountPercent",group_discount_base AS "groupDiscountBase",group_discount_amount AS "groupDiscountAmount",effective_discount_source AS "effectiveDiscountSource",subtotal_snapshot AS "subtotalSnapshot",discount_total_snapshot AS "discountTotalSnapshot",minimum_adjustment_snapshot AS "minimumAdjustmentSnapshot",final_total_snapshot AS "finalTotalSnapshot",pricing_version AS "pricingVersion" FROM orders WHERE id=$1', [orderId]);
+  const { rows: orderRows } = await client.query('SELECT venue_id AS "venueId",status,pricing_locked_at AS "pricingLockedAt",group_discount_group_id AS "groupDiscountGroupId",group_discount_name AS "groupDiscountName",group_discount_percent AS "groupDiscountPercent",group_discount_base AS "groupDiscountBase",group_discount_amount AS "groupDiscountAmount",effective_discount_source AS "effectiveDiscountSource",subtotal_snapshot AS "subtotalSnapshot",discount_total_snapshot AS "discountTotalSnapshot",minimum_adjustment_snapshot AS "minimumAdjustmentSnapshot",final_total_snapshot AS "finalTotalSnapshot",pricing_version AS "pricingVersion",selected_promotion_id AS "selectedPromotionId",selected_promotion_version AS "selectedPromotionVersion",selected_promotion_name AS "selectedPromotionName",selected_promotion_benefit_kind AS "selectedPromotionBenefitKind",selected_promotion_benefit_value AS "selectedPromotionBenefitValue",selected_promotion_basis AS "selectedPromotionBasis",selected_promotion_amount AS "selectedPromotionAmount",pricing_offers_snapshot AS "pricingOffersSnapshot" FROM orders WHERE id=$1', [orderId]);
   const order = orderRows[0] || {};
-  const { rows: itemRows } = await client.query('SELECT quantity,unit_price AS "unitPrice" FROM order_items WHERE order_id=$1', [orderId]);
+  const { rows: itemRows } = await client.query('SELECT oi.product_id AS "productId",oi.quantity,oi.unit_price AS "unitPrice",p.category,p.is_active AS "productActive" FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id AND p.venue_id=$2 WHERE oi.order_id=$1', [orderId, order.venueId]);
   const subtotal = roundMoney(itemRows.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitPrice), 0));
   const { rows: discountRows } = await client.query("SELECT type,value FROM discounts WHERE order_id=$1 AND status='approved'", [orderId]);
-  const selected = selectOrderDiscount(subtotal, discountRows, Number(order.groupDiscountPercent || 0), Boolean(order.groupDiscountGroupId));
   const { rows: paidRows } = await client.query("SELECT COALESCE(SUM(amount),0) AS paid FROM payments WHERE order_id=$1 AND status IN ('paid','partially_paid')", [orderId]);
-  if (order.status === 'closed' && order.pricingVersion && order.finalTotalSnapshot !== null) return { subtotal: Number(order.subtotalSnapshot), discount: Number(order.discountTotalSnapshot), net: roundMoney(Number(order.subtotalSnapshot) - Number(order.discountTotalSnapshot)), due: Number(order.finalTotalSnapshot), paid: Number(paidRows[0]?.paid || 0), minimumAdjustment: Number(order.minimumAdjustmentSnapshot || 0), source: order.effectiveDiscountSource || 'none', groupDiscountAmount: order.groupDiscountAmount === null ? null : Number(order.groupDiscountAmount), groupDiscountGroupId: order.groupDiscountGroupId, groupDiscountName: order.groupDiscountName, groupDiscountPercent: order.groupDiscountPercent === null ? null : Number(order.groupDiscountPercent), groupDiscountBase: order.groupDiscountBase === null ? null : Number(order.groupDiscountBase) };
+  if ((order.status === 'closed' || order.pricingLockedAt) && order.pricingVersion && order.finalTotalSnapshot !== null) return { subtotal: Number(order.subtotalSnapshot), discount: Number(order.discountTotalSnapshot), net: roundMoney(Number(order.subtotalSnapshot) - Number(order.discountTotalSnapshot)), due: Number(order.finalTotalSnapshot), paid: Number(paidRows[0]?.paid || 0), minimumAdjustment: Number(order.minimumAdjustmentSnapshot || 0), source: order.effectiveDiscountSource || 'none', groupDiscountAmount: order.groupDiscountAmount === null ? null : Number(order.groupDiscountAmount), groupDiscountGroupId: order.groupDiscountGroupId, groupDiscountName: order.groupDiscountName, groupDiscountPercent: order.groupDiscountPercent === null ? null : Number(order.groupDiscountPercent), groupDiscountBase: order.groupDiscountBase === null ? null : Number(order.groupDiscountBase), selectedPromotion: order.selectedPromotionId ? { promotionId: order.selectedPromotionId, version: Number(order.selectedPromotionVersion), name: order.selectedPromotionName, benefitKind: order.selectedPromotionBenefitKind, benefitValue: Number(order.selectedPromotionBenefitValue), eligibleBasis: Number(order.selectedPromotionBasis), amount: Number(order.selectedPromotionAmount) } : null, offers: order.pricingOffersSnapshot || [] };
+  const { rows: promotionRows } = await client.query(`SELECT p.promotion_id AS "promotionId",p.version,p.name,p.status,p.starts_at AS "startsAt",p.ends_at AS "endsAt",p.benefit_kind AS "benefitKind",p.benefit_value AS "benefitValue",p.priority,
+      COALESCE(array_agg(s.product_id::text) FILTER (WHERE s.scope_kind='include_product'), '{}') AS "includeProductIds",COALESCE(array_agg(s.product_id::text) FILTER (WHERE s.scope_kind='exclude_product'), '{}') AS "excludeProductIds",
+      COALESCE(array_agg(s.category_name) FILTER (WHERE s.scope_kind='include_category'), '{}') AS "includeCategories",COALESCE(array_agg(s.category_name) FILTER (WHERE s.scope_kind='exclude_category'), '{}') AS "excludeCategories"
+    FROM (SELECT DISTINCT ON (venue_id,promotion_id) * FROM loyalty_promotions WHERE venue_id=$1 ORDER BY venue_id,promotion_id,version DESC) p
+    LEFT JOIN loyalty_promotion_scopes s ON s.venue_id=p.venue_id AND s.promotion_id=p.promotion_id AND s.version=p.version
+    GROUP BY p.promotion_id,p.version,p.name,p.status,p.starts_at,p.ends_at,p.benefit_kind,p.benefit_value,p.priority ORDER BY p.promotion_id`, [order.venueId]);
+  const { rows: clockRows } = await client.query('SELECT now() AS instant');
+  const selected = selectOrderDiscount(subtotal, discountRows, Number(order.groupDiscountPercent || 0), Boolean(order.groupDiscountGroupId), promotionRows.filter((item) => item.status === 'active'), itemRows, clockRows[0]?.instant || new Date(), order.groupDiscountName);
   const minimum = Number(minimumOrderTotal || 0);
-  return { ...selected, subtotal, discount: selected.discount, due: roundMoney(Math.max(selected.net, minimum)), paid: Number(paidRows[0]?.paid || 0), minimumAdjustment: roundMoney(Math.max(0, minimum - selected.net)), groupDiscountGroupId: order.groupDiscountGroupId || null, groupDiscountName: order.groupDiscountName || null, groupDiscountPercent: order.groupDiscountPercent === null || order.groupDiscountPercent === undefined ? null : Number(order.groupDiscountPercent), groupDiscountBase: order.groupDiscountGroupId ? subtotal : null, groupDiscountAmount: order.groupDiscountGroupId ? (selected.source === 'guest_group' ? selected.groupDiscount : 0) : null };
+  return { ...selected, subtotal, discount: selected.discount, due: roundMoney(Math.max(selected.net, minimum)), paid: Number(paidRows[0]?.paid || 0), minimumAdjustment: roundMoney(Math.max(0, minimum - selected.net)), groupDiscountGroupId: order.groupDiscountGroupId || null, groupDiscountName: order.groupDiscountName || null, groupDiscountPercent: order.groupDiscountPercent === null || order.groupDiscountPercent === undefined ? null : Number(order.groupDiscountPercent) };
 }
 const pgOrderBalance = async (client, orderId, minimumOrderTotal = 0) => { const { due, paid } = await pgOrderPricing(client, orderId, minimumOrderTotal); return { due, paid }; };
 async function pgReservationPrepaymentState(client, venueId, reservationId) {
   if (!reservationId) return { available: 0, receipts: [] };
   const { rows } = await client.query(`SELECT p.id,p.amount,p.payment_method AS method,p.created_at AS "createdAt",
-    GREATEST(0,p.amount-COALESCE(SUM(a.amount),0)) AS available
+    GREATEST(0,p.amount-COALESCE(a.amount,0)+COALESCE(ar.amount,0)-COALESCE(rr.amount,0)) AS available
     FROM reservation_pre_payment_receipts p
-    LEFT JOIN reservation_pre_payment_allocations a ON a.venue_id=p.venue_id AND a.receipt_id=p.id
+    LEFT JOIN LATERAL (SELECT SUM(x.amount) AS amount FROM reservation_pre_payment_allocations x WHERE x.venue_id=p.venue_id AND x.receipt_id=p.id) a ON true
+    LEFT JOIN LATERAL (SELECT SUM(x.amount) AS amount FROM reservation_pre_payment_allocation_reversals x JOIN reservation_pre_payment_allocations ax ON ax.venue_id=x.venue_id AND ax.id=x.allocation_id WHERE x.venue_id=p.venue_id AND ax.receipt_id=p.id) ar ON true
+    LEFT JOIN LATERAL (SELECT SUM(amount) AS amount FROM reservation_pre_payment_receipt_reversals x WHERE x.venue_id=p.venue_id AND x.receipt_id=p.id) rr ON true
     WHERE p.venue_id=$1 AND p.reservation_id=$2
-    GROUP BY p.id ORDER BY p.created_at,p.id`, [venueId,reservationId]);
+    ORDER BY p.created_at,p.id`, [venueId,reservationId]);
   const receipts = rows.map((row) => ({ ...row, amount: Number(row.amount), available: Number(row.available) })).filter((row) => row.available > 0);
   return { available: roundMoney(receipts.reduce((sum,row)=>sum+row.available,0)), receipts };
 }
@@ -530,7 +578,7 @@ const orderPricingSqlCtes = `item_totals AS (
   SELECT order_id, COALESCE(SUM(quantity * unit_price),0) AS subtotal FROM order_items GROUP BY order_id
 ), discount_totals AS (
   SELECT o.id AS order_id,
-    CASE WHEN o.status='closed' AND o.pricing_version IS NOT NULL AND o.discount_total_snapshot IS NOT NULL THEN o.discount_total_snapshot
+    CASE WHEN (o.status='closed' OR o.pricing_locked_at IS NOT NULL) AND o.pricing_version IS NOT NULL AND o.discount_total_snapshot IS NOT NULL THEN o.discount_total_snapshot
     ELSE LEAST(COALESCE(i.subtotal,0), GREATEST(
       COALESCE(SUM(ROUND(CASE WHEN d.type='percent' THEN COALESCE(i.subtotal,0)*LEAST(100,GREATEST(0,d.value))/100 ELSE GREATEST(0,d.value) END,2)) FILTER (WHERE d.id IS NOT NULL),0),
       ROUND(COALESCE(i.subtotal,0)*COALESCE(o.group_discount_percent,0)/100,2)
@@ -551,13 +599,30 @@ async function accrueGuestOrderBonus(client, { venueId, guestId, orderId, eligib
   }
   const accrual = loyaltyBonusAccrual(base, percent);
   const currentBalance = Number(guest.loyaltyPoints || 0);
-  const earned = Math.min(accrual.earned, Math.max(0, 2147483647 - currentBalance));
+  const grossEarned = Math.min(accrual.earned, Math.max(0, 2147483647 - currentBalance));
   const sourceKey = `order:${orderId}:bonus-earned:v1`;
-  if (earned > 0) {
+  if (grossEarned > 0) {
     const inserted = await client.query(`INSERT INTO guest_account_entries (venue_id,guest_id,account_type,amount,reason,source_type,source_id,source_key,actor_id)
       VALUES ($1,$2,'bonus',$3,'Бонусное начисление за заказ','order',$4,$5,$6)
-      ON CONFLICT (guest_id,account_type,source_key) DO NOTHING RETURNING id`, [venueId, guest.id, earned, orderId, sourceKey, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
+      ON CONFLICT (guest_id,account_type,source_key) DO NOTHING RETURNING id`, [venueId, guest.id, grossEarned, orderId, sourceKey, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
     if (!inserted.rows[0]) throw Object.assign(new Error('loyalty_bonus_entry_conflict'), { code: 'loyalty_bonus_entry_conflict' });
+    const { rows: holds } = await client.query(`SELECT reversal_id AS "reversalId",SUM(amount)::int AS remaining
+      FROM guest_bonus_clawback_entries WHERE venue_id=$1 AND guest_id=$2 GROUP BY reversal_id HAVING SUM(amount)>0 ORDER BY MIN(created_at),reversal_id`, [venueId, guest.id]);
+    let unspent = grossEarned;
+    let clawedBack = 0;
+    for (const hold of holds) {
+      if (unspent <= 0) break;
+      const consumed = Math.min(unspent, Number(hold.remaining || 0));
+      if (!consumed) continue;
+      const holdKey = `bonus-clawback-apply:${hold.reversalId}:order:${orderId}`;
+      await client.query(`INSERT INTO guest_account_entries (venue_id,guest_id,account_type,amount,reason,source_type,source_id,source_key,actor_id)
+        VALUES ($1,$2,'bonus',$3,'Зачёт удержания бонусов','reversal',$4,$5,$6)`, [venueId, guest.id, -consumed, hold.reversalId, holdKey, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
+      await client.query(`INSERT INTO guest_bonus_clawback_entries (venue_id,guest_id,reversal_id,order_id,amount,source_key,reason,actor_id)
+        VALUES ($1,$2,$3,$4,$5,$6,'Погашение удержания будущим начислением',$7)`, [venueId, guest.id, hold.reversalId, orderId, -consumed, holdKey, /^[0-9a-f-]{36}$/i.test(actorId || '') ? actorId : null]);
+      unspent -= consumed;
+      clawedBack += consumed;
+    }
+    const earned = grossEarned - clawedBack;
     const updated = await client.query('UPDATE guests SET loyalty_points=loyalty_points+$1 WHERE id=$2 AND venue_id=$3 RETURNING loyalty_points AS "loyaltyPoints"', [earned, guest.id, venueId]);
     if (!updated.rows[0]) throw Object.assign(new Error('loyalty_bonus_guest_missing'), { code: 'loyalty_bonus_guest_missing' });
     return { base: accrual.base, percent: accrual.percent, earned, balance: Number(updated.rows[0].loyaltyPoints) };
@@ -1517,7 +1582,7 @@ async function api(req, res) {
     const input = await body(req);
     if (input.checklistConfirmed !== true) return json(res, 400, { error: 'shift_checklist_required', message: 'Подтвердите чек-лист закрытия смены' });
     if (!Object.prototype.hasOwnProperty.call(input, 'closingCash') || !validCashAmount(input.closingCash)) return json(res, 400, { error: 'closing_cash_required' });
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(shiftClose[1])) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const { rows: shiftRows } = await client.query('SELECT id,venue_id,opening_cash AS "openingCash",opened_at AS "openedAt" FROM shifts WHERE id=$1 AND venue_id=$2 AND closed_at IS NULL FOR UPDATE', [shiftClose[1], venueDbId]); if (!shiftRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } const unresolvedLegacyCash = await client.query("SELECT COUNT(*)::int AS count, COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id IS NULL AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at >= $2 AND p.created_at < now()", [venueDbId, shiftRows[0].openedAt]); if (Number(unresolvedLegacyCash.rows[0]?.count || 0) > 0) { await client.query('ROLLBACK'); return json(res, 409, { error: 'shift_cash_attribution_unresolved', count: Number(unresolvedLegacyCash.rows[0].count), amount: Number(unresolvedLegacyCash.rows[0].amount || 0) }); } const payments = await client.query("SELECT COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id=$2 AND p.method='cash' AND p.status IN ('paid','partially_paid')", [venueDbId, shiftClose[1]]); const depositCash = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM guest_deposit_receipts WHERE venue_id=$1 AND shift_id=$2 AND payment_method='cash'", [venueDbId, shiftClose[1]]); const reservationCash = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM reservation_pre_payment_receipts WHERE venue_id=$1 AND shift_id=$2 AND payment_method='cash'", [venueDbId, shiftClose[1]]); const expectedCash = Number(shiftRows[0].openingCash || 0) + Number(payments.rows[0]?.amount || 0) + Number(depositCash.rows[0]?.amount || 0) + Number(reservationCash.rows[0]?.amount || 0); const { rows } = await client.query('UPDATE shifts SET closed_at=now(),closing_cash=$1::numeric,expected_cash=$2::numeric,cash_variance=$1::numeric-$2::numeric WHERE id=$3 AND venue_id=$4 AND closed_at IS NULL RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash",expected_cash AS "expectedCash",cash_variance AS "cashVariance"', [Number(input.closingCash), expectedCash, shiftClose[1], venueDbId]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } await client.query('INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES ($1,$2,$3,$4,$5,$6)', [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, 'shift.closed', 'shift', rows[0].id, rows[0]]); await client.query('COMMIT'); return json(res, 200, rows[0]); } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'shift_close_failed', detail: error.message }); } finally { client?.release(); } }
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(shiftClose[1])) { let client; try { client = await repositories.pool.connect(); await client.query('BEGIN'); const { rows: shiftRows } = await client.query('SELECT id,venue_id,opening_cash AS "openingCash",opened_at AS "openedAt" FROM shifts WHERE id=$1 AND venue_id=$2 AND closed_at IS NULL FOR UPDATE', [shiftClose[1], venueDbId]); if (!shiftRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } const unresolvedLegacyCash = await client.query("SELECT COUNT(*)::int AS count, COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id IS NULL AND p.method='cash' AND p.status IN ('paid','partially_paid') AND p.created_at >= $2 AND p.created_at < now()", [venueDbId, shiftRows[0].openedAt]); if (Number(unresolvedLegacyCash.rows[0]?.count || 0) > 0) { await client.query('ROLLBACK'); return json(res, 409, { error: 'shift_cash_attribution_unresolved', count: Number(unresolvedLegacyCash.rows[0].count), amount: Number(unresolvedLegacyCash.rows[0].amount || 0) }); } const payments = await client.query("SELECT COALESCE(SUM(p.amount),0) AS amount FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=$1 AND p.shift_id=$2 AND p.method='cash' AND p.status IN ('paid','partially_paid')", [venueDbId, shiftClose[1]]); const depositCash = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM guest_deposit_receipts WHERE venue_id=$1 AND shift_id=$2 AND payment_method='cash'", [venueDbId, shiftClose[1]]); const reservationCash = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM reservation_pre_payment_receipts WHERE venue_id=$1 AND shift_id=$2 AND payment_method='cash'", [venueDbId, shiftClose[1]]); const cashReversals = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM guest_account_reversals WHERE venue_id=$1 AND shift_id=$2 AND payout_method='cash'", [venueDbId, shiftClose[1]]); const reservationCashRefunds = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM reservation_pre_payment_receipt_reversals WHERE venue_id=$1 AND shift_id=$2 AND payout_method='cash'", [venueDbId, shiftClose[1]]); const expectedCash = Number(shiftRows[0].openingCash || 0) + Number(payments.rows[0]?.amount || 0) + Number(depositCash.rows[0]?.amount || 0) + Number(reservationCash.rows[0]?.amount || 0) - Number(cashReversals.rows[0]?.amount || 0) - Number(reservationCashRefunds.rows[0]?.amount || 0); const { rows } = await client.query('UPDATE shifts SET closed_at=now(),closing_cash=$1::numeric,expected_cash=$2::numeric,cash_variance=$1::numeric-$2::numeric WHERE id=$3 AND venue_id=$4 AND closed_at IS NULL RETURNING id,opened_at AS "openedAt",closed_at AS "closedAt",opening_cash AS "openingCash",closing_cash AS "closingCash",expected_cash AS "expectedCash",cash_variance AS "cashVariance"', [Number(input.closingCash), expectedCash, shiftClose[1], venueDbId]); if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'shift_not_found_or_closed' }); } await client.query('INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES ($1,$2,$3,$4,$5,$6)', [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, 'shift.closed', 'shift', rows[0].id, rows[0]]); await client.query('COMMIT'); return json(res, 200, rows[0]); } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'shift_close_failed', detail: error.message }); } finally { client?.release(); } }
     const shift = shifts.find((entry) => entry.id === shiftClose[1]); if (!shift || shift.closedAt) return json(res, 404, { error: 'shift_not_found_or_closed' });
     const cashPayments = orders.flatMap((order) => order.payments || []).filter((payment) => payment.method === 'cash' && ['paid', 'partially_paid'].includes(payment.status) && new Date(payment.createdAt || 0) >= new Date(shift.openedAt));
     const unassignedCashPayments = cashPayments.filter((payment) => !payment.shiftId);
@@ -2553,6 +2618,229 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (repositories?.products) { try { const product = await repositories.products.deactivate(venueDbId, productProfile[1]); if (!product) return json(res, 404, { error: 'product_not_found' }); recordAudit(req, 'product.deactivated', 'product', product.id, { active: true }, { active: false }); return json(res, 200, { ...product, active: false }); } catch (error) { return json(res, 409, { error: 'product_delete_failed', detail: error.message }); } }
     const index = products.findIndex((entry) => entry.id === productProfile[1]); if (index < 0) return json(res, 404, { error: 'product_not_found' }); const [product] = products.splice(index, 1); recordAudit(req, 'product.deactivated', 'product', product.id, { active: true }, { active: false }); return json(res, 200, { ...product, active: false });
   }
+  if (pathname === '/api/loyalty/settings' && req.method === 'GET') {
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'orders') && !hasPermission(req, 'loyalty') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
+    const expectedVenueId = url.searchParams.get('expectedVenueId');
+    const selectedVenueId = repositories?.pool ? venueDbId : currentVenueId;
+    if (!selectedVenueId) return json(res, 409, { error: 'venue_context_required' });
+    if (expectedVenueId && String(expectedVenueId) !== String(selectedVenueId)) return json(res, 409, { error: 'venue_context_changed' });
+    const defaults = { venueId: selectedVenueId, version: 0, bonusRublesPerPoint: 1, maxRedemptionPercent: 100, minimumRedemptionPoints: 1, bonusExpirationDays: null, source: 'legacy_default', effectiveAt: null };
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query('SELECT venue_id AS "venueId",version,bonus_ruble_rate AS "bonusRublesPerPoint",max_redemption_percent AS "maxRedemptionPercent",min_redemption_points AS "minimumRedemptionPoints",bonus_expiration_days AS "bonusExpirationDays",effective_at AS "effectiveAt" FROM loyalty_program_settings WHERE venue_id=$1 ORDER BY version DESC LIMIT 1', [selectedVenueId]);
+        const row = rows[0];
+        return json(res, 200, row ? { ...row, version: Number(row.version), bonusRublesPerPoint: Number(row.bonusRublesPerPoint), maxRedemptionPercent: Number(row.maxRedemptionPercent), minimumRedemptionPoints: Number(row.minimumRedemptionPoints), bonusExpirationDays: row.bonusExpirationDays === null ? null : Number(row.bonusExpirationDays), source: 'stored' } : defaults);
+      } catch (error) { return json(res, 503, { error: 'loyalty_settings_unavailable', detail: error.message }); }
+    }
+    return json(res, 200, { ...defaults, ...(loyaltyProgramSettings.get(String(selectedVenueId)) || {}) });
+  }
+  if (pathname === '/api/loyalty/promotions' && req.method === 'GET') {
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'orders') && !hasPermission(req, 'loyalty') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
+    const selectedVenueId = repositories?.pool ? venueDbId : currentVenueId;
+    const expectedVenueId = url.searchParams.get('expectedVenueId');
+    if (!selectedVenueId) return json(res, 409, { error: 'venue_context_required' });
+    if (expectedVenueId && String(expectedVenueId) !== String(selectedVenueId)) return json(res, 409, { error: 'venue_context_changed' });
+    const includeArchived = url.searchParams.get('includeArchived') === 'true';
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query(`SELECT p.venue_id AS "venueId",p.promotion_id AS "promotionId",p.version,p.name,p.description,p.status,p.starts_at AS "startsAt",p.ends_at AS "endsAt",p.timezone,p.benefit_kind AS "benefitKind",p.benefit_value AS "benefitValue",p.priority,
+          COALESCE(array_agg(s.product_id::text) FILTER (WHERE s.scope_kind='include_product'), '{}') AS "includeProductIds",
+          COALESCE(array_agg(s.product_id::text) FILTER (WHERE s.scope_kind='exclude_product'), '{}') AS "excludeProductIds",
+          COALESCE(array_agg(s.category_name) FILTER (WHERE s.scope_kind='include_category'), '{}') AS "includeCategories",
+          COALESCE(array_agg(s.category_name) FILTER (WHERE s.scope_kind='exclude_category'), '{}') AS "excludeCategories"
+          FROM (SELECT DISTINCT ON (venue_id,promotion_id) * FROM loyalty_promotions WHERE venue_id=$1 ORDER BY venue_id,promotion_id,version DESC) p
+          LEFT JOIN loyalty_promotion_scopes s ON s.venue_id=p.venue_id AND s.promotion_id=p.promotion_id AND s.version=p.version
+          WHERE ($2::boolean OR p.status<>'archived') GROUP BY p.venue_id,p.promotion_id,p.version,p.name,p.description,p.status,p.starts_at,p.ends_at,p.timezone,p.benefit_kind,p.benefit_value,p.priority ORDER BY p.name,p.promotion_id`, [selectedVenueId, includeArchived]);
+        return json(res, 200, { items: rows.map((row) => ({ ...row, version: Number(row.version), benefitValue: Number(row.benefitValue), priority: Number(row.priority) })) });
+      } catch (error) { return json(res, 503, { error: 'loyalty_promotions_unavailable', detail: error.message }); }
+    }
+    const latest = new Map();
+    for (const item of loyaltyPromotions.filter((entry) => String(entry.venueId) === String(selectedVenueId))) if (!latest.has(item.promotionId) || latest.get(item.promotionId).version < item.version) latest.set(item.promotionId, item);
+    return json(res, 200, { items: [...latest.values()].filter((item) => includeArchived || item.status !== 'archived').map(({ createdBy, ...item }) => item).sort((a, b) => a.name.localeCompare(b.name, 'ru')) });
+  }
+  if (pathname === '/api/loyalty/promotions' && req.method === 'POST') {
+    if (process.env.AUTH_REQUIRED === 'true' && !['owner', 'admin'].includes(req.user?.role)) return json(res, 403, { error: 'loyalty_promotion_owner_admin_required' });
+    const input = await body(req); const selectedVenueId = repositories?.pool ? venueDbId : currentVenueId;
+    if (!selectedVenueId) return json(res, 409, { error: 'venue_context_required' });
+    const allowedFields = new Set(['expectedVenueId','name','description','startsAt','endsAt','timezone','benefitKind','benefitValue','priority','includeProductIds','excludeProductIds','includeCategories','excludeCategories','status']);
+    if (Object.keys(input).some((key) => !allowedFields.has(key)) || (input.status !== undefined && input.status !== 'draft')) return json(res, 400, { error: 'invalid_loyalty_promotion' });
+    if (!input.expectedVenueId) return json(res, 428, { error: 'loyalty_promotion_precondition_required' });
+    if (String(input.expectedVenueId) !== String(selectedVenueId)) return json(res, 409, { error: 'venue_context_changed' });
+    const promotion = normalizePromotionInput({ ...input, status: 'draft' });
+    if (!promotion) return json(res, 400, { error: 'invalid_loyalty_promotion' });
+    if (repositories?.pool) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const ids = [...promotion.includeProductIds, ...promotion.excludeProductIds];
+        if (ids.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) { await client.query('ROLLBACK'); return json(res, 400, { error: 'loyalty_promotion_scope_invalid' }); }
+        if (ids.length) { const found = await client.query('SELECT id FROM products WHERE venue_id=$1 AND id=ANY($2::uuid[]) AND is_active=true', [selectedVenueId, ids]); if (found.rowCount !== ids.length) { await client.query('ROLLBACK'); return json(res, 400, { error: 'loyalty_promotion_scope_invalid' }); } }
+        const categories = [...promotion.includeCategories, ...promotion.excludeCategories];
+        if (categories.length) { const found = await client.query('SELECT DISTINCT category FROM products WHERE venue_id=$1 AND is_active=true AND category=ANY($2::text[])', [selectedVenueId, categories]); if (found.rowCount !== categories.length) { await client.query('ROLLBACK'); return json(res, 400, { error: 'loyalty_promotion_scope_invalid' }); } }
+        const { rows } = await client.query(`INSERT INTO loyalty_promotions (venue_id,version,name,description,status,starts_at,ends_at,timezone,benefit_kind,benefit_value,priority,created_by)
+          VALUES ($1,1,$2,$3,'draft',$4,$5,$6,$7,$8,$9,$10) RETURNING promotion_id AS "promotionId",version,name,description,status,starts_at AS "startsAt",ends_at AS "endsAt",timezone,benefit_kind AS "benefitKind",benefit_value AS "benefitValue",priority`, [selectedVenueId, promotion.name, promotion.description, promotion.startsAt, promotion.endsAt, promotion.timezone, promotion.benefitKind, promotion.benefitValue, promotion.priority, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]);
+        for (const [kind, values] of [['include_product', promotion.includeProductIds], ['exclude_product', promotion.excludeProductIds], ['include_category', promotion.includeCategories], ['exclude_category', promotion.excludeCategories]]) for (const value of values) await client.query('INSERT INTO loyalty_promotion_scopes (venue_id,promotion_id,version,scope_kind,product_id,category_name) VALUES ($1,$2,$3,$4,$5,$6)', [selectedVenueId, rows[0].promotionId, rows[0].version, kind, kind.endsWith('product') ? value : null, kind.endsWith('category') ? value : null]);
+        const after = { ...rows[0], ...promotion };
+        await client.query('INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES ($1,$2,$3,$4,$5,NULL,$6)', [selectedVenueId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, 'loyalty.promotion_created', 'loyalty_promotion', rows[0].promotionId, JSON.stringify(after)]);
+        await client.query('COMMIT'); return json(res, 201, after);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 503, { error: 'loyalty_promotion_save_failed', detail: error.message }); } finally { client.release(); }
+    }
+    const categories = [...promotion.includeCategories, ...promotion.excludeCategories];
+    if ([...promotion.includeProductIds, ...promotion.excludeProductIds].some((id) => !products.some((product) => String(product.id) === id))) return json(res, 400, { error: 'loyalty_promotion_scope_invalid' });
+    if (categories.some((category) => !products.some((product) => String(product.category || product.station || '') === category))) return json(res, 400, { error: 'loyalty_promotion_scope_invalid' });
+    const saved = { promotionId: `promotion-${crypto.randomUUID()}`, version: 1, ...promotion, venueId: selectedVenueId, createdBy: req.user?.id || null };
+    loyaltyPromotions.push(saved); recordAudit(req, 'loyalty.promotion_created', 'loyalty_promotion', null, null, saved); return json(res, 201, Object.fromEntries(Object.entries(saved).filter(([key]) => !['venueId', 'createdBy'].includes(key))));
+  }
+  const promotionProfile = pathname.match(/^\/api\/loyalty\/promotions\/([^/]+)$/);
+  if (promotionProfile && req.method === 'PATCH') {
+    if (process.env.AUTH_REQUIRED === 'true' && !['owner', 'admin'].includes(req.user?.role)) return json(res, 403, { error: 'loyalty_promotion_owner_admin_required' });
+    const input = await body(req); const selectedVenueId = repositories?.pool ? venueDbId : currentVenueId;
+    const allowedFields = new Set(['expectedVenueId','expectedVersion','name','description','startsAt','endsAt','timezone','benefitKind','benefitValue','priority','includeProductIds','excludeProductIds','includeCategories','excludeCategories','status']);
+    if (Object.keys(input).some((key) => !allowedFields.has(key))) return json(res, 400, { error: 'invalid_loyalty_promotion' });
+    if (!Number.isInteger(Number(input.expectedVersion)) || !input.expectedVenueId) return json(res, 428, { error: 'loyalty_promotion_precondition_required' });
+    if (String(input.expectedVenueId) !== String(selectedVenueId)) return json(res, 409, { error: 'venue_context_changed' });
+    if (input.status === 'active') return json(res, 409, { error: 'loyalty_promotion_pricing_unavailable' });
+    if (repositories?.pool) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query("SELECT pg_advisory_xact_lock(hashtext('loyalty_promotion'),hashtext($1::text))", [`${selectedVenueId}:${promotionProfile[1]}`]);
+        const latest = await client.query('SELECT promotion_id AS "promotionId",version,name,description,status,starts_at AS "startsAt",ends_at AS "endsAt",timezone,benefit_kind AS "benefitKind",benefit_value AS "benefitValue",priority FROM loyalty_promotions WHERE venue_id=$1 AND promotion_id=$2 ORDER BY version DESC LIMIT 1', [selectedVenueId, promotionProfile[1]]);
+        if (!latest.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'loyalty_promotion_not_found' }); }
+        const base = latest.rows[0];
+        if (Number(base.version) !== Number(input.expectedVersion)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'loyalty_promotion_version_conflict', currentVersion: Number(base.version) }); }
+        const scope = await client.query('SELECT scope_kind AS kind,product_id AS "productId",category_name AS category FROM loyalty_promotion_scopes WHERE venue_id=$1 AND promotion_id=$2 AND version=$3', [selectedVenueId, promotionProfile[1], base.version]);
+        const previous = { ...base, includeProductIds: scope.rows.filter((r) => r.kind === 'include_product').map((r) => r.productId), excludeProductIds: scope.rows.filter((r) => r.kind === 'exclude_product').map((r) => r.productId), includeCategories: scope.rows.filter((r) => r.kind === 'include_category').map((r) => r.category), excludeCategories: scope.rows.filter((r) => r.kind === 'exclude_category').map((r) => r.category) };
+        const next = normalizePromotionInput(input, previous);
+        if (!next) { await client.query('ROLLBACK'); return json(res, 400, { error: 'invalid_loyalty_promotion' }); }
+        if (next.status === 'archived' && !promotionTermsEqual(previous, next)) { await client.query('ROLLBACK'); return json(res, 400, { error: 'loyalty_promotion_archive_terms_immutable' }); }
+        const ids = [...next.includeProductIds, ...next.excludeProductIds];
+        if (ids.some((id) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) { await client.query('ROLLBACK'); return json(res, 400, { error: 'loyalty_promotion_scope_invalid' }); }
+        const previousIncludeIds = new Set(previous.includeProductIds); const previousExcludeIds = new Set(previous.excludeProductIds);
+        const addedIds = [...next.includeProductIds.filter((id) => !previousIncludeIds.has(id)), ...next.excludeProductIds.filter((id) => !previousExcludeIds.has(id))];
+        if (ids.length) { const found = await client.query('SELECT id,is_active AS active FROM products WHERE venue_id=$1 AND id=ANY($2::uuid[])', [selectedVenueId, ids]); if (found.rowCount !== ids.length || addedIds.some((id) => !found.rows.some((row) => row.id === id && row.active))) { await client.query('ROLLBACK'); return json(res, 400, { error: 'loyalty_promotion_scope_invalid' }); } }
+        const categories = [...next.includeCategories, ...next.excludeCategories];
+        const previousIncludeCategories = new Set(previous.includeCategories); const previousExcludeCategories = new Set(previous.excludeCategories);
+        const addedCategories = [...next.includeCategories.filter((category) => !previousIncludeCategories.has(category)), ...next.excludeCategories.filter((category) => !previousExcludeCategories.has(category))];
+        if (addedCategories.length) { const found = await client.query('SELECT DISTINCT category FROM products WHERE venue_id=$1 AND is_active=true AND category=ANY($2::text[])', [selectedVenueId, addedCategories]); if (found.rowCount !== addedCategories.length) { await client.query('ROLLBACK'); return json(res, 400, { error: 'loyalty_promotion_scope_invalid' }); } }
+        const { rows } = await client.query(`INSERT INTO loyalty_promotions (venue_id,promotion_id,version,name,description,status,starts_at,ends_at,timezone,benefit_kind,benefit_value,priority,created_by)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING promotion_id AS "promotionId",version,name,description,status,starts_at AS "startsAt",ends_at AS "endsAt",timezone,benefit_kind AS "benefitKind",benefit_value AS "benefitValue",priority`, [selectedVenueId, promotionProfile[1], Number(base.version) + 1, next.name, next.description, next.status, next.startsAt, next.endsAt, next.timezone, next.benefitKind, next.benefitValue, next.priority, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]);
+        for (const [kind, values] of [['include_product', next.includeProductIds], ['exclude_product', next.excludeProductIds], ['include_category', next.includeCategories], ['exclude_category', next.excludeCategories]]) for (const value of values) await client.query('INSERT INTO loyalty_promotion_scopes (venue_id,promotion_id,version,scope_kind,product_id,category_name) VALUES ($1,$2,$3,$4,$5,$6)', [selectedVenueId, promotionProfile[1], Number(base.version) + 1, kind, kind.endsWith('product') ? value : null, kind.endsWith('category') ? value : null]);
+        const after = { ...rows[0], ...next }; await client.query('INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES ($1,$2,$3,$4,$5,$6,$7)', [selectedVenueId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, next.status === 'archived' ? 'loyalty.promotion_archived' : 'loyalty.promotion_version_created', 'loyalty_promotion', promotionProfile[1], JSON.stringify(previous), JSON.stringify(after)]);
+        await client.query('COMMIT'); return json(res, 200, after);
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 503, { error: 'loyalty_promotion_save_failed', detail: error.message }); } finally { client.release(); }
+    }
+    const matches = loyaltyPromotions.filter((entry) => entry.promotionId === promotionProfile[1] && String(entry.venueId) === String(selectedVenueId)).sort((a, b) => b.version - a.version);
+    const previous = matches[0]; if (!previous) return json(res, 404, { error: 'loyalty_promotion_not_found' });
+    if (previous.version !== Number(input.expectedVersion)) return json(res, 409, { error: 'loyalty_promotion_version_conflict', currentVersion: previous.version });
+    const next = normalizePromotionInput(input, previous); if (!next) return json(res, 400, { error: 'invalid_loyalty_promotion' });
+    if (next.status === 'archived' && !promotionTermsEqual(previous, next)) return json(res, 400, { error: 'loyalty_promotion_archive_terms_immutable' });
+    const categories = [...next.includeCategories, ...next.excludeCategories];
+    if (next.status !== 'archived') {
+      const previousIncludeIds = new Set(previous.includeProductIds); const previousExcludeIds = new Set(previous.excludeProductIds);
+      const addedIds = [...next.includeProductIds.filter((id) => !previousIncludeIds.has(id)), ...next.excludeProductIds.filter((id) => !previousExcludeIds.has(id))];
+      if (addedIds.some((id) => !products.some((product) => String(product.id) === id && product.active !== false))) return json(res, 400, { error: 'loyalty_promotion_scope_invalid' });
+      const previousIncludeCategories = new Set(previous.includeCategories); const previousExcludeCategories = new Set(previous.excludeCategories);
+      const addedCategories = [...next.includeCategories.filter((category) => !previousIncludeCategories.has(category)), ...next.excludeCategories.filter((category) => !previousExcludeCategories.has(category))];
+      if (addedCategories.some((category) => !products.some((product) => String(product.category || product.station || '') === category && product.active !== false))) return json(res, 400, { error: 'loyalty_promotion_scope_invalid' });
+    }
+    const saved = { ...next, promotionId: previous.promotionId, version: previous.version + 1, venueId: previous.venueId, createdBy: req.user?.id || null };
+    loyaltyPromotions.push(saved); recordAudit(req, saved.status === 'archived' ? 'loyalty.promotion_archived' : 'loyalty.promotion_version_created', 'loyalty_promotion', null, previous, saved);
+    return json(res, 200, Object.fromEntries(Object.entries(saved).filter(([key]) => !['venueId', 'createdBy'].includes(key))));
+  }
+  if (pathname === '/api/loyalty/reconciliation' && req.method === 'GET') {
+    if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance_read') && !hasPermission(req, 'finance')) return json(res, 403, { error: 'forbidden', permission: 'finance_read' });
+    const selectedVenueId = repositories?.pool ? venueDbId : currentVenueId;
+    if (!selectedVenueId) return json(res, 409, { error: 'venue_context_required' });
+    if (repositories?.pool) {
+      try {
+        const { rows } = await repositories.pool.query(`WITH wallet AS (
+          SELECT id AS guest_id, loyalty_points::numeric AS bonus_balance, deposit_balance::numeric AS deposit_balance FROM guests WHERE venue_id=$1
+        ), ledger AS (
+          SELECT guest_id,account_type,SUM(amount)::numeric AS balance FROM guest_account_entries WHERE venue_id=$1 GROUP BY guest_id,account_type
+        ), differences AS (
+          SELECT w.guest_id,'bonus'::text AS account_type,w.bonus_balance AS wallet_balance,COALESCE(l.balance,0)::numeric AS ledger_balance FROM wallet w LEFT JOIN ledger l ON l.guest_id=w.guest_id AND l.account_type='bonus'
+          UNION ALL
+          SELECT w.guest_id,'deposit'::text,w.deposit_balance,COALESCE(l.balance,0)::numeric FROM wallet w LEFT JOIN ledger l ON l.guest_id=w.guest_id AND l.account_type='deposit'
+        ), movements AS (
+          SELECT
+            COALESCE(SUM(amount) FILTER (WHERE account_type='bonus' AND source_type='order' AND source_key LIKE '%:bonus-earned:%' AND amount>0),0)::numeric AS bonus_issued,
+            COALESCE(-SUM(amount) FILTER (WHERE account_type='bonus' AND source_type='order' AND amount<0),0)::numeric AS bonus_redeemed,
+            COALESCE(SUM(amount) FILTER (WHERE account_type='bonus' AND source_type='reversal' AND amount>0),0)::numeric AS bonus_returned,
+            COALESCE(SUM(amount) FILTER (WHERE account_type='deposit' AND source_type='deposit_top_up' AND amount>0),0)::numeric AS deposit_topped_up,
+            COALESCE(-SUM(amount) FILTER (WHERE account_type='deposit' AND source_type='order' AND amount<0),0)::numeric AS deposit_redeemed,
+            COALESCE(SUM(amount) FILTER (WHERE account_type='deposit' AND source_type='reversal' AND amount>0),0)::numeric AS deposit_returned
+          FROM guest_account_entries WHERE venue_id=$1
+        ), clawbacks AS (
+          SELECT COALESCE(SUM(amount),0)::numeric AS outstanding FROM guest_bonus_clawback_entries WHERE venue_id=$1
+        )
+        SELECT
+          COALESCE(SUM(wallet_balance) FILTER (WHERE account_type='bonus'),0)::numeric AS bonus_wallet,
+          COALESCE(SUM(ledger_balance) FILTER (WHERE account_type='bonus'),0)::numeric AS bonus_ledger,
+          COUNT(*) FILTER (WHERE account_type='bonus' AND wallet_balance<>ledger_balance)::int AS bonus_mismatch_count,
+          COALESCE(SUM(ABS(wallet_balance-ledger_balance)) FILTER (WHERE account_type='bonus'),0)::numeric AS bonus_mismatch_amount,
+          COALESCE(SUM(wallet_balance) FILTER (WHERE account_type='deposit'),0)::numeric AS deposit_wallet,
+          COALESCE(SUM(ledger_balance) FILTER (WHERE account_type='deposit'),0)::numeric AS deposit_ledger,
+          COUNT(*) FILTER (WHERE account_type='deposit' AND wallet_balance<>ledger_balance)::int AS deposit_mismatch_count,
+          COALESCE(SUM(ABS(wallet_balance-ledger_balance)) FILTER (WHERE account_type='deposit'),0)::numeric AS deposit_mismatch_amount,
+          (SELECT outstanding FROM clawbacks) AS bonus_clawback_outstanding,
+          (SELECT bonus_issued FROM movements) AS bonus_issued,
+          (SELECT bonus_redeemed FROM movements) AS bonus_redeemed,
+          (SELECT bonus_returned FROM movements) AS bonus_returned,
+          (SELECT deposit_topped_up FROM movements) AS deposit_topped_up,
+          (SELECT deposit_redeemed FROM movements) AS deposit_redeemed,
+          (SELECT deposit_returned FROM movements) AS deposit_returned,
+          (SELECT COUNT(*)::int FROM wallet) AS guest_count,
+          now() AS generated_at
+        FROM differences`, [selectedVenueId]);
+        const row=rows[0];
+        return json(res,200,{venueId:selectedVenueId,generatedAt:row.generated_at,guestCount:Number(row.guest_count||0),balances:{bonus:{wallet:Number(row.bonus_wallet||0),ledger:Number(row.bonus_ledger||0),mismatchCount:Number(row.bonus_mismatch_count||0),mismatchAmount:Number(row.bonus_mismatch_amount||0)},deposit:{wallet:Number(row.deposit_wallet||0),ledger:Number(row.deposit_ledger||0),mismatchCount:Number(row.deposit_mismatch_count||0),mismatchAmount:Number(row.deposit_mismatch_amount||0)}},bonus:{issued:Number(row.bonus_issued||0),redeemed:Number(row.bonus_redeemed||0),returned:Number(row.bonus_returned||0),outstandingClawback:Number(row.bonus_clawback_outstanding||0)},deposit:{toppedUp:Number(row.deposit_topped_up||0),redeemed:Number(row.deposit_redeemed||0),returned:Number(row.deposit_returned||0)}});
+      } catch (error) { return json(res,503,{error:'loyalty_reconciliation_unavailable',detail:error.message}); }
+    }
+    const venueGuests=clients.filter((guest)=>guest.venueId===currentVenueId);
+    const entries=venueGuests.flatMap((guest)=>guest.accountEntries||[]);
+    const balance=(guest,type)=>Number(type==='bonus'?(guest.loyaltyPoints??guest.bonusBalance??0):(guest.depositBalance||0));
+    const ledger=(guest,type)=>(guest.accountEntries||[]).filter((entry)=>entry.accountType===type).reduce((sum,entry)=>sum+Number(entry.amount||0),0);
+    const summarize=(type)=>{const mismatches=venueGuests.filter((guest)=>Math.round(balance(guest,type)*100)!==Math.round(ledger(guest,type)*100));return{wallet:venueGuests.reduce((sum,guest)=>sum+balance(guest,type),0),ledger:venueGuests.reduce((sum,guest)=>sum+ledger(guest,type),0),mismatchCount:mismatches.length,mismatchAmount:mismatches.reduce((sum,guest)=>sum+Math.abs(balance(guest,type)-ledger(guest,type)),0)}};
+    const sum=(filter)=>entries.filter(filter).reduce((total,entry)=>total+Number(entry.amount||0),0);
+    return json(res,200,{venueId:selectedVenueId,generatedAt:new Date().toISOString(),guestCount:venueGuests.length,balances:{bonus:summarize('bonus'),deposit:summarize('deposit')},bonus:{issued:sum((entry)=>entry.accountType==='bonus'&&entry.sourceKey?.includes(':bonus-earned:')&&entry.amount>0),redeemed:-sum((entry)=>entry.accountType==='bonus'&&entry.sourceType==='order'&&entry.amount<0),returned:sum((entry)=>entry.accountType==='bonus'&&entry.sourceType==='reversal'&&entry.amount>0),outstandingClawback:0},deposit:{toppedUp:sum((entry)=>entry.accountType==='deposit'&&entry.sourceType==='deposit_top_up'&&entry.amount>0),redeemed:-sum((entry)=>entry.accountType==='deposit'&&entry.sourceType==='order'&&entry.amount<0),returned:sum((entry)=>entry.accountType==='deposit'&&entry.sourceType==='reversal'&&entry.amount>0)}});
+  }
+  if (pathname === '/api/loyalty/settings' && req.method === 'PATCH') {
+    if (process.env.AUTH_REQUIRED === 'true' && !['owner', 'admin'].includes(req.user?.role)) return json(res, 403, { error: 'loyalty_settings_owner_admin_required' });
+    const input = await body(req);
+    const selectedVenueId = repositories?.pool ? venueDbId : currentVenueId;
+    if (!selectedVenueId) return json(res, 409, { error: 'venue_context_required' });
+    if (!input.expectedVenueId) return json(res, 428, { error: 'venue_precondition_required' });
+    if (String(input.expectedVenueId) !== String(selectedVenueId)) return json(res, 409, { error: 'venue_context_changed' });
+    const allowedFields = new Set(['expectedVenueId', 'expectedVersion', 'bonusRublesPerPoint', 'maxRedemptionPercent', 'minimumRedemptionPoints']);
+    if (Object.keys(input).some((key) => !allowedFields.has(key))) return json(res, 400, { error: 'unknown_loyalty_setting' });
+    const expectedVersion = Number(input.expectedVersion);
+    const bonusRublesPerPoint = Number(input.bonusRublesPerPoint);
+    const maxRedemptionPercent = Number(input.maxRedemptionPercent);
+    const minimumRedemptionPoints = Number(input.minimumRedemptionPoints);
+    if (!Number.isInteger(expectedVersion) || expectedVersion < 0 || bonusRublesPerPoint !== 1 || !Number.isFinite(maxRedemptionPercent) || maxRedemptionPercent < 0 || maxRedemptionPercent > 100 || !Number.isInteger(minimumRedemptionPoints) || minimumRedemptionPoints < 1 || minimumRedemptionPoints > 1000000) return json(res, 400, { error: 'invalid_loyalty_settings' });
+    const after = { venueId: selectedVenueId, version: expectedVersion + 1, bonusRublesPerPoint, maxRedemptionPercent, minimumRedemptionPoints, bonusExpirationDays: null, source: 'stored' };
+    if (repositories?.pool) {
+      const client = await repositories.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const venue = await client.query('SELECT id FROM venues WHERE id=$1 FOR UPDATE', [selectedVenueId]);
+        if (!venue.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'venue_context_changed' }); }
+        const current = await client.query('SELECT id,version,bonus_ruble_rate AS "bonusRublesPerPoint",max_redemption_percent AS "maxRedemptionPercent",min_redemption_points AS "minimumRedemptionPoints",bonus_expiration_days AS "bonusExpirationDays" FROM loyalty_program_settings WHERE venue_id=$1 ORDER BY version DESC LIMIT 1 FOR UPDATE', [selectedVenueId]);
+        const currentVersion = Number(current.rows[0]?.version || 0);
+        if (currentVersion !== expectedVersion) { await client.query('ROLLBACK'); return json(res, 409, { error: 'loyalty_settings_version_conflict', currentVersion }); }
+        const before = current.rows[0] ? { venueId: selectedVenueId, version: currentVersion, bonusRublesPerPoint: Number(current.rows[0].bonusRublesPerPoint), maxRedemptionPercent: Number(current.rows[0].maxRedemptionPercent), minimumRedemptionPoints: Number(current.rows[0].minimumRedemptionPoints), bonusExpirationDays: current.rows[0].bonusExpirationDays === null ? null : Number(current.rows[0].bonusExpirationDays), source: 'stored' } : { venueId: selectedVenueId, version: 0, bonusRublesPerPoint: 1, maxRedemptionPercent: 100, minimumRedemptionPoints: 1, bonusExpirationDays: null, source: 'legacy_default' };
+        const inserted = await client.query('INSERT INTO loyalty_program_settings (venue_id,version,bonus_ruble_rate,max_redemption_percent,min_redemption_points,bonus_expiration_days,created_by) VALUES ($1,$2,$3,$4,$5,NULL,$6) RETURNING id,effective_at AS "effectiveAt"', [selectedVenueId, after.version, bonusRublesPerPoint, maxRedemptionPercent, minimumRedemptionPoints, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]);
+        await repositories.audit.record({ venueId: selectedVenueId, actorId: /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, action: 'loyalty.settings_version_created', entityType: 'loyalty_settings', entityId: inserted.rows[0].id, beforeData: before, afterData: { ...after, effectiveAt: inserted.rows[0].effectiveAt } }, client);
+        await client.query('COMMIT');
+        return json(res, 201, { ...after, effectiveAt: inserted.rows[0].effectiveAt });
+      } catch (error) { await client.query('ROLLBACK').catch(() => {}); return json(res, 503, { error: 'loyalty_settings_save_failed', detail: error.message }); }
+      finally { client.release(); }
+    }
+    const current = loyaltyProgramSettings.get(String(selectedVenueId)) || { venueId: selectedVenueId, version: 0, bonusRublesPerPoint: 1, maxRedemptionPercent: 100, minimumRedemptionPoints: 1, bonusExpirationDays: null, source: 'legacy_default', effectiveAt: null };
+    if (Number(current.version) !== expectedVersion) return json(res, 409, { error: 'loyalty_settings_version_conflict', currentVersion: Number(current.version) });
+    const saved = { ...after, effectiveAt: new Date().toISOString() }; loyaltyProgramSettings.set(String(selectedVenueId), saved); recordAudit(req, 'loyalty.settings_version_created', 'loyalty_settings', null, current, saved); return json(res, 201, saved);
+  }
   if (pathname === '/api/discount-groups' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'staff_view') && !hasPermission(req, 'staff_manage') && !hasPermission(req, 'finance') && !hasPermission(req, 'orders') && !hasPermission(req, 'loyalty')) return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
     const includeArchived = url.searchParams.get('includeArchived') === 'true';
@@ -2808,14 +3096,94 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     recordAudit(req, 'client.loyalty_adjusted', 'client', client.id, { loyaltyPoints: before }, { loyaltyPoints: client.loyaltyPoints, delta, reason }); return json(res, 200, { id: client.id, loyaltyPoints: client.loyaltyPoints, bonusBalance: client.bonusBalance, previousBalance: before, delta, reason });
   }
   const clientAccountEntries = pathname.match(/^\/api\/clients\/([^/]+)\/account-entries$/);
+  const clientAccountReversal = pathname.match(/^\/api\/clients\/([^/]+)\/account-entries\/([^/]+)\/reversals$/);
+  if (clientAccountReversal && req.method === 'POST') {
+    if (!repositories?.pool) return json(res, 503, { error: 'account_reversal_requires_database' });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientAccountReversal[1]) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientAccountReversal[2])) return json(res, 400, { error: 'valid_guest_and_entry_required' });
+    const input = await body(req);
+    const amount = Number(input.amount);
+    const reason = String(input.reason || '').trim();
+    const method = String(input.method || '');
+    const idempotencyKey = String(input.idempotencyKey || '').trim();
+    if (!Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 1e-6 || !reason || reason.length > 500 || idempotencyKey.length < 8 || idempotencyKey.length > 120 || !['wallet','cash','card','qr','clawback'].includes(method)) return json(res, 400, { error: 'valid_reversal_details_required' });
+    const financeAllowed = hasPermission(req, 'finance');
+    if (process.env.AUTH_REQUIRED === 'true' && !financeAllowed && !(['wallet','clawback'].includes(method) && hasPermission(req, 'loyalty'))) return json(res, 403, { error: 'forbidden', permission: 'finance' });
+    if (process.env.AUTH_REQUIRED === 'true' && ['cash','card','qr'].includes(method) && (!financeAllowed || !['owner','admin'].includes(req.user?.role))) return json(res, 403, { error: 'external_payout_requires_owner_admin_finance' });
+    let tx;
+    try {
+      tx = await repositories.pool.connect(); await tx.query('BEGIN');
+      const { rows: guestRows } = await tx.query('SELECT id,loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2 FOR UPDATE', [clientAccountReversal[1], venueDbId]);
+      if (!guestRows[0]) { await tx.query('ROLLBACK'); return json(res, 404, { error: 'client_not_found' }); }
+      const { rows: existing } = await tx.query('SELECT id,guest_id AS "guestId",source_entry_id AS "sourceEntryId",amount, payout_method AS method,reason,idempotency_key AS "idempotencyKey",shift_id AS "shiftId" FROM guest_account_reversals WHERE venue_id=$1 AND idempotency_key=$2', [venueDbId, idempotencyKey]);
+      if (existing[0]) {
+        const prior = existing[0];
+        if (prior.guestId !== clientAccountReversal[1] || prior.sourceEntryId !== clientAccountReversal[2] || Number(prior.amount) !== amount || prior.method !== method || prior.reason !== reason) { await tx.query('ROLLBACK'); return json(res, 409, { error: 'idempotency_key_reused' }); }
+        const replayAmounts = await tx.query(`SELECT COALESCE((SELECT SUM(amount) FROM guest_account_entries WHERE venue_id=$1 AND guest_id=$2 AND source_type='reversal' AND source_id=$3 AND source_key=$4),0) AS wallet_delta,
+          COALESCE((SELECT SUM(amount) FROM guest_bonus_clawback_entries WHERE venue_id=$1 AND guest_id=$2 AND reversal_id=$3 AND amount>0),0) AS clawback_amount`, [venueDbId, clientAccountReversal[1], prior.id, `reversal:${prior.id}`]);
+        await tx.query('COMMIT'); return json(res, 200, { ...prior, amount: Number(prior.amount), immediateWalletDelta: Number(replayAmounts.rows[0]?.wallet_delta || 0), clawbackAmount: Number(replayAmounts.rows[0]?.clawback_amount || 0), balances: { bonus: Number(guestRows[0].bonusBalance || 0), deposit: Number(guestRows[0].depositBalance || 0) }, idempotentReplay: true });
+      }
+      const { rows: sourceRows } = await tx.query('SELECT id,account_type AS "accountType",amount,source_type AS "sourceType",source_key AS "sourceKey" FROM guest_account_entries WHERE id=$1 AND venue_id=$2 AND guest_id=$3 FOR UPDATE', [clientAccountReversal[2], venueDbId, clientAccountReversal[1]]);
+      const source = sourceRows[0];
+      if (!source) { await tx.query('ROLLBACK'); return json(res, 404, { error: 'account_entry_not_found' }); }
+      const sourceAmount = Number(source.amount);
+      const bonusEntry = source.accountType === 'bonus';
+      const eligible = (bonusEntry && ((sourceAmount > 0 && source.sourceType === 'order' && String(source.sourceKey || '').includes('bonus-earned')) || (sourceAmount < 0 && source.sourceType === 'order'))) || (!bonusEntry && ((sourceAmount > 0 && source.sourceType === 'deposit_top_up') || (sourceAmount < 0 && source.sourceType === 'order')));
+      if (!eligible || (bonusEntry && !Number.isInteger(amount)) || (bonusEntry && sourceAmount > 0 && method !== 'clawback') || (bonusEntry && sourceAmount < 0 && method !== 'wallet') || (!bonusEntry && sourceAmount < 0 && method !== 'wallet') || (!bonusEntry && sourceAmount > 0 && !['wallet','cash','card','qr'].includes(method))) { await tx.query('ROLLBACK'); return json(res, 409, { error: 'source_not_reversible' }); }
+      const { rows: sumRows } = await tx.query('SELECT COALESCE(SUM(amount),0) AS amount FROM guest_account_reversals WHERE venue_id=$1 AND source_entry_id=$2', [venueDbId, source.id]);
+      const remaining = Math.max(0, Math.abs(sourceAmount) - Number(sumRows[0]?.amount || 0));
+      if (amount > remaining + 0.000001) { await tx.query('ROLLBACK'); return json(res, 409, { error: 'reversal_exceeds_remainder', remaining }); }
+      const { rows: shiftRows } = await tx.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
+      if (!shiftRows[0]) { await tx.query('ROLLBACK'); return json(res, 409, { error: 'open_shift_required' }); }
+      const shiftId = shiftRows[0].id;
+      const reversal = await tx.query(`INSERT INTO guest_account_reversals (venue_id,guest_id,source_entry_id,shift_id,account_type,amount,payout_method,reason,idempotency_key,actor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,guest_id AS "guestId",source_entry_id AS "sourceEntryId",amount,payout_method AS method,reason,idempotency_key AS "idempotencyKey",shift_id AS "shiftId"`, [venueDbId, clientAccountReversal[1], source.id, shiftId, source.accountType, amount, method, reason, idempotencyKey, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]);
+      const reversalRow = reversal.rows[0];
+      let delta = -Math.sign(sourceAmount) * amount;
+      let immediate = amount;
+      let clawback = 0;
+      if (bonusEntry && sourceAmount > 0) {
+        immediate = Math.min(amount, Number(guestRows[0].bonusBalance || 0));
+        clawback = amount - immediate;
+        delta = -immediate;
+      }
+      if (!bonusEntry && delta < 0 && Number(guestRows[0].depositBalance || 0) < -delta) { await tx.query('ROLLBACK'); return json(res, 409, { error: 'insufficient_deposit_balance', available: Number(guestRows[0].depositBalance || 0) }); }
+      if (delta !== 0) {
+        await tx.query(`INSERT INTO guest_account_entries (venue_id,guest_id,account_type,amount,reason,source_type,source_id,source_key,actor_id) VALUES ($1,$2,$3,$4,$5,'reversal',$6,$7,$8)`, [venueDbId, clientAccountReversal[1], source.accountType, delta, `Сторно движения: ${reason}`, reversalRow.id, `reversal:${reversalRow.id}`, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]);
+        const balanceColumn = bonusEntry ? 'loyalty_points' : 'deposit_balance';
+        await tx.query(`UPDATE guests SET ${balanceColumn}=${balanceColumn}+$1 WHERE id=$2 AND venue_id=$3`, [delta, clientAccountReversal[1], venueDbId]);
+      }
+      if (clawback > 0) await tx.query("INSERT INTO guest_bonus_clawback_entries (venue_id,guest_id,reversal_id,amount,source_key,reason,actor_id) VALUES ($1,$2,$3,$4,$5,$6,$7)", [venueDbId, clientAccountReversal[1], reversalRow.id, clawback, `bonus-clawback:${reversalRow.id}`, `Удержание при возврате начисленных бонусов: ${reason}`, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null]);
+      await tx.query("INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,before_data,after_data) VALUES ($1,$2,'guest.account_reversed','guest_account_reversal',$3,$4,$5)", [venueDbId, /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null, reversalRow.id, { sourceEntryId: source.id, amount: sourceAmount, bonusBalance: Number(guestRows[0].bonusBalance || 0), depositBalance: Number(guestRows[0].depositBalance || 0) }, { ...reversalRow, sourceEntryId: source.id, originalAmount: sourceAmount, immediateWalletDelta: delta, clawbackAmount: clawback, reason, actorId: req.user?.id || null }]);
+      const { rows: balanceRows } = await tx.query('SELECT loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2', [clientAccountReversal[1], venueDbId]);
+      await tx.query('COMMIT');
+      return json(res, 201, { ...reversalRow, amount: Number(reversalRow.amount), immediateWalletDelta: delta, clawbackAmount: clawback, balances: { bonus: Number(balanceRows[0].bonusBalance || 0), deposit: Number(balanceRows[0].depositBalance || 0) } });
+    } catch (error) {
+      if (tx) await tx.query('ROLLBACK').catch(() => {});
+      if (error.code === '23505') return json(res, 409, { error: 'idempotency_key_reused' });
+      return json(res, 503, { error: 'account_reversal_failed' });
+    } finally { tx?.release(); }
+  }
   if (clientAccountEntries && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'finance') && !hasPermission(req, 'orders') && !hasPermission(req, 'staff_manage') && !hasPermission(req, 'loyalty')) return json(res, 403, { error: 'forbidden', permission: 'loyalty' });
-    if (repositories?.pool && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(clientAccountEntries[1])) {
+    if (repositories?.pool && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clientAccountEntries[1])) return json(res, 400, { error: 'invalid_client_id' });
+    if (repositories?.pool) {
       try {
-        const { rows } = await repositories.pool.query(`SELECT e.id,e.account_type AS "accountType",e.amount,e.reason,e.source_type AS "sourceType",e.source_id AS "sourceId",e.created_at AS "createdAt",u.full_name AS "actorName",r.payment_method AS method,r.shift_id AS "shiftId" FROM guest_account_entries e LEFT JOIN users u ON u.id=e.actor_id LEFT JOIN guest_deposit_receipts r ON r.venue_id=e.venue_id AND r.id=e.source_id AND e.source_type='deposit_top_up' WHERE e.venue_id=$1 AND e.guest_id=$2 ORDER BY e.created_at DESC,e.id DESC LIMIT 100`, [venueDbId, clientAccountEntries[1]]);
+        const { rows } = await repositories.pool.query(`SELECT e.id,e.account_type AS "accountType",e.amount,e.reason,e.source_type AS "sourceType",e.source_id AS "sourceId",e.source_key AS "sourceKey",e.created_at AS "createdAt",u.full_name AS "actorName",r.payment_method AS method,r.shift_id AS "shiftId",rev.payout_method AS "reversalMethod",rev.shift_id AS "reversalShiftId",rev.source_entry_id AS "reversedSourceEntryId",rev.amount AS "reversedAmount",
+          GREATEST(ABS(e.amount)-COALESCE(rv.amount,0),0) AS "reversibleRemaining",
+          CASE WHEN COALESCE(rv.amount,0)<ABS(e.amount) AND ((e.account_type='bonus' AND e.source_type='order' AND ((e.amount>0 AND e.source_key LIKE '%bonus-earned%') OR e.amount<0)) OR (e.account_type='deposit' AND ((e.amount>0 AND e.source_type='deposit_top_up') OR (e.amount<0 AND e.source_type='order')))) THEN true ELSE false END AS "canReverse"
+          FROM guest_account_entries e LEFT JOIN users u ON u.id=e.actor_id LEFT JOIN guest_deposit_receipts r ON r.venue_id=e.venue_id AND r.id=e.source_id AND e.source_type='deposit_top_up'
+          LEFT JOIN guest_account_reversals rev ON rev.venue_id=e.venue_id AND rev.id=e.source_id AND e.source_type='reversal'
+          LEFT JOIN LATERAL (SELECT SUM(amount) AS amount FROM guest_account_reversals x WHERE x.venue_id=e.venue_id AND x.source_entry_id=e.id) rv ON true
+          WHERE e.venue_id=$1 AND e.guest_id=$2 ORDER BY e.created_at DESC,e.id DESC LIMIT 100`, [venueDbId, clientAccountEntries[1]]);
+        // A fully spent bonus award can be reversed with no immediate balance movement.
+        // Keep its immutable reversal visible even though no guest_account_entries row exists.
+        const { rows: reversalOnlyRows } = await repositories.pool.query(`SELECT rev.id,rev.account_type AS "accountType",0::numeric AS amount,rev.reason,'reversal'::text AS "sourceType",src.id AS "sourceId",rev.id::text AS "sourceKey",rev.created_at AS "createdAt",u.full_name AS "actorName",NULL::text AS method,NULL::uuid AS "shiftId",rev.payout_method AS "reversalMethod",rev.shift_id AS "reversalShiftId",src.id AS "reversedSourceEntryId",rev.amount AS "reversedAmount",'reversal'::text AS "entryKind",0::numeric AS "reversibleRemaining",false AS "canReverse"
+          FROM guest_account_reversals rev JOIN guest_account_entries src ON src.venue_id=rev.venue_id AND src.guest_id=rev.guest_id AND src.id=rev.source_entry_id LEFT JOIN users u ON u.id=rev.actor_id
+          WHERE rev.venue_id=$1 AND rev.guest_id=$2 AND NOT EXISTS (SELECT 1 FROM guest_account_entries movement WHERE movement.venue_id=rev.venue_id AND movement.guest_id=rev.guest_id AND movement.source_type='reversal' AND movement.source_id=rev.id)`, [venueDbId, clientAccountEntries[1]]);
         const { rows: guestRows } = await repositories.pool.query('SELECT loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2', [clientAccountEntries[1], venueDbId]);
         if (!guestRows[0]) return json(res, 404, { error: 'client_not_found' });
-        return json(res, 200, { items: rows.map((row) => ({ ...row, amount: Number(row.amount) })), balances: { bonus: Number(guestRows[0].bonusBalance || 0), deposit: Number(guestRows[0].depositBalance || 0) } });
+        const { rows: holdRows } = await repositories.pool.query('SELECT COALESCE(SUM(amount),0)::int AS amount FROM guest_bonus_clawback_entries WHERE venue_id=$1 AND guest_id=$2', [venueDbId, clientAccountEntries[1]]);
+        const items = [...rows, ...reversalOnlyRows].map((row) => ({ ...row, amount: Number(row.amount), reversedAmount: Number(row.reversedAmount || 0), reversibleRemaining: Number(row.reversibleRemaining || 0), canReverse: Boolean(row.canReverse) })).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || String(b.id).localeCompare(String(a.id))).slice(0, 100);
+        return json(res, 200, { items, balances: { bonus: Number(guestRows[0].bonusBalance || 0), deposit: Number(guestRows[0].depositBalance || 0), bonusClawback: Number(holdRows[0]?.amount || 0) } });
       } catch (error) { return json(res, 503, { error: 'guest_account_history_unavailable', detail: error.message }); }
     }
     const client = clients.find((entry) => entry.id === clientAccountEntries[1]);
@@ -2902,7 +3270,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
   }
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",custom_role_id AS "customRoleId",employment_started_at::text AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT u.id,u.full_name AS name,u.login,u.contact_email AS email,u.role,u.is_active AS active,u.avatar_url AS "avatarUrl",u.photo_url AS "photoUrl",u.birth_date::text AS "birthDate",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes",u.custom_role_id AS "customRoleId",cr.name AS "customRoleName",u.employment_started_at::text AS "employmentStartedAt",u.work_notes AS "workNotes",u.pin_updated_at AS "pinUpdatedAt" FROM users u LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.venue_id=u.venue_id AND cr.is_active=true WHERE u.venue_id=$1 AND u.deleted_at IS NULL ORDER BY u.full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
     return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { person.pinConfigured = Boolean(person.pinCode || person.pinHash || person.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!canSeeStaffPhoto(req)) delete person.photoUrl; if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
@@ -4005,10 +4373,10 @@ if (staffProfile && req.method === 'PATCH') {
               COALESCE(payments.cash,0) AS cash, COALESCE(payments.cashless,0) AS cashless,
               COALESCE(payments.other,0) AS other, checks.closed_orders
             FROM (
-              SELECT SUM(p.amount) AS revenue, COUNT(p.id)::int AS payment_count,
+              SELECT SUM(p.amount) FILTER (WHERE p.method<>'reservation' OR o.status='closed') AS revenue, COUNT(p.id)::int AS payment_count,
                 SUM(p.amount) FILTER (WHERE p.method='cash') AS cash,
                 SUM(p.amount) FILTER (WHERE p.method IN ('card','qr')) AS cashless,
-                SUM(p.amount) FILTER (WHERE p.method NOT IN ('cash','card','qr')) AS other
+                SUM(p.amount) FILTER (WHERE p.method NOT IN ('cash','card','qr') AND (p.method<>'reservation' OR o.status='closed')) AS other
               FROM payments p JOIN orders o ON o.id=p.order_id
               WHERE o.venue_id=$1 AND o.opened_by=$2 AND p.status IN ('paid','partially_paid')
                 AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4)
@@ -4039,11 +4407,11 @@ if (staffProfile && req.method === 'PATCH') {
             COALESCE(checks.closed_orders,0)::int AS "closedOrders"
           FROM shifts s
           LEFT JOIN LATERAL (
-            SELECT SUM(p.amount) AS revenue,
+            SELECT SUM(p.amount) FILTER (WHERE p.method<>'reservation' OR o.status='closed') AS revenue,
               COUNT(p.id)::int AS payment_count,
               SUM(p.amount) FILTER (WHERE p.method='cash') AS cash,
               SUM(p.amount) FILTER (WHERE p.method IN ('card','qr')) AS cashless,
-              SUM(p.amount) FILTER (WHERE p.method NOT IN ('cash','card','qr')) AS other
+              SUM(p.amount) FILTER (WHERE p.method NOT IN ('cash','card','qr') AND (p.method<>'reservation' OR o.status='closed')) AS other
             FROM payments p JOIN orders o ON o.id=p.order_id AND o.venue_id=s.venue_id
             WHERE p.status IN ('paid','partially_paid') AND p.shift_id=s.id
               AND ($3::uuid IS NULL OR o.opened_by=$3::uuid)
@@ -4075,7 +4443,7 @@ if (staffProfile && req.method === 'PATCH') {
       for (const order of orders.filter((item) => String(item.openedById || item.openedBy || '') === String(req.user?.id || ''))) {
         if (order.status === 'closed' && order.closedAt && businessDateKey(order.closedAt) === reportDate) totals.closedOrders += 1;
         for (const payment of order.payments || []) {
-          if (!['paid', 'partially_paid'].includes(payment.status) || !payment.createdAt || businessDateKey(payment.createdAt) !== reportDate) continue;
+          if (!['paid', 'partially_paid'].includes(payment.status) || !payment.createdAt || businessDateKey(payment.createdAt) !== reportDate || (payment.method==='reservation'&&order.status!=='closed')) continue;
           const amount = Number(payment.amount || 0);
           const method = payment.method === 'cash' ? 'cash' : ['card', 'qr'].includes(payment.method) ? 'cashless' : 'other';
           totals.revenue += amount; totals.paymentCount += 1; totals[method] += amount;
@@ -4101,6 +4469,7 @@ if (staffProfile && req.method === 'PATCH') {
       }
       for (const payment of order.payments || []) {
         if (!['paid','partially_paid'].includes(payment.status)) continue;
+        if (payment.method==='reservation' && order.status!=='closed') continue;
         const paymentShiftId = payment.shiftId || null;
         if (!paymentShiftId || !chosen.some((shift) => shift.id === paymentShiftId)) continue;
         const key = payment.method === 'cash' ? 'cash' : ['card','qr'].includes(payment.method) ? 'cashless' : 'other';
@@ -4131,7 +4500,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
-        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4) AND p.created_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date, timezone]);
+        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount) FILTER (WHERE p.method<>'reservation' OR o.status='closed'),0) AS revenue FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4) AND p.created_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date, timezone]);
         const row = rows[0] || {}; return json(res, 200, { date, revenue: Number(row.revenue || 0), employeeView: true });
       } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
     }
@@ -4164,7 +4533,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (employeeFinanceView) {
       const revenue = orders.filter((order) => String(order.openedBy || order.openedById || '') === String(req.user?.id || ''))
         .flatMap((order) => order.payments || [])
-        .filter((payment) => ['paid', 'partially_paid'].includes(payment.status) && payment.createdAt && businessDateKey(payment.createdAt) === date)
+        .filter((payment) => ['paid', 'partially_paid'].includes(payment.status) && payment.createdAt && businessDateKey(payment.createdAt) === date && (payment.method!=='reservation'||orders.find((order)=>order.payments?.includes(payment))?.status==='closed'))
         .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
       return json(res, 200, { date, revenue, employeeView: true });
     }
@@ -4187,7 +4556,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
-        const { rows } = await repositories.pool.query(`SELECT COALESCE((SELECT SUM(p.amount) FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4) AND p.created_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')),0) AS revenue, (SELECT COUNT(*)::int FROM orders o WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4)) AS checks_count`, [venueDbId, actorId, date, timezone]);
+        const { rows } = await repositories.pool.query(`SELECT COALESCE((SELECT SUM(p.amount) FILTER (WHERE p.method<>'reservation' OR o.status='closed') FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4) AND p.created_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')),0) AS revenue, (SELECT COUNT(*)::int FROM orders o WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4)) AS checks_count`, [venueDbId, actorId, date, timezone]);
         const report = { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber, checksCount: Number(rows[0]?.checks_count || 0), revenue: Number(rows[0]?.revenue || 0), employeeView: true };
         recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type: 'x', date, checksCount: report.checksCount, revenue: report.revenue });
         return json(res, 200, report);
@@ -4393,6 +4762,10 @@ if (staffProfile && req.method === 'PATCH') {
           if (!balance.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'reservation_not_found' }); }
           await client.query('COMMIT'); return json(res, 200, { ...receipt, amount: Number(receipt.amount), depositRequired: Number(balance.rows[0].depositRequired), verifiedDepositPaid: Number(balance.rows[0].verifiedDepositPaid), remaining: Math.max(0, Number(balance.rows[0].depositRequired) - Number(balance.rows[0].verifiedDepositPaid)), idempotentReplay: true });
         }
+        const reservationExists=await client.query('SELECT id FROM reservations WHERE id=$1 AND venue_id=$2',[reservationPrePaymentPath[1],venueDbId]);
+        if(!reservationExists.rows[0]){await client.query('ROLLBACK');return json(res,404,{error:'reservation_not_found'});}
+        const shift = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
+        if (!shift.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'open_shift_required' }); }
         const reservation = await client.query('SELECT id,status,deposit_paid AS "legacyDepositPaid",deposit_required AS "depositRequired",verified_deposit_paid AS "verifiedDepositPaid" FROM reservations WHERE id=$1 AND venue_id=$2 FOR UPDATE', [reservationPrePaymentPath[1], venueDbId]);
         if (!reservation.rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'reservation_not_found' }); }
         const lockedPrior = await client.query('SELECT id,reservation_id AS "reservationId",shift_id AS "shiftId",amount,payment_method AS method,reason,created_at AS "createdAt" FROM reservation_pre_payment_receipts WHERE venue_id=$1 AND idempotency_key=$2', [venueDbId, idempotencyKey]);
@@ -4406,8 +4779,6 @@ if (staffProfile && req.method === 'PATCH') {
         if (Number(reservation.rows[0].legacyDepositPaid || 0) > 0) { await client.query('ROLLBACK'); return json(res, 409, { error: 'reservation_legacy_pre_payment_unreconciled', legacyAmount: Number(reservation.rows[0].legacyDepositPaid) }); }
         const remaining = Math.max(0, Number(reservation.rows[0].depositRequired || 0) - Number(reservation.rows[0].verifiedDepositPaid || 0));
         if (amount > remaining + 0.000001) { await client.query('ROLLBACK'); return json(res, 409, { error: 'reservation_pre_payment_exceeds_required', remaining }); }
-        const shift = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
-        if (!shift.rows[0]) { await client.query('ROLLBACK'); return json(res, 409, { error: 'open_shift_required' }); }
         const actorId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(req.user?.id || '') ? req.user.id : null;
         const { rows } = await client.query('INSERT INTO reservation_pre_payment_receipts (venue_id,reservation_id,shift_id,amount,payment_method,reason,idempotency_key,actor_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,reservation_id AS "reservationId",shift_id AS "shiftId",amount,payment_method AS method,reason,created_at AS "createdAt"', [venueDbId, reservationPrePaymentPath[1], shift.rows[0].id, amount, method, reason, idempotencyKey, actorId]);
         const receipt = rows[0];
@@ -4433,6 +4804,91 @@ if (staffProfile && req.method === 'PATCH') {
     recordAudit(req, 'reservation.prepayment_received', 'reservation_pre_payment_receipt', receipt.id, null, receipt);
     return json(res, 201, { ...receipt, depositRequired: Number(reservation.depositRequired ?? reservation.deposit ?? 0), verifiedDepositPaid: reservation.verifiedDepositPaid, remaining: Math.max(0, Number(reservation.depositRequired ?? reservation.deposit ?? 0) - reservation.verifiedDepositPaid) });
   }
+  const reservationAllocationReversal = pathname.match(/^\/api\/reservations\/([^/]+)\/prepayment-allocations\/([^/]+)\/reversals$/);
+  if (reservationAllocationReversal && req.method === 'POST') {
+    if (denyUnless(req, res, 'reservations')) return;
+    const [, reservationId, allocationId] = reservationAllocationReversal;
+    if (![reservationId, allocationId].every((id) => /^[0-9a-f-]{36}$/i.test(id))) return json(res, 400, { error: 'invalid_reservation_allocation_id' });
+    const input = await body(req); const amount = Number(input.amount); const reason = String(input.reason || '').trim(); const idempotencyKey = String(input.idempotencyKey || req.headers?.['idempotency-key'] || '').trim();
+    if (!validPaymentAmount(amount) || amount > 10000000) return json(res, 400, { error: 'invalid_reservation_allocation_reversal' });
+    if (!reason || reason.length > 500) return json(res, 400, { error: 'reservation_allocation_reversal_reason_required' });
+    if (!/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey)) return json(res, 400, { error: 'valid_idempotency_key_required' });
+    if (!repositories?.pool) return json(res, 503, { error: 'reservation_allocation_reversal_requires_database' });
+    let client;
+    try {
+      client = await repositories.pool.connect(); await client.query('BEGIN');
+      const prior = await client.query('SELECT id,reservation_id AS "reservationId",allocation_id AS "allocationId",amount,reason,shift_id AS "shiftId",created_at AS "createdAt" FROM reservation_pre_payment_allocation_reversals WHERE venue_id=$1 AND idempotency_key=$2', [venueDbId,idempotencyKey]);
+      if (prior.rows[0]) { const row=prior.rows[0]; if(row.reservationId!==reservationId||row.allocationId!==allocationId||Number(row.amount)!==amount||row.reason!==reason){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});} await client.query('COMMIT'); return json(res,200,{...row,amount:Number(row.amount),idempotentReplay:true}); }
+      const allocationKey = await client.query('SELECT order_id AS "orderId" FROM reservation_pre_payment_allocations WHERE id=$1 AND venue_id=$2 AND reservation_id=$3',[allocationId,venueDbId,reservationId]);
+      if (!allocationKey.rows[0]) { await client.query('ROLLBACK'); return json(res,404,{error:'reservation_allocation_not_found'}); }
+      const orderLock = await client.query('SELECT id FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE',[allocationKey.rows[0].orderId,venueDbId]);
+      if (!orderLock.rows[0]) { await client.query('ROLLBACK'); return json(res,404,{error:'order_not_found'}); }
+      const shift = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE',[venueDbId]);
+      if (!shift.rows[0]) { await client.query('ROLLBACK'); return json(res,409,{error:'open_shift_required'}); }
+      const reservation = await client.query('SELECT id,status FROM reservations WHERE id=$1 AND venue_id=$2 FOR UPDATE',[reservationId,venueDbId]);
+      if (!reservation.rows[0]) { await client.query('ROLLBACK'); return json(res,404,{error:'reservation_not_found'}); }
+      if (reservation.rows[0].status !== 'confirmed') { await client.query('ROLLBACK'); return json(res,409,{error:'reservation_not_confirmed'}); }
+      const lockedPrior=await client.query('SELECT id,reservation_id AS "reservationId",allocation_id AS "allocationId",amount,reason,shift_id AS "shiftId",created_at AS "createdAt" FROM reservation_pre_payment_allocation_reversals WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,idempotencyKey]);
+      if(lockedPrior.rows[0]){const row=lockedPrior.rows[0];if(row.reservationId!==reservationId||row.allocationId!==allocationId||Number(row.amount)!==amount||row.reason!==reason){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}await client.query('COMMIT');return json(res,200,{...row,amount:Number(row.amount),idempotentReplay:true});}
+      const allocation = await client.query(`SELECT a.id,a.amount,a.order_id AS "orderId",a.payment_id AS "paymentId",a.shift_id AS "allocationShiftId",o.status AS "orderStatus",p.status AS "paymentStatus",p.amount AS "paymentAmount",p.method
+        FROM reservation_pre_payment_allocations a JOIN orders o ON o.id=a.order_id AND o.venue_id=a.venue_id JOIN payments p ON p.order_id=a.order_id AND p.id=a.payment_id
+        WHERE a.id=$1 AND a.venue_id=$2 AND a.reservation_id=$3 FOR UPDATE OF a,p`,[allocationId,venueDbId,reservationId]);
+      if (!allocation.rows[0]) { await client.query('ROLLBACK'); return json(res,404,{error:'reservation_allocation_not_found'}); }
+      const row=allocation.rows[0];
+      if (!['open','in_progress','ready'].includes(row.orderStatus)) { await client.query('ROLLBACK'); return json(res,409,{error:'order_already_final'}); }
+      if (row.method !== 'reservation' || row.paymentStatus !== 'paid' || moneyCents(row.amount) !== moneyCents(row.paymentAmount) || moneyCents(amount) !== moneyCents(row.amount)) { await client.query('ROLLBACK'); return json(res,409,{error:'reservation_allocation_not_reversible'}); }
+      const actorId=/^[0-9a-f-]{36}$/i.test(req.user?.id||'')?req.user.id:null;
+      const reversal=(await client.query(`INSERT INTO reservation_pre_payment_allocation_reversals (venue_id,reservation_id,allocation_id,order_id,payment_id,shift_id,amount,reason,idempotency_key,actor_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id,reservation_id AS "reservationId",allocation_id AS "allocationId",order_id AS "orderId",payment_id AS "paymentId",shift_id AS "shiftId",amount,reason,idempotency_key AS "idempotencyKey",created_at AS "createdAt"`,[venueDbId,reservationId,allocationId,row.orderId,row.paymentId,shift.rows[0].id,amount,reason,idempotencyKey,actorId])).rows[0];
+      const paymentUpdate=await client.query("UPDATE payments SET status='refunded' WHERE order_id=$1 AND id=$2 AND status='paid' RETURNING id",[row.orderId,row.paymentId]);
+      if (!paymentUpdate.rows[0]) throw Object.assign(new Error('reservation_allocation_not_reversible'),{code:'reservation_allocation_not_reversible'});
+      await client.query("INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES ($1,$2,'reservation.prepayment_allocation_reversed','reservation_pre_payment_allocation_reversal',$3,$4)",[venueDbId,actorId,reversal.id,{...reversal,amount:Number(reversal.amount),method:'reservation',cashImpact:0}]);
+      await client.query('COMMIT'); return json(res,201,{...reversal,amount:Number(reversal.amount),cashImpact:0});
+    } catch(error) { await client?.query('ROLLBACK').catch(()=>{}); if(error.code==='23505') { try { const prior=await repositories.pool.query('SELECT id,reservation_id AS "reservationId",allocation_id AS "allocationId",amount,reason,shift_id AS "shiftId",created_at AS "createdAt" FROM reservation_pre_payment_allocation_reversals WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,idempotencyKey]); const row=prior.rows[0]; if(row&&row.reservationId===reservationId&&row.allocationId===allocationId&&Number(row.amount)===amount&&row.reason===reason)return json(res,200,{...row,amount:Number(row.amount),idempotentReplay:true}); } catch {} return json(res,409,{error:'idempotency_key_reused'}); } if(error.code==='reservation_allocation_not_reversible')return json(res,409,{error:error.code}); return json(res,409,{error:'reservation_allocation_reversal_failed',detail:error.message}); }
+    finally { client?.release(); }
+  }
+  const reservationReceiptReversal = pathname.match(/^\/api\/reservations\/([^/]+)\/deposit-receipts\/([^/]+)\/reversals$/);
+  if (reservationReceiptReversal && req.method === 'POST') {
+    if (!['owner','admin'].includes(req.user?.role) || !hasPermission(req,'finance')) return json(res,403,{error:'external_payout_requires_owner_admin_finance'});
+    const [, reservationId, receiptId] = reservationReceiptReversal;
+    if (![reservationId,receiptId].every((id)=>/^[0-9a-f-]{36}$/i.test(id))) return json(res,400,{error:'invalid_reservation_receipt_id'});
+    const input=await body(req); const amount=Number(input.amount); const method=String(input.method||''); const reason=String(input.reason||'').trim(); const idempotencyKey=String(input.idempotencyKey||req.headers?.['idempotency-key']||'').trim();
+    if(!validPaymentAmount(amount)||amount>10000000||!['cash','card','qr'].includes(method))return json(res,400,{error:'invalid_reservation_pre_payment_refund'});
+    if(!reason||reason.length>500)return json(res,400,{error:'reservation_pre_payment_refund_reason_required'});
+    if(!/^[A-Za-z0-9._:-]{8,120}$/.test(idempotencyKey))return json(res,400,{error:'valid_idempotency_key_required'});
+    if(!repositories?.pool)return json(res,503,{error:'reservation_pre_payment_refund_requires_database'});
+    let client;
+    try{
+      client=await repositories.pool.connect();await client.query('BEGIN');
+      const prior=await client.query('SELECT id,reservation_id AS "reservationId",receipt_id AS "receiptId",shift_id AS "shiftId",amount,payout_method AS method,reason,created_at AS "createdAt" FROM reservation_pre_payment_receipt_reversals WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,idempotencyKey]);
+      if(prior.rows[0]){const row=prior.rows[0];if(row.reservationId!==reservationId||row.receiptId!==receiptId||Number(row.amount)!==amount||row.method!==method||row.reason!==reason){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}await client.query('COMMIT');return json(res,200,{...row,amount:Number(row.amount),idempotentReplay:true});}
+      const shift=await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE',[venueDbId]);
+      if(!shift.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'open_shift_required'});}
+      const reservation=await client.query('SELECT id,status,verified_deposit_paid AS "verifiedDepositPaid" FROM reservations WHERE id=$1 AND venue_id=$2 FOR UPDATE',[reservationId,venueDbId]);
+      if(!reservation.rows[0]){await client.query('ROLLBACK');return json(res,404,{error:'reservation_not_found'});}
+      const lockedPrior=await client.query('SELECT id,reservation_id AS "reservationId",receipt_id AS "receiptId",shift_id AS "shiftId",amount,payout_method AS method,reason,created_at AS "createdAt" FROM reservation_pre_payment_receipt_reversals WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,idempotencyKey]);
+      if(lockedPrior.rows[0]){const row=lockedPrior.rows[0];if(row.reservationId!==reservationId||row.receiptId!==receiptId||Number(row.amount)!==amount||row.method!==method||row.reason!==reason){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}await client.query('COMMIT');return json(res,200,{...row,amount:Number(row.amount),idempotentReplay:true});}
+      const receipt=await client.query('SELECT id,amount FROM reservation_pre_payment_receipts WHERE id=$1 AND venue_id=$2 AND reservation_id=$3 FOR UPDATE',[receiptId,venueDbId,reservationId]);
+      if(!receipt.rows[0]){await client.query('ROLLBACK');return json(res,404,{error:'reservation_pre_payment_receipt_not_found'});}
+      const activeAllocations=await client.query('SELECT 1 FROM reservation_pre_payment_allocations a LEFT JOIN reservation_pre_payment_allocation_reversals ar ON ar.venue_id=a.venue_id AND ar.allocation_id=a.id WHERE a.venue_id=$1 AND a.receipt_id=$2 AND ar.id IS NULL LIMIT 1',[venueDbId,receiptId]);
+      if(activeAllocations.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'reservation_pre_payment_allocation_reversal_required'});}
+      const balances=await client.query(`SELECT
+        (SELECT COALESCE(SUM(a.amount),0) FROM reservation_pre_payment_allocations a WHERE a.venue_id=$1 AND a.receipt_id=$2) AS allocated,
+        (SELECT COALESCE(SUM(ar.amount),0) FROM reservation_pre_payment_allocation_reversals ar JOIN reservation_pre_payment_allocations a ON a.venue_id=ar.venue_id AND a.id=ar.allocation_id WHERE ar.venue_id=$1 AND a.receipt_id=$2) AS allocation_reversed,
+        (SELECT COALESCE(SUM(rr.amount),0) FROM reservation_pre_payment_receipt_reversals rr WHERE rr.venue_id=$1 AND rr.receipt_id=$2) AS refunded`,[venueDbId,receiptId]);
+      const b=balances.rows[0]||{};
+      const available=roundMoney(Math.max(0,Number(receipt.rows[0].amount)-Number(b.allocated||0)+Number(b.allocation_reversed||0)-Number(b.refunded||0)));
+      if(amount>available+0.000001){await client.query('ROLLBACK');return json(res,409,{error:'reservation_pre_payment_refund_exceeds_available',available});}
+      const actorId=/^[0-9a-f-]{36}$/i.test(req.user?.id||'')?req.user.id:null;
+      const reversal=(await client.query(`INSERT INTO reservation_pre_payment_receipt_reversals (venue_id,reservation_id,receipt_id,shift_id,amount,payout_method,reason,idempotency_key,actor_id)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,reservation_id AS "reservationId",receipt_id AS "receiptId",shift_id AS "shiftId",amount,payout_method AS method,reason,idempotency_key AS "idempotencyKey",created_at AS "createdAt"`,[venueDbId,reservationId,receiptId,shift.rows[0].id,amount,method,reason,idempotencyKey,actorId])).rows[0];
+      const updated=await client.query('UPDATE reservations SET verified_deposit_paid=verified_deposit_paid-$1 WHERE id=$2 AND venue_id=$3 AND verified_deposit_paid >= $1 RETURNING verified_deposit_paid AS "verifiedDepositPaid"',[amount,reservationId,venueDbId]);
+      if(!updated.rows[0])throw Object.assign(new Error('reservation_pre_payment_balance_mismatch'),{code:'reservation_pre_payment_balance_mismatch'});
+      await client.query("INSERT INTO audit_events (venue_id,actor_id,action,entity_type,entity_id,after_data) VALUES ($1,$2,'reservation.prepayment_refunded','reservation_pre_payment_receipt_reversal',$3,$4)",[venueDbId,actorId,reversal.id,{...reversal,amount:Number(reversal.amount),originalReceiptId:receiptId,method,cashImpact:method==='cash'?-amount:0}]);
+      await client.query('COMMIT');return json(res,201,{...reversal,amount:Number(reversal.amount),verifiedDepositPaid:Number(updated.rows[0].verifiedDepositPaid),remainingOnReceipt:roundMoney(available-amount),cashImpact:method==='cash'?-amount:0});
+    }catch(error){await client?.query('ROLLBACK').catch(()=>{});if(error.code==='23505'){try{const prior=await repositories.pool.query('SELECT id,reservation_id AS "reservationId",receipt_id AS "receiptId",shift_id AS "shiftId",amount,payout_method AS method,reason,created_at AS "createdAt" FROM reservation_pre_payment_receipt_reversals WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,idempotencyKey]);const row=prior.rows[0];if(row&&row.reservationId===reservationId&&row.receiptId===receiptId&&Number(row.amount)===amount&&row.method===method&&row.reason===reason)return json(res,200,{...row,amount:Number(row.amount),idempotentReplay:true});}catch{}return json(res,409,{error:'idempotency_key_reused'});}if(error.code==='reservation_pre_payment_balance_mismatch')return json(res,409,{error:error.code});return json(res,409,{error:'reservation_pre_payment_refund_failed',detail:error.message});}
+    finally{client?.release();}
+  }
   if (pathname.startsWith('/api/reservations/') && req.method === 'POST' && pathname.endsWith('/cancel')) {
     if (denyUnless(req, res, 'reservations')) return;
     const reservationId = pathname.split('/')[3];
@@ -4443,8 +4899,15 @@ if (staffProfile && req.method === 'PATCH') {
         await client.query('BEGIN');
         const locked = await client.query('SELECT id FROM reservations WHERE id=$1 AND venue_id=$2 AND status=\'confirmed\' FOR UPDATE',[reservationId,venueDbId]);
         if (!locked.rows[0]) { await client.query('ROLLBACK'); return json(res,404,{error:'reservation_not_found_or_cancelled'}); }
-        const applied = await client.query('SELECT 1 FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND reservation_id=$2 LIMIT 1',[venueDbId,reservationId]);
+        const applied = await client.query('SELECT 1 FROM reservation_pre_payment_allocations a LEFT JOIN reservation_pre_payment_allocation_reversals ar ON ar.venue_id=a.venue_id AND ar.allocation_id=a.id WHERE a.venue_id=$1 AND a.reservation_id=$2 AND ar.id IS NULL LIMIT 1',[venueDbId,reservationId]);
         if (applied.rows[0]) { await client.query('ROLLBACK'); return json(res,409,{error:'reservation_pre_payment_already_applied'}); }
+        const outstanding=await client.query(`SELECT COALESCE(SUM(GREATEST(0,p.amount-COALESCE(a.amount,0)+COALESCE(ar.amount,0)-COALESCE(rr.amount,0))),0) AS amount
+          FROM reservation_pre_payment_receipts p
+          LEFT JOIN LATERAL (SELECT SUM(x.amount) AS amount FROM reservation_pre_payment_allocations x WHERE x.venue_id=p.venue_id AND x.receipt_id=p.id) a ON true
+          LEFT JOIN LATERAL (SELECT SUM(x.amount) AS amount FROM reservation_pre_payment_allocation_reversals x JOIN reservation_pre_payment_allocations ax ON ax.venue_id=x.venue_id AND ax.id=x.allocation_id WHERE x.venue_id=p.venue_id AND ax.receipt_id=p.id) ar ON true
+          LEFT JOIN LATERAL (SELECT SUM(x.amount) AS amount FROM reservation_pre_payment_receipt_reversals x WHERE x.venue_id=p.venue_id AND x.receipt_id=p.id) rr ON true
+          WHERE p.venue_id=$1 AND p.reservation_id=$2`,[venueDbId,reservationId]);
+        if(Number(outstanding.rows[0]?.amount||0)>0.000001){await client.query('ROLLBACK');return json(res,409,{error:'reservation_pre_payment_refund_required',outstanding:Number(outstanding.rows[0].amount)});}
         const { rows } = await client.query(`UPDATE reservations SET status='cancelled' WHERE id=$1 AND venue_id=$2 AND status='confirmed' RETURNING id,table_id AS "tableId",starts_at AS "startsAt",status`, [reservationId, venueDbId]);
         if (!rows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'reservation_not_found_or_cancelled' }); }
         await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN ('open','in_progress','ready')) THEN 'occupied'::table_status ELSE 'free'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> 'blocked' AND NOT EXISTS (SELECT 1 FROM reservations WHERE table_id=$1 AND venue_id=$2 AND status='confirmed' AND starts_at::date=$3::date)`, [rows[0].tableId, venueDbId, rows[0].startsAt]);
@@ -4456,6 +4919,8 @@ if (staffProfile && req.method === 'PATCH') {
     const reservation = reservations.find((entry) => entry.id === pathname.split('/')[3] && entry.venueId === currentVenueId);
     if (!reservation) return json(res, 404, { error: 'reservation_not_found' });
     if ((reservation.prepaymentAllocations || []).length) return json(res,409,{error:'reservation_pre_payment_already_applied'});
+    const memoryPrepaymentOutstanding = Math.max(0, Number(reservation.verifiedDepositPaid || 0) - (reservation.prepaymentRefunds || []).reduce((sum, entry) => sum + Number(entry.amount || 0), 0));
+    if (memoryPrepaymentOutstanding > 0) return json(res,409,{error:'reservation_pre_payment_refund_required',outstanding:memoryPrepaymentOutstanding});
     reservation.status = 'cancelled';
     const stillReserved = reservations.some((entry) => entry.id !== reservation.id && entry.status === 'confirmed' && entry.tableId === reservation.tableId && entry.date === reservation.date);
     if (!stillReserved) { const activeOrder = orders.some((order) => order.tableId === reservation.tableId && ['open', 'in_progress', 'ready'].includes(order.status)); setMemoryTableStatus(reservation.tableId, activeOrder ? 'occupied' : 'free'); }
@@ -4495,7 +4960,8 @@ if (staffProfile && req.method === 'PATCH') {
     const minimumOrderTotal = Math.max(requestedMinimumOrderTotal, Number(tableMinimum));
     let linkedReservation = null;
     if (input.reservationId) { linkedReservation = reservations.find((entry) => entry.id === input.reservationId && entry.venueId === currentVenueId); if (!linkedReservation) return json(res,404,{error:'reservation_not_found'}); if (linkedReservation.status !== 'confirmed') return json(res,409,{error:'reservation_not_confirmed'}); if (String(linkedReservation.tableId)!==String(input.tableId)) return json(res,409,{error:'reservation_table_mismatch'}); if(input.guestId&&String(input.guestId)!==String(linkedReservation.clientId||''))return json(res,409,{error:'reservation_guest_mismatch'}); if(orders.some((entry)=>entry.reservationId===linkedReservation.id))return json(res,409,{error:'reservation_already_linked'}); }
-    const order = { id: `ord-${Date.now()}`, venueId: currentVenueId, tableId: input.tableId || null, reservationId: linkedReservation?.id || null, clientId: linkedReservation?.clientId || null, guestId: linkedReservation?.clientId || null, guestName: linkedReservation?.guestName || '', guestPhone: linkedReservation?.phone || '', status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal, notes: input.notes || '', items: [], createdByName: req.user?.name || 'сотрудник', openedBy: req.user?.id || null, createdAt: new Date().toISOString() };
+    const activeRedemptionSettings=loyaltyProgramSettings.get(String(currentVenueId))||{version:0,maxRedemptionPercent:100,minimumRedemptionPoints:1};
+    const order = { id: `ord-${Date.now()}`, venueId: currentVenueId, tableId: input.tableId || null, reservationId: linkedReservation?.id || null, clientId: linkedReservation?.clientId || null, guestId: linkedReservation?.clientId || null, guestName: linkedReservation?.guestName || '', guestPhone: linkedReservation?.phone || '', status: 'open', orderType: input.orderType || 'regular', minimumOrderTotal, notes: input.notes || '', items: [], createdByName: req.user?.name || 'сотрудник', openedBy: req.user?.id || null, loyaltyRedemptionPolicyVersion:Number(activeRedemptionSettings.version||0),loyaltyRedemptionRate:1,loyaltyRedemptionCapPercent:Number(activeRedemptionSettings.maxRedemptionPercent??100),loyaltyRedemptionMinPoints:Number(activeRedemptionSettings.minimumRedemptionPoints??1),loyaltyRedemptionBase:null,createdAt: new Date().toISOString() };
     orders.push(order);
     setMemoryTableStatus(order.tableId, 'occupied');
     recordAudit(req, 'order.created', 'order', order.id, null, order);
@@ -4677,8 +5143,9 @@ if (staffProfile && req.method === 'PATCH') {
       const client = await repositories.pool.connect();
       try {
         await client.query('BEGIN');
-        const { rows: orderRows } = await client.query('SELECT id,status,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [itemMatch[1], venueDbId]);
+        const { rows: orderRows } = await client.query('SELECT id,status,pricing_locked_at AS "pricingLockedAt",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [itemMatch[1], venueDbId]);
         if (!orderRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+        if (orderRows[0].pricingLockedAt) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_pricing_locked', pricingLockedAt: orderRows[0].pricingLockedAt }); }
         if (!['open', 'in_progress', 'ready'].includes(orderRows[0].status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_editable' }); }
         const { rows: productRows } = await client.query('SELECT id,name,sale_price AS "unitPrice",category AS station FROM products WHERE id=$1 AND venue_id=$2 AND is_active=true FOR UPDATE', [input.productId, venueDbId]);
         const product = productRows[0];
@@ -4704,6 +5171,7 @@ if (staffProfile && req.method === 'PATCH') {
     }
     const order = orders.find((entry) => entry.id === itemMatch[1]);
     if (order && !['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' });
+    if (order?.pricingLockedAt) return json(res, 409, { error: 'order_pricing_locked', pricingLockedAt: order.pricingLockedAt });
     const input = await body(req); const quantity = Number(input.quantity || 1);
     const product = products.find((entry) => entry.id === input.productId);
     if (!order) return json(res, 404, { error: 'order_not_found' });
@@ -4729,8 +5197,9 @@ if (staffProfile && req.method === 'PATCH') {
         if (req.method === 'PATCH' && (!Number.isInteger(quantity) || quantity < 1 || quantity > 999)) return json(res, 400, { error: 'quantity_must_be_positive' });
         client = await repositories.pool.connect();
         await client.query('BEGIN');
-        const { rows: orderRows } = await client.query('SELECT id,status,vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [itemAction[1], venueDbId]);
+        const { rows: orderRows } = await client.query('SELECT id,status,pricing_locked_at AS "pricingLockedAt",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [itemAction[1], venueDbId]);
         if (!orderRows[0]) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+        if (orderRows[0].pricingLockedAt) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_pricing_locked', pricingLockedAt: orderRows[0].pricingLockedAt }); }
         if (!['open', 'in_progress', 'ready'].includes(orderRows[0].status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_editable' }); }
         const query = req.method === 'DELETE'
           ? await client.query('DELETE FROM order_items WHERE id=$1 AND order_id=$2 RETURNING id,quantity,unit_price AS "unitPrice"', [itemAction[2], itemAction[1]])
@@ -4743,7 +5212,7 @@ if (staffProfile && req.method === 'PATCH') {
         return json(res, 200, { ...query.rows[0], quantity: Number(query.rows[0].quantity), unitPrice: Number(query.rows[0].unitPrice) });
       } catch (error) { if (client) await client.query('ROLLBACK').catch(() => {}); return json(res, 409, { error: 'order_item_update_failed', detail: error.message }); } finally { client?.release(); }
     }
-    const order = orders.find((entry) => entry.id === itemAction[1]); if (order && !['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' }); const item = order?.items?.find((entry) => entry.id === itemAction[2]); if (!item) return json(res, 404, { error: 'order_item_not_found' });
+    const order = orders.find((entry) => entry.id === itemAction[1]); if (order && !['open', 'in_progress', 'ready'].includes(order.status)) return json(res, 409, { error: 'order_not_editable' }); if (order?.pricingLockedAt) return json(res, 409, { error: 'order_pricing_locked', pricingLockedAt: order.pricingLockedAt }); const item = order?.items?.find((entry) => entry.id === itemAction[2]); if (!item) return json(res, 404, { error: 'order_item_not_found' });
     if (req.method === 'DELETE') { const beforeItems = order.items; order.items = order.items.filter((entry) => entry.id !== item.id); const balance = memoryOrderBalance(order); if (orderBalanceConflict(balance)) { order.items = beforeItems; return json(res, 409, orderBalanceConflictBody(balance)); } recordAudit(req, 'order.item_removed', 'order_item', item.id, item, null); return json(res, 200, { id: item.id }); }
     const input = await body(req); const quantity = Number(input.quantity); if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) return json(res, 400, { error: 'quantity_must_be_positive' }); const beforeQuantity = item.quantity; item.quantity = quantity; const balance = memoryOrderBalance(order); if (orderBalanceConflict(balance)) { item.quantity = beforeQuantity; return json(res, 409, orderBalanceConflictBody(balance)); } recordAudit(req, 'order.item_quantity_changed', 'order_item', item.id, { quantity: beforeQuantity }, item); return json(res, 200, item);
   }
@@ -4755,14 +5224,17 @@ if (staffProfile && req.method === 'PATCH') {
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(paymentPath[1])) {
       if (req.method === 'GET') {
         try {
-          const { rows: orderRows } = await repositories.pool.query('SELECT id,status,guest_id AS "guestId",reservation_id AS "reservationId",vip_minimum AS "minimumOrderTotal",loyalty_bonus_percent AS "loyaltyBonusPercent",loyalty_bonus_base AS "loyaltyBonusBase",loyalty_bonus_earned AS "loyaltyBonusEarned" FROM orders WHERE id=$1 AND venue_id=$2', [paymentPath[1], venueDbId]);
+        const { rows: orderRows } = await repositories.pool.query('SELECT id,status,guest_id AS "guestId",reservation_id AS "reservationId",vip_minimum AS "minimumOrderTotal",loyalty_bonus_percent AS "loyaltyBonusPercent",loyalty_bonus_base AS "loyaltyBonusBase",loyalty_bonus_earned AS "loyaltyBonusEarned",loyalty_redemption_policy_version AS "redemptionPolicyVersion",loyalty_redemption_rate AS "redemptionRate",loyalty_redemption_cap_percent AS "redemptionCapPercent",loyalty_redemption_min_points AS "redemptionMinPoints",loyalty_redemption_base AS "redemptionBase" FROM orders WHERE id=$1 AND venue_id=$2', [paymentPath[1], venueDbId]);
           const persisted = orderRows[0]; if (!persisted) return json(res, 404, { error: 'order_not_found' });
           if (persisted.reservationId && denyUnless(req,res,'reservations')) return;
           const pricing = await pgOrderPricing(repositories.pool, paymentPath[1], persisted.minimumOrderTotal);
           const { rows } = await repositories.pool.query('SELECT id,method,amount,status,idempotency_key AS "idempotencyKey",created_at AS "createdAt" FROM payments WHERE order_id=$1 ORDER BY created_at', [paymentPath[1]]);
           const reservationPrepayment = await pgReservationPrepaymentState(repositories.pool,venueDbId,persisted.reservationId);
-          let guestAccount = null; if (persisted.guestId) { const { rows: guestRows } = await repositories.pool.query('SELECT loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2', [persisted.guestId, venueDbId]); if (guestRows[0]) guestAccount = { guestId: persisted.guestId, bonusBalance: Number(guestRows[0].bonusBalance || 0), depositBalance: Number(guestRows[0].depositBalance || 0), conversionRate: 1 }; }
-          return json(res, 200, { items: rows, guestAccount, reservationId: persisted.reservationId, reservationPrepaymentAvailable: reservationPrepayment.available, reservationPrepaymentReceipts: reservationPrepayment.receipts, ...pricing, remaining: Math.max(0, pricing.due - pricing.paid), loyaltyBonusPercent: persisted.loyaltyBonusPercent === null ? null : Number(persisted.loyaltyBonusPercent), loyaltyBonusBase: persisted.loyaltyBonusBase === null ? null : Number(persisted.loyaltyBonusBase), loyaltyBonusEarned: persisted.loyaltyBonusEarned === null ? null : Number(persisted.loyaltyBonusEarned) });
+          let guestAccount = null; if (persisted.guestId) { const { rows: guestRows } = await repositories.pool.query('SELECT g.loyalty_points AS "bonusBalance",g.deposit_balance AS "depositBalance",COALESCE(dg.bonus_percent,0) AS "bonusPercent" FROM guests g LEFT JOIN guest_discount_groups dg ON dg.id=g.discount_group_id AND dg.venue_id=g.venue_id AND dg.active=true WHERE g.id=$1 AND g.venue_id=$2', [persisted.guestId, venueDbId]); if (guestRows[0]) guestAccount = { guestId: persisted.guestId, bonusBalance: Number(guestRows[0].bonusBalance || 0), depositBalance: Number(guestRows[0].depositBalance || 0), bonusPercent:Number(guestRows[0].bonusPercent||0), conversionRate: 1 }; }
+          const redemptionPolicy = persisted.redemptionPolicyVersion !== null ? { version:Number(persisted.redemptionPolicyVersion), maxRedemptionPercent:Number(persisted.redemptionCapPercent), minimumRedemptionPoints:Number(persisted.redemptionMinPoints), base:Number(persisted.redemptionBase??pricing.due) } : { version:0, maxRedemptionPercent:100, minimumRedemptionPoints:1, base:Number(pricing.due) };
+          const redeemed = rows.filter((row)=>row.method==='bonus'&&['paid','partially_paid'].includes(row.status)).reduce((sum,row)=>sum+Number(row.amount||0),0);
+          const bonusRedemptionRemaining = Math.max(0,Math.floor(moneyCents(redemptionPolicy.base*redemptionPolicy.maxRedemptionPercent/100)-moneyCents(redeemed))/100);
+          return json(res, 200, { items: rows, closed:persisted.status==='closed', guestAccount, reservationId: persisted.reservationId, reservationPrepaymentAvailable: reservationPrepayment.available, reservationPrepaymentReceipts: reservationPrepayment.receipts, bonusRedemptionRemaining, bonusRedemptionPolicy: { version:redemptionPolicy.version, maxRedemptionPercent:redemptionPolicy.maxRedemptionPercent, minimumRedemptionPoints:redemptionPolicy.minimumRedemptionPoints, base:redemptionPolicy.base }, ...pricing, remaining: Math.max(0, pricing.due - pricing.paid), loyaltyBonusPercent: persisted.loyaltyBonusPercent === null ? null : Number(persisted.loyaltyBonusPercent), loyaltyBonusBase: persisted.loyaltyBonusBase === null ? null : Number(persisted.loyaltyBonusBase), loyaltyBonusEarned: persisted.loyaltyBonusEarned === null ? null : Number(persisted.loyaltyBonusEarned) });
         } catch (error) { return json(res, 409, { error: 'payment_create_failed', detail: error.message }); }
       }
 
@@ -4776,17 +5248,28 @@ if (staffProfile && req.method === 'PATCH') {
         client = await repositories.pool.connect();
         await client.query('BEGIN');
         // Serialize concurrent payments and close requests using the same order lock.
-        const { rows: orderRows } = await client.query('SELECT id,status,table_id AS "tableId",guest_id AS "guestId",reservation_id AS "reservationId",vip_minimum AS "minimumOrderTotal" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [paymentPath[1], venueDbId]);
+        const { rows: orderRows } = await client.query('SELECT id,status,table_id AS "tableId",guest_id AS "guestId",reservation_id AS "reservationId",vip_minimum AS "minimumOrderTotal",loyalty_redemption_policy_version AS "redemptionPolicyVersion",loyalty_redemption_rate AS "redemptionRate",loyalty_redemption_cap_percent AS "redemptionCapPercent",loyalty_redemption_min_points AS "redemptionMinPoints",loyalty_redemption_base AS "redemptionBase" FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [paymentPath[1], venueDbId]);
         const persisted = orderRows[0];
         if (!persisted) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+        let reservationShiftId=null;
+        if (method==='reservation') { const shiftGuard=await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE',[venueDbId]); reservationShiftId=shiftGuard.rows[0]?.id||null; if(!reservationShiftId){await client.query('ROLLBACK');return json(res,409,{error:'open_shift_required'});} }
         if (idempotencyKey) { const { rows: priorRows } = await client.query('SELECT id,method,amount,status,shift_id AS "shiftId",created_at AS "createdAt" FROM payments WHERE order_id=$1 AND idempotency_key=$2', [paymentPath[1], idempotencyKey]); if (priorRows[0]) { const prior=priorRows[0]; if (prior.method!==method || Number(prior.amount)!==amount) { await client.query('ROLLBACK'); return json(res,409,{error:'idempotency_key_reused'}); } if(method==='reservation'){const allocation=await client.query('SELECT receipt_id AS "receiptId" FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND payment_id=$2',[venueDbId,prior.id]);if(!allocation.rows[0]||allocation.rows[0].receiptId!==receiptId){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});}} const current=await pgOrderPricing(client,paymentPath[1]); let guestAccount=null;if(persisted.guestId){const {rows}=await client.query('SELECT loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2',[persisted.guestId,venueDbId]);if(rows[0])guestAccount={guestId:persisted.guestId,bonusBalance:Number(rows[0].bonusBalance||0),depositBalance:Number(rows[0].depositBalance||0),conversionRate:1};}await client.query('COMMIT');return json(res,200,{...prior,due:current.due,paid:current.paid,remaining:Math.max(0,current.due-current.paid),closed:persisted.status==='closed',guestAccount,idempotentReplay:true}); } }
         if (method==='reservation' && idempotencyKey) { const priorAllocation=await client.query('SELECT order_id FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND idempotency_key=$2',[venueDbId,idempotencyKey]); if(priorAllocation.rows[0]){await client.query('ROLLBACK');return json(res,409,{error:'idempotency_key_reused'});} }
         if (persisted.status === 'closed' || persisted.status === 'cancelled') { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_already_final' }); }
-        const { rows: shiftRows } = await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
+        const { rows: shiftRows } = method==='reservation' ? { rows: [{id:reservationShiftId}] } : await client.query('SELECT id FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1 FOR UPDATE', [venueDbId]);
         const activeShiftId = shiftRows[0]?.id;
         if (!activeShiftId) { await client.query('ROLLBACK'); return json(res, 409, { error: 'open_shift_required' }); }
         const pricing = await pgOrderPricing(client, paymentPath[1], persisted.minimumOrderTotal);
         const { subtotal, discount, net, due, paid } = pricing;
+        let redemptionPolicy = null;
+        if (method === 'bonus') {
+          if (persisted.redemptionPolicyVersion !== null) redemptionPolicy = { version:Number(persisted.redemptionPolicyVersion), rate:Number(persisted.redemptionRate), capPercent:Number(persisted.redemptionCapPercent), minimumPoints:Number(persisted.redemptionMinPoints), base:Number(persisted.redemptionBase??due) };
+          else redemptionPolicy={version:0,rate:1,capPercent:100,minimumPoints:1,base:Number(due)};
+          const {rows}=await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM payments WHERE order_id=$1 AND method='bonus' AND status IN ('paid','partially_paid')",[paymentPath[1]]);
+          const alreadyRedeemed=Number(rows[0]?.amount||0); const remainingCap=Math.max(0,Math.floor(moneyCents(redemptionPolicy.base*redemptionPolicy.capPercent/100)-moneyCents(alreadyRedeemed))/100);
+          if ((alreadyRedeemed === 0 && amount < redemptionPolicy.minimumPoints) || amount > remainingCap + 0.000001) { await client.query('ROLLBACK'); return json(res,409,{error:alreadyRedeemed === 0 && amount < redemptionPolicy.minimumPoints?'bonus_redemption_below_minimum':'bonus_redemption_limit_exceeded',available:remainingCap,minimumPoints:redemptionPolicy.minimumPoints,maxRedemptionPercent:redemptionPolicy.capPercent}); }
+          if (persisted.redemptionPolicyVersion === null || persisted.redemptionBase === null) await client.query('UPDATE orders SET loyalty_redemption_policy_version=$3,loyalty_redemption_rate=$4,loyalty_redemption_cap_percent=$5,loyalty_redemption_min_points=$6,loyalty_redemption_base=$7 WHERE id=$1 AND venue_id=$2',[paymentPath[1],venueDbId,redemptionPolicy.version,redemptionPolicy.rate,redemptionPolicy.capPercent,redemptionPolicy.minimumPoints,redemptionPolicy.base]);
+        }
         let reservationReceipt = null;
         if (method === 'reservation') {
           if (!persisted.reservationId) { await client.query('ROLLBACK'); return json(res,409,{error:'order_has_no_reservation'}); }
@@ -4795,8 +5278,12 @@ if (staffProfile && req.method === 'PATCH') {
           const { rows: receiptRows } = await client.query('SELECT id,amount FROM reservation_pre_payment_receipts WHERE id=$1 AND venue_id=$2 AND reservation_id=$3 FOR UPDATE',[receiptId,venueDbId,persisted.reservationId]);
           reservationReceipt = receiptRows[0];
           if (!reservationReceipt) { await client.query('ROLLBACK'); return json(res,404,{error:'reservation_pre_payment_receipt_not_found'}); }
-          const { rows: allocationRows } = await client.query('SELECT COALESCE(SUM(amount),0) AS amount FROM reservation_pre_payment_allocations WHERE venue_id=$1 AND receipt_id=$2',[venueDbId,receiptId]);
-          const available = roundMoney(Number(reservationReceipt.amount)-Number(allocationRows[0]?.amount||0));
+          const { rows: allocationRows } = await client.query(`SELECT
+            (SELECT COALESCE(SUM(a.amount),0) FROM reservation_pre_payment_allocations a WHERE a.venue_id=$1 AND a.receipt_id=$2) AS allocated,
+            (SELECT COALESCE(SUM(ar.amount),0) FROM reservation_pre_payment_allocation_reversals ar JOIN reservation_pre_payment_allocations a ON a.venue_id=ar.venue_id AND a.id=ar.allocation_id WHERE ar.venue_id=$1 AND a.receipt_id=$2) AS reversed,
+            (SELECT COALESCE(SUM(rr.amount),0) FROM reservation_pre_payment_receipt_reversals rr WHERE rr.venue_id=$1 AND rr.receipt_id=$2) AS refunded`,[venueDbId,receiptId]);
+          const balance=allocationRows[0]||{};
+          const available = roundMoney(Number(reservationReceipt.amount)-Number(balance.allocated||0)+Number(balance.reversed||0)-Number(balance.refunded||0));
           if (amount>available+0.000001) { await client.query('ROLLBACK'); return json(res,409,{error:'reservation_pre_payment_insufficient',available}); }
         }
         let accountGuest=null; if(['bonus','deposit'].includes(method)){if(!persisted.guestId){await client.query('ROLLBACK');return json(res,409,{error:'guest_required_for_account_tender'});}const {rows}=await client.query('SELECT id,loyalty_points AS "bonusBalance",deposit_balance AS "depositBalance" FROM guests WHERE id=$1 AND venue_id=$2 FOR UPDATE',[persisted.guestId,venueDbId]);accountGuest=rows[0];if(!accountGuest){await client.query('ROLLBACK');return json(res,409,{error:'guest_account_unavailable'});}const available=Number(method==='bonus'?accountGuest.bonusBalance:accountGuest.depositBalance);if(available<amount){await client.query('ROLLBACK');return json(res,409,{error:method==='bonus'?'insufficient_bonus_balance':'insufficient_deposit_balance',available});}}
@@ -4814,7 +5301,8 @@ if (staffProfile && req.method === 'PATCH') {
           const depletion = await depleteRecipeForOrder(repositories.pool, paymentPath[1], venueDbId, req.user?.id, client);
           const redeemedRows = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM payments WHERE order_id=$1 AND method='bonus' AND status IN ('paid','partially_paid')", [paymentPath[1]]);
           loyaltyAccrual = await accrueGuestOrderBonus(client, { venueId: venueDbId, guestId: persisted.guestId, orderId: paymentPath[1], eligibleBase: Math.max(0, net - Number(redeemedRows.rows[0]?.amount || 0)), actorId: req.user?.id });
-          const { rows: closedRows } = await client.query('UPDATE orders SET status=\'closed\',closed_at=now(),closed_in_shift_id=$3,loyalty_bonus_percent=$4,loyalty_bonus_base=$5,loyalty_bonus_earned=$6,group_discount_base=$7,group_discount_amount=$8,effective_discount_source=$9,subtotal_snapshot=$10,discount_total_snapshot=$11,minimum_adjustment_snapshot=$12,final_total_snapshot=$13,pricing_version=1 WHERE id=$1 AND venue_id=$2 AND status NOT IN (\'closed\',\'cancelled\') RETURNING id', [paymentPath[1], venueDbId, activeShiftId, loyaltyAccrual.percent, loyaltyAccrual.base, loyaltyAccrual.earned, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, due]);
+          const promotion = pricing.selectedPromotion;
+          const { rows: closedRows } = await client.query('UPDATE orders SET status=\'closed\',closed_at=now(),closed_in_shift_id=$3,loyalty_bonus_percent=$4,loyalty_bonus_base=$5,loyalty_bonus_earned=$6,group_discount_base=$7,group_discount_amount=$8,effective_discount_source=$9,subtotal_snapshot=$10,discount_total_snapshot=$11,minimum_adjustment_snapshot=$12,final_total_snapshot=$13,pricing_version=1,pricing_offers_snapshot=$14,selected_promotion_id=$15,selected_promotion_version=$16,selected_promotion_name=$17,selected_promotion_benefit_kind=$18,selected_promotion_benefit_value=$19,selected_promotion_basis=$20,selected_promotion_amount=$21 WHERE id=$1 AND venue_id=$2 AND status NOT IN (\'closed\',\'cancelled\') RETURNING id', [paymentPath[1], venueDbId, activeShiftId, loyaltyAccrual.percent, loyaltyAccrual.base, loyaltyAccrual.earned, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, due, JSON.stringify(pricing.offers || []), promotion?.promotionId || null, promotion?.version || null, promotion?.label || null, promotion?.benefitKind || null, promotion?.benefitValue ?? null, promotion?.eligibleBasis ?? null, promotion?.amount ?? null]);
           if (!closedRows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
           await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, paymentPath[1], depletion.totalCost]);
           if (persisted.tableId) await client.query(`UPDATE tables t SET status=CASE WHEN EXISTS (SELECT 1 FROM reservations r WHERE r.table_id=$1 AND r.venue_id=$2 AND r.status=\'confirmed\' AND r.starts_at::date=CURRENT_DATE) THEN \'reserved\'::table_status ELSE \'free\'::table_status END FROM zones z WHERE t.id=$1 AND t.zone_id=z.id AND z.venue_id=$2 AND t.status <> \'blocked\'::table_status AND NOT EXISTS (SELECT 1 FROM orders o WHERE o.table_id=$1 AND o.venue_id=$2 AND o.status IN (\'open\',\'in_progress\',\'ready\'))`, [persisted.tableId, venueDbId]);
@@ -4839,8 +5327,9 @@ if (staffProfile && req.method === 'PATCH') {
     }
     const order = orders.find((entry) => entry.id === paymentPath[1] && entry.venueId === currentVenueId); if (!order) return json(res, 404, { error: 'order_not_found' }); order.payments ||= []; const pricing = memoryOrderPricing(order); const { subtotal, discount, due } = pricing; const paid = receivedOrderPayments(order); const linkedGuest=clients.find((entry)=>entry.id===(order.clientId||order.guestId));
     const memoryReservationPrepayment = () => { const reservation = reservations.find((entry)=>entry.id===order.reservationId&&entry.venueId===currentVenueId); const allocations=reservation?.prepaymentAllocations||[]; const receipts=(reservation?.prepaymentReceipts||[]).map((receipt)=>({...receipt,available:roundMoney(Math.max(0,Number(receipt.amount||0)-allocations.filter((allocation)=>allocation.receiptId===receipt.id).reduce((sum,allocation)=>sum+Number(allocation.amount||0),0)))})).filter((receipt)=>Number(receipt.available)>0); return {available:roundMoney(receipts.reduce((sum,receipt)=>sum+Number(receipt.available),0)),receipts}; };
-    if (req.method === 'GET') { if(order.reservationId&&denyUnless(req,res,'reservations'))return; const prepayment=memoryReservationPrepayment(); return json(res, 200, { items: order.payments, guestAccount:linkedGuest?{guestId:linkedGuest.id,bonusBalance:Number(linkedGuest.loyaltyPoints??linkedGuest.bonusBalance??0),depositBalance:Number(linkedGuest.depositBalance||0),conversionRate:1}:null, reservationId:order.reservationId||null, reservationPrepaymentAvailable:prepayment.available, reservationPrepaymentReceipts:prepayment.receipts, ...pricing, paid, remaining: Math.max(0, due - paid), loyaltyBonusPercent: order.loyaltyBonusPercent ?? null, loyaltyBonusBase: order.loyaltyBonusBase ?? null, loyaltyBonusEarned: order.loyaltyBonusEarned ?? null }); }
-    const input = allocationInput || await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); const receiptId=String(input.receiptId||''); const idempotencyKey=String(input.idempotencyKey||'').trim(); if(idempotencyKey){const prior=order.payments.find((entry)=>entry.idempotencyKey===idempotencyKey);if(prior){if(prior.method!==method||Number(prior.amount)!==amount||(method==='reservation'&&prior.receiptId!==receiptId))return json(res,409,{error:'idempotency_key_reused'});const current=memoryOrderPricing(order);const guest=clients.find((entry)=>entry.id===(order.clientId||order.guestId));return json(res,200,{...prior,due:current.due,paid:receivedOrderPayments(order),remaining:Math.max(0,current.due-receivedOrderPayments(order)),closed:order.status==='closed',guestAccount:guest?{guestId:guest.id,bonusBalance:Number(guest.loyaltyPoints||guest.bonusBalance||0),depositBalance:Number(guest.depositBalance||0),conversionRate:1}:null,idempotentReplay:true});}} if(method==='reservation'&&idempotencyKey&&reservations.some((entry)=>entry.venueId===currentVenueId&&(entry.prepaymentAllocations||[]).some((allocation)=>allocation.idempotencyKey===idempotencyKey)))return json(res,409,{error:'idempotency_key_reused'}); if(order.status==='closed'||order.status==='cancelled')return json(res,409,{error:'order_already_final'}); if(await requireOpenShift(req,res))return; if(idempotencyKey&&(idempotencyKey.length<8||idempotencyKey.length>120))return json(res,400,{error:'valid_idempotency_key_required'}); if (!validPaymentAmount(amount) || !['cash', 'card', 'qr', 'bonus', 'deposit','reservation'].includes(method) || (['bonus','deposit','reservation'].includes(method)&&(!idempotencyKey||(method==='bonus'&&!Number.isInteger(amount))))) return json(res, 400, { error: 'valid_method_and_amount_required' }); if(['bonus','deposit'].includes(method)){const guest=clients.find((entry)=>entry.id===(order.clientId||order.guestId));if(!guest)return json(res,409,{error:'guest_required_for_account_tender'});const balance=Number(method==='bonus'?(guest.loyaltyPoints??guest.bonusBalance??0):(guest.depositBalance||0));if(balance<amount)return json(res,409,{error:method==='bonus'?'insufficient_bonus_balance':'insufficient_deposit_balance',available:balance});} let reservationReceipt=null,reservationForReceipt=null; if(method==='reservation'){reservationForReceipt=reservations.find((entry)=>entry.id===order.reservationId&&entry.venueId===currentVenueId&&entry.status==='confirmed');if(!reservationForReceipt)return json(res,409,{error:order.reservationId?'reservation_not_confirmed':'order_has_no_reservation'});reservationForReceipt.prepaymentAllocations||=[];reservationReceipt=reservationForReceipt.prepaymentReceipts?.find((receipt)=>receipt.id===receiptId);if(!reservationReceipt)return json(res,404,{error:'reservation_pre_payment_receipt_not_found'});const available=roundMoney(Number(reservationReceipt.amount)-reservationForReceipt.prepaymentAllocations.filter((allocation)=>allocation.receiptId===receiptId).reduce((sum,allocation)=>sum+Number(allocation.amount||0),0));if(amount>available+0.000001)return json(res,409,{error:'reservation_pre_payment_insufficient',available});} if (orderBalanceConflict({ due, paid: paid + amount })) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' }); const nextPaid = paid + amount; const closed = moneyCents(nextPaid) >= moneyCents(due); let depletion = null; if (closed) { try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'expired_premix_stock') return json(res, 409, { error: 'expired_premix_stock' }); if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); } } const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', shiftId: activeShift.id, idempotencyKey:idempotencyKey||null, ...(method==='reservation'?{receiptId}:{}), createdAt: new Date().toISOString() }; order.payments.push(payment); if(reservationReceipt){reservationReceipt.allocatedAmount=Number(reservationReceipt.allocatedAmount||0)+amount;reservationForReceipt.prepaymentAllocations.push({receiptId,orderId:order.id,paymentId:payment.id,shiftId:activeShift.id,amount,idempotencyKey,createdAt:payment.createdAt,actorId:req.user?.id||null});} let accountBalances=null;if(['bonus','deposit'].includes(method)){const guest=clients.find((entry)=>entry.id===(order.clientId||order.guestId));const isBonus=method==='bonus';const accountType=isBonus?'bonus':'deposit';const available=Number(isBonus?(guest.loyaltyPoints??guest.bonusBalance??0):(guest.depositBalance||0));if(isBonus){guest.loyaltyPoints=guest.bonusBalance=available-amount;}else guest.depositBalance=available-amount;guest.accountEntries ||= [];guest.accountEntries.unshift({id:`account-${crypto.randomUUID()}`,accountType,amount:-amount,reason:isBonus?'Списание бонусов в оплату заказа':'Списание денег со счёта в оплату заказа',sourceType:'order',sourceId:order.id,sourceKey:`order:${order.id}:${accountType}-redeem:${idempotencyKey}`,createdAt:payment.createdAt,actorName:req.user?.name||'Система'});accountBalances={bonusBalance:Number(guest.loyaltyPoints??guest.bonusBalance??0),depositBalance:Number(guest.depositBalance||0)};} let loyaltyAccrual = { base: 0, percent: 0, earned: 0, balance: null }; if (closed) { loyaltyAccrual = accrueMemoryOrderBonus(order, Math.max(0,pricing.net-(order.payments||[]).filter((entry)=>entry.method==='bonus'&&['paid','partially_paid'].includes(entry.status)).reduce((sum,entry)=>sum+Number(entry.amount||0),0)), req.user?.name); order.loyaltyBonusPercent = loyaltyAccrual.percent; order.loyaltyBonusBase = loyaltyAccrual.base; order.loyaltyBonusEarned = loyaltyAccrual.earned; order.status = 'closed'; order.closedAt = payment.createdAt; order.closedInShiftId = activeShift.id; order.subtotal = subtotal; order.discountTotal = discount; order.finalTotal = due; order.minimumAdjustment = pricing.minimumAdjustment; order.paymentMethod = order.payments.length === 1 ? method : 'mixed'; order.paid = nextPaid; order.remaining = 0; order.costOfGoods = Number(depletion?.totalCost || 0); order.groupDiscountBase = pricing.groupDiscountBase; order.groupDiscountAmount = pricing.groupDiscountAmount; order.effectiveDiscountSource = pricing.source; order.subtotalSnapshot = subtotal; order.discountTotalSnapshot = discount; order.minimumAdjustmentSnapshot = pricing.minimumAdjustment; order.finalTotalSnapshot = due; order.pricingVersion = 1; releaseMemoryTableIfIdle(order.tableId); } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, { ...payment, orderId: order.id, ...(method==='reservation'?{reservationId:order.reservationId}:{}), paid: nextPaid, due, closed, loyaltyBonusEarned: loyaltyAccrual.earned, costOfGoods: closed ? order.costOfGoods : undefined }); return json(res, 201, { ...payment, guestAccount:accountBalances?{guestId:order.clientId||order.guestId,...accountBalances,conversionRate:1}:undefined, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...(closed ? { finalTotal: order.finalTotal, discountTotal: order.discountTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod, costOfGoods: order.costOfGoods, effectiveDiscountSource: pricing.source, groupDiscountGroupId: pricing.groupDiscountGroupId, groupDiscountName: pricing.groupDiscountName, groupDiscountPercent: pricing.groupDiscountPercent, groupDiscountBase: pricing.groupDiscountBase, groupDiscountAmount: pricing.groupDiscountAmount, subtotalSnapshot: subtotal, discountTotalSnapshot: discount, minimumAdjustmentSnapshot: pricing.minimumAdjustment, finalTotalSnapshot: due, pricingVersion: 1, loyaltyBonusPercent: loyaltyAccrual.percent, loyaltyBonusBase: loyaltyAccrual.base, loyaltyBonusEarned: loyaltyAccrual.earned, loyaltyBonusBalance: loyaltyAccrual.balance } : {}) });
+    const localPolicyStored={version:Number(order.loyaltyRedemptionPolicyVersion??0),bonusRublesPerPoint:Number(order.loyaltyRedemptionRate||1),maxRedemptionPercent:Number(order.loyaltyRedemptionCapPercent??100),minimumRedemptionPoints:Number(order.loyaltyRedemptionMinPoints??1),bonusExpirationDays:null}; const localRedemptionPolicy={version:localPolicyStored.version,rate:localPolicyStored.bonusRublesPerPoint,capPercent:localPolicyStored.maxRedemptionPercent,minimumPoints:localPolicyStored.minimumRedemptionPoints,base:Number(order.loyaltyRedemptionBase??due)}; const localBonusRedeemed=order.payments.filter((entry)=>entry.method==='bonus'&&['paid','partially_paid'].includes(entry.status)).reduce((sum,entry)=>sum+Number(entry.amount||0),0); const localBonusRedemptionRemaining=Math.max(0,Math.floor(moneyCents(localRedemptionPolicy.base*localRedemptionPolicy.capPercent/100)-moneyCents(localBonusRedeemed))/100);
+    if (req.method === 'GET') { if(order.reservationId&&denyUnless(req,res,'reservations'))return; const prepayment=memoryReservationPrepayment(); return json(res, 200, { items: order.payments, closed:order.status==='closed', guestAccount:linkedGuest?{guestId:linkedGuest.id,bonusBalance:Number(linkedGuest.loyaltyPoints??linkedGuest.bonusBalance??0),depositBalance:Number(linkedGuest.depositBalance||0),bonusPercent:Number(discountGroups.find((group)=>group.id===linkedGuest.discountGroupId&&group.venueId===currentVenueId)?.bonusPercent||0),conversionRate:1}:null, reservationId:order.reservationId||null, reservationPrepaymentAvailable:prepayment.available, reservationPrepaymentReceipts:prepayment.receipts, bonusRedemptionRemaining:localBonusRedemptionRemaining, bonusRedemptionPolicy:{version:localRedemptionPolicy.version,maxRedemptionPercent:localRedemptionPolicy.capPercent,minimumRedemptionPoints:localRedemptionPolicy.minimumPoints,base:localRedemptionPolicy.base}, ...pricing, paid, remaining: Math.max(0, due - paid), loyaltyBonusPercent: order.loyaltyBonusPercent ?? null, loyaltyBonusBase: order.loyaltyBonusBase ?? null, loyaltyBonusEarned: order.loyaltyBonusEarned ?? null }); }
+    const input = allocationInput || await body(req); const amount = Number(input.amount); const method = String(input.method || 'cash'); const receiptId=String(input.receiptId||''); const idempotencyKey=String(input.idempotencyKey||'').trim(); if(idempotencyKey){const prior=order.payments.find((entry)=>entry.idempotencyKey===idempotencyKey);if(prior){if(prior.method!==method||Number(prior.amount)!==amount||(method==='reservation'&&prior.receiptId!==receiptId))return json(res,409,{error:'idempotency_key_reused'});const current=memoryOrderPricing(order);const guest=clients.find((entry)=>entry.id===(order.clientId||order.guestId));return json(res,200,{...prior,due:current.due,paid:receivedOrderPayments(order),remaining:Math.max(0,current.due-receivedOrderPayments(order)),closed:order.status==='closed',guestAccount:guest?{guestId:guest.id,bonusBalance:Number(guest.loyaltyPoints||guest.bonusBalance||0),depositBalance:Number(guest.depositBalance||0),conversionRate:1}:null,idempotentReplay:true});}} if(method==='reservation'&&idempotencyKey&&reservations.some((entry)=>entry.venueId===currentVenueId&&(entry.prepaymentAllocations||[]).some((allocation)=>allocation.idempotencyKey===idempotencyKey)))return json(res,409,{error:'idempotency_key_reused'}); if(order.status==='closed'||order.status==='cancelled')return json(res,409,{error:'order_already_final'}); if(await requireOpenShift(req,res))return; if(idempotencyKey&&(idempotencyKey.length<8||idempotencyKey.length>120))return json(res,400,{error:'valid_idempotency_key_required'}); if (!validPaymentAmount(amount) || !['cash', 'card', 'qr', 'bonus', 'deposit','reservation'].includes(method) || (['bonus','deposit','reservation'].includes(method)&&(!idempotencyKey||(method==='bonus'&&!Number.isInteger(amount))))) return json(res, 400, { error: 'valid_method_and_amount_required' }); if(['bonus','deposit'].includes(method)){const guest=clients.find((entry)=>entry.id===(order.clientId||order.guestId));if(!guest)return json(res,409,{error:'guest_required_for_account_tender'});const balance=Number(method==='bonus'?(guest.loyaltyPoints??guest.bonusBalance??0):(guest.depositBalance||0));if(balance<amount)return json(res,409,{error:method==='bonus'?'insufficient_bonus_balance':'insufficient_deposit_balance',available:balance});} let reservationReceipt=null,reservationForReceipt=null; if(method==='reservation'){reservationForReceipt=reservations.find((entry)=>entry.id===order.reservationId&&entry.venueId===currentVenueId&&entry.status==='confirmed');if(!reservationForReceipt)return json(res,409,{error:order.reservationId?'reservation_not_confirmed':'order_has_no_reservation'});reservationForReceipt.prepaymentAllocations||=[];reservationReceipt=reservationForReceipt.prepaymentReceipts?.find((receipt)=>receipt.id===receiptId);if(!reservationReceipt)return json(res,404,{error:'reservation_pre_payment_receipt_not_found'});const available=roundMoney(Number(reservationReceipt.amount)-reservationForReceipt.prepaymentAllocations.filter((allocation)=>allocation.receiptId===receiptId).reduce((sum,allocation)=>sum+Number(allocation.amount||0),0));if(amount>available+0.000001)return json(res,409,{error:'reservation_pre_payment_insufficient',available});} if(method==='bonus'){if(localBonusRedeemed===0&&amount<localRedemptionPolicy.minimumPoints)return json(res,409,{error:'bonus_redemption_below_minimum',minimumPoints:localRedemptionPolicy.minimumPoints});if(amount>localBonusRedemptionRemaining+0.000001)return json(res,409,{error:'bonus_redemption_limit_exceeded',available:localBonusRedemptionRemaining,maxRedemptionPercent:localRedemptionPolicy.capPercent});} if (orderBalanceConflict({ due, paid: paid + amount })) return json(res, 409, { error: 'payment_exceeds_due', remaining: Math.max(0, due - paid) }); const activeShift = shifts.find((shift) => !shift.closedAt); if (!activeShift) return json(res, 409, { error: 'open_shift_required' }); const nextPaid = paid + amount; const closed = moneyCents(nextPaid) >= moneyCents(due); let depletion = null; if (closed) { try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'expired_premix_stock') return json(res, 409, { error: 'expired_premix_stock' }); if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); } } if(method==='bonus'&&order.loyaltyRedemptionPolicyVersion==null){order.loyaltyRedemptionPolicyVersion=localRedemptionPolicy.version;order.loyaltyRedemptionRate=localRedemptionPolicy.rate;order.loyaltyRedemptionCapPercent=localRedemptionPolicy.capPercent;order.loyaltyRedemptionMinPoints=localRedemptionPolicy.minimumPoints;order.loyaltyRedemptionBase=localRedemptionPolicy.base;} const payment = { id: `pay-${Date.now()}`, method, amount, status: 'paid', shiftId: activeShift.id, idempotencyKey:idempotencyKey||null, ...(method==='reservation'?{receiptId}:{}), createdAt: new Date().toISOString() }; order.payments.push(payment); if(method==='bonus'&&order.loyaltyRedemptionPolicyVersion==null){order.loyaltyRedemptionPolicyVersion=localRedemptionPolicy.version;order.loyaltyRedemptionRate=localRedemptionPolicy.rate;order.loyaltyRedemptionCapPercent=localRedemptionPolicy.capPercent;order.loyaltyRedemptionMinPoints=localRedemptionPolicy.minimumPoints;order.loyaltyRedemptionBase=localRedemptionPolicy.base;} if(reservationReceipt){reservationReceipt.allocatedAmount=Number(reservationReceipt.allocatedAmount||0)+amount;reservationForReceipt.prepaymentAllocations.push({receiptId,orderId:order.id,paymentId:payment.id,shiftId:activeShift.id,amount,idempotencyKey,createdAt:payment.createdAt,actorId:req.user?.id||null});} let accountBalances=null;if(['bonus','deposit'].includes(method)){const guest=clients.find((entry)=>entry.id===(order.clientId||order.guestId));const isBonus=method==='bonus';const accountType=isBonus?'bonus':'deposit';const available=Number(isBonus?(guest.loyaltyPoints??guest.bonusBalance??0):(guest.depositBalance||0));if(isBonus){guest.loyaltyPoints=guest.bonusBalance=available-amount;}else guest.depositBalance=available-amount;guest.accountEntries ||= [];guest.accountEntries.unshift({id:`account-${crypto.randomUUID()}`,accountType,amount:-amount,reason:isBonus?'Списание бонусов в оплату заказа':'Списание денег со счёта в оплату заказа',sourceType:'order',sourceId:order.id,sourceKey:`order:${order.id}:${accountType}-redeem:${idempotencyKey}`,createdAt:payment.createdAt,actorName:req.user?.name||'Система'});accountBalances={bonusBalance:Number(guest.loyaltyPoints??guest.bonusBalance??0),depositBalance:Number(guest.depositBalance||0)};} let loyaltyAccrual = { base: 0, percent: 0, earned: 0, balance: null }; if (closed) { loyaltyAccrual = accrueMemoryOrderBonus(order, Math.max(0,pricing.net-(order.payments||[]).filter((entry)=>entry.method==='bonus'&&['paid','partially_paid'].includes(entry.status)).reduce((sum,entry)=>sum+Number(entry.amount||0),0)), req.user?.name); order.loyaltyBonusPercent = loyaltyAccrual.percent; order.loyaltyBonusBase = loyaltyAccrual.base; order.loyaltyBonusEarned = loyaltyAccrual.earned; order.status = 'closed'; order.closedAt = payment.createdAt; order.closedInShiftId = activeShift.id; order.subtotal = subtotal; order.discountTotal = discount; order.finalTotal = due; order.minimumAdjustment = pricing.minimumAdjustment; order.paymentMethod = order.payments.length === 1 ? method : 'mixed'; order.paid = nextPaid; order.remaining = 0; order.costOfGoods = Number(depletion?.totalCost || 0); order.groupDiscountBase = pricing.groupDiscountBase; order.groupDiscountAmount = pricing.groupDiscountAmount; order.effectiveDiscountSource = pricing.source; order.subtotalSnapshot = subtotal; order.discountTotalSnapshot = discount; order.minimumAdjustmentSnapshot = pricing.minimumAdjustment; order.finalTotalSnapshot = due; order.pricingVersion = 1; order.selectedPromotionSnapshot = pricing.selectedPromotion || null; order.pricingOffersSnapshot = pricing.offers || []; releaseMemoryTableIfIdle(order.tableId); } recordAudit(req, 'order.payment_added', 'payment', payment.id, null, { ...payment, orderId: order.id, ...(method==='reservation'?{reservationId:order.reservationId}:{}), paid: nextPaid, due, closed, loyaltyBonusEarned: loyaltyAccrual.earned, costOfGoods: closed ? order.costOfGoods : undefined }); return json(res, 201, { ...payment, guestAccount:accountBalances?{guestId:order.clientId||order.guestId,...accountBalances,conversionRate:1}:undefined, due, paid: nextPaid, remaining: Math.max(0, due - nextPaid), closed, ...(closed ? { finalTotal: order.finalTotal, discountTotal: order.discountTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod, costOfGoods: order.costOfGoods, effectiveDiscountSource: pricing.source, groupDiscountGroupId: pricing.groupDiscountGroupId, groupDiscountName: pricing.groupDiscountName, groupDiscountPercent: pricing.groupDiscountPercent, groupDiscountBase: pricing.groupDiscountBase, groupDiscountAmount: pricing.groupDiscountAmount, subtotalSnapshot: subtotal, discountTotalSnapshot: discount, minimumAdjustmentSnapshot: pricing.minimumAdjustment, finalTotalSnapshot: due, pricingVersion: 1, loyaltyBonusPercent: loyaltyAccrual.percent, loyaltyBonusBase: loyaltyAccrual.base, loyaltyBonusEarned: loyaltyAccrual.earned, loyaltyBonusBalance: loyaltyAccrual.balance } : {}) });
   }
   const orderPath = pathname.match(/^\/api\/orders\/([^/]+)\/(summary|close|split|discount-requests)$/);
   if (orderPath && req.method === 'GET' && orderPath[2] === 'summary') {
@@ -4894,7 +5383,8 @@ if (staffProfile && req.method === 'PATCH') {
         const depletion = await depleteRecipeForOrder(repositories.pool, orderPath[1], venueDbId, req.user?.id, client);
         const redeemedRows = await client.query("SELECT COALESCE(SUM(amount),0) AS amount FROM payments WHERE order_id=$1 AND method='bonus' AND status IN ('paid','partially_paid')", [orderPath[1]]);
         const loyaltyAccrual = await accrueGuestOrderBonus(client, { venueId: venueDbId, guestId: persisted.guestId, orderId: orderPath[1], eligibleBase: Math.max(0, net - Number(redeemedRows.rows[0]?.amount || 0)), actorId: req.user?.id });
-        const { rows } = await client.query('UPDATE orders SET status=$1,closed_at=now(),closed_in_shift_id=$4,loyalty_bonus_percent=$5,loyalty_bonus_base=$6,loyalty_bonus_earned=$7,group_discount_base=$8,group_discount_amount=$9,effective_discount_source=$10,subtotal_snapshot=$11,discount_total_snapshot=$12,minimum_adjustment_snapshot=$13,final_total_snapshot=$14,pricing_version=1 WHERE id=$2 AND venue_id=$3 AND status NOT IN (\'closed\',\'cancelled\') RETURNING *', ['closed', orderPath[1], venueDbId, activeShiftId, loyaltyAccrual.percent, loyaltyAccrual.base, loyaltyAccrual.earned, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, finalTotal]);
+        const promotion = pricing.selectedPromotion;
+        const { rows } = await client.query('UPDATE orders SET status=$1,closed_at=now(),closed_in_shift_id=$4,loyalty_bonus_percent=$5,loyalty_bonus_base=$6,loyalty_bonus_earned=$7,group_discount_base=$8,group_discount_amount=$9,effective_discount_source=$10,subtotal_snapshot=$11,discount_total_snapshot=$12,minimum_adjustment_snapshot=$13,final_total_snapshot=$14,pricing_version=1,pricing_offers_snapshot=$15,selected_promotion_id=$16,selected_promotion_version=$17,selected_promotion_name=$18,selected_promotion_benefit_kind=$19,selected_promotion_benefit_value=$20,selected_promotion_basis=$21,selected_promotion_amount=$22 WHERE id=$2 AND venue_id=$3 AND status NOT IN (\'closed\',\'cancelled\') RETURNING *', ['closed', orderPath[1], venueDbId, activeShiftId, loyaltyAccrual.percent, loyaltyAccrual.base, loyaltyAccrual.earned, pricing.groupDiscountBase, pricing.groupDiscountAmount, pricing.source, subtotal, discount, pricing.minimumAdjustment, finalTotal, JSON.stringify(pricing.offers || []), promotion?.promotionId || null, promotion?.version || null, promotion?.label || null, promotion?.benefitKind || null, promotion?.benefitValue ?? null, promotion?.eligibleBasis ?? null, promotion?.amount ?? null]);
         if (!rows[0]) throw Object.assign(new Error('order_already_final'), { code: 'order_already_final' });
         await client.query('INSERT INTO order_costs (venue_id,order_id,cost) VALUES ($1,$2,$3) ON CONFLICT (order_id) DO UPDATE SET cost=EXCLUDED.cost', [venueDbId, orderPath[1], depletion.totalCost]);
         if (remaining > 0) await client.query('INSERT INTO payments (order_id,method,amount,status,shift_id) VALUES ($1,$2,$3,$4,$5)', [orderPath[1], paymentMethod, remaining, 'paid', activeShiftId]);
@@ -4931,7 +5421,7 @@ if (staffProfile && req.method === 'PATCH') {
     let depletion; try { depletion = depleteMemoryOrder(order); } catch (error) { if (error.message === 'expired_premix_stock') return json(res, 409, { error: 'expired_premix_stock' }); if (error.message === 'insufficient_recipe_stock') return json(res, 409, { error: 'insufficient_recipe_stock', missing: error.missing }); if (['product_inventory_mode_required','product_recipe_required','product_recipe_ambiguous','product_inventory_mode_invalid'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, productId: error.productId, productName: error.productName }); if (['recipe_invalid', 'recipe_ingredient_not_found', 'recipe_ingredient_unit_mismatch', 'invalid_recipe_quantity'].includes(error.code || error.message)) return json(res, 409, { error: error.code || error.message, ingredient: error.ingredient, sourceUnit: error.sourceUnit, targetUnit: error.targetUnit }); return json(res, 409, { error: 'recipe_depletion_failed', detail: error.message }); }
     const loyaltyAccrual = accrueMemoryOrderBonus(order, Math.max(0,pricing.net-(order.payments||[]).filter((entry)=>entry.method==='bonus'&&['paid','partially_paid'].includes(entry.status)).reduce((sum,entry)=>sum+Number(entry.amount||0),0)), req.user?.name); order.loyaltyBonusPercent = loyaltyAccrual.percent; order.loyaltyBonusBase = loyaltyAccrual.base; order.loyaltyBonusEarned = loyaltyAccrual.earned;
     order.status = 'closed'; order.closedAt = new Date().toISOString(); order.closedInShiftId = activeShift.id; releaseMemoryTableIfIdle(order.tableId); order.subtotal = total; order.discountTotal = discount; order.finalTotal = pricing.due; order.payments ||= []; const alreadyPaid = receivedOrderPayments(order); const remaining = Math.max(0, order.finalTotal - alreadyPaid); if (remaining > 0) order.payments.push({ id: `pay-${Date.now()}`, method: paymentMethod, amount: remaining, status: 'paid', shiftId: activeShift.id, createdAt: order.closedAt }); order.paid = alreadyPaid + remaining; order.remaining = 0; order.minimumAdjustment = pricing.minimumAdjustment; order.paymentMethod = paymentMethod; order.costOfGoods = Number(depletion?.totalCost || 0);
-    order.groupDiscountBase = pricing.groupDiscountBase; order.groupDiscountAmount = pricing.groupDiscountAmount; order.effectiveDiscountSource = pricing.source; order.subtotalSnapshot = total; order.discountTotalSnapshot = discount; order.minimumAdjustmentSnapshot = order.minimumAdjustment; order.finalTotalSnapshot = pricing.due; order.pricingVersion = 1;
+    order.groupDiscountBase = pricing.groupDiscountBase; order.groupDiscountAmount = pricing.groupDiscountAmount; order.effectiveDiscountSource = pricing.source; order.subtotalSnapshot = total; order.discountTotalSnapshot = discount; order.minimumAdjustmentSnapshot = order.minimumAdjustment; order.finalTotalSnapshot = pricing.due; order.pricingVersion = 1; order.selectedPromotionSnapshot = pricing.selectedPromotion || null; order.pricingOffersSnapshot = pricing.offers || [];
     recordAudit(req, 'order.closed', 'order', order.id, { status: 'open' }, { status: order.status, subtotal: order.subtotal, discountTotal: order.discountTotal, finalTotal: order.finalTotal, minimumAdjustment: order.minimumAdjustment, paymentMethod: order.paymentMethod, loyaltyBonusEarned: loyaltyAccrual.earned });
     return json(res, 200, { ...order, ...pricing, loyaltyBonusBalance: loyaltyAccrual.balance });
   }
@@ -4945,13 +5435,14 @@ if (staffProfile && req.method === 'PATCH') {
       const client = await repositories.pool.connect();
       try {
         await client.query('BEGIN');
-        const { rows: sourceRows } = await client.query('SELECT id,venue_id,table_id,reservation_id,guest_id,notes,opened_by,vip_minimum,status FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderPath[1], venueDbId]);
+        const { rows: sourceRows } = await client.query('SELECT id,venue_id,table_id,reservation_id,guest_id,notes,opened_by,vip_minimum,status,pricing_locked_at AS "pricingLockedAt",loyalty_redemption_policy_version,loyalty_redemption_rate,loyalty_redemption_cap_percent,loyalty_redemption_min_points,loyalty_redemption_base FROM orders WHERE id=$1 AND venue_id=$2 FOR UPDATE', [orderPath[1], venueDbId]);
         const source = sourceRows[0]; if (!source) { await client.query('ROLLBACK'); return json(res, 404, { error: 'order_not_found' }); }
+        if (source.pricingLockedAt) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_pricing_locked', pricingLockedAt: source.pricingLockedAt }); }
         if (!['open', 'in_progress', 'ready'].includes(source.status)) { await client.query('ROLLBACK'); return json(res, 409, { error: 'order_not_editable' }); }
         const { rows: moved } = await client.query('SELECT oi.id,oi.product_id AS "productId",p.name,oi.quantity,oi.unit_price AS "unitPrice",oi.station,oi.status,oi.guest_number AS "guestNumber" FROM order_items oi LEFT JOIN products p ON p.id=oi.product_id WHERE oi.order_id=$1 AND oi.id=ANY($2::uuid[]) FOR UPDATE OF oi', [source.id, ids]);
         if (moved.length !== ids.length) { await client.query('ROLLBACK'); return json(res, 409, { error: 'item_ids_not_in_order' }); }
         const { rows: countRows } = await client.query('SELECT count(*)::int AS count FROM order_items WHERE order_id=$1', [source.id]);
-        const { rows: targetRows } = await client.query('INSERT INTO orders (venue_id,table_id,reservation_id,guest_id,notes,opened_by,vip_minimum,status) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,venue_id AS "venueId",table_id AS "tableId",reservation_id AS "reservationId",guest_id AS "guestId",notes,status,vip_minimum AS "minimumOrderTotal",created_at AS "createdAt"', [source.venue_id, source.table_id, source.reservation_id, source.guest_id, source.notes, source.opened_by, 0, 'open']);
+        const { rows: targetRows } = await client.query('INSERT INTO orders (venue_id,table_id,reservation_id,guest_id,notes,opened_by,vip_minimum,status,loyalty_redemption_policy_version,loyalty_redemption_rate,loyalty_redemption_cap_percent,loyalty_redemption_min_points,loyalty_redemption_base) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id,venue_id AS "venueId",table_id AS "tableId",reservation_id AS "reservationId",guest_id AS "guestId",notes,status,vip_minimum AS "minimumOrderTotal",loyalty_redemption_policy_version AS "redemptionPolicyVersion",loyalty_redemption_rate AS "redemptionRate",loyalty_redemption_cap_percent AS "redemptionCapPercent",loyalty_redemption_min_points AS "redemptionMinPoints",loyalty_redemption_base AS "redemptionBase",created_at AS "createdAt"', [source.venue_id, source.table_id, source.reservation_id, source.guest_id, source.notes, source.opened_by, 0, 'open',source.loyalty_redemption_policy_version,source.loyalty_redemption_rate,source.loyalty_redemption_cap_percent,source.loyalty_redemption_min_points,source.loyalty_redemption_base]);
         const target = targetRows[0]; await client.query('UPDATE order_items SET order_id=$1 WHERE id=ANY($2::uuid[]) AND order_id=$3', [target.id, ids, source.id]);
         const balance = await pgOrderBalance(client, source.id, source.vip_minimum);
         if (orderBalanceConflict(balance)) { await client.query('ROLLBACK'); return json(res, 409, orderBalanceConflictBody(balance)); }
@@ -4962,6 +5453,7 @@ if (staffProfile && req.method === 'PATCH') {
     }
     const source = orders.find((entry) => entry.id === orderPath[1]);
     if (!source) return json(res, 404, { error: 'order_not_found' });
+    if (source.pricingLockedAt) return json(res, 409, { error: 'order_pricing_locked', pricingLockedAt: source.pricingLockedAt });
     if (!['open', 'in_progress', 'ready'].includes(source.status)) return json(res, 409, { error: 'order_not_editable' });
     const input = await body(req); const requested = Array.isArray(input.itemIds) ? input.itemIds : [];
     if (!requested.length) return json(res, 400, { error: 'item_ids_required' });
@@ -4971,7 +5463,7 @@ if (staffProfile && req.method === 'PATCH') {
     const beforeItems = source.items; source.items = source.items.filter((item) => !ids.has(item.id));
     const balance = memoryOrderBalance(source); if (orderBalanceConflict(balance)) { source.items = beforeItems; return json(res, 409, orderBalanceConflictBody(balance)); }
     if (moved.length >= beforeItems.length) { source.items = beforeItems; return json(res, 409, { error: 'split_requires_remaining_item' }); }
-    const target = { id: `ord-${Date.now()}`, tableId: source.tableId, status: 'open', items: moved, clientId: source.clientId || null, guestName: source.guestName || null, guestPhone: source.guestPhone || null, notes: source.notes || '', openedBy: source.openedBy || source.openedById || null, splitFrom: source.id, createdAt: new Date().toISOString() };
+    const target = { id: `ord-${Date.now()}`, tableId: source.tableId, status: 'open', items: moved, clientId: source.clientId || null, guestName: source.guestName || null, guestPhone: source.guestPhone || null, notes: source.notes || '', openedBy: source.openedBy || source.openedById || null, loyaltyRedemptionPolicyVersion:source.loyaltyRedemptionPolicyVersion??0,loyaltyRedemptionRate:source.loyaltyRedemptionRate||1,loyaltyRedemptionCapPercent:source.loyaltyRedemptionCapPercent??100,loyaltyRedemptionMinPoints:source.loyaltyRedemptionMinPoints??1,loyaltyRedemptionBase:source.loyaltyRedemptionBase??null,splitFrom: source.id, createdAt: new Date().toISOString() };
     orders.push(target); recordAudit(req, 'order.split', 'order', source.id, { itemCount: source.items.length + moved.length }, { itemCount: source.items.length, newOrderId: target.id }); return json(res, 201, target);
   }
   if (orderPath && req.method === 'POST' && orderPath[2] === 'discount-requests') {
