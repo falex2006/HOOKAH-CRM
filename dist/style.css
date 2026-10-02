@@ -2888,3 +2888,6 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 
 .custom-role-editor{display:grid;place-items:center;padding:20px}.custom-role-editor-box{width:min(620px,100%);max-height:90vh;overflow:auto;display:grid;gap:14px;padding:24px;border:1px solid #3b424d;border-radius:18px;background:#171b22;box-shadow:0 24px 80px rgba(0,0,0,.55)}.custom-role-editor-box>label{display:grid;gap:7px;color:#dbe1e9}.custom-role-editor-box input,.custom-role-editor-box textarea{width:100%;box-sizing:border-box;border:1px solid #363b44;border-radius:10px;background:#111317;color:#f5f7fa;padding:11px;font:inherit}.custom-role-editor-box fieldset{border:1px solid #303744;border-radius:12px;padding:14px}.custom-role-editor-box legend{padding:0 6px;color:#dbe1e9}.custom-role-preview{padding:14px;border:1px solid rgba(255,126,93,.35);border-radius:12px;background:rgba(255,111,91,.08)}.custom-role-preview p{margin:5px 0 0;color:#9da7b5}
 
+
+.custom-role-assignees{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.custom-role-assignees span,.custom-role-assignees small{padding:4px 8px;border-radius:999px;background:#252b35;color:#cfd5de;font-size:11px}
+
