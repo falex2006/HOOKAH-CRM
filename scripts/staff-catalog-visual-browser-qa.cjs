@@ -20,6 +20,20 @@ const assert=require('node:assert/strict');
   await page.evaluate(()=>{document.querySelectorAll('.portal-content,.portal-main').forEach(n=>n.scrollTop=0);window.scrollTo(0,0);});
   fs.mkdirSync('tmp/staff-visual',{recursive:true});
   await page.screenshot({path:'tmp/staff-visual/desktop.png',fullPage:true});
+  const cardScale=page.getByLabel('Размер плиток сотрудников');
+  for(const [value,file] of [[1,'tiles-compact.png'],[4,'tiles-large.png']]){
+   await cardScale.evaluate((node,next)=>{node.value=String(next);node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));},value);
+   await page.waitForFunction(expected=>document.querySelector('#staff-list')?.dataset.cardScale===String(expected),value);
+   await page.screenshot({path:'tmp/staff-visual/'+file,fullPage:true});
+  }
+  await cardScale.evaluate(node=>{node.value='2';node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));});
+  for(const [view,file] of [['list','list.png'],['table','table.png']]){
+   await page.locator(`[data-staff-view="${view}"]`).click();
+   await page.waitForFunction(expected=>document.querySelector('#staff-list')?.dataset.view===expected,view);
+   await page.screenshot({path:'tmp/staff-visual/'+file,fullPage:true});
+  }
+  await page.locator('[data-staff-view="cards"]').click();
+  await page.waitForFunction(()=>document.querySelector('#staff-list')?.dataset.view==='cards');
   console.log(JSON.stringify(await page.locator('.staff-card').evaluateAll(ns=>ns.map(n=>({name:n.querySelector('h3')?.textContent,width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})))));
   const card=page.locator('.staff-card').filter({hasText:'Кузнецова Мария'});await card.locator('.staff-edit').click();await page.locator('.staff-admin-modal').waitFor();await page.locator('.staff-admin-close').click();
   await page.locator('#staff-search').fill('Кузнецова');assert.equal(await page.locator('.staff-card:visible').count(),1);await page.locator('#staff-search').fill('');
