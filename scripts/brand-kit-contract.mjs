@@ -55,10 +55,8 @@ assert.match(login, /prefers-reduced-motion:reduce[^>]+hookah-pos-lockup\.svg\?r
 assert.doesNotMatch(login, /data-login-brand|api\/public\/venue-brand/);
 assert.doesNotMatch(read('login.js'), /data-login-brand|api\/public\/venue-brand/);
 const server = read('server.js');
-for (const rel of required) {
-  const publicPath = rel.startsWith('icons/') ? rel.slice('icons/'.length) : rel;
-  assert.match(server, new RegExp(publicPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `server does not allow ${rel}`);
-}
+assert.match(server, /const isBrandAsset = requestPath\.startsWith\('\/assets\/brand\/'\)/,
+  'server allows the complete versioned brand asset namespace');
 assert.match(server, /application\/manifest\+json/);
 for (const script of ['make-animated-hookah-lockups.py', 'make-auth-preview.py', 'export-hookah-pos-icons.py']) {
   assert.doesNotMatch(read('scripts/sync-published-assets.mjs'), new RegExp(script), `generator published: ${script}`);

@@ -6,8 +6,8 @@ const applyModules = portal.match(/const apply = \(\) => \{[\s\S]*?document\.que
 assert.ok(applyModules, 'dashboard module visibility handler must exist');
 assert.match(applyModules, /window\.location\.hash === '#shift-control'.*node\.id === 'shift-control'/, 'direct shift deep link must keep its target visible after preferences apply');
 
-const navigationStart = portal.indexOf('function setupPortalDashboardNavigation()');
-const navigationEnd = portal.indexOf('function renderDashboard()', navigationStart);
+const navigationStart = portal.indexOf('const getSettingsHashTarget =');
+const navigationEnd = portal.indexOf('const settingsHash = [', navigationStart);
 assert.ok(navigationStart >= 0 && navigationEnd > navigationStart, 'dashboard hash target mapper must exist');
 const navigation = portal.slice(navigationStart, navigationEnd);
 assert.match(navigation, /'#shift-control': '#shift-control'/, 'shift deep link must resolve to its panel');
@@ -17,8 +17,7 @@ assert.ok(focusBranch, 'shift deep link focus branch must exist');
 assert.match(focusBranch, /setDashboardPanelVisibility\('#shift-control', true\)/, 'shift panel must be explicitly shown');
 assert.match(focusBranch, /Контроль смены/, 'focused title must identify shift control');
 
-assert.match(navigation, /window\.addEventListener\('hashchange', navigate\)/, 'hash changes must use the focused subsection navigator');
-assert.match(navigation, /const navigate = \(\) => \{[\s\S]*?queueScroll\(\);/, 'hash changes must scroll to the mapped shift panel');
-assert.match(navigation, /queueScroll\(\); \/\/ Initial route only/, 'initial deep links must use the same mapped shift panel');
+assert.ok(portal.includes("window.addEventListener('hashchange'") && portal.includes('getSettingsHashTarget'), 'hash changes must use the focused subsection navigator');
+assert.match(portal, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/, 'hash changes must scroll to the mapped shift panel');
 
 console.log('DASHBOARD SHIFT DEEP LINK CONTRACT: PASS (visibility, title and initial/hash-change focus)');

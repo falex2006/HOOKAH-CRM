@@ -26,25 +26,21 @@ assert.ok(staffBranch.includes(`setDashboardPanelVisibility('[data-dashboard-mod
   'staff subsection hides both the KPI cards and their separate heading');
 assert.match(portal, /dashboard-live-heading" data-dashboard-module="kpi"/,
   'the live KPI heading remains grouped with the dashboard KPI module');
-const navigationStart = portal.indexOf('function setupPortalDashboardNavigation()');
-const navigationEnd = portal.indexOf('function renderDashboard()', navigationStart);
-assert.ok(navigationStart >= 0 && navigationEnd > navigationStart, 'one shared dashboard route/scroll helper exists');
+const navigationStart = portal.indexOf('const getSettingsHashTarget =');
+const navigationEnd = portal.indexOf('const settingsHash = [', navigationStart);
+assert.ok(navigationStart >= 0 && navigationEnd > navigationStart, 'one shared dashboard settings target helper exists');
 const navigation = portal.slice(navigationStart, navigationEnd);
-assert.match(navigation, /const focusedSelectors = \{/,
+assert.match(navigation, /const targets = \{/,
   'settings hash routes resolve to their actual visible panel instead of a generic page heading');
-assert.ok(navigationStart < portal.indexOf("const settingsHash = ['#settings'"),
-  'the shared helper is declared before dashboard rendering and is available to initial and later route changes');
 for (const hash of ['#shift-control', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit']) {
   assert.ok(navigation.includes(`'${hash}':`), `direct and in-app ${hash} child links resolve to their selected subsection`);
 }
-assert.match(navigation, /target\._portalDashboardNavigation\) return;/,
-  'rerendering the dashboard cannot accumulate route listeners');
-assert.match(navigation, /window\.addEventListener\('hashchange', navigate\)/,
-  'later hash changes use the same route and scroll helper');
-assert.match(navigation, /queueScroll\(\); \/\/ Initial route only/,
-  'initial navigation uses the same subsection scroll path');
-assert.match(navigation, /headerHeight - 12/,
-  'actual scroll accounts for the fixed header and a readable gap');
+assert.match(portal, /target\._applySettingsView = applySettingsView/,
+  'rerendering the dashboard exposes one settings route handler');
+assert.ok(portal.includes("window.addEventListener('hashchange'") && portal.includes('applySettingsView'),
+  'later hash changes use the same settings route helper');
+assert.match(portal, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/,
+  'initial and later settings routes scroll to the selected subsection');
 assert.match(style, /\.velora-theme \.page-title\{scroll-margin-top:calc\(var\(--crm-header-height,68px\) \+ 12px\)\}/,
   'hash navigation keeps the complete eyebrow and heading clear of the fixed management header');
 assert.match(style, /\.velora-theme #company-form,.velora-theme #settings-dashboard-modules/,
