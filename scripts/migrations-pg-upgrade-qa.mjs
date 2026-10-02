@@ -29,7 +29,7 @@ try {
   await client.query('ALTER TABLE unrelated_constraint_name_collision ADD CONSTRAINT product_categories_subdepartment_fk CHECK (id IS NULL OR id > 0)');
 
   const migrations = fs.readdirSync(path.join(root, 'migrations'))
-    .filter((file) => file.endsWith('.sql') && Number(file.slice(0, 3)) <= 38)
+    .filter((file) => file.endsWith('.sql') && Number(file.slice(0, 3)) <= 75)
     .sort();
   for (const file of migrations) {
     await client.query(fs.readFileSync(path.join(root, 'migrations', file), 'utf8'));
