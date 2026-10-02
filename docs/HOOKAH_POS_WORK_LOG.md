@@ -20,3 +20,5 @@
 - Для изменений меню проверять структуру, одну раскрытую группу, маршруты, права, мобильность, клавиатуру и source/dist parity.
 
 - Playwright QA стабилизирован локально: POS browser-скрипты принимают PLAYWRIGHT_EXECUTABLE_PATH; проверены sidebar preference QA и responsive emulator (19 размеров, 3 маршрута) на установленном Chromium 1243. Коммит d2de5cba.
+- Повторный полный PostgreSQL-регрессионный прогон после Playwright-изменения: 
+ode scripts/local-full-pg-regression.cjs — PASS; локальная disposable QA-среда, tenant/role/API цепочки без регрессий.
