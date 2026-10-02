@@ -270,6 +270,16 @@ const normalizeManagementSidebar = () => {
     const label = [...sidebar.querySelectorAll(':scope > .side-label')].find((node) => node.textContent.trim().toLocaleLowerCase('ru-RU') === labelText.toLocaleLowerCase('ru-RU'));
     const nav = label?.nextElementSibling;
     if (!label || !nav?.classList.contains('portal-nav')) return;
+    // The admin portal must expose the same working hall as the staff shell.
+    // Rebuild this list from the canonical permission-aware definition so an
+    // older static template cannot hide the primary operational destination.
+    nav.replaceChildren(...[
+      { href: '/', permission: 'floor', label: 'Рабочий зал', iconName: 'table-layout' },
+      { href: '/orders', permission: 'orders', label: 'Заказы', iconName: 'receipt' },
+      { href: '/clients', permission: 'staff_view', label: 'Гости', iconName: 'users' },
+      { href: '/reservations', permission: 'reservations', label: 'Бронирования', iconName: 'calendar-event' },
+      { href: '/delivery', permission: 'delivery', label: 'Доставка', iconName: 'truck-delivery' },
+    ].map(makeLink));
     const details = document.createElement('details'); details.className = 'sidebar-nav-group'; details.dataset.navGroup = key;
     const saved = savedGroupState(key); details.open = saved === null ? defaultGroupOpen(key) : saved;
     const summary = document.createElement('summary'); summary.setAttribute('aria-label', labelText); summary.title = labelText; summary.innerHTML = `${iconMarkup(key === 'operations' ? 'clipboard-list' : 'chart-bar')}<span>${labelText}</span>`; details.append(summary, nav);
@@ -282,14 +292,14 @@ const normalizeManagementSidebar = () => {
     if (!adminNav) { adminNav = document.createElement('nav'); adminNav.className = 'portal-nav staff-nav'; adminNav.dataset.staffNav = ''; adminLabel.after(adminNav); }
     const adminLinks = [
       { href: '/admin#staff', permission: 'staff_view', label: 'Персонал', iconName: 'id-badge' },
-      { href: '/admin#staff', permission: 'staff_manage', label: 'Роли и права', iconName: 'shield-lock' },
+      { href: '/admin#staff', permission: 'staff_manage', label: 'Роли и права доступа', iconName: 'shield-lock' },
       { href: '/admin#tasks', permission: 'orders', label: 'Задачи', iconName: 'list-check' },
       { href: '/admin#loyalty', permission: 'loyalty', label: 'Система лояльности', iconName: 'gift' },
-      { href: '/admin#company', permission: 'settings', label: 'Заведение', iconName: 'building-store' },
-      { href: '/admin#settings-dashboard-modules', permission: 'settings', label: 'Интерфейс', iconName: 'layout-dashboard' },
+      { href: '/admin#company', permission: 'settings', label: 'Настройки заведения', iconName: 'building-store' },
+      { href: '/admin#settings-dashboard-modules', permission: 'settings', label: 'Настройки модулей', iconName: 'layout-dashboard' },
       { href: '/admin#lock-security', permission: 'settings', label: 'Безопасность', iconName: 'lock' },
       { href: '/admin#audit', permission: 'settings', label: 'Журнал действий', iconName: 'history' },
-      { href: '/integrations', permission: 'integrations', label: 'Telegram', iconName: 'send' },
+      { href: '/integrations', permission: 'integrations', label: 'Интеграции', iconName: 'send' },
       { href: '/network', permission: 'settings', label: 'Моя сеть', iconName: 'building' },
       { href: '/admin#diagnostics', permission: 'diagnostics', label: 'Диагностика', iconName: 'alert-triangle' },
       { href: '/admin#notifications', permission: 'dashboard', label: 'Уведомления', iconName: 'bell' },
