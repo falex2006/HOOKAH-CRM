@@ -22,6 +22,7 @@ const child = spawn(process.execPath, ['server.js'], {
 let baseUrl = '';
 let adminToken = '';
 let ownerToken = '';
+let childStderr = '';
 const createdStaffIds = [];
 
 const request = async (path, { method = 'GET', token, body } = {}) => {
@@ -46,7 +47,8 @@ const expectStatus = (response, expected, label) => {
 const startServer = () => new Promise((resolve, reject) => {
   const timer = setTimeout(() => reject(new Error('isolated role matrix server did not start')), 15_000);
   child.once('error', (error) => { clearTimeout(timer); reject(error); });
-  child.once('exit', () => { clearTimeout(timer); reject(new Error('isolated role matrix server exited before readiness')); });
+  child.once('exit', () => { clearTimeout(timer); reject(new Error(`isolated role matrix server exited before readiness: ${childStderr.slice(-2000)}`)); });
+  child.stderr.on('data', (chunk) => { childStderr += String(chunk); });
   child.stdout.on('data', (chunk) => {
     const match = String(chunk).match(/CRM running on http:\/\/localhost:(\d+)/);
     if (match) { clearTimeout(timer); resolve(`http://127.0.0.1:${match[1]}`); }
@@ -77,7 +79,8 @@ try {
   };
 
   const bartender = await createAccount('bartender', `qa_bartender_${suffix}`);
-  const manager = await createAccount('manager', `qa_manager_${suffix}`);
+  const managerLogin = `qa_manager_${suffix}`;
+  const manager = await createAccount('manager', managerLogin);
 
   // Read route matrix follows the actual sidebar destinations plus their data APIs.
   const reads = [
@@ -122,6 +125,39 @@ try {
   assert.ok(managerSession.data.permissions.includes('finance_read'));
   assert.ok(!managerSession.data.permissions.includes('inventory'));
   assert.ok(!managerSession.data.permissions.includes('finance'));
+
+  const linkedCategory = await request('/api/product-categories', { method: 'POST', token: adminToken, body: { name: `QA linked category ${suffix}`, department: 'inventory' } });
+  expectStatus(linkedCategory, 201, 'admin creates linked category fixture');
+  const linkedProduct = await request('/api/products', { method: 'POST', token: adminToken, body: { name: `QA category link ${suffix}`, category: linkedCategory.data.name, price: 1, inventoryMode: 'non_stock' } });
+  expectStatus(linkedProduct, 201, 'admin links test product to category');
+  expectStatus(await request('/api/product-categories/' + encodeURIComponent(linkedCategory.data.id), { method: 'DELETE', token: manager.token }), 403, 'manager without category scope cannot archive categories');
+  const categoryOnlyProfile = await request('/api/staff/' + encodeURIComponent(manager.user.id) + '/profile', { method: 'PATCH', token: ownerToken, body: { permissionScopes: ['inventory_categories'] } });
+  expectStatus(categoryOnlyProfile, 200, 'owner can add category scope to a manager without prior scoped permissions');
+  const categoryOnlyLogin = await request('/api/login', { method: 'POST', body: { username: managerLogin, password: 'qa-pass-123' } });
+  expectStatus(categoryOnlyLogin, 200, 'manager logs in with only the category scope');
+  for (const permission of ['inventory_categories', 'inventory_read', 'orders', 'floor', 'reservations', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty']) assert.ok(categoryOnlyLogin.data.permissions.includes(permission), 'category-only scope preserves manager baseline permission ' + permission);
+  assert.ok(!categoryOnlyLogin.data.permissions.includes('inventory'), 'category-only scope does not grant general inventory write');
+  expectStatus(await request('/api/logout', { method: 'POST', token: categoryOnlyLogin.data.token }), 200, 'QA releases the temporary manager session before changing existing scopes');
+  const updatedManagerProfile = await request('/api/staff/' + encodeURIComponent(manager.user.id) + '/profile', { method: 'PATCH', token: ownerToken, body: { permissionScopes: ['orders', 'finance', 'inventory_categories'] } });
+  expectStatus(updatedManagerProfile, 200, 'owner grants existing manager category lifecycle scope');
+  const categoryManagerLogin = await request('/api/login', { method: 'POST', body: { username: managerLogin, password: 'qa-pass-123' } });
+  expectStatus(categoryManagerLogin, 200, 'manager logs in after owner updates category permission');
+  const categoryManagerToken = categoryManagerLogin.data.token;
+  for (const permission of ['inventory_categories', 'inventory_read', 'orders', 'floor', 'finance_read']) assert.ok(categoryManagerLogin.data.permissions.includes(permission), 'category scope preserves existing manager scope ' + permission);
+  assert.ok(!categoryManagerLogin.data.permissions.includes('inventory'), 'category scope alone does not grant general inventory write');
+  expectStatus(await request('/api/product-categories/' + encodeURIComponent(linkedCategory.data.id), { method: 'DELETE', token: categoryManagerToken }), 200, 'manager archives linked category after owner grants scope');
+  assert.equal((await request('/api/product-categories?status=all', { token: categoryManagerToken })).data.items.find((item) => item.id === linkedCategory.data.id)?.active, false, 'archive preserves linked category row');
+  assert.ok((await request('/api/products', { token: adminToken })).data.items.some((item) => item.id === linkedProduct.data.id && item.category === linkedCategory.data.name), 'archiving category preserves the linked product category label');
+  expectStatus(await request('/api/product-categories/' + encodeURIComponent(linkedCategory.data.id) + '/restore', { method: 'POST', token: categoryManagerToken }), 200, 'manager restores linked category');
+  expectStatus(await request('/api/inventory/deletion-requests', { method: 'POST', token: categoryManagerToken, body: { entityType: 'department', entityId: 'inventory' } }), 400, 'category scope cannot request deletion of a department');
+  expectStatus(await request('/api/inventory/permanent-deletions', { method: 'POST', token: categoryManagerToken, body: { entityType: 'category', entityId: linkedCategory.data.id } }), 403, 'manager cannot permanently delete categories directly');
+  const deletableCategory = await request('/api/product-categories', { method: 'POST', token: adminToken, body: { name: `QA deletable category ${suffix}`, department: 'inventory' } });
+  expectStatus(deletableCategory, 201, 'admin creates unlinked category fixture');
+  expectStatus(await request('/api/product-categories/' + encodeURIComponent(deletableCategory.data.id), { method: 'DELETE', token: categoryManagerToken }), 200, 'manager archives unlinked category');
+  const deletionRequest = await request('/api/inventory/deletion-requests', { method: 'POST', token: categoryManagerToken, body: { entityType: 'category', entityId: deletableCategory.data.id } });
+  expectStatus(deletionRequest, 201, 'manager requests permanent category deletion');
+  expectStatus(await request('/api/inventory/deletion-requests/' + encodeURIComponent(deletionRequest.data.id) + '/approve', { method: 'POST', token: categoryManagerToken, body: {} }), 403, 'manager cannot approve permanent deletion');
+  expectStatus(await request('/api/inventory/deletion-requests/' + encodeURIComponent(deletionRequest.data.id) + '/approve', { method: 'POST', token: ownerToken, body: {} }), 200, 'owner confirms permanent deletion');
 
   const premixSource = await request('/api/inventory/items', { method: 'POST', token: adminToken, body: { name: `QA role premix source ${suffix}`, unit: 'мл', itemType: 'ingredient', cost: 0.1 } });
   const premixOutput = await request('/api/inventory/items', { method: 'POST', token: adminToken, body: { name: `QA role premix output ${suffix}`, unit: 'мл', itemType: 'ingredient', cost: 0 } });
@@ -205,13 +241,14 @@ try {
   assert.equal(freeReport.data.revenue, 0, 'memory finance report does not replace zero with gross order total');
   assert.equal(freeReport.data.byStaff.Administrator || 0, 0, 'waiter report does not attribute gross revenue to zero-total order');
 
-  console.log('ROLE API MATRIX RUNTIME QA: PASS (unauthenticated denial; 10 read routes × bartender/manager; redacted employee metrics and shift history; 5 forbidden writes; employee finance payload; task assignment, constrained update and reread; zero-total finance regression)');
+  console.log('ROLE API MATRIX RUNTIME QA: PASS (unauthenticated denial; role reads; owner scope assignment; manager category archive/restore with linked products; owner-only final deletion; existing scope retention; employee finance and shift limits; task lifecycle; zero-total finance regression)');
 } finally {
   if (baseUrl && adminToken) {
     for (const id of createdStaffIds) {
       await request(`/api/staff/${encodeURIComponent(id)}`, { method: 'DELETE', token: adminToken }).catch(() => {});
     }
   }
+  const childExit = child.exitCode === null && child.signalCode === null ? once(child, 'exit') : Promise.resolve();
   child.kill();
-  await once(child, 'exit').catch(() => {});
+  await childExit.catch(() => {});
 }

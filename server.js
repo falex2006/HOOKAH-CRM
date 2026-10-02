@@ -256,8 +256,8 @@ const staffPassportCipher = {
     } catch (_) { return null; }
   }
 };const rolePermissions = {
-  owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'tasks_manage', 'settings', 'diagnostics', 'integrations', 'delivery', 'loyalty'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'diagnostics', 'integrations', 'delivery', 'loyalty'],
+  owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'inventory_categories', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'tasks_manage', 'settings', 'diagnostics', 'integrations', 'delivery', 'loyalty'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'inventory_categories', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'diagnostics', 'integrations', 'delivery', 'loyalty'],
   manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty'],
   senior_bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
@@ -274,11 +274,12 @@ const staffPinCipher = {
   encrypt(pin) { const wrapped = staffPassportCipher.encrypt({ pin: String(pin) }); return wrapped; },
   decrypt(row) { const wrapped = staffPassportCipher.decrypt({ passport_data_encrypted: row?.pin_data_encrypted, passport_data_iv: row?.pin_data_iv, passport_data_tag: row?.pin_data_tag }); return wrapped?.pin || null; }
 };
-const permissionScopes = ['orders', 'reservations', 'inventory', 'finance', 'staff', 'delivery', 'integrations', 'settings', 'loyalty'];
+const permissionScopes = ['orders', 'reservations', 'inventory', 'inventory_categories', 'finance', 'staff', 'delivery', 'integrations', 'settings', 'loyalty'];
 const scopedPermissionMap = {
   orders: ['orders', 'floor'],
   reservations: ['reservations'],
   inventory: ['inventory', 'inventory_read'],
+  inventory_categories: ['inventory_categories', 'inventory_read'],
   finance: ['finance', 'finance_read'],
   staff: ['staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage'],
   delivery: ['delivery'],
@@ -289,8 +290,9 @@ const scopedPermissionMap = {
 const normalizePermissionScopes = (value) => [...new Set((Array.isArray(value) ? value : []).map((scope) => String(scope || '').trim()).filter((scope) => permissionScopes.includes(scope)))];
 const effectivePermissions = (user) => {
   const base = rolePermissions[user?.role] || [];
-  const scopes = normalizePermissionScopes(user?.customRolePermissionScopes?.length ? user.customRolePermissionScopes : user?.permissionScopes);
+  const scopes = normalizePermissionScopes([...(Array.isArray(user?.customRolePermissionScopes) ? user.customRolePermissionScopes : []), ...(Array.isArray(user?.permissionScopes) ? user.permissionScopes : [])]);
   if (!scopes.length) return base;
+  if (user?.role === 'manager' && scopes.length === 1 && scopes[0] === 'inventory_categories') return [...new Set([...base, ...scopedPermissionMap.inventory_categories])];
   const restricted = new Set(Object.values(scopedPermissionMap).flat());
   return [...new Set([...base.filter((permission) => !restricted.has(permission)), ...scopes.flatMap((scope) => scopedPermissionMap[scope] || [])])];
 };
@@ -2258,10 +2260,10 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     return json(res, 200, { items: inventoryDeletionRequests.filter((item) => item.venueId === venueDbId && item.status === 'pending' && (owner || item.requestedBy === req.user?.id)) });
   }
   if (pathname === '/api/inventory/deletion-requests' && req.method === 'POST') {
-    if (denyUnless(req, res, 'inventory')) return;
+    if (denyUnless(req, res, 'inventory_categories')) return;
     if (req.user?.role !== 'manager') return json(res, 403, { error: 'inventory_deletion_request_manager_only' });
-    const input = await body(req); const entityType = String(input.entityType || ''); const entityId = String(input.entityId || '').trim(); const allowedTypes = new Set(['department','subdepartment','category']);
-    if (!allowedTypes.has(entityType) || !entityId || entityId.length > 80 || (entityType !== 'department' && !/^[0-9a-f-]{36}$/i.test(entityId))) return json(res, 400, { error: 'invalid_inventory_deletion_request' });
+    const input = await body(req); const entityType = String(input.entityType || ''); const entityId = String(input.entityId || '').trim(); const allowedTypes = new Set(['category']);
+    if (!allowedTypes.has(entityType) || !entityId || entityId.length > 80 || (repositories?.pool && entityType !== 'department' && !/^[0-9a-f-]{36}$/i.test(entityId))) return json(res, 400, { error: 'invalid_inventory_deletion_request' });
     const names = { department: 'inventory_departments', subdepartment: 'inventory_subdepartments', category: 'product_categories' };
     if (repositories?.pool) {
       try {
@@ -2325,7 +2327,7 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     if (denyUnless(req, res, 'inventory')) return;
     if (req.user?.role !== 'owner') return json(res, 403, { error: 'inventory_deletion_owner_required' });
     const input = await body(req); const entityType = String(input.entityType || ''); const entityId = String(input.entityId || '').trim();
-    if (!['department','subdepartment','category'].includes(entityType) || !entityId || entityId.length > 80 || (entityType !== 'department' && !/^[0-9a-f-]{36}$/i.test(entityId))) return json(res, 400, { error: 'invalid_inventory_deletion_request' });
+    if (!['department','subdepartment','category'].includes(entityType) || !entityId || entityId.length > 80 || (repositories?.pool && entityType !== 'department' && !/^[0-9a-f-]{36}$/i.test(entityId))) return json(res, 400, { error: 'invalid_inventory_deletion_request' });
     if (repositories?.pool) {
       const client = await repositories.pool.connect();
       try { await client.query('BEGIN'); const removed = await permanentlyDeleteInventoryEntry(client, venueDbId, entityType, entityId); if (removed.error) { await client.query('ROLLBACK'); return json(res, 409, { error: removed.error }); } const { rows: closedRequests } = await client.query(`UPDATE inventory_deletion_requests SET status='rejected',decided_by=$1::uuid,decided_by_name=$2,decided_at=now() WHERE venue_id=$3 AND entity_type=$4 AND entity_id=$5 AND status='pending' RETURNING id`, [/^[0-9a-f-]{36}$/i.test(String(req.user?.id || '')) ? req.user.id : null, String(req.user?.name || 'Владелец').slice(0,120), venueDbId, entityType, entityId]); await client.query('COMMIT'); recordAudit(req, 'inventory.entry_deleted', entityType, entityId, removed.item, null); for (const request of closedRequests) recordAudit(req, 'inventory.deletion_request_closed_by_owner', entityType, entityId, { requestId: request.id }, { status: 'rejected' }); return json(res, 200, { id: entityId, entityType, deleted: true }); }
@@ -2434,15 +2436,14 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const department = String(input.department || category.department || 'inventory').trim(); if (!inventoryDepartments.some((item) => item.code === department && item.active !== false)) return json(res, 400, { error: 'inventory_department_not_found' }); const subdepartmentId = String(input.subdepartmentId || '').trim() || null; const subdepartment = subdepartmentId && inventorySubdepartments.find((item) => item.id === subdepartmentId && item.departmentCode === department && item.active); if (subdepartmentId && !subdepartment) return json(res, 400, { error: 'inventory_subdepartment_not_found' }); const before = { ...category }; Object.assign(category, { name, department, subdepartmentId, subdepartmentName: subdepartment?.name || null }); recordAudit(req, 'product_category.updated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
   if (productCategoryPath && req.method === 'DELETE') {
-    if (denyUnless(req, res, 'inventory')) return;
-    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { try { const used = await repositories.pool.query('SELECT EXISTS(SELECT 1 FROM ingredients WHERE venue_id=$1 AND department=(SELECT department FROM product_categories WHERE id=$2 AND venue_id=$1) AND category=(SELECT name FROM product_categories WHERE id=$2 AND venue_id=$1)) OR EXISTS(SELECT 1 FROM products WHERE venue_id=$1 AND category=(SELECT name FROM product_categories WHERE id=$2 AND venue_id=$1)) AS used', [venueDbId, productCategoryPath[1]]); if (used.rows[0]?.used) return json(res, 409, { error: 'inventory_category_in_use' }); const { rows } = await repositories.pool.query('UPDATE product_categories SET is_active=false WHERE id=$1 AND venue_id=$2 AND is_active=true RETURNING id,name,department,is_active AS active', [productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.deactivated', 'product_category', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'product_category_delete_failed', detail: error.message }); } }
+    if (denyUnless(req, res, 'inventory_categories')) return;
+    if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryPath[1])) { try { const { rows } = await repositories.pool.query('UPDATE product_categories SET is_active=false WHERE id=$1 AND venue_id=$2 AND is_active=true RETURNING id,name,department,is_active AS active', [productCategoryPath[1], venueDbId]); if (!rows[0]) return json(res, 404, { error: 'product_category_not_found' }); recordAudit(req, 'product_category.deactivated', 'product_category', rows[0].id, { active: true }, rows[0]); return json(res, 200, rows[0]); } catch (error) { return json(res, 409, { error: 'product_category_delete_failed', detail: error.message }); } }
     const category = productCategories.find((item) => item.id === productCategoryPath[1]); if (!category) return json(res, 404, { error: 'product_category_not_found' });
-    if (inventory.some((item) => item.department === category.department && item.category === category.name) || products.some((item) => item.category === category.name)) return json(res, 409, { error: 'inventory_category_in_use' });
     const before = { ...category }; category.active = false; recordAudit(req, 'product_category.deactivated', 'product_category', category.id, before, category); return json(res, 200, category);
   }
   const productCategoryRestore = pathname.match(/^\/api\/product-categories\/([^/]+)\/restore$/);
   if (productCategoryRestore && req.method === 'POST') {
-    if (denyUnless(req, res, 'inventory')) return;
+    if (denyUnless(req, res, 'inventory_categories')) return;
     if (repositories?.pool && !/^[0-9a-f-]{36}$/i.test(productCategoryRestore[1])) return json(res, 400, { error: 'invalid_product_category' });
     if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(productCategoryRestore[1])) {
       const client = await repositories.pool.connect();

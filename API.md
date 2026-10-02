@@ -102,10 +102,10 @@
 ## Справочники склада: архив и удаление
 
 - `GET /api/inventory/departments?status=active|archived|all`, `GET /api/inventory/subdepartments?status=active|archived|all` и `GET /api/product-categories?status=active|archived|all`; без `status` возвращаются только активные записи. Чтение требует `inventory_read`; каждый ответ ограничен текущим заведением.
-- `DELETE /api/inventory/departments/:code`, `/api/inventory/subdepartments/:id` и `/api/product-categories/:id` — только обратимый архив, требуется `inventory`. Архивируются только записи без текущих ссылок; данные и история не удаляются.
-- `POST .../:id/restore` восстанавливает запись при активном родительском цехе и без конфликта уникальности.
+- `DELETE /api/inventory/departments/:code` и `/api/inventory/subdepartments/:id` — только обратимый архив, требуется `inventory`; для управления жизненным циклом категорий требуется отдельный scope `inventory_categories`. Архив категории обратим и сохраняет ссылки товаров и истории, поэтому категория может быть убрана из выбора без переназначения существующих товаров.
+- `POST .../:id/restore` восстанавливает запись при активном родительском цехе и без конфликта уникальности; для категории требуется `inventory_categories`.
 - `POST /api/inventory/permanent-deletions` выполняет окончательное удаление архивной записи только для `owner`; сервер блокирует удаление при наличии подцехов, категорий, позиций или товарных ссылок. Если владелец удалил запись напрямую, ожидающий запрос управляющего закрывается в той же транзакции.
-- `POST /api/inventory/deletion-requests` создаёт запрос управляющего на удаление архивной записи; `GET /api/inventory/deletion-requests` показывает владельцу ожидающие запросы, управляющему — только собственные. `POST /api/inventory/deletion-requests/:id/approve|reject` доступен только роли `owner`. Подтверждение повторно проверяет ссылки и выполняется в одной транзакции с решением запроса.
+- `POST /api/inventory/deletion-requests` создаёт запрос управляющего на окончательное удаление архивной категории; требуется `inventory_categories`. `GET /api/inventory/deletion-requests` показывает владельцу ожидающие запросы, управляющему — только собственные. `POST /api/inventory/deletion-requests/:id/approve|reject` доступен только роли `owner`. Подтверждение повторно проверяет ссылки: используемую категорию нельзя удалить насовсем; операция решения выполняется в одной транзакции.
 
 ## Технологические карты
 

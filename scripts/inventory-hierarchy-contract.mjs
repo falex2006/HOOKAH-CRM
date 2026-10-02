@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 
 const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const server = readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const staffAdminCard = readFileSync(new URL('../staff-admin-card.js', import.meta.url), 'utf8');
 const migrations = [
   '018_inventory_departments.sql',
   '023_inventory_subdepartments.sql',
@@ -21,6 +22,15 @@ if (!portal.includes('data-subdepartment-retry') || !portal.includes('data-categ
 if (!portal.includes('target.insertBefore(categoryPanel, tobaccoCatalogPanel)')) throw new Error('primary warehouse hierarchy must appear before the secondary tobacco directory');
 if (!portal.includes(' → весь цех') || !portal.includes(' · группа позиций') || !portal.includes('Активная категория')) throw new Error('category rows must show their hierarchy, purpose and status');
 for (const status of ['status=all', 'inventoryDirectoryStatus', 'data-inventory-directory-status="archived"', 'Восстановить', 'Удалить навсегда', 'Запросить удаление']) if (!portal.includes(status)) throw new Error(`inventory directory lifecycle UI is missing ${status}`);
+for (const contract of ["'inventory_categories'", 'Архив категорий склада', "denyUnless(req, res, 'inventory_categories')", "entityType === 'category' && canManageInventoryCategories"]) if (!portal.includes(contract) && !server.includes(contract)) throw new Error(`inventory category permission contract is missing ${contract}`);
+if (!staffAdminCard.includes("['inventory_categories','Архив категорий склада']")) throw new Error('owner staff card cannot grant category lifecycle permission');
+if (!server.includes("user?.role === 'manager' && scopes.length === 1 && scopes[0] === 'inventory_categories'")) throw new Error('category-only permission must preserve the manager base role permissions');
+if (!server.includes('...(Array.isArray(user?.customRolePermissionScopes) ? user.customRolePermissionScopes : []), ...(Array.isArray(user?.permissionScopes) ? user.permissionScopes : [])')) throw new Error('per-user category permission must compose with an assigned custom role');
+if (!server.includes("const allowedTypes = new Set(['category'])")) throw new Error('manager deletion request must be limited to categories');
+if (!server.includes("UPDATE product_categories SET is_active=false WHERE id=$1 AND venue_id=$2 AND is_active=true")) throw new Error('category archive must preserve linked products and history');
+const permanentDeleteRoute = server.slice(server.indexOf("if (pathname === '/api/inventory/permanent-deletions'"), server.indexOf("const inventoryDepartmentPath", server.indexOf("if (pathname === '/api/inventory/permanent-deletions'")));
+if (!permanentDeleteRoute.includes("if (req.user?.role !== 'owner')")) throw new Error('permanent category deletion must remain owner-confirmed');
+if (!portal.includes("archive && !(entityType === 'category' && canManageInventoryCategories) && !window.confirm")) throw new Error('category archive should not show a confirmation prompt');
 for (const route of ["url.searchParams.get('status')", 'inventoryDepartmentRestore', 'productCategoryRestore', 'inventorySubdepartmentRestore', '/api/inventory/deletion-requests', '/api/inventory/permanent-deletions', 'inventory_deletion_owner_required']) if (!server.includes(route)) throw new Error(`inventory archive/restore/delete API is missing ${route}`);
 for (const contract of ["portalUser.role === 'owner'", "portalUser.role === 'manager'", 'window.confirm(`Владелец подтверждает окончательное удаление', 'requestDelete && !window.confirm', 'FOR UPDATE', "status='rejected'"]) {
   if (!portal.includes(contract) && !server.includes(contract)) throw new Error(`inventory deletion approval contract is missing ${contract}`);
