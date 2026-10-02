@@ -2790,8 +2790,8 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 
 /* Shared sidebar logo slot: fit the available width without cropping the asset. */
 /* Product brand stays distinct from venue logos and employee avatars. */
-.auth-product-brand{display:block;width:min(240px,100%);aspect-ratio:200/64;margin:0 0 24px}
-.auth-product-brand img{display:block;width:100%;height:100%;object-fit:contain;object-position:left center}
+.auth-product-brand{display:block;width:min(240px,100%);aspect-ratio:200/64;margin:0 auto 24px}
+.auth-product-brand img{display:block;width:100%;height:100%;object-fit:contain;object-position:center}
 .screen-lock-card .screen-lock-brand{width:min(180px,100%);margin:0 auto 18px}
 .screen-lock-brand img{object-position:center}
 .portal-sidebar .brand,.platform-sidebar .brand{min-width:0}
