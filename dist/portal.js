@@ -363,7 +363,7 @@ const normalizeManagementSidebar = () => {
   };
   if (menuSearchInput && !menuSearchInput.dataset.bound) { menuSearchInput.dataset.bound = 'true'; menuSearchInput.addEventListener('input', applyMenuSearch); }
   mainNav.after(disclosureRoot);
-  disclosureRoot.replaceChildren(...['operations', 'menu', 'inventory', 'finance', 'team', 'system'].map((key) => key === 'menu' ? menuGroup : key === 'inventory' ? inventoryGroup : key === 'finance' ? financeGroup : disclosureGroups.get(key)).filter(Boolean));\n  const normalizedGroups = [...disclosureRoot.querySelectorAll('details.sidebar-nav-group[data-nav-group]')];\n  const preferredGroup = normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) || normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true);\n  normalizedGroups.forEach((group) => { group.open = group === preferredGroup; });
+  disclosureRoot.replaceChildren(...['operations', 'menu', 'inventory', 'finance', 'team', 'system'].map((key) => key === 'menu' ? menuGroup : key === 'inventory' ? inventoryGroup : key === 'finance' ? financeGroup : disclosureGroups.get(key)).filter(Boolean));`n  const normalizedGroups = [...disclosureRoot.querySelectorAll('details.sidebar-nav-group[data-nav-group]')];\n  const preferredGroup = normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) || normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true);\n  normalizedGroups.forEach((group) => { group.open = group === preferredGroup; });
   applyMenuSearch();
   sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((group) => {
     group.open = savedGroupState(group.dataset.navGroup) ?? defaultGroupOpen(group.dataset.navGroup);
