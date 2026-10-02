@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes, scrypt as scryptCallback } from 'node:crypto';
+import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +14,12 @@ const { Client } = createRequire(import.meta.url)('pg');
 const client = new Client({ connectionString: databaseUrl });
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const venueId = randomUUID();
+const organizationId = randomUUID();
 const ownerId = randomUUID();
+const ownerLogin = 'paid-order-qa-' + ownerId;
+const password = 'qa-' + randomUUID();
+const passwordSalt = randomBytes(16).toString('hex');
+const passwordHash = 'scrypt$' + passwordSalt + '$' + (await promisify(scryptCallback)(password, passwordSalt, 64)).toString('hex');
 const productId = randomUUID();
 const orderId = randomUUID();
 const itemA = randomUUID();
@@ -22,9 +28,10 @@ let serverExitPromise;
 let output = '';
 let base = '';
 let passed = false;
+let token = '';
 
 const api = async (route, method = 'GET', data, expected = 200) => {
-  const response = await fetch(`${base}${route}`, { method, headers: { 'Content-Type': 'application/json' }, body: data === undefined ? undefined : JSON.stringify(data) });
+  const response = await fetch(`${base}${route}`, { method, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: 'Bearer ' + token } : {}) }, body: data === undefined ? undefined : JSON.stringify(data) });
   const payload = await response.json().catch(() => ({}));
   assert.equal(response.status, expected, `${method} ${route}: ${JSON.stringify(payload)}`);
   return payload;
@@ -35,8 +42,11 @@ try {
   const identity = await client.query(`SELECT current_database() AS database, inet_server_addr()::text AS address,
     inet_server_port() AS port, (SELECT rolsuper FROM pg_roles WHERE rolname=current_user) AS superuser`);
   assertQaDatabaseIdentity(identity.rows[0], database, Number(new URL(databaseUrl).port || 5432), 'Paid-order QA database');
-  await client.query("INSERT INTO venues (id,name,timezone) VALUES ($1,'Paid order QA','Asia/Yekaterinburg')", [venueId]);
-  await client.query("INSERT INTO users (id,venue_id,full_name,login,role) VALUES ($1::uuid,$2::uuid,'Paid order QA','paid-order-qa-' || $1::text,'owner')", [ownerId, venueId]);
+  await client.query("INSERT INTO organizations (id,name,slug,plan) VALUES ($1,'Paid order QA',$2,'network')", [organizationId, 'paid-order-qa-' + organizationId]);
+  await client.query("INSERT INTO organization_subscriptions (organization_id,plan,status,seats_limit,venues_limit) VALUES ($1,'network','active',30,10)", [organizationId]);
+  await client.query("INSERT INTO venues (id,organization_id,name,timezone) VALUES ($1,$2,'Paid order QA','Asia/Yekaterinburg')", [venueId, organizationId]);
+  await client.query("INSERT INTO users (id,venue_id,organization_id,full_name,login,password_hash,role) VALUES ($1,$2,$3,'Paid order QA',$4,$5,'owner')", [ownerId, venueId, organizationId, ownerLogin, passwordHash]);
+  await client.query("INSERT INTO organization_memberships (organization_id,user_id,membership_role,status) VALUES ($1,$2,'owner','active')", [organizationId, ownerId]);
   await client.query("INSERT INTO shifts (venue_id,opened_by,opening_cash) VALUES ($1,$2,0)", [venueId, ownerId]);
   await client.query("INSERT INTO products (id,venue_id,name,category,sale_price,inventory_mode) VALUES ($1,$2,'QA service','bar',100,'non_stock')", [productId, venueId]);
   await client.query("INSERT INTO orders (id,venue_id,opened_by,status) VALUES ($1,$2,$3,'open')", [orderId, venueId, ownerId]);
@@ -44,7 +54,7 @@ try {
 
   server = spawn(process.execPath, ['server.js'], { cwd: root, windowsHide: true,
     env: { ...process.env, HOST: '127.0.0.1', PORT: '0', DATABASE_URL: databaseUrl, VENUE_ID: venueId,
-      AUTH_REQUIRED: 'false', COOKIE_SECURE: 'false', NODE_ENV: 'test', API_RATE_LIMIT: '5000' },
+      AUTH_REQUIRED: 'true', COOKIE_SECURE: 'false', NODE_ENV: 'test', API_RATE_LIMIT: '5000' },
     stdio: ['ignore', 'pipe', 'pipe'] });
   serverExitPromise = new Promise((resolve) => server.once('exit', resolve));
   server.stdout.setEncoding('utf8').on('data', (chunk) => { output += chunk; });
@@ -58,6 +68,13 @@ try {
   }
   assert.ok(base, `QA server started: ${output}`);
   assert.equal((await api('/api/health')).database, 'postgres');
+  const authenticated = await api('/api/login', 'POST', { username: ownerLogin, password });
+  token = authenticated.token;
+  assert.ok(token, 'synthetic owner gets a persisted authenticated session');
+  const session = await api('/api/session');
+  assert.equal(session.user.id, ownerId, 'all order actions use the synthetic owner, not a default actor');
+  assert.equal(session.user.organizationId, organizationId);
+  assert.equal(session.user.venueId, venueId);
   assert.equal((await api(`/api/orders/${orderId}/payments`)).due, 200);
   const paid = await api(`/api/orders/${orderId}/payments`, 'POST', { amount: 150, method: 'cash' }, 201);
   assert.equal(paid.remaining, 50);
@@ -71,7 +88,7 @@ try {
   const discountId = randomUUID();
   await client.query("INSERT INTO discounts (id,order_id,requested_by,type,value,reason,status) VALUES ($1,$2,$3,'percent',50,'QA paid conflict','requested')", [discountId, orderId, ownerId]);
   const conflict = await api(`/api/discount-requests/${discountId}/approve`, 'POST', {}, 409);
-  assert.equal(conflict.error, 'paid_order_total_conflict');
+  assert.equal(conflict.error, 'paid_order_total_conflict', JSON.stringify(conflict));
   assert.equal(conflict.paid, 150);
   assert.equal(conflict.due, 100);
   assert.equal((await client.query('SELECT status FROM discounts WHERE id=$1', [discountId])).rows[0].status, 'requested', 'failed decision rolled back');
@@ -101,6 +118,7 @@ try {
   if (client._connected) {
     const cleanupErrors = [];
     for (const [query, params] of [
+      ['DELETE FROM auth_sessions WHERE user_id=$1', [ownerId]],
       ['DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]],
       ['DELETE FROM discounts WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]],
       ['DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE venue_id=$1)', [venueId]],
@@ -111,6 +129,8 @@ try {
       ['DELETE FROM audit_events WHERE venue_id=$1', [venueId]],
       ['DELETE FROM users WHERE venue_id=$1', [venueId]],
       ['DELETE FROM venues WHERE id=$1', [venueId]],
+      ['DELETE FROM organization_subscriptions WHERE organization_id=$1', [organizationId]],
+      ['DELETE FROM organizations WHERE id=$1', [organizationId]],
     ]) {
       try { await client.query(query, params); } catch (error) { cleanupErrors.push(error); }
     }

@@ -194,9 +194,9 @@ const staffPassportCipher = {
     } catch (_) { return null; }
   }
 };const rolePermissions = {
-  owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
-  admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'integrations', 'delivery', 'loyalty'],
-  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'tasks_manage', 'settings', 'loyalty'],
+  owner: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_sensitive', 'tasks_manage', 'settings', 'diagnostics', 'integrations', 'delivery', 'loyalty'],
+  admin: ['floor', 'orders', 'reservations', 'inventory', 'inventory_read', 'finance', 'finance_read', 'staff', 'staff_manage', 'staff_view', 'staff_sensitive', 'tasks_manage', 'settings', 'diagnostics', 'integrations', 'delivery', 'loyalty'],
+  manager: ['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty'],
   senior_bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
   senior_hookah_master: ['floor', 'orders', 'hookah_tasks', 'finance_read'],
   bartender: ['floor', 'orders', 'bar_tasks', 'finance_read'],
@@ -1081,9 +1081,9 @@ async function api(req, res) {
     }
     let notificationId;
     try { notificationId = decodeURIComponent(notificationReadPath[1]); } catch (_) { return json(res, 400, { error: 'invalid_notification_id' }); }
-    if (!/^(discount|inventory_auto_order|order_deleted|staff_pin_updated):[A-Za-z0-9-]{1,150}$/.test(notificationId)) return json(res, 404, { error: 'notification_not_found' });
+    if (!/^(discount|inventory_auto_order|order_deleted):[A-Za-z0-9-]{1,150}$/.test(notificationId)) return json(res, 404, { error: 'notification_not_found' });
     const type = notificationId.slice(0, notificationId.indexOf(':'));
-    if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders) || (type === 'staff_pin_updated' && !access.staffPins)) return json(res, 404, { error: 'notification_not_found' });
+    if ((type === 'discount' && !access.discounts) || (type === 'inventory_auto_order' && !access.autoOrders) || (type === 'order_deleted' && !access.deletedOrders)) return json(res, 404, { error: 'notification_not_found' });
     try {
       if (repositories?.pool) {
         const notificationVenueId = notificationVenueScope(req, venueDbId);
@@ -4400,20 +4400,21 @@ function staticFile(req, res) {
     ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
-    '/purchase-document-validation.js',
+    '/purchase-document-validation.js', '/notification-center.js', '/audit-privacy.js', '/staff-identity.js',
     '/staff-telegram-link.js', '/vip-deposit.js', '/vip-deposit-ui.js',
-    '/assets/tabler-icons.svg', '/assets/login-background.mp4',
+    '/assets/tabler-icons.svg', '/assets/login-hookah-reference.jpg', '/assets/login-smoke-ambient.png', '/assets/login-smoke-ambient.mp4', '/auth-smoke.css', '/auth-smoke.js',
     '/assets/brand/hookah-pos-lockup.svg', '/assets/brand/hookah-pos-symbol.svg',
     ...[400, 500, 600, 700, 800].map(weight => `/assets/fonts/manrope-${weight}.ttf`)
   ]);
-  if (!publicFiles.has(requestPath)) { res.writeHead(404); return res.end('Not found'); }
+  const isBrandAsset = requestPath.startsWith('/assets/brand/');
+  if (!publicFiles.has(requestPath) && !isBrandAsset) { res.writeHead(404); return res.end('Not found'); }
   if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(405, { Allow: 'GET, HEAD' }); return res.end(); }
   const localPreviewFiles = {};
   const file = path.resolve(root, localPreviewFiles[requestPath] || `.${requestPath}`);
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
   const relative = path.relative(fs.realpathSync(root), fs.realpathSync(file));
   if (relative.startsWith('..') || path.isAbsolute(relative)) { res.writeHead(404); return res.end('Not found'); }
-  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.mp4': 'video/mp4', '.ttf': 'font/ttf' };
+  const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.mp4': 'video/mp4', '.ttf': 'font/ttf' };
   const isVideo = path.extname(file) === '.mp4';
   const headers = { 'Content-Type': isVideo ? 'video/mp4' : `${types[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'strict-origin-when-cross-origin' };
   if (isVideo) {
@@ -4454,3 +4455,9 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
+
+
+
+
+
+

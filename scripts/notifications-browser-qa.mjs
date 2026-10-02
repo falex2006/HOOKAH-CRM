@@ -10,7 +10,7 @@ if (!playwrightPath) throw new Error('Set PLAYWRIGHT_PACKAGE_PATH');
 const { chromium } = createRequire(import.meta.url)(playwrightPath);
 const reservePort = async () => { const server = net.createServer(); server.listen(0, '127.0.0.1'); await once(server, 'listening'); const { port } = server.address(); await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); return port; };
 const port = await reservePort(); const baseUrl = `http://127.0.0.1:${port}`;
-const child = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true, env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), DATABASE_URL: '', AUTH_REQUIRED: 'true', DEMO_OWNER_PASSWORD: 'demo' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const child = spawn(process.execPath, ['server.js'], { cwd: fileURLToPath(new URL('../', import.meta.url)), windowsHide: true, env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), DATABASE_URL: '', AUTH_REQUIRED: 'true', DEMO_OWNER_PASSWORD: 'demo', API_RATE_LIMIT: '5000' }, stdio: ['ignore', 'pipe', 'pipe'] });
 let output = ''; child.stdout.on('data', (chunk) => { output += chunk.toString(); }); child.stderr.on('data', (chunk) => { output += chunk.toString(); });
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' });
 try {
@@ -32,6 +32,18 @@ try {
   const bell = page.locator('#notification-bell'); await bell.waitFor({ state: 'visible' });
   await page.waitForFunction(() => document.querySelector('#notification-count')?.textContent === '2');
   assert.equal(await bell.getAttribute('aria-label'), 'Уведомления, непрочитанных: 2', 'bell exposes unread count as its accessible name');
+  for (const route of ['/admin', '/orders', '/clients', '/reservations', '/delivery', '/inventory', '/finance', '/finance/report', '/finance/categories', '/integrations', '/network']) {
+    await page.goto(`${baseUrl}${route}`, { waitUntil: 'domcontentloaded' });
+    const routeBell = page.locator('#notification-bell'); await routeBell.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.querySelector('#notification-count')?.textContent === '2');
+    await routeBell.click(); await page.locator('#notification-panel').waitFor({ state: 'visible' });
+    await page.locator('.notification-item').first().waitFor();
+    assert.equal(await page.locator('.notification-item').count(), 2, `persistent inbox is reachable from ${route}`);
+    await page.keyboard.press('Escape');
+  }
+  await page.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
+  await page.locator('#notification-bell').waitFor({ state: 'visible' });
+  await page.waitForFunction(() => document.querySelector('#notification-count')?.textContent === '2');
   let shouldFailNotificationSource = true;
   await page.route('**/api/notifications**', async (route) => {
     if (shouldFailNotificationSource && route.request().method() === 'GET') {
@@ -76,8 +88,9 @@ try {
   await bell.click(); await page.locator('.notification-item').first().waitFor();
   const secondPage = await context.newPage(); await secondPage.goto(`${baseUrl}/admin`, { waitUntil: 'domcontentloaded' });
   await secondPage.waitForFunction(() => document.querySelector('#notification-count')?.textContent === '2');
-  await page.locator('.notification-open-link').first().click();
-  await page.waitForURL(/\/orders(?:\?|$)/);
+  const firstNotificationLink = page.locator('.notification-open-link').first();
+  assert.match(await firstNotificationLink.getAttribute('href'), /\/orders(?:\?|$)/, 'deleted-order notification links to the order journal');
+  await Promise.all([page.waitForURL(/\/orders(?:\?|$)/), firstNotificationLink.click()]);
   const targetApi = await page.evaluate(async (token) => (await fetch('/api/orders', { headers: { Authorization: `Bearer ${token}` } })).status, session.token);
   assert.equal(targetApi, 200, 'notification navigation reaches the orders route and its permission-checked API');
   await page.waitForFunction(() => document.querySelector('#notification-count')?.textContent === '1');

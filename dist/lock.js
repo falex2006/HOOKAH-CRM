@@ -34,7 +34,11 @@
   const redirectToLogin = () => { clearTimeout(timer); location.replace('/login'); };
   window.__broadcastSessionEnd = () => { try { localStorage.setItem(sessionEventKey, JSON.stringify({ action: 'logout', userId: String(user.id || ''), at: Date.now() })); } catch (_) {} };
   const logout = async () => {
-    try { await fetch('/api/logout', { method: 'POST', headers: headers() }); } catch (_) {}
+    const button=overlay.querySelector('#screen-lock-exit');
+    if(button.disabled)return;
+    button.disabled=true;
+    try { if(!String(localStorage.getItem('crm_session_token')||'').startsWith('demo-static-')){const response=await fetch('/api/logout', { method: 'POST', headers: headers() });if(!response.ok&&response.status!==401)throw new Error('logout_unavailable');} }
+    catch (_) {button.disabled=false;setMessage('Не удалось завершить сессию. Повторите выход.','error');return;}
     window.__broadcastSessionEnd();
     try { localStorage.removeItem(lockStateKey); } catch (_) {}
     localStorage.removeItem('crm_session_token');
@@ -47,12 +51,25 @@
   const initials = displayName.split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase() || 'С';
   const avatarMarkup = user.avatarUrl ? `<img src="${escapeHtml(user.avatarUrl)}" alt="">` : `<span>${escapeHtml(initials)}</span>`;
 
+  if (!document.querySelector('link[data-auth-smoke]')) {
+    const smokeStyle = document.createElement('link');
+    smokeStyle.rel = 'stylesheet';
+    smokeStyle.href = '/auth-smoke.css?rev=2';
+    smokeStyle.dataset.authSmoke = 'true';
+    document.head.appendChild(smokeStyle);
+  }
+  if (!document.querySelector('script[data-auth-smoke]')) {
+    const smokeScript = document.createElement('script');
+    smokeScript.src = '/auth-smoke.js?rev=3';
+    smokeScript.dataset.authSmoke = 'true';
+    document.head.appendChild(smokeScript);
+  }
   const overlay = document.createElement('div');
   overlay.className = 'screen-lock-overlay';
   overlay.setAttribute('aria-hidden', 'true');
-  overlay.innerHTML = `<div class="login-video-backdrop screen-lock-video" aria-hidden="true"><video class="login-video" autoplay muted loop playsinline preload="auto"><source src="/assets/login-background.mp4" type="video/mp4"></video><span class="login-video-overlay"></span></div><section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
+  overlay.innerHTML = `<div class="auth-smoke-backdrop" aria-hidden="true"><span class="auth-smoke-texture"></span><span class="auth-smoke-light"></span><span class="auth-smoke-vignette"></span></div><section class="screen-lock-card" role="dialog" aria-modal="true" aria-labelledby="screen-lock-title">
     <div class="screen-lock-mark" aria-label="Аватар сотрудника">${avatarMarkup}</div>
-    <p class="screen-lock-kicker">HOOKAH POS</p>
+    <picture class="auth-product-brand screen-lock-brand"><img src="/assets/brand/hookah-pos-lockup.svg?rev=2" width="200" height="64" alt="Hookah POS by AlphaSat"></picture>
     <p class="screen-lock-eyebrow">РАБОЧЕЕ МЕСТО ЗАБЛОКИРОВАНО</p>
     <h2 id="screen-lock-title">Вернитесь к работе</h2>
     <p class="screen-lock-user">${escapeHtml(displayName)}</p>
@@ -105,13 +122,13 @@
   // A standalone glyph avoids stale external sprite caches on shared terminals.
   const lockButtonStyle = document.createElement('style');
   lockButtonStyle.textContent = `
-    #lock-screen-button { display:inline-flex!important;align-items:center!important;justify-content:center!important;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:#ff7a83!important;cursor:pointer; }
+    #lock-screen-button { display:inline-flex!important;align-items:center!important;justify-content:center!important;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important;box-shadow:none!important;color:#c4cad1!important;cursor:pointer; }
     #lock-screen-button .lock-button-glyph { display:block!important;position:static!important;flex:none;width:18px!important;height:18px!important;transform:none!important; }
-    #lock-screen-button:hover { color:#ff9757!important; }
-    #lock-screen-button:focus-visible { outline:2px solid currentColor!important;outline-offset:2px; }
+    #lock-screen-button:hover { color:#fff!important;background:#24272d!important; }
+    #lock-screen-button:focus-visible { outline:2px solid #ff9a8f!important;outline-offset:2px; }
   `;
   document.head.appendChild(lockButtonStyle);
-  const addLockButton = (host) => { if (!host || document.querySelector('#lock-screen-button')) return; const button = document.createElement('button'); button.type = 'button'; button.id = 'lock-screen-button'; button.className = 'lock-screen-button'; button.title = 'Заблокировать экран'; button.setAttribute('aria-label', 'Заблокировать экран'); button.innerHTML = '<svg class="lock-button-glyph" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff7a83" stroke-width="1.8" style="display:block!important;stroke:#ff7a83!important" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V6a4 4 0 0 1 8 0v4"></path><path d="M12 14v3"></path></svg>'; button.addEventListener('click', () => lock('manual')); host.prepend(button); };
+  const addLockButton = (host) => { if (!host || document.querySelector('#lock-screen-button')) return; const button = document.createElement('button'); button.type = 'button'; button.id = 'lock-screen-button'; button.className = 'lock-screen-button'; button.title = 'Заблокировать экран'; button.setAttribute('aria-label', 'Заблокировать экран'); button.innerHTML = '<svg class="lock-button-glyph" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="display:block!important" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"></rect><path d="M8 10V6a4 4 0 0 1 8 0v4"></path><path d="M12 14v3"></path></svg>'; button.addEventListener('click', () => lock('manual')); host.prepend(button); };
   const settingsDialog = document.createElement('dialog');
   settingsDialog.className = 'lock-settings-dialog';
   settingsDialog.innerHTML = `<form method="dialog" class="lock-settings-card lock-settings-simple"><div class="lock-settings-head"><div><h2>Блокировка экрана</h2><p>Личные настройки</p></div><button type="submit" class="lock-settings-close" aria-label="Закрыть">${icon('x')}</button></div><div class="lock-pin-settings"><div class="lock-settings-section-head"><b>PIN-код</b><span id="lock-pin-state">${user.pinConfigured ? 'Установлен' : 'Не задан'}</span></div><div class="lock-pin-fields"><label>Новый PIN<input type="password" id="lock-new-pin" inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="4 цифры"></label><label>Повторите PIN<input type="password" id="lock-new-pin-confirm" inputmode="numeric" autocomplete="new-password" maxlength="4" pattern="[0-9]{4}" placeholder="4 цифры"></label></div><p class="lock-settings-note">${user.pinConfigured ? 'Оставьте поля пустыми, чтобы сохранить текущий PIN.' : 'Задайте PIN для разблокировки экрана.'}</p><p class="lock-pin-message" id="lock-pin-message" role="alert"></p></div><label class="lock-timeout-label" for="lock-timeout-select">Блокировать при бездействии</label><select id="lock-timeout-select" name="lock-timeout">${timeoutOptions.map((value) => `<option value="${value}">${value ? `Через ${value} мин` : 'Не блокировать автоматически'}</option>`).join('')}</select><button type="button" class="button primary lock-settings-save">Сохранить</button></form>`;

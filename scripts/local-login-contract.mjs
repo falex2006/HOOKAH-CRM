@@ -5,6 +5,9 @@ const distDirectoryHtml = fs.readFileSync('dist/login/index.html', 'utf8');
 const js = fs.readFileSync('login.js', 'utf8');
 const distJs = fs.readFileSync('dist/login.js', 'utf8');
 const css = fs.readFileSync('style.css', 'utf8');
+const smokeCss = fs.readFileSync('auth-smoke.css', 'utf8');
+const smokeJs = fs.readFileSync('auth-smoke.js', 'utf8');
+const loginRevision = /const loginRevision = '(\d+)'/.exec(fs.readFileSync('scripts/sync-published-assets.mjs', 'utf8'))?.[1];
 const profile = fs.readFileSync('staff-profile.js', 'utf8');
 const lock = fs.readFileSync('lock.js', 'utf8');
 const server = fs.readFileSync('server.js', 'utf8');
@@ -13,18 +16,19 @@ const localDemoFallback = js.indexOf('const user = demoUsers', loginRequestStart
 const responseHandlingStart = js.indexOf('const data = await response.json()', loginRequestStart);
 const required = [
   ['password toggle', html.includes('login-password-toggle') && js.includes('passwordToggle')],
-  ['video background only', html.includes('login-video-backdrop') && html.includes('/assets/login-background.mp4') && distHtml.includes('/assets/login-background.mp4') && distDirectoryHtml.includes('/assets/login-background.mp4') && !html.includes('auth-smoke') && !css.includes('@keyframes loginSmoke') && fs.existsSync('assets/login-background.mp4') && fs.existsSync('dist/assets/login-background.mp4') && !fs.existsSync('assets/login-smoke-ambient.png')],
-  ['real hookah photo', fs.existsSync('assets/login-hookah-reference.jpg') && css.includes('login-hookah-reference.jpg')],
+  ['shared smoke scene', html.includes('auth-smoke-backdrop') && lock.includes('auth-smoke-backdrop')],
+  ['approved smoke assets', fs.existsSync('assets/login-smoke-ambient.mp4') && fs.existsSync('assets/login-smoke-ambient.png') && smokeCss.includes('login-smoke-ambient.png')],
   ['login state hook', js.includes('setLoginState')],
   ['transition layer', js.includes('showLoginTransition')],
   ['skip control', css.includes('login-transition__skip')],
   ['transition completion', js.includes('showLoginTransition') && js.includes('resolve()')],
-  ['reduced motion', css.includes('@media(prefers-reduced-motion:reduce)')],
-  ['bowl animation', css.includes('@keyframes bowlRise')],
-  ['tobacco animation', css.includes('@keyframes tobaccoDrop')],
-  ['metal animation', css.includes('@keyframes metalDrop')],
-  ['coal animation', css.includes('@keyframes coalGlow')],
-  ['no smoke animation', !css.includes('@keyframes smokeRise') && !css.includes('@keyframes loginSmoke') && !lock.includes('auth-smoke')],
+  ['reduced motion', smokeCss.includes('@media(prefers-reduced-motion:reduce)') && smokeJs.includes('!motion.matches')],
+  ['looping muted video', smokeJs.includes('video.loop = true') && smokeJs.includes('video.muted = true')],
+  ['inline mobile video', smokeJs.includes('video.playsInline = true')],
+  ['hidden PIN does not start video', smokeJs.includes("overlay.getAttribute('aria-hidden') !== 'false'")],
+  ['decor cannot intercept inputs', smokeCss.includes('pointer-events:none')],
+  ['static fallback', smokeCss.includes('animation:none!important') && smokeJs.includes('video-fallback')],
+  ['fallback on media error', smokeJs.includes("video.addEventListener('error'")],
   ['screen lock PIN mode', lock.includes('PIN') && lock.includes('pin')],
   ['PIN validation', profile.includes('staff-profile-pin') && profile.includes('\\\\d{4}')],
   ['self-service PIN settings', profile.includes('staff-profile-pin') && profile.includes('__syncStaffPin')],
@@ -37,7 +41,7 @@ const required = [
   ['login password input is identified as an existing password', /id="login-password"[^>]*autocomplete="current-password"/.test(html)],
   ['published flat login route keeps the safe initial state', /id="login-form"(?![^>]*\shidden)/.test(distHtml) && /id="setup-form"\s+hidden/.test(distHtml)],
   ['published /login/ directory alias matches the safe initial state', /id="login-form"(?![^>]*\shidden)/.test(distDirectoryHtml) && /id="setup-form"\s+hidden/.test(distDirectoryHtml)],
-  ['published login behavior and cache revisions stay synchronized', js === distJs && /login\.js\?rev=93/.test(html) && /login\.js\?rev=93/.test(distHtml) && /login\.js\?rev=93/.test(distDirectoryHtml)],
+  ['published login behavior and cache revisions stay synchronized', js === distJs && [html,distHtml,distDirectoryHtml].every(markup => markup.includes(`login.js?rev=${loginRevision}`))],
   ['first-run setup is opt-in for the current environment', /FIRST_RUN_SETUP_ENABLED === 'true'/.test(server) && /if \(!firstRunSetupEnabled\) return json\(res, 200, \{ required: false \}\)/.test(server)],
   ['login HTML cannot stay cached with stale first-run markup', /if \(requestPath === '\/login\.html'\) headers\['Cache-Control'\] = 'no-store'/.test(server)],
   ['setup creation is disabled unless explicitly enabled', /if \(!firstRunSetupEnabled\) return json\(res, 404, \{ error: 'setup_disabled' \}\)/.test(server)],

@@ -7,7 +7,10 @@ const pendingEnd = portal.indexOf('  const clear = () =>', pendingStart);
 const handlerStart = portal.indexOf("  loyaltyForm.addEventListener('submit', async (event) => {");
 const handlerEnd = portal.indexOf('\n  load();\n}', handlerStart);
 assert.ok(pendingStart >= 0 && pendingEnd > pendingStart && handlerStart >= 0 && handlerEnd > handlerStart);
-assert.match(portal, /'loyalty-form-visible'\]\.includes\(form\.id\)/, 'generic six-second submit timer excludes the owned form');
+const genericSubmitStart = portal.indexOf("document.addEventListener('submit', (event) => {");
+const genericSubmitEnd = portal.indexOf('\n', genericSubmitStart);
+assert.ok(genericSubmitStart >= 0 && genericSubmitEnd > genericSubmitStart, 'generic submit handler exists');
+assert.match(portal.slice(genericSubmitStart, genericSubmitEnd), /\[[^\]]*'loyalty-form-visible'[^\]]*\]\.includes\(form\.id\)[^;]*return;/, 'generic six-second submit timer excludes the owned form even when other owned forms are added');
 assert.match(portal, /if \(loyaltyForm\.dataset\.submitting === '1'\) list\.querySelectorAll\('button'\)/, 'redrawn list stays disabled while saving');
 assert.match(portal, /'#loyalty-program-list'\)\.addEventListener\('click', async \(event\) => \{\n    if \(loyaltyForm\.dataset\.submitting === '1'\) return;/, 'delegated list actions reject clicks while saving');
 

@@ -23,6 +23,10 @@ for (const role of ['bartender', 'hookah_master', 'senior_bartender', 'senior_ho
 }
 assert.match(portal, /bartender: new Set\(\['dashboard', 'floor', 'orders', 'bar_tasks', 'finance_read'\]\)/);
 assert.match(portal, /hookah_master: new Set\(\['dashboard', 'floor', 'orders', 'hookah_tasks', 'finance_read'\]\)/);
+assert.match(server, /hookah_master: \['floor', 'orders', 'hookah_tasks', 'finance_read'\]/,
+  'hookah staff gets orders/tasks without inventory mutation or stock-reading access');
+assert.doesNotMatch(server, /hookah_master: \[[^\]]*inventory/,
+  'hookah staff role cannot gain direct warehouse permissions');
 assert.match(server, /manager: \['floor', 'orders', 'reservations', 'inventory_read', 'finance_read', 'staff_view', 'tasks_manage', 'settings', 'loyalty'\]/);
 assert.match(server, /pathname === '\/api\/payroll\/rules' && req\.method === 'GET'[\s\S]*?denyUnless\(req, res, 'finance'\)/,
   'payroll rates are restricted to the finance permission, not operational turnover or staff directory access');

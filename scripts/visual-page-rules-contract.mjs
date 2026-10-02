@@ -30,10 +30,21 @@ assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?::view-t
   'cross-document transitions must respect reduced-motion preferences');
 assert.doesNotMatch(portal, /requestAnimationFrame\(\(\)\s*=>\s*document\.querySelector\('#page-content'\)\?\.classList\.add\('crm-route-enter'\)\)/,
   'do not animate the empty initial content container on every full-page navigation');
-assert.match(portal, /const animateRouteContent\s*=\s*\(\)\s*=>/,
-  'in-page/hash section changes keep their local transition');
+assert.match(portal, /function setupPortalDashboardNavigation\(\)/,
+  'in-page/hash section changes use their shared lightweight route lifecycle');
+assert.match(portal, /const navigate = \(\) => \{[\s\S]*?updateAdminSectionTitle\(\);[\s\S]*?queueScroll\(\);/,
+  'section changes update the title, content and final scroll through the same lifecycle');
+assert.doesNotMatch(portal, /classList\.add\('crm-route-enter'\)/,
+  'do not animate dashboard geometry while its shared route helper aligns the section');
 assert.match(rules, /значок стоит у заголовка группы; вложенные ссылки остаются текстовыми/,
   'visual rules must keep expanded sidebar groups calm and readable');
+assert.deepEqual(map.staffHeaderPresentation.actions, ['shift', 'auto-lock-settings', 'screen-lock', 'profile']);
+assert.equal(map.staffHeaderPresentation.notifications, 'server-authorized-management-only');
+assert.deepEqual(map.sidebarBrandPresentation, {maxWidth:190,maxHeight:61,fit:'contain',compactMaxViewportWidth:900,compactWidth:42,compactHeight:40,compactDrawerAsset:'symbol'});
+assert.match(rules, /Логотип боковой панели целиком помещается во внутреннюю ширину/);
+assert.match(tree, /Размер исходного файла не увеличивает боковую панель/);
+assert.match(rules, /Смена закрыта · Открыть.*Смена открыта · Закрыть/);
+assert.match(tree, /смена → настройки автоблокировки → блокировка → профиль/);
 assert.deepEqual(map.navigationPresentation, {
   expandableGroupIcon: 'summary-only', childLinks: 'text-only', childTextAlignment: 'group-label'
 }, 'the site map must document the canonical sidebar visual hierarchy');

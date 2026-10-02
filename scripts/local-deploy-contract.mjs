@@ -44,6 +44,8 @@ assert.match(deploy, /config_hash=.*openssl dgst -sha256 -hmac/, 'release identi
 assert.match(deploy, /release_fingerprint=.*sha256sum/, 'release fingerprints must not truncate commit or config hashes');
 assert.match(deploy, /docker inspect --format/, 'in-progress retries must verify the running container release label');
 assert.match(compose, /CRM_RELEASE_ID:/, 'Compose must pass the release id into the service');
+assert.match(compose, /name: \$\{COMPOSE_PROJECT_NAME:-hookah-pos\}/, 'new local Compose projects must use the HOOKAH POS name by default');
+assert.match(compose, /name: \$\{POSTGRES_VOLUME_NAME:-territory-crm_pgdata\}/, 'the renamed default project must keep the existing PostgreSQL volume name');
 for (const secret of ['DEMO_ADMIN_PASSWORD', 'DEMO_OWNER_PASSWORD', 'DEMO_STAFF_PASSWORD']) {
   assert.ok(compose.split(/\r?\n/).some(line => line.trim() === `${secret}: \${${secret}:-}`), `${secret} must default to empty so direct Compose startup cannot expose a known demo credential`);
   assert.match(envExample, new RegExp(`^${secret}\\s*=\\s*$`, 'm'), `${secret} in the sample environment must be blank so it cannot enable a known password`);
@@ -51,8 +53,8 @@ for (const secret of ['DEMO_ADMIN_PASSWORD', 'DEMO_OWNER_PASSWORD', 'DEMO_STAFF_
 assert.match(server, /const demoAccounts = \[[\s\S]*?\]\.filter\(\(account\) => Boolean\(account\.password\)\)/, 'demo users without configured passwords must never be login candidates');
 assert.match(server, /DEMO_OWNER_PASSWORD \|\| \(process\.env\.AUTH_REQUIRED === 'true' \? '' : 'demo'\)/, 'protected runtime must not fall back to owner/demo');
 assert.match(server, /DEMO_STAFF_PASSWORD \|\| \(process\.env\.AUTH_REQUIRED === 'true' \? '' : 'demo'\)/, 'protected runtime must not fall back to staff/demo');
-assert.match(compose, /com\.territory\.release-id:/, 'Compose container must expose the release id label');
-assert.match(dockerfile, /LABEL com\.territory\.release-id=\$CRM_RELEASE_ID/, 'built image must identify its release');
+assert.match(compose, /com\.hookahpos\.release-id:/, 'Compose container must expose the release id label');
+assert.match(dockerfile, /LABEL com\.hookahpos\.release-id=\$CRM_RELEASE_ID/, 'built image must identify its release');
 const dockerFiles = new Set([...dockerfile.matchAll(/^COPY (.+) \.\/$/gm)].flatMap(match => match[1].split(/\s+/)));
 for (const [, moduleName] of server.matchAll(/require\(['"]\.\/([^'"]+)['"]\)/g)) {
   const moduleFile = moduleName.endsWith('.js') ? moduleName : `${moduleName}.js`;
@@ -69,6 +71,8 @@ assert.match(deploy, /already deployed and healthy; skipping duplicate deploymen
 assert.match(deploy, /BACKUP_LABEL="\$backup_label" \.\/backup-postgres\.sh/, 'each new release attempt must create or reuse its matching pre-release backup');
 assert.ok(deploy.indexOf("printf 'in-progress|") < deploy.indexOf('BACKUP_LABEL="$backup_label"'), 'the attempt and backup label must be persisted before writing the snapshot');
 assert.ok(deploy.indexOf('BACKUP_LABEL=') < deploy.indexOf('$COMPOSE pull'), 'the database backup must be verified before updating images');
+assert.match(deploy, /\$COMPOSE pull db nginx/, 'pull only published infrastructure images; the CRM image is built from source');
+assert.match(deploy, /\$COMPOSE build --pull crm/, 'build the CRM service from the checked-out release');
 assert.match(backup, /if \[ -e "\$file" \]/, 'repeated releases must reuse a verified backup instead of creating duplicates');
 assert.match(backup, /gzip -t "\$file"/, 'a reused backup must be integrity checked');
 assert.match(backup, /flock 9/, 'parallel backup attempts must be serialized');

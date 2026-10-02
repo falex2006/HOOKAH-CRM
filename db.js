@@ -1,4 +1,5 @@
 'use strict';
+const { redactAuditData, sanitizeAuditEvent } = require('./audit-privacy');
 
 const PURCHASE_UNIT_FACTORS = { г: { г: 1, кг: 0.001 }, кг: { кг: 1, г: 1000 }, мл: { мл: 1, л: 0.001 }, л: { л: 1, мл: 1000 }, шт: { шт: 1 }, порция: { порция: 1 }, уп: { уп: 1 }, упаковка: { упаковка: 1 } };
 
@@ -547,7 +548,7 @@ class ReservationRepository {
     const localStartsAt = `(r.starts_at AT TIME ZONE ${venueTimezone})`;
     const dateClause = date ? ` AND ${localStartsAt}::date=$2::date` : '';
     if (date) params.push(date);
-    const { rows } = await this.pool.query(`SELECT r.id, g.full_name AS "guestName", g.phone, ${localStartsAt}::date AS date, to_char(${localStartsAt},'HH24:MI') AS time,
+    const { rows } = await this.pool.query(`SELECT r.id, g.full_name AS "guestName", g.phone, to_char(${localStartsAt},'YYYY-MM-DD') AS date, to_char(${localStartsAt},'HH24:MI') AS time,
       r.table_id AS "tableId", t.name AS "tableName", z.name AS "zoneName", r.guests_count AS guests, r.deposit_paid AS deposit, r.status, r.notes
       FROM reservations r LEFT JOIN venues v ON v.id=r.venue_id LEFT JOIN guests g ON g.id=r.guest_id LEFT JOIN tables t ON t.id=r.table_id LEFT JOIN zones z ON z.id=t.zone_id
       WHERE r.venue_id=$1${dateClause} ORDER BY r.starts_at`, params);
@@ -578,10 +579,10 @@ class AuditRepository {
     const limit = Math.min(Math.max(Number(filters.limit) || 100, 1), 300);
     params.push(limit);
     const { rows } = await this.pool.query(`SELECT a.id, a.action, a.entity_type AS "entityType", a.entity_id AS "entityId", a.actor_id AS "actorId", COALESCE(u.full_name, 'система') AS actor, a.before_data AS "beforeData", a.after_data AS "afterData", a.created_at AS "createdAt" FROM audit_events a LEFT JOIN users u ON u.id=a.actor_id WHERE ${clauses.join(' AND ')} ORDER BY a.created_at DESC LIMIT $${params.length}`, params);
-    return rows;
+    return rows.map(sanitizeAuditEvent);
   }
   async record(input) {
-    await this.pool.query(`INSERT INTO audit_events (venue_id, actor_id, action, entity_type, entity_id, before_data, after_data) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [input.venueId, input.actorId || null, input.action, input.entityType, input.entityId || null, input.beforeData || null, input.afterData || null]);
+    await this.pool.query(`INSERT INTO audit_events (venue_id, actor_id, action, entity_type, entity_id, before_data, after_data) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [input.venueId, input.actorId || null, input.action, input.entityType, input.entityId || null, redactAuditData(input.beforeData ?? null), redactAuditData(input.afterData ?? null)]);
   }
 }
 
@@ -591,6 +592,16 @@ class SessionRepository {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      // Share the user lock with login changes so an in-flight old login cannot
+      // create a surviving session after the rename transaction revokes access.
+      if (input.expectedLogin !== undefined) {
+        const { rows } = await client.query('SELECT login FROM users WHERE id=$1 AND is_active=true AND deleted_at IS NULL FOR UPDATE', [input.userId]);
+        if (!rows[0] || rows[0].login !== input.expectedLogin) {
+          const error = new Error('authentication_identity_changed');
+          error.code = 'AUTH_IDENTITY_CHANGED';
+          throw error;
+        }
+      }
       await client.query(`INSERT INTO auth_sessions (user_id,device_id,token_hash,expires_at,active_venue_id) VALUES ($1,$2,$3,$4,$5)
         ON CONFLICT (user_id,device_id) DO UPDATE SET token_hash=EXCLUDED.token_hash,expires_at=EXCLUDED.expires_at,active_venue_id=COALESCE(EXCLUDED.active_venue_id,auth_sessions.active_venue_id),created_at=now()`, [input.userId, input.deviceId, input.tokenHash, input.expiresAt, input.activeVenueId || null]);
       await client.query(`WITH ranked AS (SELECT token_hash,row_number() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS position FROM auth_sessions WHERE user_id=$1 AND expires_at>now()) DELETE FROM auth_sessions WHERE token_hash IN (SELECT token_hash FROM ranked WHERE position>2)`, [input.userId]);
@@ -601,8 +612,9 @@ class SessionRepository {
   }
   async get(tokenHash) {
     const { rows } = await this.pool.query(`SELECT s.id,u.id AS "userId",u.organization_id AS "organizationId",COALESCE(s.active_venue_id,u.venue_id) AS "venueId",u.full_name AS name,u.role,u.avatar_url AS "avatarUrl",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes",u.preferences,u.pin_updated_at AS "pinUpdatedAt"
-      FROM auth_sessions s JOIN users u ON u.id=s.user_id
-      WHERE s.token_hash=$1 AND s.expires_at>now() AND u.is_active=true`, [tokenHash]);
+      FROM auth_sessions s JOIN users u ON u.id=s.user_id JOIN organizations o ON o.id=u.organization_id
+      JOIN organization_subscriptions os ON os.organization_id=o.id JOIN organization_memberships m ON m.organization_id=o.id AND m.user_id=u.id
+      WHERE s.token_hash=$1 AND s.expires_at>now() AND u.is_active=true AND o.is_active=true AND os.status <> 'cancelled' AND m.status='active'`, [tokenHash]);
     return rows[0] || null;
   }
   async setActiveVenue(tokenHash, venueId, client = this.pool) {

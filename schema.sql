@@ -65,6 +65,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_iv text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_data_tag text;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_updated_at timestamptz;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_email text;
 
 CREATE TABLE IF NOT EXISTS organization_memberships (
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -203,9 +204,11 @@ CREATE TABLE ingredients (
   category text NOT NULL DEFAULT 'Ингредиенты',
   unit text NOT NULL,
   cost numeric(12,4) NOT NULL DEFAULT 0,
-  min_stock numeric(12,3) NOT NULL DEFAULT 0,
-  is_marked boolean NOT NULL DEFAULT false
+  min_stock numeric(15,6) NOT NULL DEFAULT 0,
+  is_marked boolean NOT NULL DEFAULT false,
+  pack_multiplier numeric(15,6) NOT NULL DEFAULT 1 CHECK (pack_multiplier > 0)
 );
+ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS pack_multiplier numeric(15,6) NOT NULL DEFAULT 1 CHECK (pack_multiplier > 0);
 ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'Ингредиенты';
 
 CREATE TABLE recipes (
@@ -215,7 +218,7 @@ CREATE TABLE recipes (
 CREATE TABLE recipe_items (
   product_id uuid NOT NULL REFERENCES recipes(product_id) ON DELETE CASCADE,
   ingredient_id uuid NOT NULL REFERENCES ingredients(id),
-  quantity numeric(12,3) NOT NULL CHECK (quantity > 0),
+  quantity numeric(15,6) NOT NULL CHECK (quantity > 0),
   PRIMARY KEY (product_id, ingredient_id)
 );
 
@@ -271,7 +274,7 @@ CREATE TABLE stock_movements (
   venue_id uuid NOT NULL REFERENCES venues(id),
   ingredient_id uuid NOT NULL REFERENCES ingredients(id),
   direction stock_direction NOT NULL,
-  quantity numeric(12,3) NOT NULL CHECK (quantity > 0),
+  quantity numeric(15,6) NOT NULL CHECK (quantity > 0),
   reason text,
   order_id uuid REFERENCES orders(id),
   created_by uuid REFERENCES users(id),
@@ -375,7 +378,7 @@ CREATE INDEX IF NOT EXISTS deliveries_venue_created_idx ON deliveries(venue_id,c
 
 -- Informational tobacco catalog; inventory quantities and prices remain venue-scoped.
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='venues_id_organization_unique') THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='venues_id_organization_unique' AND conrelid='venues'::regclass) THEN
     ALTER TABLE venues ADD CONSTRAINT venues_id_organization_unique UNIQUE (id, organization_id);
   END IF;
 END $$;

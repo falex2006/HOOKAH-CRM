@@ -12,6 +12,9 @@ const { Client, Pool } = require('pg');
 const setup = new Client({ connectionString: databaseUrl });
 const pool = new Pool({ connectionString: databaseUrl, max: 4 });
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+const validShiftCashStart = server.indexOf('const validShiftCash =');
+const validShiftCashEnd = server.indexOf('\n};', validShiftCashStart) + 3;
+const validShiftCashSource = server.slice(validShiftCashStart, validShiftCashEnd);
 const shiftStart = server.indexOf("if (pathname === '/api/shifts' && req.method === 'GET')");
 const shiftEnd = server.indexOf("if (pathname === '/api/venue' && req.method === 'GET')", shiftStart);
 const paymentStart = server.indexOf('const paymentPath = pathname.match(');
@@ -25,13 +28,14 @@ let userId = null;
 let orderId = null;
 let productId = null;
 
-const callShiftApi = async ({ path, method = 'POST', body = {} }) => {
+const callShiftApi = async ({ path, method = 'POST', body = {}, role = 'owner' }) => {
   let response;
   const pathname = path;
-  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts','isOperationalEmployee',
-    `return (async()=>{${shiftRoute}})();`)(
-    pathname, { method, user: { id: userId, name: 'Cash QA', role: 'owner' } }, {}, { pool }, venueId,
+  const result = await new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts','isOperationalEmployee','hasPermission',
+    `${validShiftCashSource}\nreturn (async()=>{${shiftRoute}})();`)(
+    pathname, { method, user: { id: userId, name: 'Cash QA', role } }, {}, { pool }, venueId,
     () => false, async () => body, (_res, status, data) => { response = { status, data }; return response; }, () => {}, [], () => false,
+    (_req, permission) => permission === 'finance_read' && ['owner','admin','manager','developer'].includes(role),
   );
   return response || result;
 };
@@ -68,6 +72,10 @@ try {
   const openingRead = await callShiftApi({ path: '/api/shifts', method: 'GET' });
   assert.equal(openingRead.status, 200);
   assert.equal(openingRead.data.current.id, shiftId, 'shift list rereads the newly opened shift from PostgreSQL');
+  assert.equal(openingRead.data.current.openedByName, 'Cash QA', 'management sees who opened the current shift');
+  const staffOpeningRead = await callShiftApi({ path: '/api/shifts', method: 'GET', role: 'bartender' });
+  assert.equal(staffOpeningRead.data.current.id, shiftId, 'operational staff can still see whether a shift is open');
+  assert.equal(Object.hasOwn(staffOpeningRead.data.current, 'openedByName'), false, 'operational staff do not receive the manager-only opener identity');
 
   const missingChecklist = await callShiftApi({ path: `/api/shifts/${shiftId}/close`, body: { closingCash: 1250 } });
   assert.equal(missingChecklist.status, 400);

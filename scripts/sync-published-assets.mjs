@@ -5,14 +5,29 @@ import { fileURLToPath } from 'node:url';
 import { publishedHtmlFiles, routeAliases, publishedHtmlPaths, localPreviewHtmlFiles } from './published-html-manifest.mjs';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const cssRevision = '363';
-const portalRevision = '413';
-const lockRevision = '18';
-const appRevision = '169';
+const cssRevision = '375';
+const portalRevision = '425';
+const lockRevision = '22';
+const appRevision = '176';
+const platformRevision = '5';
 const staffProfileRevision = '6';
-const loginRevision = '93';
-const staffAdminCardRevision = '7';
+const loginRevision = '97';
+const authSmokeRevision = '3';
+const authSmokeCssRevision = '2';
+const staffAdminCardRevision = '11';
 const purchaseDocumentValidationRevision = '1';
+const brandRevision = '2';
+const brandHead = `<!-- Hookah POS brand icons -->
+<link rel="icon" href="/assets/brand/icons/favicon.ico?rev=${brandRevision}" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/icons/favicon-32.png?rev=${brandRevision}">
+<link rel="icon" type="image/svg+xml" href="/assets/brand/icons/favicon.svg?rev=${brandRevision}">
+<link rel="mask-icon" href="/assets/brand/icons/safari-pinned-tab.svg?rev=${brandRevision}" color="#171A20">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/icons/apple-touch-icon-180.png?rev=${brandRevision}">
+<link rel="manifest" href="/assets/brand/manifest.webmanifest?rev=${brandRevision}">
+<meta name="msapplication-TileImage" content="/assets/brand/icons/mstile-150.png?rev=${brandRevision}">
+<meta name="theme-color" content="#171A20">
+<meta property="og:image" content="/assets/brand/icons/og-image-1200x630.png?rev=${brandRevision}">
+<!-- /Hookah POS brand icons -->`;
 // Keep flat pages and directory-index aliases in dist aligned with their source
 // templates. Static hosts commonly resolve /login/ to dist/login/index.html,
 // so every public route alias must receive the same safe initial markup.
@@ -33,22 +48,40 @@ const htmlFiles = [
 
 for (const path of htmlFiles) {
   const html = readFileSync(path, 'utf8')
+    .replace(/<!-- Hookah POS brand icons -->[\s\S]*?<!-- \/Hookah POS brand icons -->\s*/g, '')
+    .replace('</head>', `${brandHead}</head>`)
+    .replace(/(\/assets\/brand\/hookah-pos-[a-z-]+\.svg)(?:\?rev=\d+)?/g, `$1?rev=${brandRevision}`)
+    .replace(/(<picture class="hookah-pos-brand">)([\s\S]*?)(<\/picture>)/g, (_, open, content, close) => {
+      const animated = content.replace(/(<img src=")\/assets\/brand\/hookah-pos-lockup(?:-animated)?\.svg\?rev=\d+/, `$1/assets/brand/hookah-pos-lockup-animated.svg?rev=${brandRevision}`);
+      const withReducedMotion = animated.includes('prefers-reduced-motion') ? animated : animated.replace('<img ', `<source media="(prefers-reduced-motion:reduce)" srcset="/assets/brand/hookah-pos-lockup.svg?rev=${brandRevision}"><img `);
+      return open + withReducedMotion + close;
+    })
     .replace(/style\.css\?rev=\d+/g, `style.css?rev=${cssRevision}`)
     .replace(/portal\.js\?rev=\d+/g, `portal.js?rev=${portalRevision}`)
     .replace(/lock\.js\?rev=\d+/g, `lock.js?rev=${lockRevision}`)
     .replace(/app\.js\?rev=\d+/g, `app.js?rev=${appRevision}`)
+    .replace(/platform\.js\?rev=\d+/g, `platform.js?rev=${platformRevision}`)
+    .replace(/(<script\s+src="\/?(?:portal|app)\.js\?rev=\d+"[^>]*>)/g,(tag,_,offset,html)=>html.slice(0,offset).includes('notification-center.js?rev=1')?tag:'<script src="/notification-center.js?rev=1"></script>'+tag)
     .replace(/staff-profile\.js\?rev=\d+/g, `staff-profile.js?rev=${staffProfileRevision}`)
     .replace(/login\.js\?rev=\d+/g, `login.js?rev=${loginRevision}`)
+    .replace(/auth-smoke\.js\?rev=\d+/g, `auth-smoke.js?rev=${authSmokeRevision}`)
+    .replace(/auth-smoke\.css\?rev=\d+/g, `auth-smoke.css?rev=${authSmokeCssRevision}`)
     .replace(/staff-admin-card\.js\?rev=\d+/g, `staff-admin-card.js?rev=${staffAdminCardRevision}`);
   const versionedHtml = html.replace(/purchase-document-validation\.js\?rev=\d+/g, `purchase-document-validation.js?rev=${purchaseDocumentValidationRevision}`);
   writeFileSync(path, versionedHtml);
 }
+cpSync(resolve(root, 'notification-center.js'), resolve(root, 'dist', 'notification-center.js'));
 cpSync(resolve(root, 'portal.js'), resolve(root, 'dist', 'portal.js'));
 cpSync(resolve(root, 'lock.js'), resolve(root, 'dist', 'lock.js'));
 cpSync(resolve(root, 'app.js'), resolve(root, 'dist', 'app.js'));
+cpSync(resolve(root, 'platform.js'), resolve(root, 'dist', 'platform.js'));
+cpSync(resolve(root, 'staff-telegram-link.js'), resolve(root, 'dist', 'staff-telegram-link.js'));
+cpSync(resolve(root, 'vip-deposit-ui.js'), resolve(root, 'dist', 'vip-deposit-ui.js'));
 cpSync(resolve(root, 'staff-profile.js'), resolve(root, 'dist', 'staff-profile.js'));
 cpSync(resolve(root, 'login.js'), resolve(root, 'dist', 'login.js'));
 cpSync(resolve(root, 'style.css'), resolve(root, 'dist', 'style.css'));
+for (const name of ['auth-smoke.js', 'auth-smoke.css']) cpSync(resolve(root, name), resolve(root, 'dist', name));
+for (const name of ['login-smoke-ambient.png', 'login-smoke-ambient.mp4']) cpSync(resolve(root, 'assets', name), resolve(root, 'dist', 'assets', name));
 cpSync(resolve(root, 'staff-admin-card.js'), resolve(root, 'dist', 'staff-admin-card.js'));
 cpSync(resolve(root, 'purchase-document-validation.js'), resolve(root, 'dist', 'purchase-document-validation.js'));
 cpSync(resolve(root, 'assets', 'tabler-icons.svg'), resolve(root, 'dist', 'assets', 'tabler-icons.svg'));

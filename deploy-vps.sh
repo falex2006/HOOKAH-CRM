@@ -76,7 +76,7 @@ if [ -f "$state_file" ]; then
   running_release=""
   container_id="$($COMPOSE ps -q crm)"
   if [ -n "$container_id" ]; then
-    running_release="$(docker inspect --format '{{ index .Config.Labels "com.territory.release-id" }}' "$container_id" 2>/dev/null || true)"
+    running_release="$(docker inspect --format '{{ index .Config.Labels "com.hookahpos.release-id" }}' "$container_id" 2>/dev/null || true)"
   fi
   if [[ "$state_fingerprint" == "$release_fingerprint" && ( "$state_status" == 'deployed' || "$state_status" == 'in-progress' ) ]]; then
     if [ "$running_release" = "$release_fingerprint" ] && $COMPOSE exec -T crm wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"'; then
@@ -97,8 +97,8 @@ printf 'in-progress|%s|%s\n' "$release_fingerprint" "$backup_label" > "$state_fi
 chmod 600 "$state_file.tmp.$$"
 mv "$state_file.tmp.$$" "$state_file"
 BACKUP_DIR="$backup_dir" BACKUP_LABEL="$backup_label" ./backup-postgres.sh
-$COMPOSE pull
-$COMPOSE build --pull
+$COMPOSE pull db nginx
+$COMPOSE build --pull crm
 $COMPOSE up -d
 ./migrate-vps.sh
 $COMPOSE exec -T crm npm run db:seed-menu
@@ -108,7 +108,7 @@ for attempt in $(seq 1 30); do
   container_id="$($COMPOSE ps -q crm)"
   running_release=""
   if [ -n "$container_id" ]; then
-    running_release="$(docker inspect --format '{{ index .Config.Labels "com.territory.release-id" }}' "$container_id" 2>/dev/null || true)"
+    running_release="$(docker inspect --format '{{ index .Config.Labels "com.hookahpos.release-id" }}' "$container_id" 2>/dev/null || true)"
   fi
   if [ "$running_release" = "$release_fingerprint" ] && $COMPOSE exec -T crm wget -qO- http://localhost:3000/api/health | grep -q '"status":"ok"'; then
     printf 'deployed|%s|%s\n' "$release_fingerprint" "$backup_label" > "$state_file.tmp.$$"

@@ -15,6 +15,7 @@
 2. Скопировать проект в отдельный каталог и создать `.env` из `.env.example`.
 3. Задать уникальные значения `POSTGRES_PASSWORD`, `DEMO_ADMIN_PASSWORD`, `DEMO_OWNER_PASSWORD`, `DEMO_STAFF_PASSWORD`, `STAFF_PASSPORT_KEY`, `SAAS_OWNER_EMAIL` и `SAAS_OWNER_PASSWORD`, домен и `AUTH_REQUIRED=true`. Оставить `FIRST_RUN_SETUP_ENABLED=false` для тестовой и обычной рабочей среды. Включать этот флаг можно только на короткое время для первичной настройки действительно пустой БД; после создания владельца сразу вернуть `false`. Сервер дополнительно блокирует повторную настройку после появления активного пользователя. Все три настройки шифрования паспортных данных и начального владельца SaaS передаются из `.env` в CRM-контейнер. Для заведения в Тюмени оставить `BUSINESS_TIMEZONE=Asia/Yekaterinburg` или указать часовой пояс своего города.
 4. Открыть наружу только 80/443; порт PostgreSQL не публиковать.
+5. Чтобы CRM открывалась по адресу `http://<VPS-IP>/` без номера порта, задать `NGINX_HTTP_PORT=80` в `.env` и разрешить входящий HTTP на 80. Для локального запуска значение по умолчанию остаётся `8080`.
 
 ## Запуск
 
@@ -83,3 +84,4 @@ docker compose ps
 Перед `deploy-vps.sh` задайте в `.env` непустые production-секреты и замените все значения `change_*` и `replace-*`, включая `STAFF_PASSPORT_KEY`; скрипт проверяет наличие Docker Compose plugin и `AUTH_REQUIRED=true`. Для HTTPS обязателен `COOKIE_SECURE=true`; HTTP допускается только для конкретного запуска с `COOKIE_SECURE=false` и `ALLOW_HTTP_DEPLOY_ONCE=true`.
 
 `backup-postgres.sh` после дампа проверяет непустой файл и целостность gzip через `gzip -t`, затем хранит последние 14 дней.
+

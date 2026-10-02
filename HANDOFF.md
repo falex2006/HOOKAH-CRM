@@ -4,7 +4,7 @@
 
 - Ветка: `main`.
 - Production/VPS: `root@212.192.0.58`, приложение `/opt/territory-crm`, Docker Compose.
-- Production URL: `http://212.192.0.58:8080`.
+- Production URL: `http://212.192.0.58`.
 - `/api/health`: `status=ok`, `database=postgres`.
 - Домен и HTTPS намеренно не настраивались: домен будет подключён позже.
 - Последний локальный commit: `611d47f`.
@@ -44,3 +44,4 @@ node --check server.js
 ```
 
 Финальная таблица соответствия всем 34 пунктам находится в `FINAL_ACCEPTANCE_REPORT.md`. После дополнительной проверки исправлен видимый в production компактный замок блокировки экрана (`b435723`) и исправлен PostgreSQL-контракт проверки зоны/стола (`ea20758`). Production повторно пересобран и отвечает `database: postgres`; локальный acceptance и production E2E проходят. Единственная сознательно отложенная часть — подключение домена и HTTPS.
+

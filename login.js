@@ -4,7 +4,6 @@ localStorage.removeItem('crm_session_token');
 localStorage.removeItem('crm_session_user');
 const setupForm = document.querySelector('#setup-form');
 const setupMessage = document.querySelector('#setup-message');
-fetch('/api/public/venue-brand').then((response) => response.ok ? response.json() : null).then((brand) => { const node = document.querySelector('[data-login-brand]'); if (!node || !brand?.logoUrl) return; node.innerHTML = `<img src="${brand.logoUrl}" alt="Логотип заведения">`; node.classList.add('has-logo'); }).catch(() => {});
 const passwordInput = document.querySelector('#login-password');
 const usernameInput = document.querySelector('#login-username');
 const trustDeviceInput = document.querySelector('#login-trust-device');

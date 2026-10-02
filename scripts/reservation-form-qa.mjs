@@ -6,7 +6,7 @@ const portal = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const capture = portal.slice(portal.indexOf("document.addEventListener('submit'"), portal.indexOf('\n', portal.indexOf("document.addEventListener('submit'")));
 assert.match(capture, /'reservation-form'/, 'reservation form must own its pending state');
 const submitStart = portal.indexOf("document.querySelector('#reservation-form').addEventListener('submit'");
-const submitEnd = portal.indexOf("  api('/api/clients')", submitStart);
+const submitEnd = portal.indexOf("  api('/api/reservations/guests')", submitStart);
 assert.ok(submitStart >= 0 && submitEnd > submitStart);
 const submit = portal.slice(submitStart, submitEnd);
 assert.match(submit, /if \(form\.dataset\.submitting === '1'\) return/, 'pending request blocks duplicate submit');
@@ -14,7 +14,7 @@ assert.match(submit, /submit\.disabled = true; submit\.textContent = 'Подтв
 assert.match(submit, /const controls = \[\.\.\.form\.querySelectorAll\('input, select, textarea'\)\]/, 'pending request locks draft fields');
 assert.match(submit, /\.finally\(\(\) => \{ controls\.forEach\(\(\{ control, disabled \}\) => \{ control\.disabled = disabled; control\._customSelectRefresh\?\.\(\); \}\); form\.dataset\.submitting = '0'; if \(submit\) \{ submit\.disabled = false; submit\.textContent = 'Подтвердить бронь'; \} if \(reservationSaved\) loadTables\(\); \}\)/, 'request completion restores original field states before reloading tables');
 
-const start = portal.indexOf("  api('/api/clients').then((data) => {", submitEnd);
+const start = portal.indexOf("  api('/api/reservations/guests').then((data) => {", submitEnd);
 const endMarker = '}).catch(() => {}); loadTables(); load();';
 const end = portal.indexOf(endMarker, start) + endMarker.length;
 assert.ok(start >= 0 && end > start);

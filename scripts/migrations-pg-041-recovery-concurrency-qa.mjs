@@ -22,6 +22,12 @@ try {
   await setup.connect();
   await setup.query(`CREATE SCHEMA ${quoteIdentifier(schema)}`);
   await setup.query(`SET search_path TO ${quoteIdentifier(schema)}, public`);
+  await setup.query(`CREATE TABLE venues (id uuid PRIMARY KEY)`);
+  await setup.query('INSERT INTO venues (id) VALUES ($1),($2)', [venueId, '99999999-9999-4999-8999-999999999999']);
+  await setup.query(`CREATE TABLE audit_events (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(), venue_id uuid NOT NULL REFERENCES venues(id), actor_id uuid,
+    action text NOT NULL, entity_type text NOT NULL, entity_id uuid, after_data jsonb
+  )`);
   await setup.query(`CREATE TABLE shifts (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     venue_id uuid NOT NULL,
@@ -86,6 +92,9 @@ try {
 
   await setup.query('UPDATE shifts SET closed_at=now() WHERE closed_at IS NULL');
   const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
+  const validShiftCashStart = server.indexOf('const validShiftCash =');
+  const validShiftCashEnd = server.indexOf('\n};', validShiftCashStart) + 3;
+  const validShiftCashSource = server.slice(validShiftCashStart, validShiftCashEnd);
   const routeStart = server.indexOf("if (pathname === '/api/shifts' && req.method === 'POST')");
   const routeEnd = server.indexOf("if (pathname === '/api/venue' && req.method === 'GET')", routeStart);
   assert.ok(routeStart >= 0 && routeEnd > routeStart, 'the production shift-open handler is available for PostgreSQL concurrency QA');
@@ -97,7 +106,7 @@ try {
     await client.query(`SET search_path TO ${quoteIdentifier(schema)}, public`);
     const handle = { query: client.query.bind(client), release: () => { void client.end(); } };
     return new Function('pathname','req','res','repositories','venueDbId','denyUnlessAny','body','json','recordAudit','shifts',
-      `return (async()=>{${route}})();`)(
+      `${validShiftCashSource}\nreturn (async()=>{${route}})();`)(
       '/api/shifts', { method: 'POST', user: { id: '12121212-1212-4212-8212-121212121212', name: 'QA' } }, {},
       { pool: { connect: async () => handle } }, apiVenueId, () => false, async () => ({ openingCash }),
       (_res, status, data) => ({ status, data }), () => {}, [],

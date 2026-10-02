@@ -60,11 +60,13 @@ const login = async (username) => {
 
 try {
   await database.query(`INSERT INTO organizations(id,name,slug,plan) VALUES($1,'Notifications PG QA',$2,'network')`, [organizationId, `notifications-qa-${suffix}`]);
+  await database.query(`INSERT INTO organization_subscriptions(organization_id,plan,status,seats_limit,venues_limit) VALUES($1,'network','active',30,10)`, [organizationId]);
   await database.query(`INSERT INTO venues(id,organization_id,name,city,address) VALUES($1,$3,'QA venue A','Tyumen','QA address A'),($2,$3,'QA venue B','Tyumen','QA address B')`, [venueA, venueB, organizationId]);
   await database.query(`INSERT INTO users(id,venue_id,organization_id,full_name,login,password_hash,role,permission_scopes) VALUES
     ($1,$4,$5,'QA Owner',$6,'demo','owner','[]'::jsonb),
     ($2,$4,$5,'QA Orders Admin',$7,'demo','admin','["orders"]'::jsonb),
     ($3,$8,$5,'QA Venue B Owner',$9,'demo','owner','[]'::jsonb)`, [ownerId, adminId, secondVenueUserId, venueA, organizationId, ownerLogin, adminLogin, venueB, secondVenueLogin]);
+  await database.query(`INSERT INTO organization_memberships(organization_id,user_id,membership_role,status) VALUES($1,$2,'owner','active'),($1,$3,'admin','active'),($1,$4,'owner','active')`, [organizationId, ownerId, adminId, secondVenueUserId]);
   await database.query(`INSERT INTO audit_events(id,venue_id,actor_id,action,entity_type,entity_id,after_data,created_at) VALUES
     ($1,$3,$4,'order.deleted','order',$5,'{}'::jsonb,now()),
     ($2,$6,$4,'order.deleted','order',$7,'{}'::jsonb,now()-interval '1 minute')`, [eventA, eventB, venueA, ownerId, randomUUID(), venueB, randomUUID()]);

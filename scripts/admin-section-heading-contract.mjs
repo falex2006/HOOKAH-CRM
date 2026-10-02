@@ -6,7 +6,7 @@ const portal = fs.readFileSync('portal.js', 'utf8');
 const style = fs.readFileSync('style.css', 'utf8');
 const titleMap = portal.match(/const adminSectionTitles = \{([^}]+)\}/)?.[1] || '';
 const greeting = portal.match(/function updateDashboardGreeting\(\) \{([^}]+)\}/)?.[1] || '';
-const staffBranchStart = portal.indexOf("} else if (dashboardFocus === 'staff') {");
+const staffBranchStart = portal.indexOf("} else if (dashboardFocus === 'staff' || dashboardFocus === 'permissions') {");
 const staffBranchEnd = portal.indexOf("} else if (dashboardFocus === 'company') {", staffBranchStart);
 const staffBranch = portal.slice(staffBranchStart, staffBranchEnd);
 
@@ -20,22 +20,27 @@ assert.match(portal, /window\.addEventListener\('hashchange', updateAdminSection
   'admin top bar title updates when the selected subsection changes');
 assert.ok(/window\.location\.hash && window\.location\.hash !== '#'/.test(greeting) || /stable title; no recurring greeting/.test(greeting),
   'dashboard greeting must not overwrite a subsection heading or reappear as a recurring flash');
-assert.match(staffBranch, /staffTitle\.textContent = 'Сотрудники'/,
-  'staff subsection page heading remains explicit');
+assert.match(staffBranch, /staffTitle\.textContent = dashboardFocus === 'permissions' \? 'Роли и права доступа' : 'Сотрудники'/,
+  'staff and permissions subsection headings remain explicit');
 assert.ok(staffBranch.includes(`setDashboardPanelVisibility('[data-dashboard-module="kpi"]`),
   'staff subsection hides both the KPI cards and their separate heading');
 assert.match(portal, /dashboard-live-heading" data-dashboard-module="kpi"/,
   'the live KPI heading remains grouped with the dashboard KPI module');
-assert.match(portal, /getSettingsHashTarget\s*=\s*\(hash = window\.location\.hash\) =>/,
+const navigationStart = portal.indexOf('const getSettingsHashTarget =');
+const navigationEnd = portal.indexOf('const settingsHash = [', navigationStart);
+assert.ok(navigationStart >= 0 && navigationEnd > navigationStart, 'one shared dashboard settings target helper exists');
+const navigation = portal.slice(navigationStart, navigationEnd);
+assert.match(navigation, /const targets = \{/,
   'settings hash routes resolve to their actual visible panel instead of a generic page heading');
-assert.ok(portal.indexOf('const getSettingsHashTarget =') < portal.indexOf("const settingsHash = ['#settings'"),
-  'the settings hash target helper lives in the renderDashboard scope so both initial and subsequent route changes can call it');
-assert.match(portal, /const focusedSettingsHash = \['#shift-control', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'\]/,
-  'direct dashboard and settings child links scroll to the selected subsection');
-assert.match(portal, /const focused = \['#shift-control', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'\]/,
-  'in-app dashboard and settings child navigation scrolls to the selected subsection');
-assert.match(portal, /if \(target\._dashboardHashChangeHandler\) window\.removeEventListener\('hashchange', target\._dashboardHashChangeHandler\);\s*target\._dashboardHashChangeHandler = dashboardHashChangeHandler;\s*window\.addEventListener\('hashchange', dashboardHashChangeHandler\);/,
-  'rerendering the dashboard replaces its hash handler instead of accumulating listeners');
+for (const hash of ['#shift-control', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit']) {
+  assert.ok(navigation.includes(`'${hash}':`), `direct and in-app ${hash} child links resolve to their selected subsection`);
+}
+assert.match(portal, /target\._applySettingsView = applySettingsView/,
+  'rerendering the dashboard exposes one settings route handler');
+assert.ok(portal.includes("window.addEventListener('hashchange'") && portal.includes('applySettingsView'),
+  'later hash changes use the same settings route helper');
+assert.match(portal, /scrollIntoView\(\{ behavior: 'smooth', block: 'start' \}\)/,
+  'initial and later settings routes scroll to the selected subsection');
 assert.match(style, /\.velora-theme \.page-title\{scroll-margin-top:calc\(var\(--crm-header-height,68px\) \+ 12px\)\}/,
   'hash navigation keeps the complete eyebrow and heading clear of the fixed management header');
 assert.match(style, /\.velora-theme #company-form,.velora-theme #settings-dashboard-modules/,

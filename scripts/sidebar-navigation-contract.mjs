@@ -49,8 +49,16 @@ assert.match(css, /\.staff-theme header\{padding:0 16px;align-items:center\}/,
 assert.match(portal, /const currentUrl = new URL\(location\.href\);/);
 assert.match(portal, /href: '\/'/);
 assert.doesNotMatch(portal, /staff-workspace|href: '\/\?mode=/);
-assert.match(portal, /const dashboardHashChangeHandler = \(\) => \{\s*normalizeManagementSidebar\(\);[\s\S]*?target\._dashboardHashChangeHandler = dashboardHashChangeHandler;\s*window\.addEventListener\('hashchange', dashboardHashChangeHandler\);/s,
-  'dashboard hash navigation must normalize the sidebar through one replaceable listener');
+const navigationStart = portal.indexOf('function setupPortalDashboardNavigation()');
+const navigationEnd = portal.indexOf('function renderDashboard()', navigationStart);
+assert.ok(navigationStart >= 0 && navigationEnd > navigationStart, 'shared dashboard navigation helper exists');
+const navigation = portal.slice(navigationStart, navigationEnd);
+assert.match(navigation, /const navigate = \(\) => \{\s*normalizeManagementSidebar\(\);/,
+  'dashboard hash navigation must normalize the sidebar before routing');
+assert.match(navigation, /target\._portalDashboardNavigation\) return;/,
+  'dashboard rerenders must retain only one shared navigation listener');
+assert.match(navigation, /window\.addEventListener\('hashchange', navigate\);/,
+  'dashboard hash navigation must use that single listener');
 
 // Keep the canonical page tree aligned with the management sidebar's target
 // pages, so adding a link cannot silently point at a non-canonical filename.
@@ -82,7 +90,7 @@ assert.match(portal, /ensureAreaGroup\('finance', 'Финансы',[\s\S]*href: 
   'all finance destinations must render consistently as one navigation group');
 assert.match(portal, /selectors = \{ inventory: 'a\[data-navigation-module="inventory"\]', finance: 'a\[data-navigation-module="finance"\]' \}/,
   'interface preferences must control all child links, not only the parent route');
-assert.match(portal, /link\.hidden = !portalPermissions\.has\(permission\) \|\| navigation\[name\] === false;[\s\S]*refreshSidebarGroups\(\)/,
+assert.match(portal, /link\.hidden = !hasPortalLinkPermission\(link, permission\) \|\| navigation\[name\] === false;[\s\S]*refreshSidebarGroups\(\)/,
   'menu preference and role permission must both hide links and empty disclosure headings');
 assert.match(portal, /window\.__applyInterfacePreferences\?\.\(\);/,
   'sidebar normalization must reapply preference visibility after replacing child links');
@@ -102,13 +110,13 @@ assert.match(portal, /history\[historyMode \+ 'State'\]/);
 assert.doesNotMatch(portal, /data-inventory-tab/, 'warehouse view navigation must have one visible source in the sidebar');
 assert.match(portal, /makeGroup\('Команда',[\s\S]*makeGroup\('Система'/,
   'team and system groups must remain in the shared disclosure pattern');
-assert.match(portal, /crm_sidebar_group_/,
-  'users should keep their sidebar disclosure preferences between page visits');
-assert.match(portal, /const rememberGroupState = \(details, key\) => \{[\s\S]*?summary\?\.setAttribute\('aria-expanded', String\(details\.open\)\)[\s\S]*?details\.dataset\.userToggle !== 'true'[\s\S]*?localStorage\.setItem\(groupStorageKey\(key\), details\.open \? 'open' : 'closed'\)/,
-  'disclosures must expose their expanded state and only persist explicit user toggles');
+assert.match(portal, /crm_sidebar_disclosure_v2_[\s\S]*?portalUser\.venueId \|\| portalUser\.organizationId/,
+  'disclosure preference is scoped to the authenticated user and tenant');
+assert.match(portal, /const rememberGroupState = \(details, key\) => \{[\s\S]*?event\.preventDefault\(\)[\s\S]*?group\.open = shouldOpen && group === details[\s\S]*?localStorage\.setItem\(selection\.storageKey, JSON\.stringify/,
+  'explicit summary activation opens at most one group and persists one route-bound selection');
 assert.doesNotMatch(portal, /matchMedia\('\(max-width: 900px\)'\)[\s\S]{0,120}details\.open = true/,
   'compact viewports must allow navigation groups to collapse and remember their state');
-assert.match(portal, /const defaultGroupOpen = \(key\) => \{[\s\S]*?return false;[\s\S]*?\};[\s\S]*?group\.open = savedGroupState\(group\.dataset\.navGroup\) \?\? defaultGroupOpen\(group\.dataset\.navGroup\)/,
+assert.match(portal, /const defaultGroupOpen = \(key\) => \{[\s\S]*?return false;[\s\S]*?\};[\s\S]*?group\.open = !group\.hidden && \(savedGroupState\(group\.dataset\.navGroup\) \?\? defaultGroupOpen\(group\.dataset\.navGroup\)\)/,
   'sidebar groups must default to the current route and prefer an explicit saved choice');
 assert.doesNotMatch(portal, /activeGroup\.open = true/,
   'loading a route must not override a saved collapsed group');
@@ -122,8 +130,10 @@ assert.match(portal, /if \(!activeLink \|\| !target \|\| !scroller \|\| !target\
   'resize and disclosure updates must not scroll unrelated collapsed groups over the active route');
 assert.match(portal, /if \(activeLink\) requestAnimationFrame\(\(\) => revealActiveSidebarLink\(group\)\)/,
   'route normalization reveals the active child when expanded or the active group heading when collapsed');
-assert.match(portal, /requestAnimationFrame\(\(\) => revealActiveSidebarLink\(details\)\)/,
-  'expanding/collapsing an active group reveals its visible active target without changing saved state');
+assert.match(portal, /summary\.addEventListener\('click',[\s\S]*?requestAnimationFrame\(\(\) => \{[\s\S]*?const rect = summary\.getBoundingClientRect\(\)/,
+  'manual activation reveals the clicked summary without jumping to an unrelated active route');
+assert.doesNotMatch(portal, /details\.addEventListener\('toggle',[\s\S]{0,170}revealActiveSidebarLink/,
+  'automatic sibling toggle events do not pull the navigation viewport away from the clicked group');
 assert.match(portal, /sidebar\._activeNavigationResizeHandler = \(\) => \{[\s\S]*?sidebar\.querySelectorAll\('details\.sidebar-nav-group'\)\.forEach\(revealActiveSidebarLink\)/,
   'the active target must remain visible when the viewport height changes');
 assert.match(css, /\.portal\.velora-theme \.portal-sidebar>\.sidebar-nav-groups\{[\s\S]*?flex:1 1 0;[\s\S]*?min-height:0;[\s\S]*?overflow-y:auto/,
@@ -192,11 +202,12 @@ assert.match(css, /@media \(min-width:651px\) and \(max-width:900px\)\{[\s\S]*?\
   'the Fold sidebar opens as an overlay and does not permanently consume workspace width');
 assert.match(css, /\.portal-sidebar \.sidebar-nav-group>summary\{display:flex;min-height:44px/,
   'collapsed Fold navigation groups must match adjacent 44px touch targets');
-assert.match(css, /\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden;z-index:10;scrollbar-width:thin;scrollbar-color:#4a515d transparent/,
-  'both CRM sidebars must stay visible and expose a subtle dark-theme scrollbar when their content overflows');
-assert.match(css, /\.velora-theme \.portal-sidebar::\-webkit-scrollbar,\.staff-theme \.portal-sidebar::\-webkit-scrollbar\{width:4px;height:4px\}/);
-assert.doesNotMatch(css, /\.velora-theme \.portal-sidebar\{z-index:10;scrollbar-width:none/,
-  'the navigation scrollbar must not be hidden when lower groups overflow');
+assert.match(css, /\.velora-theme \.portal-sidebar,\.staff-theme \.portal-sidebar\{position:sticky;top:0;align-self:flex-start;height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden;z-index:10;scrollbar-width:none/,
+  'both CRM sidebars preserve vertical scrolling and prevent horizontal scrolling without visible scrollbar chrome');
+assert.match(css, /\.velora-theme \.portal-sidebar::\-webkit-scrollbar,\.staff-theme \.portal-sidebar::\-webkit-scrollbar\{width:0;height:0;display:none\}/,
+  'Chromium sidebar scrollbar chrome is hidden without disabling overflow');
+assert.match(css, /\.portal\.velora-theme \.portal-sidebar>\.sidebar-nav-groups\{[^}]*overflow-y:auto;[^}]*overflow-x:hidden;[^}]*scrollbar-width:none/s,
+  'long administrative navigation groups remain scrollable without a nested scrollbar strip');
 assert.match(css, /@media\(max-width:900px\)\{\.staff-theme \.portal-sidebar\{width:68px/,
   'employee navigation uses a compact icon rail at Fold/tablet widths to preserve the order workspace');
 assert.match(css, /@media \(min-width:1800px\)\{\s*\.staff-theme \.portal-sidebar\{width:280px/,

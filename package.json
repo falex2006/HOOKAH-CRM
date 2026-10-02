@@ -1,11 +1,16 @@
 {
-  "name": "hookah-crm",
+  "name": "hookah-pos",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
     "pg": "^8.13.1"
   },
   "scripts": {
+    "qa:local:setup": "node scripts/local-full-qa-setup.cjs",
+    "qa:local:serve": "node scripts/local-full-qa-server.cjs",
+    "qa:local:seed": "node scripts/seed-local-full-qa.mjs --config tmp/full-local-qa/runtime.json",
+    "qa:local:guards": "node scripts/local-full-qa.mjs --check-guards",
+    "qa:local:full": "node scripts/local-full-qa.mjs --all",
     "start": "node server.js",
     "db:migrate": "node scripts/migrate.js",
     "qa:tasks": "node scripts/tasks-qa.mjs",
@@ -20,6 +25,8 @@
     "qa:notifications:api": "node scripts/notifications-api-qa.mjs",
     "qa:notifications:browser": "node scripts/notifications-browser-qa.mjs",
     "qa:notifications:postgres": "node scripts/notifications-postgres-qa.mjs",
+    "qa:shifts:notifications": "node scripts/shift-notifications-e2e-qa.mjs",
+    "qa:shifts:state": "node scripts/shift-state-runtime-qa.mjs",
     "db:seed-menu": "node scripts/seed-menu-catalog.js"
   },
   "engines": {
