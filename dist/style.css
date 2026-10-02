@@ -797,12 +797,14 @@ body[data-page="clients"] .content-grid{grid-template-columns:minmax(0,1fr);alig
   body[data-page="clients"] .clients-toolbar select{width:100%;min-width:0}
 }
 body[data-page="clients"] .client-grid{grid-template-columns:1fr;gap:8px}
-body[data-page="clients"] .client-card{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:13px}
+body[data-page="clients"] .client-card{display:flex;align-items:center;gap:14px;padding:12px 14px;border-radius:13px;min-width:0;overflow:hidden}
 body[data-page="clients"] .client-card:hover{transform:translateX(2px) translateY(0)}
-body[data-page="clients"] .client-card-head{flex:1 1 250px;min-width:220px}
-body[data-page="clients"] .client-tags{flex:0 1 185px;min-width:145px;margin:0;align-content:center}
+body[data-page="clients"] .client-card-head{flex:1 1 250px;min-width:0}
+body[data-page="clients"] .client-tags{flex:1 1 185px;min-width:0;max-width:280px;margin:0;align-content:center;overflow:hidden}
+body[data-page="clients"] .client-tags>span{min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body[data-page="clients"] .client-tags>.badge{white-space:normal;overflow-wrap:anywhere;line-height:1.25}
 body[data-page="clients"] .client-card>.preference-line,body[data-page="clients"] .client-card>.muted{display:none}
-body[data-page="clients"] .client-actions{flex:0 0 auto}
+body[data-page="clients"] .client-actions{flex:0 0 auto;min-width:0}
 body[data-page="clients"] .client-card h3{font-size:15px;margin-bottom:3px}
 body[data-page="clients"] .client-card small{font-size:11px}
 body[data-page="clients"] .client-editor .panel-head{position:sticky;top:-1px;z-index:2;padding-bottom:12px;background:linear-gradient(145deg,#1b1e23,#17191d);border-bottom:1px solid #2b3038}
