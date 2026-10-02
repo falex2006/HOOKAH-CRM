@@ -2891,3 +2891,6 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 
 .custom-role-assignees{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.custom-role-assignees span,.custom-role-assignees small{padding:4px 8px;border-radius:999px;background:#252b35;color:#cfd5de;font-size:11px}
 
+
+.role-profile-empty{min-height:84px;display:grid;align-content:center;gap:5px;padding:14px;border:1px dashed #3a4350;border-radius:12px;color:#9da7b5}.role-profile-empty b{color:#f2f4f7;font-size:15px}.role-profile-empty p{margin:0;color:#cfd5de;line-height:1.5}.system-roles-head{margin-top:20px}
+
