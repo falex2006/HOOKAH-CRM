@@ -2926,3 +2926,7 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 @media(max-width:1180px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
 @media(max-width:900px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media(max-width:620px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:1fr!important}.velora-theme .staff-directory-only #staff-list .staff-row{min-height:520px!important}}
+/* Desktop emulator width: keep reference cards readable beside the sidebar */
+.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))!important}
+@media(max-width:1240px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(2,minmax(280px,1fr))!important}}
+@media(max-width:700px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:1fr!important}}
