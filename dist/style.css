@@ -3216,6 +3216,13 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .inventory-deletion-requests .section-title-row{align-items:flex-start}
 .inventory-deletion-requests:has(.error-message){padding:0;border:0;background:transparent}
 .inventory-deletion-requests:has(.error-message) .error-message{min-height:0;margin:0;padding:6px 10px;border:1px solid rgba(255,113,128,.28);border-radius:8px;background:rgba(100,34,45,.16);font-size:11px;line-height:1.35;text-align:right}
+/* Category editing is launched from cards that can be far down the directory.
+   Keep the editor in a predictable viewport-level dialog instead of forcing
+   the user to scroll to the end of the three-column hierarchy. */
+.velora-theme #product-category-form:not([hidden]){position:fixed;z-index:1002;top:50%;left:50%;width:min(620px,calc(100vw - 40px));max-height:min(680px,calc(100vh - 40px));overflow:auto;box-sizing:border-box;transform:translate(-50%,-50%);margin:0;padding:22px;border:1px solid #3b4655;border-radius:18px;background:linear-gradient(145deg,#1b2028,#12161c);box-shadow:0 28px 90px rgba(0,0,0,.62)}
+.velora-theme #product-category-form:not([hidden])::before{content:'Редактирование категории';display:block;margin:0 0 16px;color:#f3f5f7;font-size:20px;font-weight:750;line-height:1.2}
+.velora-theme #product-category-form:not([hidden]) .toolbar-row{margin-top:4px}
+.velora-theme:has(#product-category-form:not([hidden]))::after{content:'';position:fixed;z-index:1001;inset:0;background:rgba(4,7,11,.72);backdrop-filter:blur(3px);pointer-events:none}
 @media(max-width:720px){.inventory-directory-controls{align-items:flex-start;flex-direction:column}.inventory-directory-controls>.muted{max-width:60ch}.inventory-deletion-requests .toolbar-row{width:100%;justify-content:flex-start}}
 
 /* Desktop warehouse directories: keep the three hierarchy levels visible in
