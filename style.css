@@ -3271,6 +3271,7 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 @media(min-width:1001px){
   .velora-theme .inventory-page-title>.inventory-header-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;width:min(100%,590px);gap:8px}
   .velora-theme .inventory-page-title>.inventory-header-actions>.button{box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding-inline:8px;display:inline-flex;align-items:center;justify-content:center;overflow:visible;font-size:12px;letter-spacing:-.05px;white-space:nowrap}
+  .velora-theme .inventory-page-title>.inventory-header-actions>.button{height:56px;min-height:56px;margin:0;transform:none!important}
   .velora-theme .inventory-departments-panel{display:grid;grid-template-columns:minmax(220px,.9fr) minmax(220px,.9fr) minmax(300px,1.2fr);align-items:start;gap:0 16px;max-width:1180px;margin-inline:auto}
   .velora-theme .inventory-departments-panel>.panel-head,
   .velora-theme .inventory-departments-panel>.inventory-department-filter-label,
