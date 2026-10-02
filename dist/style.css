@@ -2445,7 +2445,8 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .finance-payables-totals small,.payable-amount span{color:#929ba7;font-size:12px}
 .finance-payables-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) minmax(170px,.45fr);gap:12px;align-items:end}
 .finance-payables-toolbar label{display:grid;gap:7px;color:#aab2bd;font-size:13px}
-.finance-payables-toolbar input,.finance-payables-toolbar select{width:100%;min-width:0}
+.finance-payables-toolbar input,.finance-payables-toolbar select{width:100%;min-width:0;box-sizing:border-box;height:42px;min-height:42px;padding:0 12px;border:1px solid #363b44;border-radius:10px;background:#111317;color:#eef1f3;font:500 13px/1.2 var(--font-ui);letter-spacing:0}
+.finance-payables-toolbar input:focus,.finance-payables-toolbar select:focus{outline:0;border-color:#ff6372;box-shadow:0 0 0 3px #ff63721c}
 .finance-expenses-filters{grid-template-columns:repeat(2,minmax(150px,1fr)) auto;margin:18px 0 12px}
 .finance-expenses-pagination{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px}
 .finance-payables-list{display:grid;gap:0}
