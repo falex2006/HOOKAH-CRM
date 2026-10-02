@@ -1801,7 +1801,14 @@ function setupVenueLayout() {
   });  load();
 }
 
+function disposeStaffDrawer() {
+  window.__closeStaffDrawer?.();
+  document.querySelectorAll('.staff-drawer').forEach((drawer) => drawer.remove());
+  window.__closeStaffDrawer = undefined;
+}
+
 function renderDashboard() {
+  disposeStaffDrawer();
   const target = document.querySelector('#page-content');
   if (!target) return;
   const canViewStaff = portalPermissions.has('staff_view');
@@ -1866,7 +1873,61 @@ function renderDashboard() {
 };  const loadShift = () => api('/api/shifts').then((data) => renderShift(data.current)).catch(() => { const title = document.querySelector('#shift-title'); if (title) title.textContent = 'Состояние смены недоступно'; }); if (target.querySelector('#shift-control')) loadShift();
   const canManageStaff = portalPermissions.has('staff_manage'); const canManageStaffPerson = (person) => portalUser.role === 'owner' || (portalUser.role === 'admin' && person.role !== 'owner') || (portalUser.role === 'manager' && !['owner','admin','developer'].includes(person.role));
   const staffActionMarkup = (person) => { if (person.role === 'owner' || !canManageStaffPerson(person)) return ''; if (!person.active) return canManageStaff ? `<button type="button" class="button small staff-restore" data-staff="${person.id}">Разблокировать</button>${portalUser.role === 'owner' ? `<button type="button" class="button small danger staff-archive" data-staff="${person.id}">Удалить из списка</button>` : ''}` : ''; if (!canManageStaff) return ''; return `<button type="button" class="icon-button staff-delete" data-staff="${person.id}" title="Заблокировать" aria-label="Заблокировать">${icon('x')}</button>`; };
-  let renderStaff = (items) => { const labels = { owner: 'Владелец заведения', admin: 'Администратор', manager: 'Управляющий', senior_bartender: 'Старший бармен', senior_hookah_master: 'Старший кальянщик', bartender: 'Бармен', hookah_master: 'Кальянщик', developer: 'Разработчик', cleaner: 'Уборщица / уборщик', security: 'Охрана', technician: 'Техник', other_staff: 'Другая должность' }; const list = document.querySelector('#staff-list'); if (!list) return; list.innerHTML = items.length ? items.map((person) => { const primary = (person.phoneNumbers || []).find((phone) => phone.primary) || (person.phoneNumbers || [])[0]; const contact = [primary?.number, person.telegram, person.employmentStartedAt ? `с ${formatRuDate(person.employmentStartedAt)}` : ''].filter(Boolean).join(' · '); return `<div class="staff-row ${person.active ? '' : 'inactive'}" data-role="${esc(person.role || '')}" data-name="${esc(person.name)}"><label class="staff-avatar">${(person.photoUrl || person.avatarUrl) ? `<img src="${person.photoUrl || person.avatarUrl}" alt="Фото ${esc(person.name)}">` : esc(person.name).slice(0, 1)}${canManageStaffPerson(person) ? `<input type="file" accept="image/png,image/jpeg,image/webp" data-avatar="${person.id}" hidden>` : ''}</label><div><b>${esc(person.name)}</b><small>${labels[person.role] || person.role}${contact ? ` · ${esc(contact)}` : ''}</small></div><span class="badge ${person.active ? 'success' : 'danger'}">${person.active ? 'Активен' : 'Заблокирован'}</span>${canManageStaffPerson(person) ? `<button type="button" class="button small staff-edit" data-staff="${person.id}" aria-label="Открыть и редактировать карточку ${esc(person.name)}" title="Открыть и редактировать карточку">${icon('edit')}<span>Карточка</span></button>` : ''}${staffActionMarkup(person)}</div>`; }).join('') : '<div class="empty">Сотрудники ещё не добавлены</div>'; };
+  const renderStaffLegacy = (items) => { const labels = { owner: 'Владелец заведения', admin: 'Администратор', manager: 'Управляющий', senior_bartender: 'Старший бармен', senior_hookah_master: 'Старший кальянщик', bartender: 'Бармен', hookah_master: 'Кальянщик', developer: 'Разработчик', cleaner: 'Уборщица / уборщик', security: 'Охрана', technician: 'Техник', other_staff: 'Другая должность' }; const list = document.querySelector('#staff-list'); if (!list) return; list.innerHTML = items.length ? items.map((person) => { const primary = (person.phoneNumbers || []).find((phone) => phone.primary) || (person.phoneNumbers || [])[0]; const phone = primary?.number || ''; const telegram = person.telegram || ''; const email = person.email || ''; const note = person.workNotes || ''; const started = person.employmentStartedAt ? `с ${formatRuDate(person.employmentStartedAt)}` : ''; return `<article class="staff-row ${person.active ? '' : 'inactive'}" data-role="${esc(person.role || '')}" data-name="${esc(person.name)}"><label class="staff-avatar">${person.role === 'owner' ? '<span class="staff-owner-mark" aria-label="Владелец">♛</span>' : ''}${(person.photoUrl || person.avatarUrl) ? `<img src="${esc(person.photoUrl || person.avatarUrl)}" alt="Фото ${esc(person.name)}">` : esc(person.name).slice(0, 1)}${canManageStaffPerson(person) ? `<input type="file" accept="image/png,image/jpeg,image/webp" data-avatar="${person.id}" hidden>` : ''}</label><div class="staff-identity"><b>${esc(person.name)}</b><small>${esc(labels[person.role] || person.role || 'Сотрудник')}</small></div><span class="badge ${person.active ? 'success' : 'danger'}">${person.active ? 'Активен' : 'Заблокирован'}</span><div class="staff-contacts">${phone ? `<span>${icon('phone')}${esc(phone)}</span>` : ''}${telegram ? `<span>${icon('send')}@${esc(String(telegram).replace(/^@/, ''))}</span>` : ''}${email ? `<span>${icon('mail')}${esc(email)}</span>` : ''}${started ? `<span>${esc(started)}</span>` : ''}${note ? `<blockquote>${esc(note)}</blockquote>` : ''}</div><div class="staff-actions">${canManageStaffPerson(person) ? `<button type="button" class="button primary staff-edit" data-staff="${person.id}" aria-label="Открыть и редактировать карточку ${esc(person.name)}" title="Открыть и редактировать карточку">${icon('edit')}<span>Карточка</span></button>` : ''}${staffActionMarkup(person)}</div></article>`; }).join('') : '<div class="empty">Сотрудники ещё не добавлены</div>'; };
+  // Catalog has its own visual contract; dashboard summaries keep the legacy row.
+  const staffCardIcon = (name) => {
+    const paths = {
+      phone: '<path d="M6 3h4l2 5-3 2a15 15 0 0 0 5 5l2-3 5 2v4a3 3 0 0 1-3 3C8 20 4 16 3 6a3 3 0 0 1 3-3Z"/>',
+      mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
+      telegram: '<path d="m3 10 18-7-4 18-6-7-8-4Z"/><path d="m11 14 5-6"/>',
+      file: '<path d="M14 3H6v18h12V7l-4-4Z"/><path d="M14 3v5h4M9 12h6M9 16h6"/>',
+      ban: '<circle cx="12" cy="12" r="9"/><path d="m6 6 12 12"/>',
+      crown: '<path d="m3 6 5 4 4-6 4 6 5-4-2 13H5L3 6Z"/>',
+      user: '<circle cx="12" cy="8" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/>',
+      plus: '<path d="M12 5v14M5 12h14"/>',
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.user}</svg>`;
+  };
+  let renderStaff = (items) => {
+    if (window.location.hash !== '#staff') { renderStaffLegacy(items); return; }
+    const list = document.querySelector('#staff-list');
+    if (!list) return;
+    const labels = { owner: 'Владелец', admin: 'Администратор', manager: 'Управляющий', senior_bartender: 'Старший бармен', senior_hookah_master: 'Старший кальянщик', bartender: 'Бармен', hookah_master: 'Кальянный мастер', developer: 'Разработчик', cleaner: 'Уборщик', security: 'Охрана', technician: 'Техник', other_staff: 'Сотрудник' };
+    list.innerHTML = items.length ? items.map(person => {
+      const id = esc(person.id);
+      const name = esc(person.name || 'Сотрудник');
+      const phone = ((person.phoneNumbers || []).find(entry => entry.primary) || person.phoneNumbers?.[0])?.number;
+      const email = person.email || '';
+      const telegram = String(person.telegram || '').replace(/^https:\/\/t\.me\//, '').replace(/^@/, '').replace(/\/$/, '');
+      const photo = String(person.photoUrl || person.avatarUrl || '');
+      const photoSafe = /^(?:data:image\/(?:png|jpe?g|webp);base64,|https?:\/\/|\/(?!\/))/.test(photo);
+      const canEdit = canManageStaffPerson(person);
+      const canBlock = canManageStaff && canEdit && person.role !== 'owner' && String(person.id) !== String(portalUser.id);
+      const contacts = [
+        phone ? `<span>${staffCardIcon('phone')}<span>${esc(phone)}</span></span>` : '',
+        email ? `<span>${staffCardIcon('mail')}<span>${esc(email)}</span></span>` : '',
+        telegram ? `<span>${staffCardIcon('telegram')}<span>@${esc(telegram)}</span></span>` : '',
+      ].filter(Boolean).join('');
+      return `<article class="staff-card${person.active ? '' : ' inactive'}" data-role="${esc(person.role || '')}" data-name="${name}">
+        <div class="staff-card-portrait">
+          <label class="staff-card-avatar${photoSafe ? '' : ' is-placeholder'}" title="${canEdit ? 'Изменить фото сотрудника' : name}">
+            ${photoSafe ? `<img src="${esc(photo)}" alt="Фото ${name}">` : staffCardIcon('user')}
+            ${canEdit ? `<input type="file" accept="image/png,image/jpeg,image/webp" data-avatar="${id}" aria-label="Изменить фото ${name}">` : ''}
+          </label>
+          ${person.role === 'owner' ? `<span class="staff-card-owner" title="Владелец заведения" aria-label="Владелец заведения">${staffCardIcon('crown')}</span>` : ''}
+        </div>
+        <span class="staff-card-status ${person.active ? 'active' : 'inactive'}">${person.active ? 'Активен' : 'Заблокирован'}</span>
+        <div class="staff-card-identity"><h3>${name}</h3><p>${esc(labels[person.role] || person.role)}</p></div>
+        <div class="staff-card-contacts">${contacts || '<span class="staff-card-contact-empty">Контакты не указаны</span>'}</div>
+        ${person.workNotes ? `<p class="staff-card-note">${esc(person.workNotes)}</p>` : '<p class="staff-card-note" aria-hidden="true"></p>'}
+        <div class="staff-card-actions">
+          ${canEdit ? `<button type="button" class="staff-edit staff-card-primary" data-staff="${id}" aria-label="Открыть и редактировать карточку ${name}">${staffCardIcon('file')}<span>Карточка</span></button>` : ''}
+          ${canBlock ? person.active ? `<button type="button" class="staff-delete staff-card-secondary" data-staff="${id}">${staffCardIcon('ban')}<span>Заблокировать</span></button>` : `<button type="button" class="staff-restore staff-card-secondary" data-staff="${id}">Разблокировать</button>${portalUser.role === 'owner' ? `<button type="button" class="staff-archive staff-card-secondary" data-staff="${id}">Удалить из списка</button>` : ''}` : '<span class="staff-card-action-spacer" aria-hidden="true"></span>'}
+        </div>
+      </article>`;
+    }).join('') : '<div class="empty">Сотрудники ещё не добавлены</div>';
+  };
+
   const originalRenderStaff = renderStaff; renderStaff = (items) => { originalRenderStaff(items); const badge = document.querySelector('[data-metric="staffActive"]'); if (badge) badge.textContent = formatActiveStaffCount(items.filter((person) => person.active).length); };
   const staffForm = document.querySelector('#staff-form');
   const roleSelect = document.querySelector('#staff-role');
@@ -1908,7 +1969,9 @@ function renderDashboard() {
     };
     try { reader.readAsDataURL(file); } catch (_) { reader.onerror(); }
   }); const syncStaffRole = () => { const nonCrm = nonCrmStaffRoles.includes(roleSelect?.value); ['#staff-login','#staff-password'].forEach((selector) => { const node = document.querySelector(selector); const label = node?.closest('label'); if (label) label.hidden = Boolean(nonCrm); if (node) { node.required = !nonCrm && selector === '#staff-password'; if (nonCrm) node.value = ''; } }); const hint = document.querySelector('#staff-role-hint'); if (hint) hint.textContent = nonCrm ? 'CRM-доступ, логин и пароль не создаются. Сохраняется только кадровая карточка.' : 'Сотрудник сможет входить в CRM согласно назначенной роли.'; }; roleSelect?.addEventListener('change', syncStaffRole); syncStaffRole(); if (!['#staff', '#permissions'].includes(window.location.hash)) { staffForm?.remove(); document.querySelector('#staff')?.classList.add('staff-summary'); } else if (staffForm && !canManageStaff) { staffForm.hidden = true; staffForm.setAttribute('aria-hidden', 'true'); const note = document.createElement('div'); note.className = 'staff-readonly-note'; note.innerHTML = '<b>Режим просмотра команды</b><small>Кадровые изменения доступны владельцу и администратору.</small>'; staffForm.parentElement?.append(note); }
+  target.classList.toggle('staff-catalog-page', window.location.hash === '#staff');
   const staffPanel = document.querySelector('#staff');
+  staffPanel?.classList.toggle('staff-catalog', window.location.hash === '#staff');
   const staffHead = staffPanel?.querySelector('.panel-head');
   const staffList = document.querySelector('#staff-list');
   if (staffPanel && staffHead && staffList) {
@@ -1954,7 +2017,7 @@ function renderDashboard() {
         drawer.querySelectorAll('[data-staff-drawer-close]').forEach((node) => node.addEventListener('click', closeDrawer));
       }
     }
-    const filterRenderedStaff = () => { const query = String(document.querySelector('#staff-search')?.value || '').trim().toLocaleLowerCase('ru-RU'); const role = document.querySelector('#staff-role-filter')?.value || ''; const status = document.querySelector('#staff-status-filter')?.value || ''; staffList.querySelectorAll('.staff-row').forEach((row) => { const text = row.textContent.toLocaleLowerCase('ru-RU'); const roleMatch = !role || row.dataset.role === role; const statusMatch = !status || (status === 'active' ? row.classList.contains('inactive') === false : row.classList.contains('inactive')); row.hidden = Boolean((query && !text.includes(query)) || !roleMatch || !statusMatch); }); };
+    const filterRenderedStaff = () => { const query = String(document.querySelector('#staff-search')?.value || '').trim().toLocaleLowerCase('ru-RU'); const role = document.querySelector('#staff-role-filter')?.value || ''; const status = document.querySelector('#staff-status-filter')?.value || ''; staffList.querySelectorAll('.staff-card, .staff-row').forEach((row) => { const text = row.textContent.toLocaleLowerCase('ru-RU'); const roleMatch = !role || row.dataset.role === role; const statusMatch = !status || (status === 'active' ? row.classList.contains('inactive') === false : row.classList.contains('inactive')); row.hidden = Boolean((query && !text.includes(query)) || !roleMatch || !statusMatch); }); };
     renderStaff = ((base) => (items) => { base(items); filterRenderedStaff(); })(renderStaff);
     ['staff-search','staff-role-filter','staff-status-filter'].forEach((id) => document.querySelector(`#${id}`)?.addEventListener('input', filterRenderedStaff));
     ['staff-role-filter','staff-status-filter'].forEach((id) => document.querySelector(`#${id}`)?.addEventListener('change', filterRenderedStaff));
@@ -2412,6 +2475,11 @@ function renderDashboard() {
       staffPanel?.querySelector('.staff-layout')?.removeAttribute('hidden');
       staffPanel?.querySelector('.staff-list-tools')?.removeAttribute('hidden'); staffPanel?.querySelector('[data-metric="staffActive"]')?.removeAttribute('hidden');
       staffAddButton?.removeAttribute('hidden');
+      const heading = target.querySelector('.page-title');
+      heading?.classList.add('staff-catalog-heading');
+      if (staffAddButton && heading) heading.append(staffAddButton);
+      const search = staffPanel?.querySelector('#staff-search');
+      if (search) search.placeholder = 'Поиск по имени, должности или телефону…';
       staffForm?.querySelector('b')?.replaceChildren(document.createTextNode('Добавить сотрудника'));
       staffPanel?.querySelector('[data-permissions-intro]')?.remove();
       setDashboardPanelVisibility('#diagnostics', false);
@@ -2471,6 +2539,8 @@ function renderDashboard() {
     setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #company', false);
   }
   const dashboardHashChangeHandler = () => {
+    disposeStaffDrawer();
+    target.classList.toggle('staff-catalog-page', window.location.hash === '#staff');
     normalizeManagementSidebar();
     if (page === 'dashboard') {
       if (window.location.hash === '#tasks') renderTasks();

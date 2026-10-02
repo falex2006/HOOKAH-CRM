@@ -56,12 +56,12 @@ try {
   await page.setViewportSize({ width: 320, height: 800 });
   await page.waitForTimeout(5500);
   await page.locator('#staff').screenshot({ path: path.join(screenshotDir, 'staff-load-error-320.png') });
-  assert.equal(await page.locator('#staff-list .staff-row').count(), 0);
+  assert.equal(await page.locator('#staff-list .staff-card').count(), 0);
   assert.equal(await page.locator('[data-metric="staffActive"]').textContent(), '—');
   mode = 'success';
   await page.locator('.staff-list-retry').click();
-  await page.locator('#staff-list .staff-row').getByText('Тестовый сотрудник').waitFor();
-  assert.equal(await page.locator('#staff-list .staff-row').count(), 1);
+  await page.locator('#staff-list .staff-card').getByText('Тестовый сотрудник').waitFor();
+  assert.equal(await page.locator('#staff-list .staff-card').count(), 1);
   assert.equal(await page.locator('#staff-list .staff-list-retry').count(), 0);
   mode = 'post-get-error';
   await page.locator('.staff-add-button').click();
@@ -72,10 +72,10 @@ try {
   await page.locator('#staff-list .staff-list-retry').waitFor();
   assert.equal(postCount, 1);
   assert.equal(await page.locator('#staff-message').textContent(), 'Сотрудник создан');
-  assert.equal(await page.locator('#staff-list .staff-row').count(), 0);
+  assert.equal(await page.locator('#staff-list .staff-card').count(), 0);
   mode = 'success';
   await page.locator('.staff-list-retry').click();
-  await page.locator('#staff-list .staff-row').getByText('Тестовый сотрудник').waitFor();
+  await page.locator('#staff-list .staff-card').getByText('Тестовый сотрудник').waitFor();
   for (const width of [320, 375, 768, 1440]) {
     await page.setViewportSize({ width, height: 800 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1 || document.querySelector('.portal-main').scrollWidth > document.querySelector('.portal-main').clientWidth + 1), false, `staff directory overflow at ${width}px`);
@@ -86,7 +86,7 @@ try {
   await page.evaluate(() => { void window.__refreshStaffList(); });
   await delayedSeen;
   await page.evaluate(() => { void window.__refreshStaffList(); });
-  await page.locator('#staff-list .staff-row').getByText('Свежий сотрудник').waitFor();
+  await page.locator('#staff-list .staff-card').getByText('Свежий сотрудник').waitFor();
   await delayedRoute.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [{ id: 'qa-old', name: 'Устаревший сотрудник', role: 'bartender', active: true }] }) });
   await page.waitForTimeout(100);
   assert.equal(await page.locator('#staff-list').getByText('Устаревший сотрудник').count(), 0);

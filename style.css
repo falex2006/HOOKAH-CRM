@@ -1214,7 +1214,7 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 .velora-theme .staff-admin-phone-row>.staff-admin-phone-remove:hover,.velora-theme .staff-phone-row__remove:hover{background:#47242d;border-color:#ff687d;color:#fff}
 .velora-theme .staff-admin-phone-row>.staff-admin-phone-remove .icon,.velora-theme .staff-phone-row__remove .icon{width:15px;height:15px}
 @media(max-width:640px){.velora-theme .staff-admin-phone-row,.velora-theme .staff-phone-row{grid-template-columns:minmax(105px,1fr) minmax(0,1.5fr) 34px;gap:7px}.velora-theme .staff-admin-phone-row label,.velora-theme .staff-phone-row label{grid-column:1/3;grid-row:2;height:28px}.velora-theme .staff-admin-phone-row>.staff-admin-phone-remove,.velora-theme .staff-phone-row__remove{grid-column:3;grid-row:2;justify-self:end}}
-@media(max-width:360px){.velora-theme .staff-admin-phone-row{grid-template-columns:minmax(0,1fr) 34px}.velora-theme .staff-admin-phone-row>.custom-select{grid-column:1;grid-row:1}.velora-theme .staff-admin-phone-row>input[type=tel]{grid-column:1;grid-row:2;width:100%;min-width:0}.velora-theme .staff-admin-phone-row>label{grid-column:1;grid-row:3}.velora-theme .staff-admin-phone-row>button{grid-column:2;grid-row:3}.velora-theme .staff-admin-phone-row .custom-select-trigger{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media(max-width:360px){.velora-theme .staff-admin-phone-row{grid-template-columns:minmax(0,1fr) 34px}.velora-theme .staff-admin-phone-row>.custom-select{grid-column:1 / -1;grid-row:1}.velora-theme .staff-admin-phone-row>input[type=tel]{grid-column:1 / -1;grid-row:2;width:100%;min-width:0}.velora-theme .staff-admin-phone-row>label{grid-column:1;grid-row:3}.velora-theme .staff-admin-phone-row>button{grid-column:2;grid-row:3}.velora-theme .staff-admin-phone-row .custom-select-trigger{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 
 /* Responsive layout: desktop, tablets, phones and foldable screens. */
 @media (min-width:1800px){
@@ -2879,63 +2879,272 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 
 .staff-permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.staff-permission-option{display:flex;align-items:center;gap:9px;padding:10px 11px;border:1px solid #363b44;border-radius:10px;color:#c9ced6;cursor:pointer;transition:border-color .18s ease,background .18s ease,transform .18s ease}.staff-permission-option:hover{border-color:#ff7180;background:#252932;transform:translateY(-1px)}.staff-permission-option input{accent-color:#ff7180}.staff-permission-option:has(input:checked){border-color:#ff7180;background:#2b2329;color:#fff}.portal.light-theme .staff-permission-option{border-color:#c9d1dc;color:#425164}.portal.light-theme .staff-permission-option:hover{background:#fff1f2}.portal.light-theme .staff-permission-option:has(input:checked){background:#fff1f2}@media(max-width:640px){.staff-permission-grid{grid-template-columns:1fr}}
 .custom-roles-panel{margin-top:16px}.custom-role-list{display:grid;gap:10px}.custom-role-row{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:14px 16px;border:1px solid var(--line,#2a3342);border-radius:14px;background:rgba(18,25,36,.72)}.custom-role-row>div:first-child{display:grid;gap:4px}.custom-role-row small{color:var(--muted,#8f9bad)}.custom-role-actions{display:flex;gap:8px;flex-wrap:wrap}.custom-role-actions .danger{color:#ff8d98}@media(max-width:760px){.custom-role-row{align-items:flex-start;flex-direction:column}.custom-role-actions{width:100%}.custom-role-actions button{flex:1}}
-.velora-theme .staff-directory-only .staff-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px}.velora-theme .staff-directory-only .staff-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px;min-height:96px;padding:16px;border:1px solid #2b313c;border-radius:14px;background:linear-gradient(145deg,#171b22,#13161c);transition:border-color .18s ease,transform .18s ease,background .18s ease}.velora-theme .staff-directory-only .staff-row:hover{border-color:#596170;background:#1b2028;transform:translateY(-1px)}.velora-theme .staff-directory-only .staff-row .staff-avatar{width:52px;height:52px;font-size:20px}.velora-theme .staff-directory-only .staff-row>div{min-width:0}.velora-theme .staff-directory-only .staff-row b{display:block;font-size:15px;line-height:1.25}.velora-theme .staff-directory-only .staff-row small{line-height:1.45;color:#9da7b5}.velora-theme .staff-directory-only .staff-row .badge{grid-column:2;justify-self:start;margin-top:-5px}.velora-theme .staff-directory-only .staff-row .staff-edit,.velora-theme .staff-directory-only .staff-row .staff-delete,.velora-theme .staff-directory-only .staff-row .staff-restore,.velora-theme .staff-directory-only .staff-row .staff-archive{grid-column:3;grid-row:1 / span 2}.velora-theme .staff-directory-only .staff-row .staff-delete,.velora-theme .staff-directory-only .staff-row .staff-restore,.velora-theme .staff-directory-only .staff-row .staff-archive{margin-left:0}.velora-theme .staff-directory-only .staff-list-tools{grid-column:1/-1}@media(max-width:720px){.velora-theme .staff-directory-only .staff-list{grid-template-columns:1fr}.velora-theme .staff-directory-only .staff-row{grid-template-columns:auto minmax(0,1fr);}.velora-theme .staff-directory-only .staff-row .badge{grid-column:2}.velora-theme .staff-directory-only .staff-row .staff-edit,.velora-theme .staff-directory-only .staff-row .staff-delete,.velora-theme .staff-directory-only .staff-row .staff-restore,.velora-theme .staff-directory-only .staff-row .staff-archive{grid-column:2;grid-row:auto;justify-self:start}}
 .custom-roles-columns{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr);gap:18px}.custom-roles-columns>section{padding:18px;border:1px solid #2b313c;border-radius:16px;background:rgba(18,25,36,.6)}.system-role-list{display:grid;gap:9px}.system-role-list>div{display:grid;grid-template-columns:1fr auto;gap:3px 12px;padding:12px 14px;border:1px solid #303744;border-radius:12px;background:#151a22}.system-role-list small{color:#9da7b5}.system-role-list span{grid-column:2;grid-row:1 / span 2;align-self:center;opacity:.75}@media(max-width:900px){.custom-roles-columns{grid-template-columns:1fr}}
 .custom-role-editor{display:grid;place-items:center;padding:20px}.custom-role-editor-box{width:min(620px,100%);max-height:90vh;overflow:auto;display:grid;gap:14px;padding:24px;border:1px solid #3b424d;border-radius:18px;background:#171b22;box-shadow:0 24px 80px rgba(0,0,0,.55)}.custom-role-editor-box>label{display:grid;gap:7px;color:#dbe1e9}.custom-role-editor-box input,.custom-role-editor-box textarea{width:100%;box-sizing:border-box;border:1px solid #363b44;border-radius:10px;background:#111317;color:#f5f7fa;padding:11px;font:inherit}.custom-role-editor-box fieldset{border:1px solid #303744;border-radius:12px;padding:14px}.custom-role-editor-box legend{padding:0 6px;color:#dbe1e9}.custom-role-preview{padding:14px;border:1px solid rgba(255,126,93,.35);border-radius:12px;background:rgba(255,111,91,.08)}.custom-role-preview p{margin:5px 0 0;color:#9da7b5}
 .custom-role-assignees{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.custom-role-assignees span,.custom-role-assignees small{padding:4px 8px;border-radius:999px;background:#252b35;color:#cfd5de;font-size:11px}
 .role-profile-empty{min-height:84px;display:grid;align-content:center;gap:5px;padding:14px;border:1px dashed #3a4350;border-radius:12px;color:#9da7b5}.role-profile-empty b{color:#f2f4f7;font-size:15px}.role-profile-empty p{margin:0;color:#cfd5de;line-height:1.5}.system-roles-head{margin-top:20px}
-.velora-theme .staff-directory-only .staff-list{grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}.velora-theme .staff-directory-only .staff-row{display:grid;grid-template-columns:1fr;grid-template-rows:auto auto auto auto auto;justify-items:center;align-content:start;text-align:center;gap:10px;min-height:420px;padding:20px 18px;border:1px solid #293340;border-radius:16px;background:linear-gradient(160deg,#151d28,#10151d);box-shadow:0 12px 30px rgba(0,0,0,.18);transition:border-color .2s ease,background .2s ease,transform .2s ease,box-shadow .2s ease}.velora-theme .staff-directory-only .staff-row:hover{border-color:#ff7b72;background:linear-gradient(160deg,#1b2430,#141a23);transform:translateY(-2px);box-shadow:0 16px 34px rgba(0,0,0,.28)}.velora-theme .staff-directory-only .staff-row .staff-avatar{width:132px;height:132px;border-radius:50%;font-size:38px;margin:2px auto 2px;border:2px solid #435263;overflow:hidden}.velora-theme .staff-directory-only .staff-row .staff-avatar img{width:100%;height:100%;object-fit:cover}.velora-theme .staff-directory-only .staff-row>div{width:100%;min-width:0}.velora-theme .staff-directory-only .staff-row b{display:block;font-size:16px;line-height:1.3;white-space:normal}.velora-theme .staff-directory-only .staff-row small{display:block;margin-top:6px;line-height:1.45;color:#ff9a78}.velora-theme .staff-directory-only .staff-row .badge{grid-column:auto;justify-self:center;margin:0}.velora-theme .staff-directory-only .staff-row .staff-edit{grid-column:auto;grid-row:auto;width:100%;justify-content:center;margin-top:auto}.velora-theme .staff-directory-only .staff-row .staff-delete,.velora-theme .staff-directory-only .staff-row .staff-restore,.velora-theme .staff-directory-only .staff-row .staff-archive{grid-column:auto;grid-row:auto;width:100%;justify-content:center;margin:0}.velora-theme .staff-directory-only .staff-row .staff-action-group{width:100%}@media(max-width:720px){.velora-theme .staff-directory-only .staff-list{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}.velora-theme .staff-directory-only .staff-row{min-height:390px}}
-/* Personnel visual reference: force a stable vertical card composition */
-.velora-theme .staff-directory-only #staff-list{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px!important;align-items:stretch}
-.velora-theme .staff-directory-only #staff-list .staff-row{display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto auto auto auto 1fr auto!important;grid-template-areas:"avatar" "identity" "status" "contact" "spacer" "actions"!important;justify-items:center!important;align-items:start!important;text-align:center!important;min-width:0!important;min-height:560px!important;padding:18px!important;gap:10px!important;border:1px solid #293340!important;border-radius:16px!important;background:linear-gradient(160deg,#151d28,#10151d)!important;overflow:hidden}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-avatar{grid-area:avatar!important;width:196px!important;height:196px!important;min-width:196px!important;min-height:196px!important;margin:0 auto 4px!important;border-radius:50%!important;border:2px solid #435263!important;flex:none!important}
-.velora-theme .staff-directory-only #staff-list .staff-row>div{grid-area:identity!important;width:100%!important;min-width:0!important;display:block!important}
-.velora-theme .staff-directory-only #staff-list .staff-row>div b{display:block!important;font-size:18px!important;line-height:1.3!important;white-space:normal!important;overflow-wrap:anywhere!important}
-.velora-theme .staff-directory-only #staff-list .staff-row>div small{display:block!important;margin-top:7px!important;color:#ff9a78!important;white-space:normal!important;overflow-wrap:anywhere!important}
-.velora-theme .staff-directory-only #staff-list .staff-row>.badge{grid-area:status!important;justify-self:center!important;align-self:start!important;margin:0!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-edit,.velora-theme .staff-directory-only #staff-list .staff-row .staff-delete,.velora-theme .staff-directory-only #staff-list .staff-row .staff-restore,.velora-theme .staff-directory-only #staff-list .staff-row .staff-archive{grid-area:actions!important;width:100%!important;min-width:0!important;justify-content:center!important;align-self:end!important;margin:0!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-action-group{grid-area:actions!important;width:100%!important}
-@media(max-width:1100px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-@media(max-width:680px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:1fr!important}.velora-theme .staff-directory-only #staff-list .staff-row{min-height:500px!important}.velora-theme .staff-directory-only #staff-list .staff-row .staff-avatar{width:156px!important;height:156px!important;min-width:156px!important;min-height:156px!important}}
-/* Reference-level staff card visual system */
-.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:16px!important}
-.velora-theme .staff-directory-only #staff-list .staff-row{grid-template-areas:"avatar" "identity" "status" "contacts" "actions"!important;grid-template-rows:auto auto auto 1fr auto!important;min-height:600px!important;padding:18px 18px 20px!important;background:linear-gradient(145deg,#15202d 0%,#101722 100%)!important;border:1px solid #263548!important;box-shadow:0 12px 28px rgba(0,0,0,.22)!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-identity{grid-area:identity!important;width:100%!important;display:grid!important;gap:5px!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-identity b{font-size:18px!important;font-weight:750!important;color:#f4f6fa!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-identity small{font-size:15px!important;color:#ff9a78!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-contacts{grid-area:contacts!important;width:100%!important;display:grid!important;gap:9px!important;align-content:start!important;justify-items:start!important;text-align:left!important;color:#aebbd0!important;font-size:14px!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-contacts span{display:flex!important;align-items:center!important;gap:9px!important;min-width:0!important;overflow-wrap:anywhere!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-contacts .icon{width:17px!important;height:17px!important;color:#bac8da!important;flex:0 0 auto!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-actions{grid-area:actions!important;width:100%!important;display:grid!important;grid-template-columns:1fr!important;gap:10px!important;align-self:end!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-actions .staff-edit{width:100%!important;min-height:44px!important;border:0!important;border-radius:10px!important;background:linear-gradient(100deg,#ff496a,#ff963f)!important;color:#fff!important;box-shadow:0 8px 18px rgba(255,91,88,.22)!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-actions .staff-delete{width:100%!important;min-height:44px!important;border:1px solid #69788b!important;border-radius:10px!important;background:transparent!important;color:#bdc8d8!important;font-size:14px!important}
-.velora-theme .staff-directory-only #staff-list .staff-row .staff-actions .staff-delete:hover{border-color:#ff8290!important;color:#fff!important;background:#47242d!important}
-.velora-theme .staff-directory-only #staff-list .staff-row:hover{transform:translateY(-3px)!important;border-color:#ff7b72!important;box-shadow:0 18px 38px rgba(0,0,0,.32)!important}
-@media(max-width:1180px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
-@media(max-width:900px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-@media(max-width:620px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:1fr!important}.velora-theme .staff-directory-only #staff-list .staff-row{min-height:520px!important}}
-/* Desktop emulator width: keep reference cards readable beside the sidebar */
-.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))!important}
-@media(max-width:1240px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(2,minmax(280px,1fr))!important}}
-@media(max-width:700px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:1fr!important}}
-/* Directory mode must use the full content width; the old form column is moved to a drawer */
-.velora-theme .staff-directory-only .staff-layout{display:block!important;grid-template-columns:1fr!important}
-.velora-theme .staff-directory-only .staff-list{width:100%!important;max-width:none!important}
-/* Isolated reference component: staff cards no longer inherit legacy row layout */
-.velora-theme .staff-directory-only #staff-list{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))!important;gap:16px!important}
-.velora-theme .staff-directory-only #staff-list .staff-card{display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto auto auto 1fr auto!important;grid-template-areas:"avatar" "identity" "status" "contacts" "actions"!important;align-items:start!important;justify-items:center!important;min-width:0!important;min-height:590px!important;padding:18px!important;border:1px solid #29394c!important;border-radius:16px!important;background:linear-gradient(145deg,#152131,#0f1722)!important;box-shadow:0 16px 32px rgba(0,0,0,.24)!important;transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease!important}
-.velora-theme .staff-directory-only #staff-list .staff-card:hover{transform:translateY(-4px)!important;border-color:#ff765f!important;box-shadow:0 22px 42px rgba(0,0,0,.32)!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-avatar{grid-area:avatar!important;width:190px!important;height:190px!important;margin:0 auto 5px!important;border:2px solid #56677d!important;border-radius:50%!important;background:#2a3347!important;box-shadow:0 0 0 6px rgba(255,255,255,.025)!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-identity{grid-area:identity!important;width:100%!important;display:grid!important;gap:5px!important;text-align:center!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-identity b{font-size:18px!important;line-height:1.3!important;color:#f4f6fa!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-identity small{font-size:15px!important;color:#ff9a78!important}
-.velora-theme .staff-directory-only #staff-list .staff-card>.badge{grid-area:status!important;justify-self:center!important;margin:0!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-contacts{grid-area:contacts!important;width:100%!important;display:grid!important;gap:9px!important;align-content:start!important;color:#abb9cc!important;font-size:14px!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-contacts span{display:flex!important;gap:9px!important;align-items:center!important;overflow-wrap:anywhere!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-actions{grid-area:actions!important;width:100%!important;display:grid!important;gap:10px!important;align-self:end!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-actions .staff-edit{width:100%!important;min-height:44px!important;border:0!important;border-radius:10px!important;background:linear-gradient(100deg,#ff496a,#ff963f)!important;color:#fff!important;box-shadow:0 8px 18px rgba(255,91,88,.22)!important}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-actions .staff-delete{width:100%!important;min-height:44px!important;border:1px solid #728196!important;border-radius:10px!important;background:transparent!important;color:#c2cbda!important}
-@media(max-width:700px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:1fr!important}.velora-theme .staff-directory-only #staff-list .staff-card{min-height:520px!important}}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-owner-mark{position:absolute;top:12px;right:12px;width:38px;height:38px;border:2px solid #ff963f;border-radius:50%;display:grid;place-items:center;background:#182333;color:#ffb15d;font-size:20px;z-index:2}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-contacts blockquote{margin:4px 0 0;padding:8px 10px;border-left:2px solid #ff7b72;color:#8f9eb2;font-style:italic;line-height:1.4}
-.velora-theme .staff-directory-only #staff-list .staff-card .staff-contacts .icon{width:16px;height:16px;color:#b9c7d9;flex:0 0 auto}
+
+/* Hookah POS personnel catalog
+   Isolated reference-level visual system. Apply only to #staff.portal.velora-theme .staff-catalog. */
+.portal.velora-theme .staff-catalog-page, .portal.velora-theme .staff-catalog {
+  --staff-bg: #0c121b;
+  --staff-card: #121c27;
+  --staff-card-deep: #0f1823;
+  --staff-border: #22303f;
+  --staff-border-soft: #2b3a4c;
+  --staff-text: #f4f6fa;
+  --staff-muted: #9bacc6;
+  --staff-orange: #ff913e;
+  --staff-pink: #ff505b;
+  --staff-green: #28e09c;
+  --staff-content-max: 1280px;
+  background: var(--staff-bg);
+  color: var(--staff-text);
+}
+
+.portal.velora-theme .staff-catalog-page {
+  position: relative;
+  display: block;
+  gap: 28px;
+  width: 100%;
+  max-width: none;
+  margin-inline: auto;
+  padding: 38px clamp(22px, 3vw, 48px) 48px;
+  box-sizing: border-box;
+}
+
+.portal.velora-theme .staff-catalog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+  margin: 0;
+}
+
+.portal.velora-theme .staff-catalog-heading h1 {
+  margin: 0;
+  color: var(--staff-text);
+  font-size: clamp(34px, 3.3vw, 52px);
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.portal.velora-theme .staff-catalog-heading p {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: var(--staff-muted);
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.portal.velora-theme .staff-catalog-heading .staff-add-button {
+  flex: 0 0 auto;
+  min-height: 54px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 11px;
+  background: linear-gradient(110deg, var(--staff-pink), var(--staff-orange));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 750;
+  box-shadow: 0 12px 28px rgba(255, 91, 91, .2);
+}
+
+.portal.velora-theme .staff-catalog .panel-head { display: none; }
+
+.portal.velora-theme .staff-catalog .staff-layout {
+  display: block;
+  min-width: 0;
+}
+
+.portal.velora-theme .staff-catalog .staff-list-tools {
+  display: grid;
+  grid-template-columns: minmax(280px, 2fr) repeat(2, minmax(180px, 1fr));
+  gap: 14px;
+  width: 100%;
+  max-width: none;
+  margin: 0 0 28px;
+}
+
+.portal.velora-theme .staff-catalog .staff-list-tools input,
+.portal.velora-theme .staff-catalog .staff-list-tools select,
+.portal.velora-theme .staff-catalog .staff-list-tools .custom-select-trigger {
+  width: 100%;
+  min-height: 52px;
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+  border: 1px solid var(--staff-border);
+  border-radius: 11px;
+  background: #101923;
+  color: var(--staff-text);
+  padding: 0 16px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.portal.velora-theme .staff-catalog #staff-search {
+  padding-left: 48px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239bacc6' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='m16 16 5 5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 16px center;
+  background-size: 20px;
+}
+
+.portal.velora-theme .staff-catalog #staff-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.portal.velora-theme .staff-catalog #staff-list .staff-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  min-height: 605px;
+  padding: 18px 18px 20px;
+  box-sizing: border-box;
+  border: 1px solid var(--staff-border);
+  border-radius: 14px;
+  background: linear-gradient(155deg, var(--staff-card) 0%, var(--staff-card-deep) 100%);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .22);
+  transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease, background .22s ease;
+}
+
+.portal.velora-theme .staff-catalog #staff-list .staff-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 145, 62, .72);
+  background: linear-gradient(155deg, #172433 0%, #101a26 100%);
+  box-shadow: 0 22px 42px rgba(0, 0, 0, .32);
+}
+
+.portal.velora-theme .staff-catalog .staff-card-portrait {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 218px;
+  margin-bottom: 12px;
+}
+
+.portal.velora-theme .staff-catalog .staff-card-avatar {
+  display: grid;
+  place-items: center;
+  width: min(210px, 100%);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid #53677f;
+  border-radius: 50%;
+  background: #293548;
+  color: var(--staff-pink);
+  font-size: 52px;
+  font-weight: 750;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, .025);
+  cursor: pointer;
+}
+
+.portal.velora-theme .staff-catalog .staff-card-avatar img,
+.portal.velora-theme .staff-catalog .staff-card-avatar svg.user {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.portal.velora-theme .staff-catalog .staff-card-owner {
+  position: absolute;
+  right: calc(50% - 112px);
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--staff-orange);
+  border-radius: 50%;
+  background: #1e2631;
+  color: var(--staff-orange);
+}
+
+.portal.velora-theme .staff-catalog .staff-card-owner svg { width: 22px; height: 22px; }
+
+.portal.velora-theme .staff-catalog .staff-card-status {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  margin: 0 0 12px;
+  padding: 0 13px;
+  border-radius: 999px;
+  background: rgba(20, 104, 78, .72);
+  color: var(--staff-green);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.portal.velora-theme .staff-catalog .staff-card-status::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.portal.velora-theme .staff-catalog .staff-card-status.inactive {
+  background: rgba(112, 42, 53, .72);
+  color: #ff8794;
+}
+
+.portal.velora-theme .staff-catalog .staff-card-identity { text-align: center; }
+.portal.velora-theme .staff-catalog .staff-card-identity h3 { margin: 0; color: var(--staff-text); font-size: 18px; line-height: 1.3; font-weight: 750; }
+.portal.velora-theme .staff-catalog .staff-card-identity p { margin: 7px 0 0; color: var(--staff-orange); font-size: 15px; line-height: 1.3; font-weight: 700; }
+
+.portal.velora-theme .staff-catalog .staff-card-contacts {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  margin-top: 22px;
+  color: var(--staff-muted);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.portal.velora-theme .staff-catalog .staff-card-contacts a,
+.portal.velora-theme .staff-catalog .staff-card-contacts span { display: flex; align-items: center; gap: 10px; min-width: 0; overflow-wrap: anywhere; color: inherit; text-decoration: none; }
+.portal.velora-theme .staff-catalog .staff-card-contacts svg { flex: 0 0 auto; width: 18px; height: 18px; color: #b9c7da; }
+.portal.velora-theme .staff-catalog .staff-card-note { margin: auto 0 18px; color: var(--staff-muted); font-size: 14px; font-style: normal; line-height: 1.45; text-align: center; }
+
+.portal.velora-theme .staff-catalog .staff-card-actions { display: grid; gap: 10px; width: 100%; }
+.portal.velora-theme .staff-catalog .staff-card-actions button { width: 100%; min-height: 44px; border-radius: 10px; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.portal.velora-theme .staff-catalog .staff-card-actions .staff-card-primary { border: 0; background: linear-gradient(105deg, var(--staff-pink), var(--staff-orange)); color: #fff; box-shadow: 0 8px 18px rgba(255, 91, 88, .22); }
+.portal.velora-theme .staff-catalog .staff-card-actions .staff-card-secondary { border: 1px solid #748196; background: transparent; color: #c5cfde; }
+.portal.velora-theme .staff-catalog .staff-card-actions .staff-card-secondary:hover { border-color: #ff8290; background: rgba(112, 42, 53, .45); color: #fff; }
+
+.portal.velora-theme .staff-catalog #staff-list > .empty,
+.portal.velora-theme .staff-catalog #staff-list > [role="alert"] { grid-column: 1 / -1; width: 100%; box-sizing: border-box; padding: 32px; border: 1px dashed var(--staff-border-soft); border-radius: 14px; color: var(--staff-muted); text-align: center; }
+.portal.velora-theme .staff-catalog #staff-list .staff-card[hidden] { display: none !important; }
+.portal.velora-theme .staff-catalog :is(button, input, select, a):focus-visible { outline: 3px solid rgba(255, 145, 62, .72); outline-offset: 3px; }
+.portal.velora-theme .staff-catalog .is-loading { opacity: .7; pointer-events: none; }
+@media (min-width: 1380px) { .portal.velora-theme .staff-catalog #staff-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .portal.velora-theme .staff-catalog-page { padding-inline: 24px; } .portal.velora-theme .staff-catalog-heading { display: grid; } .portal.velora-theme .staff-catalog .staff-list-tools { grid-template-columns: 1fr 1fr; } .portal.velora-theme .staff-catalog .staff-list-tools input { grid-column: 1 / -1; } }
+@media (max-width: 620px) { .portal.velora-theme .staff-catalog-page { padding: 24px 16px 36px; } .portal.velora-theme .staff-catalog-heading h1 { font-size: 36px; } .portal.velora-theme .staff-catalog .staff-list-tools { grid-template-columns: 1fr; } .portal.velora-theme .staff-catalog .staff-list-tools input { grid-column: auto; } .portal.velora-theme .staff-catalog #staff-list { grid-template-columns: 1fr; } .portal.velora-theme .staff-catalog #staff-list .staff-card { min-height: 540px; } }
+@media (prefers-reduced-motion: reduce) { .portal.velora-theme .staff-catalog *, .portal.velora-theme .staff-catalog *::before, .portal.velora-theme .staff-catalog *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+
+.portal.velora-theme .staff-catalog{padding:0;margin:28px 0 0;border:0;border-radius:0;box-shadow:none;background:none;}
+.portal.velora-theme .staff-catalog-heading .eyebrow{display:none}
+.portal.velora-theme .staff-catalog-heading{margin-bottom:0;}
+.portal.velora-theme .staff-catalog .staff-card-avatar{position:relative;}
+.portal.velora-theme .staff-catalog .staff-card-avatar>svg{width:44%;height:44%;color:#9bacc6;}
+.portal.velora-theme .staff-catalog .staff-card-avatar input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;}
+.portal.velora-theme .staff-catalog .staff-card-avatar:focus-within{outline:2px solid #ff913e;outline-offset:4px;}
+.portal.velora-theme .staff-catalog .staff-card-actions button{display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 12px;}
+.portal.velora-theme .staff-catalog .staff-card-actions svg{width:19px;height:19px;flex:none;}
+.portal.velora-theme .staff-catalog .staff-card-action-spacer{height:44px;}
+.portal.velora-theme .staff-catalog .staff-card-note{padding-top:18px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+.portal.velora-theme .staff-catalog .staff-card-contact-empty{color:#718399;}
+.portal.velora-theme .staff-catalog .staff-card-identity h3{min-height:47px;}
+
+.portal.velora-theme .staff-catalog-page:before{content:none;}
+.portal.velora-theme .staff-catalog .staff-list-tools .custom-select{width:100%;min-width:0;}
+.portal.velora-theme .staff-catalog .staff-list-tools input::placeholder{color:#9bacc6;opacity:1;}
