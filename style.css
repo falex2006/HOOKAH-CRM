@@ -3230,6 +3230,15 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .velora-theme #product-category-form:not([hidden]) .form-message{grid-column:1/-1}
 .velora-theme:has(#product-category-form:not([hidden]))::after{content:'';position:fixed;z-index:1001;inset:0;background:rgba(4,7,11,.72);backdrop-filter:blur(3px);pointer-events:none}
 @media(max-width:620px){.velora-theme #product-category-form:not([hidden]){grid-template-columns:1fr;width:min(520px,calc(100vw - 24px));padding:20px}.velora-theme #product-category-form:not([hidden])::before,.velora-theme #product-category-form:not([hidden]) .toolbar-row,.velora-theme #product-category-form:not([hidden]) .form-message{grid-column:1}}
+/* Use the same viewport-level editor for departments and subdepartments. */
+.velora-theme .department-editor:not([hidden]){position:fixed;z-index:1002;top:50%;left:50%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;gap:16px;width:min(560px,calc(100vw - 40px));max-height:calc(100vh - 40px);overflow:auto;box-sizing:border-box;transform:translate(-50%,-50%);margin:0;padding:24px;border:1px solid #3b4655;border-radius:18px;background:linear-gradient(145deg,#1b2028,#12161c);box-shadow:0 28px 90px rgba(0,0,0,.62)}
+.velora-theme .department-editor:not([hidden])::before{content:'Редактирование цеха';grid-column:1/-1;margin:0 0 2px;color:#f3f5f7;font-size:22px;font-weight:750;line-height:1.2}
+.velora-theme #inventory-subdepartment-section .department-editor:not([hidden])::before{content:'Редактирование подцеха'}
+.velora-theme .department-editor:not([hidden]) .department-field{min-width:0}
+.velora-theme .department-editor:not([hidden]) .button{height:46px;min-height:46px;margin:0;box-sizing:border-box;transform:none!important}
+.velora-theme .department-editor:not([hidden]) .form-message{grid-column:1/-1;margin:0}
+.velora-theme:has(.department-editor:not([hidden]))::after{content:'';position:fixed;z-index:1001;inset:0;background:rgba(4,7,11,.72);backdrop-filter:blur(3px);pointer-events:none}
+@media(max-width:620px){.velora-theme .department-editor:not([hidden]){grid-template-columns:1fr;width:min(520px,calc(100vw - 24px));padding:20px}.velora-theme .department-editor:not([hidden])::before,.velora-theme .department-editor:not([hidden]) .form-message{grid-column:1}.velora-theme .department-editor:not([hidden]) .button{width:100%}}
 @media(max-width:720px){.inventory-directory-controls{align-items:flex-start;flex-direction:column}.inventory-directory-controls>.muted{max-width:60ch}.inventory-deletion-requests .toolbar-row{width:100%;justify-content:flex-start}}
 
 /* Desktop warehouse directories: keep the three hierarchy levels visible in
