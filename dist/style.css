@@ -3218,6 +3218,14 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .inventory-deletion-requests:has(.empty) .section-title-row h3{font-size:13px}
 .inventory-deletion-requests:has(.empty) .section-title-row .muted{font-size:11px;line-height:1.35}
 .inventory-deletion-requests:has(.empty) .empty{min-height:0;margin:8px 0 0;padding:7px 10px;line-height:1.3}
+@media(min-width:1001px){
+  .velora-theme .inventory-departments-panel>.panel-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:0}
+  .velora-theme .inventory-departments-panel>.panel-head>div:first-child{min-width:0}
+  .velora-theme .inventory-departments-panel>.panel-head>.toolbar-row{grid-column:1;justify-content:flex-end;margin-top:12px}
+  .velora-theme .inventory-deletion-requests:has(.empty){display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 16px}
+  .velora-theme .inventory-deletion-requests:has(.empty) .section-title-row{grid-column:1;min-width:0}
+  .velora-theme .inventory-deletion-requests:has(.empty) .empty{grid-column:2;grid-row:1;min-width:170px;margin:0}
+}
 .inventory-deletion-requests .section-title-row{align-items:flex-start}
 .inventory-deletion-requests:has(.error-message){padding:0;border:0;background:transparent}
 .inventory-deletion-requests:has(.error-message) .error-message{min-height:0;margin:0;padding:6px 10px;border:1px solid rgba(255,113,128,.28);border-radius:8px;background:rgba(100,34,45,.16);font-size:11px;line-height:1.35;text-align:right}
