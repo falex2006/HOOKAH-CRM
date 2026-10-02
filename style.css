@@ -2918,3 +2918,6 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))!important}
 @media(max-width:1240px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:repeat(2,minmax(280px,1fr))!important}}
 @media(max-width:700px){.velora-theme .staff-directory-only #staff-list{grid-template-columns:1fr!important}}
+/* Directory mode must use the full content width; the old form column is moved to a drawer */
+.velora-theme .staff-directory-only .staff-layout{display:block!important;grid-template-columns:1fr!important}
+.velora-theme .staff-directory-only .staff-list{width:100%!important;max-width:none!important}
