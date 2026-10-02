@@ -198,8 +198,8 @@ const normalizeManagementSidebar = () => {
     if (key === 'menu') return currentPath === '/inventory' && ['products', 'recipes'].includes(currentView);
     if (key === 'inventory') return currentPath === '/inventory' && !['products', 'recipes'].includes(currentView);
     if (key === 'finance') return ['/finance', '/finance/report', '/finance/categories'].includes(currentPath);
-    if (key === 'team') return currentPath === '/admin' && ['#staff', '#tasks'].includes(currentHash);
-    if (key === 'system') return currentPath === '/integrations' || currentPath === '/network' || (currentPath === '/admin' && !['', '#staff', '#tasks'].includes(currentHash));
+    if (key === 'team') return currentPath === '/admin' && ['#staff', '#tasks', '#permissions'].includes(currentHash);
+    if (key === 'system') return currentPath === '/integrations' || currentPath === '/network' || (currentPath === '/admin' && !['', '#staff', '#tasks', '#permissions'].includes(currentHash));
     return false;
   };
   const savedGroupState = (key) => { try { const value = localStorage.getItem(groupStorageKey(key)); return value === null ? null : value === 'open'; } catch (_) { return null; } };
