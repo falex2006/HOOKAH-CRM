@@ -2368,9 +2368,9 @@ function renderDashboard() {
     setDashboardPanelVisibility('#staff, .floor-editor-panel, #audit, #company, #help', false);
   } else if (dashboardFocus === 'staff' || dashboardFocus === 'permissions') {
     const staffTitle = target.querySelector('.page-title h1'); const staffEyebrow = target.querySelector('.page-title .eyebrow'); const staffSubtitle = target.querySelector('.page-title .muted');
-    if (staffTitle) staffTitle.textContent = dashboardFocus === 'permissions' ? 'Роли и права доступа' : 'Сотрудники'; if (staffEyebrow) staffEyebrow.textContent = 'КОМАНДА'; if (staffSubtitle) staffSubtitle.textContent = dashboardFocus === 'permissions' ? 'Назначайте доступы и проверяйте, какие разделы увидит каждый сотрудник после входа.' : 'Роли, доступы и рабочие панели сотрудников заведения.';
+    if (staffTitle) staffTitle.textContent = dashboardFocus === 'permissions' ? 'Роли и права доступа' : 'Персонал'; if (staffEyebrow) staffEyebrow.textContent = 'КОМАНДА'; if (staffSubtitle) staffSubtitle.textContent = dashboardFocus === 'permissions' ? 'Настройте профиль доступа и сразу увидьте, какие разделы откроются сотруднику.' : 'Кадровый каталог сотрудников: контакты, статусы и рабочие карточки.';
     setDashboardPanelVisibility('#staff', true);
-    const staffPanel = target.querySelector('#staff');
+    const staffPanel = target.querySelector('#staff'); staffPanel?.classList.toggle('staff-directory-only', dashboardFocus === 'staff');
     const staffPanelTitle = staffPanel?.querySelector('.panel-head h2');
     const staffPanelDescription = staffPanel?.querySelector('.panel-head .muted');
     const staffForm = staffPanel?.querySelector('#staff-form');
