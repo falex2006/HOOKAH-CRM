@@ -3222,8 +3222,8 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   .velora-theme .inventory-departments-panel>.panel-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:start;gap:0}
   .velora-theme .inventory-departments-panel>.panel-head>div:first-child{min-width:0}
   .velora-theme .inventory-departments-panel>.panel-head>.toolbar-row{grid-column:1;justify-content:flex-end;margin-top:12px}
-  .velora-theme .inventory-deletion-requests:has(.empty){display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 16px;margin:6px 0 0;padding:8px 12px}
-  .velora-theme .inventory-deletion-requests:has(.empty) .section-title-row{grid-column:1;min-width:0}
+  .velora-theme .inventory-deletion-requests:has(.empty){display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 16px;height:56px;min-height:56px;margin:6px 0 0;padding:6px 12px;box-sizing:border-box;overflow:hidden}
+  .velora-theme .inventory-deletion-requests:has(.empty) .section-title-row{grid-column:1;min-width:0;align-items:center}
   .velora-theme .inventory-deletion-requests:has(.empty) .empty{grid-column:2;grid-row:1;min-width:150px;margin:0}
 }
 .inventory-deletion-requests .section-title-row{align-items:flex-start}
