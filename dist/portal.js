@@ -217,7 +217,7 @@ const normalizeManagementSidebar = () => {
     const summary = details.querySelector(':scope > summary');
     if (summary) {
       summary.setAttribute('aria-expanded', String(details.open));
-      summary.addEventListener('click', () => { details.dataset.userToggle = 'true'; });
+      summary.addEventListener('click', () => { details.dataset.userToggle = 'true'; if (!details.open) sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((sibling) => { if (sibling !== details && !sibling.hidden) sibling.open = false; }); });
     }
     details.addEventListener('toggle', () => {
       summary?.setAttribute('aria-expanded', String(details.open));
@@ -4226,3 +4226,4 @@ if(!window.__staffAdminCardLoaded){const script=document.createElement('script')
   });
   mount(); new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});
 })();
+
