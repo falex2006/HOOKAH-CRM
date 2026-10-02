@@ -2320,6 +2320,9 @@ body{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-ri
 .velora-theme .purchase-document-main{display:grid;gap:4px;min-width:0}
 .velora-theme .purchase-document-main small{color:#8d96a1}
 .velora-theme .purchase-document-row .toolbar-row{flex-wrap:wrap}
+.velora-theme .purchase-document-row>.badge{display:inline-flex;align-items:center;justify-content:center;height:36px;min-height:36px;box-sizing:border-box;padding:0 11px;border-radius:9px;line-height:1;white-space:nowrap;align-self:center}
+.velora-theme .purchase-document-row>.toolbar-row{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-height:42px}
+.velora-theme .purchase-document-row>.toolbar-row>.button{height:42px;min-height:42px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;padding:0 14px;white-space:nowrap;line-height:1.2}
 @media(max-width:1100px){.velora-theme .purchase-line{grid-template-columns:repeat(2,minmax(0,1fr))}.velora-theme .purchase-line>label:first-child{grid-column:1/-1}.velora-theme .purchase-line-preview{grid-column:1/-1}}
 @media(max-width:980px){.velora-theme .purchase-lines-head>.button,.velora-theme .purchase-document-row>.toolbar-row>.button{min-height:44px}}
 @media(max-width:760px){.velora-theme .purchase-document-form>.form-grid{grid-template-columns:1fr 1fr}.velora-theme .purchase-document-form>.form-grid>label:first-child{grid-column:1/-1}}
