@@ -2797,7 +2797,7 @@ body[data-page="clients"] .client-filter-field input,body[data-page="clients"] .
 .portal-sidebar .brand,.platform-sidebar .brand{min-width:0}
 .portal-sidebar .brand>.hookah-pos-brand,.platform-sidebar .brand>.hookah-pos-brand{display:block;flex:0 1 auto;width:min(190px,100%);max-width:100%;min-width:0;height:auto;max-height:61px;aspect-ratio:200/64}
 .portal-sidebar .hookah-pos-brand img,.platform-sidebar .hookah-pos-brand img{display:block;width:100%;height:100%;max-width:100%;object-fit:contain;object-position:left center}
-@media(max-width:900px){.portal-sidebar .brand>.hookah-pos-brand,.platform-sidebar .brand>.hookah-pos-brand{width:min(42px,100%);height:40px;max-height:40px;aspect-ratio:auto}.portal-sidebar .hookah-pos-brand img,.platform-sidebar .hookah-pos-brand img{object-position:center}}
+@media(max-width:900px){.portal-sidebar .brand>.hookah-pos-brand,.platform-sidebar .brand>.hookah-pos-brand{width:min(42px,100%);height:40px;max-height:40px;aspect-ratio:auto}.portal-sidebar .hookah-pos-brand img,.platform-sidebar .hookah-pos-brand img{object-position:center}}@media(max-width:900px){.portal-sidebar.is-expanded .brand>.hookah-pos-brand{width:min(190px,100%);height:auto;max-height:61px;aspect-ratio:200/64}.portal-sidebar.is-expanded .hookah-pos-brand img{content:url('/assets/brand/hookah-pos-lockup-animated.svg?rev=2');object-position:left center}}
 
 /* Management roles keep the same notification center in the staff shell. */
 .staff-theme .staff-header-user>.notification-bell{position:relative;flex:0 0 44px;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:10px;background:transparent;color:#aeb8c4;display:inline-flex;align-items:center;justify-content:center}
@@ -2848,3 +2848,4 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .portal.light-theme .staff-admin-pin-head{color:#263041}
 .portal.light-theme .staff-admin-pin-state{color:#16734c}
 .portal.light-theme .staff-admin-pin>small,.portal.light-theme .staff-admin-pin-grid label,.portal.light-theme .staff-admin-passport-grid label{color:#526171}
+
