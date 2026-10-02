@@ -3213,6 +3213,11 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .inventory-departments-panel .category-row.is-archived{border-color:#30343c;background:#14171b;opacity:.82}
 .inventory-departments-panel .category-row.is-archived .badge{color:#a8afb9;background:#2b3038}
 .inventory-deletion-requests{padding:16px;border:1px solid #775b35;border-radius:14px;background:linear-gradient(120deg,#2c231b,#181b20)}
+.inventory-deletion-requests:has(.empty){display:block;padding:10px 12px}
+.inventory-deletion-requests:has(.empty) .section-title-row{margin:0}
+.inventory-deletion-requests:has(.empty) .section-title-row h3{font-size:13px}
+.inventory-deletion-requests:has(.empty) .section-title-row .muted{font-size:11px;line-height:1.35}
+.inventory-deletion-requests:has(.empty) .empty{min-height:0;margin:8px 0 0;padding:7px 10px;line-height:1.3}
 .inventory-deletion-requests .section-title-row{align-items:flex-start}
 .inventory-deletion-requests:has(.error-message){padding:0;border:0;background:transparent}
 .inventory-deletion-requests:has(.error-message) .error-message{min-height:0;margin:0;padding:6px 10px;border:1px solid rgba(255,113,128,.28);border-radius:8px;background:rgba(100,34,45,.16);font-size:11px;line-height:1.35;text-align:right}
