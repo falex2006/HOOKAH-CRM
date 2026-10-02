@@ -1282,15 +1282,26 @@ const demoJson = async (url, options = {}) => {
 };
 const api = (url, options = {}) => { if (staticDemo()) return demoJson(url, options); return fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then(async (response) => { if (response.status === 401) { try { localStorage.removeItem('crm_session_token'); localStorage.removeItem('crm_session_user'); } catch {} window.location.href = '/login'; const error = new Error('authentication_required'); error.status = 401; error.payload = { error: 'authentication_required' }; throw error; } const payload = await response.json().catch(() => ({})); if (!response.ok) { const error = new Error(payload.error || `HTTP ${response.status}`); error.payload = payload; throw error; } return payload; }); };
 window.__crmApi = api;
-const refreshSidebarCounters = () => api('/api/metrics').then((metrics) => {
-  const counters = [['/orders', metrics.openOrders, 'Открытые заказы'], ['/reservations', metrics.reservationsToday, 'Брони на сегодня'], ['/inventory?view=stock', metrics.lowStock, 'Позиции ниже минимума'], ['/admin#tasks', metrics.discountRequests, 'Заявки, требующие внимания']];
-  counters.forEach(([href, value, label]) => document.querySelectorAll(`.portal-sidebar a[href="${href}"]`).forEach((link) => {
+const refreshSidebarCounters = () => {
+  const setBadge = (href, value, label, { markProblem = false } = {}) => document.querySelectorAll(`.portal-sidebar a[href="${href}"]`).forEach((link) => {
     const count = Number(value || 0); let badge = link.querySelector('.sidebar-count');
-    if (!count) { badge?.remove(); return; }
+    if (!count) { badge?.remove(); link.removeAttribute('data-sidebar-attention'); return; }
     if (!badge) { badge = document.createElement('span'); badge.className = 'sidebar-count'; link.append(badge); }
-    badge.textContent = count > 99 ? '99+' : String(count); badge.title = label; badge.setAttribute('aria-label', `${label}: ${count}`);
-  }));
-}).catch(() => {});
+    badge.textContent = markProblem ? '!' : count > 99 ? '99+' : String(count); badge.title = label; badge.setAttribute('aria-label', `${label}: ${count}`); link.dataset.sidebarAttention = 'true';
+  });
+  Promise.allSettled([api('/api/metrics'), api('/api/notifications?limit=1&filter=unread'), api('/api/shifts'), api('/api/integrations')]).then(([metrics, notifications, shifts, integrations]) => {
+    const data = metrics.status === 'fulfilled' ? metrics.value : {};
+    setBadge('/orders', data.openOrders, 'Открытые заказы');
+    setBadge('/reservations', data.reservationsToday, 'Брони на сегодня');
+    setBadge('/inventory?view=stock', data.lowStock, 'Позиции ниже минимума');
+    setBadge('/admin#tasks', data.discountRequests, 'Заявки, требующие внимания');
+    setBadge('/admin#notifications', notifications.status === 'fulfilled' ? notifications.value.unreadCount : 0, 'Непрочитанные уведомления');
+    setBadge('/', shifts.status === 'fulfilled' && shifts.value?.current ? 1 : 0, 'Незакрытая смена');
+    const integrationData = integrations.status === 'fulfilled' ? integrations.value : null;
+    const integrationProblem = integrationData && integrationData.telegram && integrationData.telegram.status !== 'connected';
+    setBadge('/integrations', integrationProblem ? 1 : 0, 'Проблема интеграции', { markProblem: true });
+  });
+};
 refreshSidebarCounters();
 refreshLeaderNotifications(); setInterval(refreshLeaderNotifications, 20000);
 
