@@ -2376,9 +2376,9 @@ function renderDashboard() {
     const staffForm = staffPanel?.querySelector('#staff-form');
     const staffAddButton = staffPanel?.querySelector('.panel-head button');
     if (dashboardFocus === 'permissions') {
-      if (staffPanelTitle) staffPanelTitle.textContent = 'Доступы сотрудников';
-      if (staffPanelDescription) staffPanelDescription.textContent = 'Выберите сотрудника, чтобы проверить его роль и доступные разделы.';
-      staffForm?.setAttribute('hidden', ''); staffAddButton?.setAttribute('hidden', '');
+      if (staffPanelTitle) staffPanelTitle.textContent = 'Профили доступа';
+      if (staffPanelDescription) staffPanelDescription.textContent = 'Управляйте ролями и правами без повторения кадрового каталога.';
+      staffForm?.setAttribute('hidden', ''); staffAddButton?.setAttribute('hidden', ''); staffPanel.querySelector('.staff-layout')?.setAttribute('hidden', ''); staffPanel.querySelector('.staff-list-tools')?.setAttribute('hidden', ''); staffPanel.querySelector('[data-metric="staffActive"]')?.setAttribute('hidden', '');
       if (portalUser.role !== 'owner') staffAddButton?.setAttribute('hidden', '');
       if (portalUser.role === 'owner') staffForm?.querySelector('b')?.replaceChildren(document.createTextNode('Создать сотрудника и назначить доступ'));
       setDashboardPanelVisibility('#diagnostics', false);
@@ -2392,7 +2392,7 @@ function renderDashboard() {
       if (portalUser.role === 'owner' && staffPanel && !staffPanel.querySelector('[data-custom-roles]')) {
         const roles = document.createElement('section');
         roles.dataset.customRoles = 'true'; roles.className = 'panel custom-roles-panel';
-        roles.innerHTML = '<div class="panel-head"><div><h3>Пользовательские роли</h3><span class="muted">Создавайте профиль доступа под конкретную должность. Системные роли не изменяются.</span></div><button type="button" class="button small" data-custom-role-create>Создать роль</button></div><div data-custom-role-list class="custom-role-list"><span class="muted">Загрузка ролей…</span></div>';
+        roles.innerHTML = '<div class="custom-roles-columns"><section><div class="panel-head"><div><h3>Пользовательские роли</h3><span class="muted">Профили доступа под задачи команды.</span></div><button type="button" class="button small" data-custom-role-create>Создать роль</button></div><div data-custom-role-list class="custom-role-list"><span class="muted">Загрузка ролей…</span></div></section><section class="system-roles-section"><div class="panel-head"><div><h3>Системные роли</h3><span class="muted">Встроенные роли нельзя редактировать.</span></div></div><div class="system-role-list"><div><b>Владелец</b><small>Полный доступ ко всем разделам</small><span aria-label="Роль защищена">🔒</span></div><div><b>Администратор</b><small>Расширенное управление заведением</small><span aria-label="Роль защищена">🔒</span></div><div><b>Управляющий</b><small>Операционное управление командой</small><span aria-label="Роль защищена">🔒</span></div></div></section></div>';
         staffPanel.querySelector('.staff-layout')?.after(roles);
         const scopeLabels = {orders:'Заказы и зал',reservations:'Бронирования',inventory:'Склад',finance:'Финансы',staff:'Персонал',settings:'Настройки',integrations:'Интеграции',delivery:'Доставка',loyalty:'Лояльность'};
         const render = (items=[]) => { const list=roles.querySelector('[data-custom-role-list]'); list.innerHTML=items.length?items.map(r=>`<article class="custom-role-row"><div><b>${esc(r.name)}</b><small>${esc(r.description||'Без описания')} · ${Number(r.assignedCount||0)} сотрудников</small><small>${(r.permissionScopes||[]).map(x=>scopeLabels[x]||x).join(' · ')||'Без разделов'}</small></div><div class="custom-role-actions"><button type="button" class="button small secondary" data-custom-role-edit="${r.id}">Изменить</button><button type="button" class="button small danger" data-custom-role-archive="${r.id}" ${r.assignedCount?'disabled title="Сначала переназначьте сотрудников"':''}>Архивировать</button></div></article>`).join(''):'<span class="muted">Пользовательских ролей пока нет.</span>'; };
@@ -2404,6 +2404,8 @@ function renderDashboard() {
       }
     } else {
       staffForm?.removeAttribute('hidden');
+      staffPanel?.querySelector('.staff-layout')?.removeAttribute('hidden');
+      staffPanel?.querySelector('.staff-list-tools')?.removeAttribute('hidden'); staffPanel?.querySelector('[data-metric="staffActive"]')?.removeAttribute('hidden');
       staffAddButton?.removeAttribute('hidden');
       staffForm?.querySelector('b')?.replaceChildren(document.createTextNode('Добавить сотрудника'));
       staffPanel?.querySelector('[data-permissions-intro]')?.remove();
