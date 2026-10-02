@@ -239,7 +239,7 @@ const scopedPermissionMap = {
 const normalizePermissionScopes = (value) => [...new Set((Array.isArray(value) ? value : []).map((scope) => String(scope || '').trim()).filter((scope) => permissionScopes.includes(scope)))];
 const effectivePermissions = (user) => {
   const base = rolePermissions[user?.role] || [];
-  const scopes = normalizePermissionScopes(user?.permissionScopes);
+  const scopes = normalizePermissionScopes(user?.customRolePermissionScopes?.length ? user.customRolePermissionScopes : user?.permissionScopes);
   if (!scopes.length) return base;
   const restricted = new Set(Object.values(scopedPermissionMap).flat());
   return [...new Set([...base.filter((permission) => !restricted.has(permission)), ...scopes.flatMap((scope) => scopedPermissionMap[scope] || [])])];
@@ -618,7 +618,7 @@ const sessionFromRequest = async (req) => {
     if (sessionRepository) {
       try {
         const persisted = await sessionRepository.get(hashToken(token));
-        if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) } };
+        if (persisted) return { user: { id: persisted.userId, organizationId: persisted.organizationId || null, venueId: persisted.venueId || null, name: persisted.name, role: persisted.role, customRoleId: persisted.customRoleId || null, customRolePermissionScopes: normalizePermissionScopes(persisted.customRolePermissionScopes), avatarUrl: persisted.avatarUrl || null, telegram: persisted.telegram || '', phoneNumbers: persisted.phoneNumbers || [], permissionScopes: normalizePermissionScopes(persisted.permissionScopes), preferences: persisted.preferences || {}, pinConfigured: Boolean(persisted.pinUpdatedAt) } };
       } catch (_) { return null; }
     }
     const memorySession = sessions.get(token);
@@ -866,6 +866,7 @@ async function api(req, res) {
   }
   if (pathname === '/api/login' && req.method === 'POST') {
     const input = await body(req);
+    if (input.resetToken && input.newPassword && !repositories?.pool) return json(res, 503, { error: 'password_reset_requires_database' });
     if (input.resetToken && input.newPassword && repositories?.pool) { const tokenHash = crypto.createHash('sha256').update(String(input.resetToken)).digest('hex'); const newPassword = String(input.newPassword); if (newPassword.length < 8) return json(res, 400, { error: 'password_too_short' }); try { const client = await repositories.pool.connect(); try { await client.query('BEGIN'); const result = await client.query('SELECT id,login,organization_id AS \"organizationId\" FROM users WHERE password_reset_token_hash=$1 AND password_reset_expires_at>now() AND is_active=true AND deleted_at IS NULL FOR UPDATE', [tokenHash]); if (!result.rows[0]) { await client.query('ROLLBACK'); return json(res, 400, { error: 'reset_token_invalid_or_expired' }); } const row = result.rows[0]; await client.query('UPDATE users SET password_hash=$1,password_reset_token_hash=NULL,password_reset_expires_at=NULL WHERE id=$2', [await hashPassword(newPassword), row.id]); await client.query('DELETE FROM auth_sessions WHERE user_id=$1', [row.id]); await client.query('COMMIT'); recordAudit(req, 'auth.password_reset_completed', 'organization_owner', row.id, null, { organizationId: row.organizationId, login: row.login }); return json(res, 200, { ok: true, login: row.login }); } catch (error) { await client.query('ROLLBACK').catch(()=>{}); return json(res, 503, { error: 'password_reset_failed' }); } finally { client.release(); } } catch (_) { return json(res, 503, { error: 'authentication_unavailable' }); } }
     if (process.env.DATABASE_URL && (!repositories?.pool || !sessionRepository)) return json(res, 503, { error: 'authentication_unavailable' });
     if (String(input.website || '').trim()) return json(res, 400, { error: 'bot_detected' });
@@ -885,12 +886,12 @@ async function api(req, res) {
     }
     if (!account && repositories?.pool) {
       try {
-        const { rows } = await repositories.pool.query('SELECT id,login,organization_id AS "organizationId",venue_id AS "venueId",full_name AS name,role,password_hash AS "passwordHash",pin_hash,pin_updated_at,preferences,avatar_url AS "avatarUrl",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes" FROM users WHERE login=$1 AND is_active=true LIMIT 1', [input.username]);
+        const { rows } = await repositories.pool.query('SELECT u.id,u.login,u.organization_id AS "organizationId",u.venue_id AS "venueId",u.full_name AS name,u.role,u.custom_role_id AS "customRoleId",cr.permission_scopes AS "customRolePermissionScopes",u.password_hash AS "passwordHash",u.pin_hash,u.pin_updated_at,u.preferences,u.avatar_url AS "avatarUrl",u.telegram_url AS telegram,u.phone_numbers AS "phoneNumbers",u.permission_scopes AS "permissionScopes" FROM users u LEFT JOIN custom_staff_roles cr ON cr.id=u.custom_role_id AND cr.venue_id=u.venue_id AND cr.is_active=true WHERE u.login=$1 AND u.is_active=true LIMIT 1', [input.username]);
         const row = rows[0]; const credential = input.password; if (row && credential && await verifyPassword(credential, row.passwordHash)) {
           if (!row.organizationId || !/^[0-9a-f-]{36}$/i.test(row.organizationId)) return json(res, 403, { error: 'organization_context_required' });
           const accessError = await enforceOrganizationAccess({ id: row.id, organizationId: row.organizationId, role: row.role });
           if (accessError) return json(res, accessError.status, { error: accessError.error });
-          account = { username: row.login, id: row.id, organizationId: row.organizationId || null, venueId: row.venueId || null, name: row.name, role: row.role, avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
+          account = { username: row.login, id: row.id, organizationId: row.organizationId || null, venueId: row.venueId || null, name: row.name, role: row.role, customRoleId: row.customRoleId || null, customRolePermissionScopes: row.customRolePermissionScopes || [], avatarUrl: row.avatarUrl, telegram: row.telegram || null, phoneNumbers: row.phoneNumbers || [], permissionScopes: row.permissionScopes || [], preferences: row.preferences || {}, pinHash: row.pin_updated_at ? row.pin_hash : null, pinConfigured: Boolean(row.pin_updated_at) };
         }
       } catch (_) { return json(res, 503, { error: 'authentication_unavailable' }); }
     }
@@ -918,10 +919,10 @@ async function api(req, res) {
     // process memory; tenant users continue to use persisted PostgreSQL sessions.
     if (sessionRepository && account.role !== 'platform_owner') { try { const saved = await sessionRepository.create({ userId, deviceId, tokenHash: hashToken(token), expiresAt: new Date(expiresAt).toISOString(), activeVenueId: userVenueId }); if (!saved) return json(res, 409, { error: 'session_limit_reached', limit: 2 }); } catch (_) { return json(res, 503, { error: 'session_unavailable' }); } }
     if (!account.pinHash && account.pin) account.pinHash = await hashPassword(account.pin);
-    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now(), expiresAt });
+    sessions.set(token, { user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, customRoleId: account.customRoleId || null, customRolePermissionScopes: normalizePermissionScopes(account.customRolePermissionScopes), avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, preferenceAccountKey, unlockHash: account.pinHash || null, deviceId, createdAt: Date.now(), expiresAt });
     [...sessions.entries()].filter(([, session]) => session.user?.id === userId).sort(([, left], [, right]) => right.createdAt - left.createdAt).slice(2).forEach(([sessionToken]) => sessions.delete(sessionToken));
     res.setHeader('Set-Cookie', [`crm_session=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionTtlSeconds(ttlMs)}${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`, `crm_device_id=${encodeURIComponent(deviceId)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${process.env.COOKIE_SECURE === 'true' ? '; Secure' : ''}`]);
-    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, permissionScopes: account.permissionScopes }), expiresIn: sessionTtlSeconds(ttlMs), trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
+    return json(res, 200, { token, user: { id: userId, organizationId, venueId: userVenueId, name: account.name, role: account.role, customRoleId: account.customRoleId || null, customRolePermissionScopes: normalizePermissionScopes(account.customRolePermissionScopes), avatarUrl: account.avatarUrl || null, telegram: account.telegram || '', phoneNumbers: account.phoneNumbers || [], permissionScopes: normalizePermissionScopes(account.permissionScopes), preferences: accountPreferences, pinConfigured: Boolean(account.pinConfigured || account.pinHash) }, permissions: effectivePermissions({ role: account.role, customRolePermissionScopes: account.customRolePermissionScopes, permissionScopes: account.permissionScopes }), expiresIn: sessionTtlSeconds(ttlMs), trustedDevice: ttlMs === TRUSTED_SESSION_TTL_MS });
   }
   if (pathname === '/api/logout' && req.method === 'POST') { const header = req.headers.authorization || ''; const cookies = Object.fromEntries((req.headers.cookie || '').split(';').map((part) => part.trim().split('=').map(decodeURIComponent)).filter((parts) => parts.length === 2)); const token = header.startsWith('Bearer ') ? header.slice(7) : (cookies.crm_session || ''); if (token && sessionRepository) sessionRepository.remove(hashToken(token)).catch(() => {}); sessions.delete(token); res.setHeader('Set-Cookie', 'crm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'); return json(res, 200, { ok: true }); }
   const hasRequestCredential = Boolean((req.headers.authorization || '').startsWith('Bearer ') || String(req.headers.cookie || '').includes('crm_session='));
@@ -1288,7 +1289,7 @@ async function api(req, res) {
       if (!targetId) return json(res,400,{error:'owner_id_required'});
       const current = await repositories.pool.query(`SELECT u.id,u.full_name AS name,u.login,u.is_active AS active,m.is_primary AS "isPrimary" FROM users u JOIN organization_memberships m ON m.user_id=u.id AND m.organization_id=$1 WHERE u.id=$2 AND u.organization_id=$1 AND m.membership_role='owner'`,[organizationId,targetId]); if (!current.rows[0]) return json(res,404,{error:'owner_not_found'});
       if (req.method === 'DELETE') { if (current.rows[0].isPrimary) return json(res,409,{error:'transfer_primary_owner_first'}); await repositories.pool.query('UPDATE users SET deleted_at=now(),is_active=false WHERE id=$1',[targetId]); await repositories.pool.query('UPDATE organization_memberships SET status=\'suspended\' WHERE organization_id=$1 AND user_id=$2',[organizationId,targetId]); recordAudit(req,'platform.owner_removed','organization_owner',targetId,current.rows[0],null); return json(res,200,{ok:true}); }
-      const input=await body(req); if (input.active === false && current.rows[0].isPrimary) return json(res,409,{error:'primary_owner_must_be_transferred_first'}); if (input.isPrimary === true && current.rows[0].active === false) return json(res,409,{error:'inactive_owner_cannot_be_primary'}); if (input.login !== undefined && !/^[^\s@]+@[^\s@]+$/.test(String(input.login).trim())) return json(res,400,{error:'valid_owner_email_required'}); if (req.method === 'PATCH' && input.isPrimary === true) { const client=await repositories.pool.connect(); try { await client.query('BEGIN'); await client.query('UPDATE organization_memberships SET is_primary=false WHERE organization_id=$1 AND membership_role=\'owner\'', [organizationId]); await client.query('UPDATE organization_memberships SET is_primary=true,status=\'active\' WHERE organization_id=$1 AND user_id=$2 AND membership_role=\'owner\'', [organizationId,targetId]); await client.query('COMMIT'); recordAudit(req,'platform.owner_transferred','organization_owner',targetId,current.rows[0],{...current.rows[0],isPrimary:true}); return json(res,200,{...current.rows[0],isPrimary:true}); } catch(error) { await client.query('ROLLBACK').catch(()=>{}); return json(res,503,{error:'owner_transfer_failed'}); } finally { client.release(); } } const fields=[]; const values=[]; if(input.name!==undefined){values.push(String(input.name).trim());fields.push(`full_name=$${values.length}`);} if(input.login!==undefined){values.push(String(input.login).trim().toLowerCase());fields.push(`login=$${values.length}`);} if(input.password){ if(String(input.password).length<8)return json(res,400,{error:'password_too_short'}); values.push(await hashPassword(input.password));fields.push(`password_hash=$${values.length}`);} if(input.active!==undefined){values.push(Boolean(input.active));fields.push(`is_active=$${values.length}`);} if(!fields.length)return json(res,200,current.rows[0]); values.push(targetId); const updated=await repositories.pool.query(`UPDATE users SET ${fields.join(',')} WHERE id=$${values.length} RETURNING id,full_name AS name,login,is_active AS active`,values); if(input.password || input.active === false) { await repositories.pool.query('DELETE FROM auth_sessions WHERE user_id=$1',[targetId]); for (const [sessionToken, session] of sessions) if (session.user?.id === targetId) sessions.delete(sessionToken); } recordAudit(req,'platform.owner_updated','organization_owner',targetId,current.rows[0],updated.rows[0]); return json(res,200,updated.rows[0]);
+      const input=await body(req); if (input.active === false && current.rows[0].isPrimary) return json(res,409,{error:'primary_owner_must_be_transferred_first'}); if (input.isPrimary === true && current.rows[0].active === false) return json(res,409,{error:'inactive_owner_cannot_be_primary'}); if (input.login !== undefined && !/^[^\s@]+@[^\s@]+$/.test(String(input.login).trim())) return json(res,400,{error:'valid_owner_email_required'}); if (req.method === 'PATCH' && input.isPrimary === true) { const client=await repositories.pool.connect(); try { await client.query('BEGIN'); await client.query('UPDATE organization_memberships SET is_primary=false WHERE organization_id=$1 AND membership_role=\'owner\'', [organizationId]); await client.query('UPDATE organization_memberships SET is_primary=true,status=\'active\' WHERE organization_id=$1 AND user_id=$2 AND membership_role=\'owner\'', [organizationId,targetId]); await client.query('COMMIT'); recordAudit(req,'platform.owner_transferred','organization_owner',targetId,current.rows[0],{...current.rows[0],isPrimary:true}); return json(res,200,{...current.rows[0],isPrimary:true}); } catch(error) { await client.query('ROLLBACK').catch(()=>{}); return json(res,503,{error:'owner_transfer_failed'}); } finally { client.release(); } } const fields=[]; const values=[]; if(input.name!==undefined){values.push(String(input.name).trim());fields.push(`full_name=$${values.length}`);} if(input.login!==undefined){values.push(String(input.login).trim().toLowerCase());fields.push(`login=$${values.length}`);} if(input.password){ if(String(input.password).length<8)return json(res,400,{error:'password_too_short'}); values.push(await hashPassword(input.password));fields.push(`password_hash=$${values.length}`);} if(input.active!==undefined){values.push(Boolean(input.active));fields.push(`is_active=$${values.length}`);} if(!fields.length)return json(res,200,current.rows[0]); values.push(targetId); let updated; try { updated=await repositories.pool.query(`UPDATE users SET ${fields.join(',')} WHERE id=${values.length} RETURNING id,full_name AS name,login,is_active AS active`,values); } catch(error) { if(input.login!==undefined && error.code==='23505') return json(res,409,{error:'owner_login_already_exists'}); throw error; } if(input.password || input.active === false) { await repositories.pool.query('DELETE FROM auth_sessions WHERE user_id=$1',[targetId]); for (const [sessionToken, session] of sessions) if (session.user?.id === targetId) sessions.delete(sessionToken); } recordAudit(req,'platform.owner_updated','organization_owner',targetId,current.rows[0],updated.rows[0]); return json(res,200,updated.rows[0]);
     } catch (error) { return json(res,503,{error:'owner_management_failed'}); }
   }
   if (platformOrgPath && req.method === 'PATCH') {
@@ -2486,9 +2487,70 @@ const byStation = Object.fromEntries([...stationMap].map(([station, entry]) => [
     const user = req.user || persistedSession?.user || { name: 'Демо сотрудник', role: 'bartender' };
     return json(res, 200, { user, permissions: effectivePermissions(user), permissionScopes: normalizePermissionScopes(user.permissionScopes) });
   }
+  const customStaffRolePath = pathname.match(/^\/api\/staff\/roles(?:\/([^/]+))?(?:\/(archive))?$/);
+  if (customStaffRolePath) {
+    if (process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'custom_roles_owner_required' });
+    if (req.user && req.user.role !== 'owner') return json(res, 403, { error: 'custom_roles_owner_required' });
+    if (!repositories?.pool) return json(res, 503, { error: 'custom_roles_requires_database' });
+    const organizationId = requestOrganizationId(req);
+    if (!/^[0-9a-f-]{36}$/i.test(organizationId) || !/^[0-9a-f-]{36}$/i.test(venueDbId)) return json(res, 403, { error: 'organization_context_required' });
+    const roleId = customStaffRolePath[1] || null;
+    const archived = customStaffRolePath[2] === 'archive';
+    const roleIdIsUuid = roleId && /^[0-9a-f-]{36}$/i.test(roleId);
+    if (roleId && !roleIdIsUuid) return json(res, 400, { error: 'custom_role_id_invalid' });
+    try {
+      if (req.method === 'GET' && !roleId) {
+        const includeArchived = url.searchParams.get('status') === 'all' || url.searchParams.get('status') === 'archived';
+        const activeClause = includeArchived ? '' : ' AND r.is_active=true';
+        const { rows } = await repositories.pool.query(`SELECT r.id,r.name,r.description,r.permission_scopes AS "permissionScopes",r.is_active AS active,r.created_at AS "createdAt",r.updated_at AS "updatedAt",COUNT(u.id)::int AS "assignedCount"
+          FROM custom_staff_roles r LEFT JOIN users u ON u.custom_role_id=r.id AND u.venue_id=r.venue_id AND u.deleted_at IS NULL
+          WHERE r.organization_id=$1 AND r.venue_id=$2${activeClause} GROUP BY r.id ORDER BY r.is_active DESC,lower(r.name),r.id`, [organizationId, venueDbId]);
+        return json(res, 200, { items: rows.map((row) => ({ ...row, permissionScopes: normalizePermissionScopes(row.permissionScopes || []) })) });
+      }
+      if (req.method === 'POST' && !roleId) {
+        if (archived) return json(res, 404, { error: 'custom_role_not_found' });
+        const input = await body(req);
+        const name = String(input.name || '').trim();
+        const description = String(input.description || '').trim();
+        const scopes = normalizePermissionScopes(input.permissionScopes);
+        if (!name || name.length > 80 || description.length > 300 || !Array.isArray(input.permissionScopes) || scopes.length !== new Set(input.permissionScopes).size) return json(res, 400, { error: 'custom_role_invalid' });
+        const venueCheck = await repositories.pool.query('SELECT id FROM venues WHERE id=$1 AND organization_id=$2 AND is_active=true', [venueDbId, organizationId]);
+        if (!venueCheck.rows[0]) return json(res, 403, { error: 'venue_not_in_organization' });
+        const { rows } = await repositories.pool.query(`INSERT INTO custom_staff_roles (organization_id,venue_id,name,description,permission_scopes,created_by,updated_by) VALUES ($1,$2,$3,$4,$5::jsonb,$6,$6) RETURNING id,name,description,permission_scopes AS "permissionScopes",is_active AS active,created_at AS "createdAt",updated_at AS "updatedAt"`, [organizationId, venueDbId, name, description, JSON.stringify(scopes), req.user?.id || null]);
+        const created = { ...rows[0], permissionScopes: normalizePermissionScopes(rows[0].permissionScopes || []), assignedCount: 0 };
+        recordAudit(req, 'staff.custom_role_created', 'custom_staff_role', created.id, null, created);
+        return json(res, 201, created);
+      }
+      if (!roleId) return json(res, 405, { error: 'method_not_allowed' });
+      if (archived && req.method !== 'POST') return json(res, 405, { error: 'method_not_allowed' });
+      if (!archived && req.method !== 'PATCH') return json(res, 405, { error: 'method_not_allowed' });
+      const currentResult = await repositories.pool.query(`SELECT id,name,description,permission_scopes AS "permissionScopes",is_active AS active FROM custom_staff_roles WHERE id=$1 AND organization_id=$2 AND venue_id=$3`, [roleId, organizationId, venueDbId]);
+      const current = currentResult.rows[0];
+      if (!current) return json(res, 404, { error: 'custom_role_not_found' });
+      if (archived) {
+        if (!current.active) return json(res, 200, { ...current, archivedAt: null });
+        const assigned = await repositories.pool.query('SELECT COUNT(*)::int AS count FROM users WHERE custom_role_id=$1 AND venue_id=$2 AND deleted_at IS NULL', [roleId, venueDbId]);
+        if (Number(assigned.rows[0]?.count || 0) > 0) return json(res, 409, { error: 'custom_role_in_use', assignedCount: Number(assigned.rows[0].count) });
+        const { rows } = await repositories.pool.query('UPDATE custom_staff_roles SET is_active=false,updated_by=$1,updated_at=now() WHERE id=$2 AND organization_id=$3 AND venue_id=$4 RETURNING id,name,description,permission_scopes AS "permissionScopes",is_active AS active,updated_at AS "updatedAt"', [req.user?.id || null, roleId, organizationId, venueDbId]);
+        recordAudit(req, 'staff.custom_role_archived', 'custom_staff_role', roleId, current, rows[0]);
+        return json(res, 200, { ...rows[0], permissionScopes: normalizePermissionScopes(rows[0].permissionScopes || []) });
+      }
+      const input = await body(req);
+      const name = input.name === undefined ? current.name : String(input.name || '').trim();
+      const description = input.description === undefined ? current.description : String(input.description || '').trim();
+      const scopes = input.permissionScopes === undefined ? normalizePermissionScopes(current.permissionScopes || []) : normalizePermissionScopes(input.permissionScopes);
+      if (!name || name.length > 80 || description.length > 300 || (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || scopes.length !== new Set(input.permissionScopes).size))) return json(res, 400, { error: 'custom_role_invalid' });
+      const { rows } = await repositories.pool.query('UPDATE custom_staff_roles SET name=$1,description=$2,permission_scopes=$3::jsonb,updated_by=$4,updated_at=now() WHERE id=$5 AND organization_id=$6 AND venue_id=$7 AND is_active=true RETURNING id,name,description,permission_scopes AS "permissionScopes",is_active AS active,updated_at AS "updatedAt"', [name, description, JSON.stringify(scopes), req.user?.id || null, roleId, organizationId, venueDbId]);
+      recordAudit(req, 'staff.custom_role_updated', 'custom_staff_role', roleId, current, rows[0]);
+      return json(res, 200, { ...rows[0], permissionScopes: normalizePermissionScopes(rows[0].permissionScopes || []) });
+    } catch (error) {
+      if (error.code === '23505') return json(res, 409, { error: 'custom_role_name_exists' });
+      return json(res, 503, { error: 'custom_role_save_failed', detail: error.message });
+    }
+  }
   if (pathname === '/api/staff' && req.method === 'GET') {
     if (process.env.AUTH_REQUIRED === 'true' && !hasPermission(req, 'staff') && !hasPermission(req, 'settings') && !hasPermission(req, 'staff_view')) return json(res, 403, { error: 'forbidden', permission: 'staff' });
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at::text AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",custom_role_id AS "customRoleId",employment_started_at::text AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { row.pinConfigured = Boolean(row.pinUpdatedAt); if (!row.pinConfigured) delete row.pinUpdatedAt; if (!canSeeStaffPhoto(req)) delete row.photoUrl; return row; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => { if (!canSeeStaffPhoto(req)) delete row.photoUrl; return { ...row, pinConfigured: false, permissionScopes: [], employmentStartedAt: null, workNotes: '' }; }) }); } catch (_) { try { const { rows } = await repositories.pool.query(`SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl" FROM users WHERE venue_id=$1 AND deleted_at IS NULL ORDER BY full_name`, [venueDbId]); return json(res, 200, { items: rows.map((row) => ({ ...row, pinConfigured: false, telegram: null, phoneNumbers: [], permissionScopes: [], employmentStartedAt: null, workNotes: '' })) }); } catch (_) {} } } }
     return json(res, 200, { items: staff.filter((person) => !person.deletedAt).map(({ passwordHash, ...person }) => { person.pinConfigured = Boolean(person.pinCode || person.pinHash || person.pinConfigured); if (!canSeeSensitiveStaff(req)) { delete person.passportData; delete person.pinCode; } if (!canSeeStaffPhoto(req)) delete person.photoUrl; if (!person.pinConfigured) delete person.pinUpdatedAt; return person; }) });
   }
   if (pathname === '/api/staff' && req.method === 'POST') {
@@ -2659,9 +2721,9 @@ if (staffProfile && req.method === 'GET') {
   if (!canRead) return json(res, 403, { error: 'forbidden', permission: 'staff_view' });
   if (repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at::text AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1', [personId, venueDbId]);
+      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",custom_role_id AS "customRoleId",employment_started_at::text AS "employmentStartedAt",work_notes AS "workNotes",pin_updated_at AS "pinUpdatedAt",passport_data_encrypted,passport_data_iv,passport_data_tag FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1', [personId, venueDbId]);
       if (!rows[0]) return json(res, 404, { error: 'staff_not_found' });
-      const profile = { ...rows[0], pinConfigured: Boolean(rows[0].pinUpdatedAt), workspacePermissions: effectivePermissions({ role: rows[0].role, permissionScopes: rows[0].permissionScopes }) };
+      const profile = { ...rows[0], pinConfigured: Boolean(rows[0].pinUpdatedAt), workspacePermissions: effectivePermissions({ role: rows[0].role, customRolePermissionScopes: rows[0].customRolePermissionScopes, permissionScopes: rows[0].permissionScopes }) };
       if (canSeeSensitiveStaff(req)) profile.passportData = staffPassportCipher.decrypt(rows[0]);
       if (!canSeeStaffPhoto(req)) delete profile.photoUrl;
       delete profile.passport_data_encrypted; delete profile.passport_data_iv; delete profile.passport_data_tag;
@@ -2701,7 +2763,7 @@ if (staffProfile && req.method === 'PATCH') {
   let before = memoryPerson ? { ...memoryPerson, phoneNumbers: Array.isArray(memoryPerson.phoneNumbers) ? memoryPerson.phoneNumbers.map((phone) => ({ ...phone })) : [] } : null;
   if (!before && repositories?.pool && /^[0-9a-f-]{36}$/i.test(personId)) {
     try {
-      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",employment_started_at::text AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1', [personId, venueDbId]);
+      const { rows } = await repositories.pool.query('SELECT id,full_name AS name,login,contact_email AS email,role,is_active AS active,avatar_url AS "avatarUrl",photo_url AS "photoUrl",birth_date::text AS "birthDate",telegram_url AS telegram,phone_numbers AS "phoneNumbers",permission_scopes AS "permissionScopes",custom_role_id AS "customRoleId",employment_started_at::text AS "employmentStartedAt",work_notes AS "workNotes" FROM users WHERE id=$1 AND venue_id=$2 AND deleted_at IS NULL LIMIT 1', [personId, venueDbId]);
       before = rows[0] || null;
     } catch (_) {}
   }
@@ -2731,6 +2793,9 @@ if (staffProfile && req.method === 'PATCH') {
   if (input.role !== undefined && !canAssignStaffRole(req, input.role)) return json(res, 403, { error: 'staff_role_assignment_required' });
   if (input.permissionScopes !== undefined && (!Array.isArray(input.permissionScopes) || normalizePermissionScopes(input.permissionScopes).length !== new Set(input.permissionScopes).size)) return json(res, 400, { error: 'invalid_permission_scopes' });
   if (input.permissionScopes !== undefined && process.env.AUTH_REQUIRED === 'true' && req.user?.role !== 'owner') return json(res, 403, { error: 'permission_scopes_owner_required' });
+  if (input.customRoleId !== undefined && (req.user?.role !== 'owner' || before.role === 'owner')) return json(res, 403, { error: 'custom_role_owner_required' });
+  if (input.customRoleId !== undefined && input.customRoleId !== null && !/^[0-9a-f-]{36}$/i.test(String(input.customRoleId))) return json(res, 400, { error: 'custom_role_id_invalid' });
+  if (input.customRoleId !== undefined) before.customRoleId = input.customRoleId || null;
   if (input.employmentStartedAt !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.birthDate !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
   if (input.workNotes !== undefined && !canManage) return json(res, 403, { error: 'staff_management_required' });
@@ -2789,6 +2854,7 @@ if (staffProfile && req.method === 'PATCH') {
         } catch (error) { if (error.code === '23505') return json(res, 409, { error: 'login_already_exists' }); throw error; }
       }
       if (input.permissionScopes !== undefined) { await repositories.pool.query('UPDATE users SET permission_scopes=$1::jsonb WHERE id=$2 AND venue_id=$3', [JSON.stringify(before.permissionScopes || []), personId, venueDbId]); }
+      if (input.customRoleId !== undefined) { await repositories.pool.query('UPDATE users SET custom_role_id=$1::uuid WHERE id=$2 AND venue_id=$3', [input.customRoleId || null, personId, venueDbId]); }
     } catch (error) { return json(res, 409, { error: 'staff_profile_save_failed', detail: error.message }); }
   }
   if (memoryPerson) Object.assign(memoryPerson, before);
@@ -4470,7 +4536,7 @@ function staticFile(req, res) {
   // Only browser runtime files are public. Never expose the project directory.
   const publicFiles = new Set([
     '/phone-format.js',
-    ...Object.values(aliases), '/style.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
+    ...Object.values(aliases), '/style.css', '/platform.css', '/app.js', '/portal.js', '/header-shell.js', '/admin.js',
     '/login.js', '/platform.js', '/catalog-seed.js', '/lock.js', '/staff-profile.js', '/staff-audit.js',
     '/staff-phone-fields.js', '/staff-sensitive-fields.js', '/staff-admin-card.js',
     '/purchase-document-validation.js', '/notification-center.js', '/audit-privacy.js', '/staff-identity.js',
@@ -4528,6 +4594,7 @@ const server = http.createServer(async (req, res) => {
   } catch (error) { return json(res, 500, { error: 'internal_error', message: error.message }); }
 });
 server.listen(process.env.PORT || 3000, process.env.HOST || undefined, () => console.log(`CRM running on http://localhost:${server.address().port}`));
+
 
 
 

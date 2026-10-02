@@ -2389,6 +2389,19 @@ function renderDashboard() {
         intro.innerHTML = '<b>Как настроить доступ</b><span class="muted">Откройте карточку сотрудника и измените роль или доступы по направлениям. Владелец может назначать любые роли, администратор — управлять рабочими доступами без смены своей роли.</span>';
         staffPanel.querySelector('.staff-layout')?.before(intro);
       }
+      if (portalUser.role === 'owner' && staffPanel && !staffPanel.querySelector('[data-custom-roles]')) {
+        const roles = document.createElement('section');
+        roles.dataset.customRoles = 'true'; roles.className = 'panel custom-roles-panel';
+        roles.innerHTML = '<div class="panel-head"><div><h3>Пользовательские роли</h3><span class="muted">Создавайте профиль доступа под конкретную должность. Системные роли не изменяются.</span></div><button type="button" class="button small" data-custom-role-create>Создать роль</button></div><div data-custom-role-list class="custom-role-list"><span class="muted">Загрузка ролей…</span></div>';
+        staffPanel.querySelector('.staff-layout')?.after(roles);
+        const scopeLabels = {orders:'Заказы и зал',reservations:'Бронирования',inventory:'Склад',finance:'Финансы',staff:'Персонал',settings:'Настройки',integrations:'Интеграции',delivery:'Доставка',loyalty:'Лояльность'};
+        const render = (items=[]) => { const list=roles.querySelector('[data-custom-role-list]'); list.innerHTML=items.length?items.map(r=>`<article class="custom-role-row"><div><b>${esc(r.name)}</b><small>${esc(r.description||'Без описания')} · ${Number(r.assignedCount||0)} сотрудников</small><small>${(r.permissionScopes||[]).map(x=>scopeLabels[x]||x).join(' · ')||'Без разделов'}</small></div><div class="custom-role-actions"><button type="button" class="button small secondary" data-custom-role-edit="${r.id}">Изменить</button><button type="button" class="button small danger" data-custom-role-archive="${r.id}" ${r.assignedCount?'disabled title="Сначала переназначьте сотрудников"':''}>Архивировать</button></div></article>`).join(''):'<span class="muted">Пользовательских ролей пока нет.</span>'; };
+        const load = async () => { try { const result=await api('/api/staff/roles'); render(result.items||[]); window.__customStaffRoles=result.items||[]; } catch (error) { const list=roles.querySelector('[data-custom-role-list]'); list.innerHTML='<span class="muted">Роли доступны после подключения рабочей базы данных.</span>'; } };
+        const edit = async (role) => { const name=window.prompt('Название роли', role?.name||''); if (!name?.trim()) return; const description=window.prompt('Короткое описание', role?.description||'')||''; const raw=window.prompt('Разделы через запятую: orders, reservations, inventory, finance, staff, settings, integrations, delivery, loyalty', (role?.permissionScopes||['orders']).join(', ')); if (raw===null) return; const permissionScopes=[...new Set(raw.split(',').map(x=>x.trim()).filter(x=>scopeLabels[x]))]; try { await api(role?`/api/staff/roles/${encodeURIComponent(role.id)}`:'/api/staff/roles',{method:role?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim(),description,permissionScopes})}); await load(); window.portalNotice?.('Роль сохранена','success'); } catch(error) { window.portalNotice?.('Не удалось сохранить роль','error'); } };
+        roles.querySelector('[data-custom-role-create]').onclick=()=>edit(null);
+        roles.addEventListener('click', async event => { const editId=event.target.closest('[data-custom-role-edit]')?.dataset.customRoleEdit; const archiveId=event.target.closest('[data-custom-role-archive]')?.dataset.customRoleArchive; if(editId) edit((window.__customStaffRoles||[]).find(r=>r.id===editId)); if(archiveId && window.confirm('Архивировать роль?')) { try { await api(`/api/staff/roles/${encodeURIComponent(archiveId)}/archive`,{method:'POST'}); await load(); } catch(error) { window.portalNotice?.('Роль используется сотрудниками или недоступна','error'); } } });
+        load();
+      }
     } else {
       staffForm?.removeAttribute('hidden');
       staffAddButton?.removeAttribute('hidden');
@@ -4330,4 +4343,5 @@ if(!window.__staffAdminCardLoaded){const script=document.createElement('script')
   });
   mount(); new MutationObserver(mount).observe(document.body,{childList:true,subtree:true});
 })();
+
 
