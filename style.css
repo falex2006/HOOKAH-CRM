@@ -3300,6 +3300,17 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
 .velora-theme .inventory-directory-controls-label{color:#dfe4e8;font-size:12px;font-weight:600;white-space:nowrap}
 .velora-theme .inventory-departments-panel>.panel-head .inventory-directory-controls{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;margin:0;padding:0;border:0;background:transparent}
 .velora-theme .inventory-departments-panel>.panel-head .inventory-directory-controls>.muted{max-width:240px;font-size:10px;line-height:1.3;text-align:right}
+@media(min-width:1001px){
+  .velora-theme .inventory-departments-panel>.panel-head{align-items:center;gap:20px}
+  .velora-theme .inventory-departments-panel>.panel-head>.toolbar-row{display:flex;align-items:center;justify-content:flex-end;flex-wrap:nowrap;gap:10px;min-width:0}
+  .velora-theme .inventory-departments-panel>.panel-head>.toolbar-row>.button{order:2;flex:0 0 auto;white-space:nowrap}
+  .velora-theme .inventory-departments-panel>.panel-head .inventory-directory-controls{order:1;display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+  .velora-theme .inventory-departments-panel>.panel-head .inventory-directory-controls-label{font-size:11px}
+  .velora-theme .inventory-departments-panel>.panel-head .inventory-directory-controls>.muted{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .velora-theme .inventory-departments-panel>.panel-head .inventory-directory-controls .segmented-control{display:inline-flex;align-items:center;gap:4px;padding:3px;border:1px solid #303a46;border-radius:10px;background:#11161d}
+  .velora-theme .inventory-departments-panel>.panel-head .inventory-directory-controls .segmented-control>button{height:32px;min-height:32px;padding:0 11px;border:0;border-radius:7px;background:transparent;color:#aeb9c7;font-size:12px}
+  .velora-theme .inventory-departments-panel>.panel-head .inventory-directory-controls .segmented-control>button.is-active{background:linear-gradient(100deg,#ff4569,#ff963e);color:#fff;box-shadow:0 4px 12px #ff5a5425}
+}
 @media(min-width:1001px){.velora-theme .inventory-directory-controls{display:flex;align-items:center;justify-content:flex-end;gap:9px}.velora-theme .inventory-directory-controls>.muted{max-width:330px;font-size:10px;line-height:1.35;text-align:right}}
 
 @media(min-width:1001px) and (max-width:1220px){
