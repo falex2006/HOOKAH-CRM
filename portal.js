@@ -2378,7 +2378,7 @@ function renderDashboard() {
     if (dashboardFocus === 'permissions') {
       if (staffPanelTitle) staffPanelTitle.textContent = 'Доступы сотрудников';
       if (staffPanelDescription) staffPanelDescription.textContent = 'Выберите сотрудника, чтобы проверить его роль и доступные разделы.';
-      if (portalUser.role !== 'owner') staffForm?.setAttribute('hidden', '');
+      staffForm?.setAttribute('hidden', ''); staffAddButton?.setAttribute('hidden', '');
       if (portalUser.role !== 'owner') staffAddButton?.setAttribute('hidden', '');
       if (portalUser.role === 'owner') staffForm?.querySelector('b')?.replaceChildren(document.createTextNode('Создать сотрудника и назначить доступ'));
       setDashboardPanelVisibility('#diagnostics', false);
@@ -2394,7 +2394,7 @@ function renderDashboard() {
       staffAddButton?.removeAttribute('hidden');
       staffForm?.querySelector('b')?.replaceChildren(document.createTextNode('Добавить сотрудника'));
       staffPanel?.querySelector('[data-permissions-intro]')?.remove();
-      setDashboardPanelVisibility('#diagnostics', true);
+      setDashboardPanelVisibility('#diagnostics', false);
     }
     setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], .floor-editor-panel, #audit, #company', false);
   } else if (dashboardFocus === 'shift-control') {
