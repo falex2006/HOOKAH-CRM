@@ -3265,8 +3265,10 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px;border-radius:11px}
   .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>div:first-child{min-width:0;overflow-wrap:anywhere;word-break:break-word}
   .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row{justify-content:flex-start;width:100%;gap:7px}
-  .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row .button{min-height:36px;padding-inline:10px;font-size:12px}
-  .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row .button{display:inline-flex;align-items:center;justify-content:center;min-width:88px}
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row{justify-content:center;align-items:center}
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row .button,
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row .badge{height:36px;min-height:36px;min-width:88px;padding:0 10px;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;font-size:12px;line-height:1;white-space:nowrap}
+  .velora-theme .inventory-departments-panel>.catalog-tree-section .category-row>.toolbar-row .danger-outline{border:1px solid rgba(255,113,128,.5);background:rgba(100,34,45,.16);color:#ff8c99}
   /* Inline department editors live inside narrow hierarchy columns. Keep the
      editor contained in its own column so its fields never spill underneath
      the neighbouring subdepartment/category column. */
