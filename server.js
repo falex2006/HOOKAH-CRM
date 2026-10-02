@@ -1316,9 +1316,9 @@ async function api(req, res) {
     if (isOperationalEmployee(req)) {
       if (repositories?.pool) {
         try {
-          const { rows } = await repositories.pool.query('SELECT id,opened_at AS "openedAt",opening_cash AS "openingCash" FROM shifts WHERE venue_id=$1 AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1', [venueDbId]);
+          const { rows } = await repositories.pool.query('SELECT s.id,s.opened_at AS "openedAt",s.opening_cash AS "openingCash",COALESCE(u.full_name,u.login,\'Не указан\') AS "openedByName" FROM shifts s LEFT JOIN users u ON u.id=s.opened_by WHERE s.venue_id=$1 AND s.closed_at IS NULL ORDER BY s.opened_at DESC LIMIT 1', [venueDbId]);
           const row = rows[0];
-          const current = row ? { id: row.id, openedAt: row.openedAt, closedAt: null, openingCash: Number(row.openingCash || 0) } : null;
+          const current = row ? { id: row.id, openedAt: row.openedAt, closedAt: null, openingCash: Number(row.openingCash || 0), openedByName: row.openedByName } : null;
           return json(res, 200, { items: current ? [current] : [], current });
         } catch (error) { return json(res, 503, { error: 'database_unavailable', detail: error.message }); }
       }
@@ -1326,7 +1326,7 @@ async function api(req, res) {
       const current = shift ? { id: shift.id, openedAt: shift.openedAt, closedAt: null, openingCash: Number(shift.openingCash || 0) } : null;
       return json(res, 200, { items: current ? [current] : [], current });
     }
-    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT s.id,s.opened_at AS "openedAt",s.closed_at AS "closedAt",s.opening_cash AS "openingCash",s.closing_cash AS "closingCash",s.expected_cash AS "expectedCash",s.cash_variance AS "cashVariance",s.opened_at + (COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.shift_id=s.id AND p.method='cash' AND p.status IN ('paid','partially_paid')),0) * INTERVAL '0 second') AS "reconciliationAt" FROM shifts s WHERE s.venue_id=$1 ORDER BY s.opened_at DESC LIMIT 20`, [venueDbId]); const visible = hasPermission(req, 'finance_read') ? rows : rows.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash })); return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null }); } catch (_) {} }
+    if (repositories?.pool) { try { const { rows } = await repositories.pool.query(`SELECT s.id,s.opened_at AS "openedAt",s.closed_at AS "closedAt",s.opening_cash AS "openingCash",s.closing_cash AS "closingCash",s.expected_cash AS "expectedCash",s.cash_variance AS "cashVariance",COALESCE(u.full_name,u.login,'Не указан') AS "openedByName",s.opened_at + (COALESCE((SELECT SUM(p.amount) FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.venue_id=s.venue_id AND p.shift_id=s.id AND p.method='cash' AND p.status IN ('paid','partially_paid')),0) * INTERVAL '0 second') AS "reconciliationAt" FROM shifts s LEFT JOIN users u ON u.id=s.opened_by WHERE s.venue_id=$1 ORDER BY s.opened_at DESC LIMIT 20`, [venueDbId]); const visible = hasPermission(req, 'finance_read') ? rows : rows.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash })); return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null }); } catch (_) {} }
     const visible = hasPermission(req, 'finance_read') ? shifts.slice().reverse() : shifts.filter((entry) => !entry.closedAt).slice(0, 1).map((entry) => ({ id: entry.id, openedAt: entry.openedAt, closedAt: null, openingCash: entry.openingCash }));
     return json(res, 200, { items: visible, current: visible.find((entry) => !entry.closedAt) || null });
   }
@@ -3648,7 +3648,7 @@ if (staffProfile && req.method === 'PATCH') {
     if (employeeFinanceView && repositories?.pool) {
       try {
         const actorId = /^[0-9a-f-]{36}$/i.test(req.user?.id || '') ? req.user.id : null;
-        const { rows } = await repositories.pool.query(`SELECT COALESCE(SUM(p.amount),0) AS revenue, COUNT(DISTINCT o.id)::int AS checks_count FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')`, [venueDbId, actorId, date, timezone]);
+        const { rows } = await repositories.pool.query(`SELECT COALESCE((SELECT SUM(p.amount) FROM orders o JOIN payments p ON p.order_id=o.id WHERE o.venue_id=$1 AND o.opened_by=$2 AND p.created_at >= ($3::date::timestamp AT TIME ZONE $4) AND p.created_at < (($3::date + 1)::timestamp AT TIME ZONE $4) AND p.status IN ('paid','partially_paid')),0) AS revenue, (SELECT COUNT(*)::int FROM orders o WHERE o.venue_id=$1 AND o.opened_by=$2 AND o.status='closed' AND o.closed_at >= ($3::date::timestamp AT TIME ZONE $4) AND o.closed_at < (($3::date + 1)::timestamp AT TIME ZONE $4)) AS checks_count`, [venueDbId, actorId, date, timezone]);
         const report = { type: 'x', date, generatedAt: new Date().toISOString(), reportNumber, checksCount: Number(rows[0]?.checks_count || 0), revenue: Number(rows[0]?.revenue || 0), employeeView: true };
         recordAudit(req, 'finance.report_generated', 'finance_report', reportNumber, null, { type: 'x', date, checksCount: report.checksCount, revenue: report.revenue });
         return json(res, 200, report);
