@@ -15,7 +15,7 @@ function getVenueLocalHour(date, timezone) { if (!timezone) return null; try { c
 let venueTimezone = String(portalUser.timezone || '');
 let dashboardGreetingTimer = null;
 function updateDashboardGreeting() { /* Dashboard keeps a stable title; no recurring greeting. */ }
-const adminSectionTitles = { '#staff': 'Сотрудники', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика' };
+const adminSectionTitles = { '#staff': 'Сотрудники', '#tasks': 'Задачи', '#loyalty': 'Лояльность', '#shift-control': 'Контроль смены', '#settings': 'Настройки', '#company': 'Настройки', '#settings-dashboard-modules': 'Настройки', '#venue-layout-settings': 'Залы и рабочая зона', '#lock-security': 'Безопасность', '#audit': 'Журнал действий', '#diagnostics': 'Диагностика', '#notifications': 'Уведомления', '#help': 'Помощь' };
 function updateAdminSectionTitle() { const title = document.querySelector('[data-admin-section-title]'); if (title) title.textContent = adminSectionTitles[window.location.hash] || 'Главная'; if (document.body?.dataset.page === 'dashboard') document.title = `Hookah POS — ${adminSectionTitles[window.location.hash] || 'Главная'}`; }
 window.addEventListener('hashchange', updateAdminSectionTitle);
 updateAdminSectionTitle();
@@ -292,6 +292,8 @@ const normalizeManagementSidebar = () => {
       { href: '/integrations', permission: 'integrations', label: 'Telegram', iconName: 'send' },
       { href: '/network', permission: 'settings', label: 'Моя сеть', iconName: 'building' },
       { href: '/admin#diagnostics', permission: 'diagnostics', label: 'Диагностика', iconName: 'alert-triangle' },
+      { href: '/admin#notifications', permission: 'dashboard', label: 'Уведомления', iconName: 'bell' },
+      { href: '/admin#help', permission: 'dashboard', label: 'Помощь', iconName: 'help-circle' },
     ];
     // Rebuild this small administrative list from one canonical definition.
     // This prevents duplicate or stale links left by older page templates and
@@ -311,7 +313,7 @@ const normalizeManagementSidebar = () => {
         details.append(nav); rememberGroupState(details, key); return details;
       };
       groupRoot.append(makeGroup('Команда', ['/admin#staff', '/admin#tasks'], 'team'));
-      groupRoot.append(makeGroup('Система', ['/admin#loyalty', '/admin#company', '/admin#settings-dashboard-modules', '/admin#lock-security', '/admin#audit', '/integrations', '/network', '/admin#diagnostics'], 'system'));
+      groupRoot.append(makeGroup('Система', ['/admin#loyalty', '/admin#company', '/admin#settings-dashboard-modules', '/admin#lock-security', '/admin#audit', '/integrations', '/network', '/admin#diagnostics', '/admin#notifications', '/admin#help'], 'system'));
       adminLabel.replaceWith(groupRoot); adminNav.remove();
     }
     // After the first grouping pass, subsequent hash navigation must not
@@ -1744,6 +1746,11 @@ function renderDashboard() {
       ${portalPermissions.has('inventory_read') ? '<article class="kpi" data-kpi-route="/inventory" aria-label="Открыть список позиций к пополнению"><span>Нужно пополнить</span><strong data-metric="lowStock">0</strong><small>Позиции ниже минимума</small></article>' : ''}
     </div>
     <div class="content-grid"><section class="panel" id="shift-control" data-dashboard-module="shift"><div class="panel-head"><h2>Контроль смены</h2><span class="muted" id="shift-date">—</span></div><div class="check-list"><div><span class="check ok" id="shift-icon">${icon('circle-check')}</span><div><b id="shift-title">Проверка смены…</b><small id="shift-detail">Загрузка состояния кассы</small></div><div class="shift-actions" id="shift-actions"></div></div></div></section><section class="panel" data-dashboard-module="quick"><div class="panel-head"><h2>Быстрые действия</h2><span class="muted">${portalUser.role === 'owner' ? 'Действия от вашего имени' : 'Доступные разделы'}</span></div><div class="quick-actions">${quickActionsMarkup}</div></section></div><section class="panel staff-panel" id="staff" data-staff-section data-dashboard-module="staff"><div class="panel-head"><div><h2>Сотрудники</h2><span class="muted">Роли, контакты и кадровые данные ведут владелец и администратор</span></div><span class="badge success" data-metric="staffActive">Загрузка…</span></div><div class="staff-layout"><div id="staff-list" class="staff-list"><div class="empty">Загрузка сотрудников…</div></div><form id="staff-form" class="staff-form"><b>Добавить сотрудника</b><label class="staff-form-field">ФИО<input id="staff-name" required placeholder="Фамилия Имя Отчество" autocomplete="name"></label><label class="staff-form-field">Дата рождения<input id="staff-birth-date" name="birth_date" type="date" required></label><label class="staff-form-field staff-photo-field">Фото сотрудника<input id="staff-photo" name="photo" type="file" accept="image/png,image/jpeg,image/webp"><small class="muted">Видно владельцу, администратору и управляющему. До 700 КБ.</small></label><label class="staff-form-field">Логин<input id="staff-login" placeholder="Логин" autocomplete="username"></label><label class="staff-form-field">Временный пароль<input id="staff-password" type="password" minlength="4" maxlength="11" placeholder="4–11 символов" autocomplete="new-password"></label><div class="staff-form-contact-row"><label class="staff-form-field">Основной телефон<input id="staff-phone-primary" name="phone_primary" type="tel" placeholder="+7 (___) ___-__-__" autocomplete="tel"></label><label class="staff-form-field">Дополнительный телефон<input id="staff-phone-secondary" name="phone_secondary" type="tel" placeholder="Необязательно" autocomplete="tel"></label></div><label class="staff-form-field">Telegram<input id="staff-telegram" name="telegram" type="text" placeholder="@username или ссылка"></label><label class="staff-form-field">Дата начала работы<input id="staff-employment-started" name="employment_started_at" type="date"></label><label class="staff-form-field">Рабочие заметки<textarea id="staff-work-notes" name="work_notes" rows="2" maxlength="4000" placeholder="График, допуски, важные заметки"></textarea></label>${portalUser.role === 'owner' ? '<details class="staff-sensitive-fields"><summary>Паспортные данные</summary><label class="staff-form-field">Серия и номер<input name="passport_number" maxlength="32"></label><label class="staff-form-field">Дата выдачи<input name="passport_issued_at" type="date"></label><label class="staff-form-field">Кем выдан<input name="passport_issuer" maxlength="180"></label></details>' : ''}${portalUser.role === 'owner' ? permissionScopeMarkup() : ''}<label class="staff-form-field">Роль<select id="staff-role" required>${portalUser.role === 'owner' ? '<option value="admin">Администратор</option><option value="manager">Управляющий</option>' : ''}<option value="senior_bartender">Старший бармен</option><option value="senior_hookah_master">Старший кальянщик</option><option value="bartender">Бармен</option><option value="hookah_master">Кальянщик</option>${portalUser.role === 'owner' ? '<option value="developer">Главный разработчик</option>' : ''}<optgroup label="Без доступа к CRM"><option value="cleaner">Уборщица / уборщик</option><option value="security">Охрана</option><option value="technician">Техник</option><option value="other_staff">Другая должность</option></optgroup></select></label><small id="staff-role-hint" class="muted">Для должностей без доступа создаётся только кадровая карточка.</small><button type="submit" class="button primary">Создать сотрудника</button><small id="staff-message" class="form-message"></small></form></div></section>`;
+  const helpPanel = document.createElement('section');
+  helpPanel.className = 'panel help-panel'; helpPanel.id = 'help'; helpPanel.hidden = true;
+  helpPanel.innerHTML = `<div class="panel-head"><div><p class="eyebrow">ЦЕНТР ПОМОЩИ</p><h2>Инструкции и поддержка</h2><span class="muted">Короткие подсказки по ежедневной работе в Hookah POS.</span></div></div><div class="help-grid"><article><h3>Быстрый старт</h3><p>Откройте смену, выберите стол в рабочем зале и добавьте позиции в заказ. После оплаты заказ попадёт в журнал.</p><a class="button small" href="/">Открыть рабочий зал</a></article><article><h3>Сотрудники и права</h3><p>В разделе «Роли и права» владелец назначает доступы. После входа сотрудник увидит только разрешённые разделы.</p><a class="button small" href="/admin#staff">Открыть сотрудников</a></article><article><h3>Сообщить о проблеме</h3><form id="help-feedback-form" class="stack-form"><label>Что произошло<textarea id="help-feedback" rows="3" maxlength="1000" required placeholder="Опишите проблему или вопрос"></textarea></label><button class="button primary small" type="submit">Сохранить обращение</button><small id="help-feedback-message" class="form-message" role="status"></small></form></article></div>`;
+  target.append(helpPanel);
+  helpPanel.querySelector('#help-feedback-form')?.addEventListener('submit', (event) => { event.preventDefault(); const value = helpPanel.querySelector('#help-feedback').value.trim(); if (!value) return; try { const key = 'crm_help_feedback'; const items = JSON.parse(localStorage.getItem(key) || '[]'); items.push({ text: value, createdAt: new Date().toISOString(), user: portalUser.name || portalUser.login || portalUser.role }); localStorage.setItem(key, JSON.stringify(items.slice(-20))); } catch (_) {} helpPanel.querySelector('#help-feedback-message').textContent = 'Обращение сохранено на этом устройстве. Передайте его администратору поддержки.'; event.target.reset(); });
   if (!portalPermissions.has('finance_read')) {
     target.querySelector('[data-dashboard-revenue]')?.remove();
     target.querySelector('#dashboard-insights')?.remove();
@@ -2271,9 +2278,10 @@ function renderDashboard() {
   };
   const settingsHash = ['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit'].includes(window.location.hash); const dashboardFocus = settingsHash ? 'settings' : window.location.hash.slice(1);
   const setDashboardPanelVisibility = (selector, visible) => target.querySelectorAll(selector).forEach((node) => { node.hidden = !visible; });
+  setDashboardPanelVisibility('#help', dashboardFocus === 'help');
   setDashboardPanelVisibility('.dashboard-page-actions', !dashboardFocus);
   if (!dashboardFocus) {
-    setDashboardPanelVisibility('#staff, .floor-editor-panel, #audit, #company', false);
+    setDashboardPanelVisibility('#staff, .floor-editor-panel, #audit, #company, #help', false);
   } else if (dashboardFocus === 'staff') {
     const staffTitle = target.querySelector('.page-title h1'); const staffEyebrow = target.querySelector('.page-title .eyebrow'); const staffSubtitle = target.querySelector('.page-title .muted');
     if (staffTitle) staffTitle.textContent = 'Сотрудники'; if (staffEyebrow) staffEyebrow.textContent = 'КОМАНДА'; if (staffSubtitle) staffSubtitle.textContent = 'Роли, доступы и рабочие панели сотрудников заведения.';
@@ -2283,10 +2291,16 @@ function renderDashboard() {
     const shiftTitle = target.querySelector('.page-title h1'); const shiftEyebrow = target.querySelector('.page-title .eyebrow'); const shiftSubtitle = target.querySelector('.page-title .muted');
     if (shiftTitle) shiftTitle.textContent = 'Контроль смены'; if (shiftEyebrow) shiftEyebrow.textContent = 'ОПЕРАЦИИ СМЕНЫ'; if (shiftSubtitle) shiftSubtitle.textContent = 'Откройте смену, проверьте кассу или завершите работу.';
     setDashboardPanelVisibility('#shift-control', true);
-    setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #audit, #company', false);
+    setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #audit, #company, #help', false);
   } else if (dashboardFocus === 'company') {
     setDashboardPanelVisibility('.floor-editor-panel, #company', true);
-    setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, #audit', false);
+    setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, #audit, #help', false);
+  } else if (dashboardFocus === 'help') {
+    setDashboardPanelVisibility('#help', true);
+    setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #audit, #company', false);
+  } else if (dashboardFocus === 'notifications') {
+    setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], #staff, .floor-editor-panel, #audit, #company, #help', false);
+    window.setTimeout(() => document.querySelector('#notification-bell')?.click(), 0);
   } else if (dashboardFocus === 'settings') {
     const settingsPageTitle = target.querySelector('.page-title');
     if (settingsPageTitle) {
