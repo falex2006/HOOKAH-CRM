@@ -2876,3 +2876,5 @@ body.portal.light-theme .portal-header #lock-screen-button{color:#526672!importa
   html.desktop-preview .sidebar-backdrop{display:none!important;}
   html.desktop-preview .portal-main{min-width:0!important;}
 }
+
+.staff-permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}.staff-permission-option{display:flex;align-items:center;gap:9px;padding:10px 11px;border:1px solid #363b44;border-radius:10px;color:#c9ced6;cursor:pointer;transition:border-color .18s ease,background .18s ease,transform .18s ease}.staff-permission-option:hover{border-color:#ff7180;background:#252932;transform:translateY(-1px)}.staff-permission-option input{accent-color:#ff7180}.staff-permission-option:has(input:checked){border-color:#ff7180;background:#2b2329;color:#fff}.portal.light-theme .staff-permission-option{border-color:#c9d1dc;color:#425164}.portal.light-theme .staff-permission-option:hover{background:#fff1f2}.portal.light-theme .staff-permission-option:has(input:checked){background:#fff1f2}@media(max-width:640px){.staff-permission-grid{grid-template-columns:1fr}}
