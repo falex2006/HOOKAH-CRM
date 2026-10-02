@@ -12,7 +12,7 @@ const { Client, Pool } = require('pg');
 const setup = new Client({ connectionString: databaseUrl });
 const pool = new Pool({ connectionString: databaseUrl, max: 4 });
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
-const validShiftCashStart = server.indexOf('const validShiftCash =');
+const validShiftCashStart = server.indexOf('const validCashAmount =');
 const validShiftCashEnd = server.indexOf('\n};', validShiftCashStart) + 3;
 const validShiftCashSource = server.slice(validShiftCashStart, validShiftCashEnd);
 const shiftStart = server.indexOf("if (pathname === '/api/shifts' && req.method === 'GET')");

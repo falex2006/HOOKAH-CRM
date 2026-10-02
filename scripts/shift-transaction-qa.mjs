@@ -6,10 +6,7 @@ const start = source.indexOf("if (pathname === '/api/shifts' && req.method === '
 const end = source.indexOf("if (pathname === '/api/venue' && req.method === 'GET')", start);
 assert.ok(start >= 0 && end > start, 'shift open/close API block is available');
 const block = source.slice(start, end);
-const validShiftCashStart = source.indexOf('const validShiftCash =');
-const validShiftCashEnd = source.indexOf('\n};', validShiftCashStart) + 3;
-const validShiftCashSource = source.slice(validShiftCashStart, validShiftCashEnd);
-assert.match(validShiftCashSource, /const validShiftCash/);
+const validShiftCashSource = source.slice(source.indexOf('const validCashAmount ='), source.indexOf('\nconst orderBalanceConflict', source.indexOf('const validCashAmount =')));
 const shiftId = '33333333-3333-4333-8333-333333333333';
 
 const makePool = ({ active = false, unresolvedLegacyCashCount = 0, unresolvedLegacyCashAmount = 0, attributedCashAmount = 300 } = {}) => {

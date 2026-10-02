@@ -22,3 +22,5 @@
 - Playwright QA стабилизирован локально: POS browser-скрипты принимают PLAYWRIGHT_EXECUTABLE_PATH; проверены sidebar preference QA и responsive emulator (19 размеров, 3 маршрута) на установленном Chromium 1243. Коммит d2de5cba.
 - Повторный полный PostgreSQL-регрессионный прогон после Playwright-изменения: 
 ode scripts/local-full-pg-regression.cjs — PASS; локальная disposable QA-среда, tenant/role/API цепочки без регрессий.
+- Финальный локальный аудит POS: `node scripts/local-full-qa.mjs` — **173/173 PASS**. Синхронизированы scoped-role контракты с актуальными POS-маршрутами; каталог разрешён для `inventory_read` без расширения записи; API сотрудников возвращает календарные даты, email и `pinConfigured`, защищает системные роли, архивные записи и резервированные логины, отзывает сессии при переименовании и пишет аудит логина.
+- Браузерная проверка: sidebar preference QA — PASS; responsive emulator — **19 размеров × 3 маршрута** (`/admin`, `/orders`, `/`) с touch drawer и отсутствием переполнения — PASS.
