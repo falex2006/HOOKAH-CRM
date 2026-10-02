@@ -369,8 +369,10 @@ const normalizeManagementSidebar = () => {
   const preferredGroup = normalizedGroups.find((group) => defaultGroupOpen(group.dataset.navGroup)) || normalizedGroups.find((group) => savedGroupState(group.dataset.navGroup) === true);
   normalizedGroups.forEach((group) => { group.open = group === preferredGroup; });
   applyMenuSearch();
-  sidebar.querySelectorAll('details.sidebar-nav-group[data-nav-group]').forEach((group) => {
-    group.open = savedGroupState(group.dataset.navGroup) ?? defaultGroupOpen(group.dataset.navGroup);
+  // Keep the single-disclosure invariant after reload. The preferred group
+  // already accounts for the active route and the user's saved preference;
+  // reopening each saved group here would expand several groups at once.
+  normalizedGroups.forEach((group) => {
     group.querySelector(':scope > summary')?.setAttribute('aria-expanded', String(group.open));
   });
   const settingsHashes = new Set(['#settings', '#company', '#settings-dashboard-modules', '#venue-layout-settings', '#lock-security', '#audit']);
