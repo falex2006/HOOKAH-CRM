@@ -1473,6 +1473,9 @@ body{font-feature-settings:"cv11","ss01";text-rendering:optimizeLegibility}
 
 /* Finance visualisation switcher: one data set, three reading modes. */
 .velora-theme .finance-chart-controls{display:flex;align-items:flex-end;flex-wrap:wrap}
+.velora-theme .finance-chart-controls>label select,.velora-theme .finance-chart-controls .custom-select-trigger{box-sizing:border-box;height:44px;min-height:44px;display:inline-flex;align-items:center}
+.velora-theme .finance-chart-view{height:44px;box-sizing:border-box;align-items:center}
+.velora-theme .finance-chart-view button{height:34px;min-height:34px;display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;padding:0 12px}
 .velora-theme .finance-chart-view{display:inline-flex;align-items:center;gap:4px;padding:4px;border:1px solid #303640;border-radius:10px;background:#111317}
 .velora-theme .finance-chart-view button{border:0;border-radius:7px;padding:8px 10px;background:transparent;color:#8d96a1;font:inherit;font-size:11px;cursor:pointer;white-space:nowrap}
 .velora-theme .finance-chart-view button:hover{color:#fff}
