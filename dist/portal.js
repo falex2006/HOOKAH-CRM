@@ -607,7 +607,7 @@ const renderNotifications = () => {
   }
   notificationContent.append(list);
 };
-const loadNotifications = async (showLoading = false) => {
+const loadNotifications = async (showLoading = false) => { if (notificationObserverDisposed) return;
   if (notificationBusy) { notificationRefreshQueued = true; return; } notificationBusy = true; if (showLoading) renderNotificationState('loading');
   try { const data = await api(`/api/notifications?limit=20&filter=${notificationFilter}`); notificationData = { items: Array.isArray(data.items) ? data.items : [], unreadCount: Number(data.unreadCount || 0) }; updateNotificationCount(notificationData.unreadCount); if (!notificationPanel.hidden) renderNotifications(); }
   catch (_) {
@@ -620,6 +620,9 @@ const loadNotifications = async (showLoading = false) => {
   finally { notificationBusy = false; if (notificationRefreshQueued) { notificationRefreshQueued = false; loadNotifications(false); } }
 };
 const notificationChannel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('territory-crm-notifications') : null;
+let notificationObserverDisposed = false;
+let notificationRefreshTimer = null;
+const disposeNotificationObserver = () => { notificationObserverDisposed = true; if (notificationRefreshTimer) { clearInterval(notificationRefreshTimer); notificationRefreshTimer = null; } notificationChannel?.close?.(); };
 const setNotificationRead = async (id) => {
   const response = await api(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'PUT' });
   notificationData.items = notificationData.items.map((item) => item.id === id ? { ...item, readAt: response.readAt || new Date().toISOString() } : item);
@@ -1294,7 +1297,7 @@ const demoJson = async (url, options = {}) => {
   const discountDecision = path.match(/^\/api\/discount-requests\/([^/]+)\/(approve|reject)$/); if (discountDecision && method === 'POST') { if (!portalPermissions.has('finance')) throw new Error('HTTP 403'); let localItems = []; try { localItems = JSON.parse(localStorage.getItem('territory_crm_discount_requests') || '[]'); } catch (_) {} const decision = discountDecision[2] === 'approve' ? 'approved' : 'rejected'; const localRequest = localItems.find((x) => x.id === discountDecision[1]); if (localRequest) { const orderError = demoDiscountOrderError(localRequest); if (orderError) throw orderError; if (localRequest.status !== 'requested') throw new Error('discount_already_decided'); if (decision === 'approved') { const proposed = localItems.map((entry) => entry === localRequest ? { ...entry, status: decision } : entry); const balanceError = demoPaidOrderBalanceError(localRequest, [...proposed, ...demoState.discounts]); if (balanceError) throw balanceError; } localRequest.status = decision; localRequest.decidedAt = new Date().toISOString(); localStorage.setItem('territory_crm_discount_requests', JSON.stringify(localItems)); demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: `discount.${decision}`, entityType: 'discount', entityId: localRequest.id, actor: 'администратор', createdAt: new Date().toISOString() }); demoSave(); return localRequest; } const request = demoState.discounts.find((x) => x.id === discountDecision[1]); if (!request) throw new Error('HTTP 404'); const orderError = demoDiscountOrderError(request); if (orderError) throw orderError; if (request.status !== 'requested') throw new Error('discount_already_decided'); if (decision === 'approved') { const proposed = demoState.discounts.map((entry) => entry === request ? { ...entry, status: decision } : entry); const balanceError = demoPaidOrderBalanceError(request, [...localItems, ...proposed]); if (balanceError) throw balanceError; } request.status = decision; request.decidedAt = new Date().toISOString(); demoState.audit.push({ id: `demo-audit-${Date.now()}`, action: `discount.${decision}`, entityType: 'discount', entityId: request.id, actor: 'администратор', createdAt: new Date().toISOString() }); demoSave(); return request; }
   return {};
 };
-const api = (url, options = {}) => { if (staticDemo()) return demoJson(url, options); return fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then(async (response) => { if (response.status === 401) { try { localStorage.removeItem('crm_session_token'); localStorage.removeItem('crm_session_user'); } catch {} window.location.href = '/login'; const error = new Error('authentication_required'); error.status = 401; error.payload = { error: 'authentication_required' }; throw error; } const payload = await response.json().catch(() => ({})); if (!response.ok) { const error = new Error(payload.error || `HTTP ${response.status}`); error.payload = payload; throw error; } return payload; }); };
+const api = (url, options = {}) => { if (staticDemo()) return demoJson(url, options); return fetch(url, { ...options, headers: { ...authHeaders(), ...(options.headers || {}) } }).then(async (response) => { if (response.status === 401) { disposeNotificationObserver(); try { localStorage.removeItem('crm_session_token'); localStorage.removeItem('crm_session_user'); } catch {} window.location.href = '/login'; const error = new Error('authentication_required'); error.status = 401; error.payload = { error: 'authentication_required' }; throw error; } const payload = await response.json().catch(() => ({})); if (!response.ok) { const error = new Error(payload.error || `HTTP ${response.status}`); error.payload = payload; throw error; } return payload; }); };
 window.__crmApi = api;
 const refreshSidebarCounters = () => {
   const setBadge = (href, value, label, { markProblem = false } = {}) => document.querySelectorAll(`.portal-sidebar a[href="${href}"]`).forEach((link) => {
@@ -1317,7 +1320,7 @@ const refreshSidebarCounters = () => {
   });
 };
 refreshSidebarCounters();
-refreshLeaderNotifications(); setInterval(refreshLeaderNotifications, 20000);
+refreshLeaderNotifications(); notificationRefreshTimer = setInterval(refreshLeaderNotifications, 20000);
 
 document.addEventListener('submit', (event) => { const form = event.target; if (['client-form', 'reservation-form', 'movement-form', 'inventory-item-form', 'recipe-form', 'product-form', 'purchase-document-form', 'loyalty-form-visible', 'expense-form'].includes(form.id) || form.classList?.contains('payable-payment-form')) return; const button = form?.querySelector('button[type=submit],button:not([type])'); if (!button || button.disabled) return; button.disabled = true; button.dataset.submitLabel = button.textContent; button.textContent = 'Сохранение…'; window.setTimeout(() => { if (button.isConnected) { button.disabled = false; button.textContent = button.dataset.submitLabel || 'Сохранить'; } }, 6000); });
 
