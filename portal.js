@@ -2357,6 +2357,30 @@ function renderDashboard() {
     const staffTitle = target.querySelector('.page-title h1'); const staffEyebrow = target.querySelector('.page-title .eyebrow'); const staffSubtitle = target.querySelector('.page-title .muted');
     if (staffTitle) staffTitle.textContent = dashboardFocus === 'permissions' ? 'Роли и права доступа' : 'Сотрудники'; if (staffEyebrow) staffEyebrow.textContent = 'КОМАНДА'; if (staffSubtitle) staffSubtitle.textContent = dashboardFocus === 'permissions' ? 'Назначайте доступы и проверяйте, какие разделы увидит каждый сотрудник после входа.' : 'Роли, доступы и рабочие панели сотрудников заведения.';
     setDashboardPanelVisibility('#staff', true);
+    const staffPanel = target.querySelector('#staff');
+    const staffPanelTitle = staffPanel?.querySelector('.panel-head h2');
+    const staffPanelDescription = staffPanel?.querySelector('.panel-head .muted');
+    const staffForm = staffPanel?.querySelector('#staff-form');
+    const staffAddButton = staffPanel?.querySelector('.panel-head button');
+    if (dashboardFocus === 'permissions') {
+      if (staffPanelTitle) staffPanelTitle.textContent = 'Доступы сотрудников';
+      if (staffPanelDescription) staffPanelDescription.textContent = 'Выберите сотрудника, чтобы проверить его роль и доступные разделы.';
+      staffForm?.setAttribute('hidden', '');
+      staffAddButton?.setAttribute('hidden', '');
+      setDashboardPanelVisibility('#diagnostics', false);
+      if (staffPanel && !staffPanel.querySelector('[data-permissions-intro]')) {
+        const intro = document.createElement('div');
+        intro.dataset.permissionsIntro = 'true';
+        intro.className = 'panel permissions-intro';
+        intro.innerHTML = '<b>Как настроить доступ</b><span class="muted">Откройте карточку сотрудника и измените роль или доступы по направлениям. Владелец может назначать любые роли, администратор — управлять рабочими доступами без смены своей роли.</span>';
+        staffPanel.querySelector('.staff-layout')?.before(intro);
+      }
+    } else {
+      staffForm?.removeAttribute('hidden');
+      staffAddButton?.removeAttribute('hidden');
+      staffPanel?.querySelector('[data-permissions-intro]')?.remove();
+      setDashboardPanelVisibility('#diagnostics', true);
+    }
     setDashboardPanelVisibility('[data-dashboard-module="kpi"], #dashboard-insights, #shift-control, [data-dashboard-module="quick"], .floor-editor-panel, #audit, #company', false);
   } else if (dashboardFocus === 'shift-control') {
     const shiftTitle = target.querySelector('.page-title h1'); const shiftEyebrow = target.querySelector('.page-title .eyebrow'); const shiftSubtitle = target.querySelector('.page-title .muted');
