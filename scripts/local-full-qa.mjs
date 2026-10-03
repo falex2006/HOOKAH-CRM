@@ -13,6 +13,7 @@ const staticTests = [
   "auth-smoke-crop-contract.mjs",
   "auth-smoke-lifecycle-runtime-qa.mjs",
   "auth-smoke-runtime-qa.mjs",
+  "seed-menu-category-idempotency-contract.mjs",
   "auto-order-pending-qa.mjs",
   "brand-kit-contract.mjs",
   "client-form-race-qa.mjs",
