@@ -40,12 +40,16 @@ assert.deepEqual(Buffer.from(await range.arrayBuffer()), bytes.subarray(0, 16), 
 const suffix = await get('/assets/login-smoke-ambient.mp4', { Range: 'bytes=-16' });
 assert.equal(suffix.status, 206, 'MP4 suffix range must return partial content');
 assert.deepEqual(Buffer.from(await suffix.arrayBuffer()), bytes.subarray(-16), 'suffix range bytes must match source');
-for (const rangeHeader of ['bytes=0-15,20-30', 'bytes=15-0', 'bytes=-0', 'bytes=999999999999999999999-']) {
+for (const rangeHeader of ['bytes=0-15,20-30', 'bytes=15-0', 'bytes=-0']) {
   const result = await get('/assets/login-smoke-ambient.mp4', { Range: rangeHeader });
   assert.equal(result.status,416,`invalid range ${rangeHeader} rejected`);
   assert.equal(result.headers.get('content-range'),`bytes */${bytes.length}`);
   assert.equal((await result.arrayBuffer()).byteLength,0);
 }
+const oversizedSuffix = await get('/assets/login-smoke-ambient.mp4', { Range: 'bytes=-999999999999999999999' });
+assert.equal(oversizedSuffix.status, 206, 'oversized suffix range is satisfiable and clamps to the full resource');
+assert.equal(oversizedSuffix.headers.get('content-range'), `bytes 0-${bytes.length - 1}/${bytes.length}`);
+assert.deepEqual(Buffer.from(await oversizedSuffix.arrayBuffer()), bytes, 'oversized suffix range returns the full source bytes');
 for (const [header,start,end] of [['bytes=0-0',0,0],['bytes=16-',16,bytes.length-1],[`bytes=0-${bytes.length+10}`,0,bytes.length-1],[`bytes=-${bytes.length+10}`,0,bytes.length-1]]) {
   const result=await get('/assets/login-smoke-ambient.mp4',{Range:header});
   assert.equal(result.status,206);assert.equal(result.headers.get('content-range'),`bytes ${start}-${end}/${bytes.length}`);
