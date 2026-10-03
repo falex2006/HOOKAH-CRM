@@ -1,5 +1,12 @@
 # Рабочий журнал команды
 
+## 2026-10-03 — Оранжевые тумблеры настроек
+
+- По запросу владельца заменены нативные квадраты визуально на компактные оранжевые switch-контролы в настройках темы, блоков главной, меню и финансовых показателей. Сохранена семантика checkbox и существующая отправка настроек; проверены focus-visible, disabled, светлая тема и reduced motion.
+- Изменения ограничены стилями и cache-busting CSS: `style.css`, `dist/style.css`, revision `scripts/sync-published-assets.mjs` и 41 опубликованный HTML alias/root для перехода на CSS rev372.
+- Code-health: блокирующих находок нет, source/dist toggle CSS совпадает. `git diff --check`, `node --check scripts/sync-published-assets.mjs` PASS. Chromium 375px: appearance none; checked показывает оранжевый градиент; click меняет состояние, unchecked имеет тёмный трек; ширина документа остаётся 375px, browser errors 0. Авторизованный сквозной тест настроек не подтвердился локальным runtime и не считается пройденным.
+- Production перед выкладкой проверен read-only: VPS `/root/hookah-pos-release-7d573fe1`, commit `7d573fe1`, CRM и PostgreSQL healthy, `/api/health` status=ok/database=postgres. База не менялась.
+
 ## 2026-10-01 — пользовательский Hookah POS brand kit
 
 - Изучен архив/README/USAGE/manifest/SVG и auth preview.21runtimeassets импортированы без выполнения вложенных генераторов. Пользователь отдельно выбрал animated sidebar: staff/admin/platform используют fullanimated, compact symbol остаётся static, reduced-motion выбирает staticfull. Авторизация fullanimated240×76.8; lock static180×57.6 отдельно от аватара. Login больше не подменяет продуктовый бренд логотипом заведения.
