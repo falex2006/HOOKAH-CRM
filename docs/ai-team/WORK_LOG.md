@@ -6,6 +6,7 @@
 - Изменения ограничены стилями и cache-busting CSS: `style.css`, `dist/style.css`, revision `scripts/sync-published-assets.mjs` и 41 опубликованный HTML alias/root для перехода на CSS rev372.
 - Code-health: блокирующих находок нет, source/dist toggle CSS совпадает. `git diff --check`, `node --check scripts/sync-published-assets.mjs` PASS. Chromium 375px: appearance none; checked показывает оранжевый градиент; click меняет состояние, unchecked имеет тёмный трек; ширина документа остаётся 375px, browser errors 0. Авторизованный сквозной тест настроек не подтвердился локальным runtime и не считается пройденным.
 - Production перед выкладкой проверен read-only: VPS `/root/hookah-pos-release-7d573fe1`, commit `7d573fe1`, CRM и PostgreSQL healthy, `/api/health` status=ok/database=postgres. База не менялась.
+- Подготовлен чистый серверный checkout commit `0ed77f8f3255e340fe7ca5571125374adf2a923d`, GitHub branch `codex/settings-toggles-20261003`; рабочее `.env` скопировано без вывода/изменения значений. Резервная копия `/var/backups/territory-crm/territory-crm/crm-pre-0ed77f8.sql.gz` создана и проверена восстановлением во временную БД. Официальный deploy завершился preflight отказом до изменения сервисов, так как `COOKIE_SECURE=false` требует одноразового `ALLOW_HTTP_DEPLOY_ONCE=true`; владелец ещё не подтвердил это исключение. После отказа CRM/PostgreSQL/nginx остались healthy на исходном выпуске `7d573fe1`.
 
 ## 2026-10-01 — пользовательский Hookah POS brand kit
 
